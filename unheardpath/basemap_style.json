@@ -1,0 +1,181 @@
+{
+  "version": 8,
+  "name": "unheard-path",
+  "metadata": {
+    "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "maputnik:renderer": "mlgljs",
+    "description": "iOS-compatible version without terrain support"
+  },
+  "light": {},
+  "projection": {
+    "type": ["interpolate", ["linear"], ["zoom"], 0, "globe", 1.5, "mercator"]
+  },
+  "sources": {
+    "maptiler_planet": {
+      "url": "https://api.maptiler.com/tiles/v3/tiles.json?key=pfsd3GbSrCb8VrSpyG0G",
+      "type": "vector"
+    },
+    "ocean": {
+      "url": "https://api.maptiler.com/tiles/ocean/tiles.json?key=pfsd3GbSrCb8VrSpyG0G",
+      "type": "vector"
+    }
+  },
+  "sprite": "https://api.maptiler.com/maps/ocean/sprite",
+  "glyphs": "https://api.maptiler.com/fonts/{fontstack}/{range}.pbf?key=pfsd3GbSrCb8VrSpyG0G",
+  "layers": [
+    {
+      "id": "Background",
+      "type": "background",
+      "layout": { "visibility": "visible" },
+      "paint": {
+        "background-color": "rgba(180, 199, 222, 1)",
+        "background-opacity": 0.95
+      }
+    },
+    {
+      "id": "Water",
+      "type": "fill",
+      "source": "maptiler_planet",
+      "source-layer": "water",
+      "filter": ["all", ["!=", "intermittent", 1], ["!=", "brunnel", "tunnel"]],
+      "layout": { "visibility": "visible" },
+      "paint": { "fill-color": "hsla(212, 39%, 20%,0.9)" }
+    },
+    {
+      "id": "Bathemetry",
+      "type": "fill",
+      "source": "ocean",
+      "source-layer": "contour",
+      "layout": { "visibility": "visible" },
+      "paint": {
+        "fill-antialias": true,
+        "fill-color": [
+          "interpolate",
+          ["linear"],
+          ["get", "depth"],
+          -12000,
+          "hsla(212, 45%, 9%, 1)",
+          -5,
+          "hsla(212, 35%, 20%, 0.7)"
+        ]
+      }
+    },
+    {
+      "id": "River",
+      "type": "line",
+      "source": "maptiler_planet",
+      "source-layer": "waterway",
+      "layout": { "visibility": "visible" },
+      "paint": {
+        "line-color": "hsl(212, 50%, 30%)",
+        "line-opacity": 0.6,
+        "line-width": {
+          "stops": [
+            [0, 2],
+            [8, 2],
+            [15, 2]
+          ]
+        },
+        "line-blur": 0.9
+      }
+    },
+    {
+      "id": "Water labels",
+      "type": "symbol",
+      "source": "maptiler_planet",
+      "source-layer": "water_name",
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:en"], ["get", "name"]],
+        "text-line-height": 1.1,
+        "text-font": ["Noto Serif Italic"],
+        "text-letter-spacing": [
+          "match",
+          ["get", "class"],
+          "ocean",
+          0.16,
+          ["bay", "sea"],
+          0.12,
+          0.01
+        ],
+        "text-max-width": [
+          "match",
+          ["get", "class"],
+          "ocean",
+          4,
+          "sea",
+          5,
+          ["bay", "water"],
+          7,
+          10
+        ],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          0,
+          ["*", ["-", 16, ["sqrt", ["get", "sizerank"]]], 1],
+          22,
+          ["*", ["-", 22, ["sqrt", ["get", "sizerank"]]], 1]
+        ]
+      },
+      "paint": {
+        "text-color": "#a4c2db",
+        "text-halo-color": "#2c4254",
+        "text-halo-width": 0.5,
+        "text-halo-blur": 0.5,
+        "text-opacity": [
+          "interpolate",
+          ["linear", 2],
+          ["zoom"],
+          3.9,
+          ["match", ["get", "class"], "ocean", 1, 0],
+          4,
+          ["match", ["get", "class"], "ocean", 1, 1]
+        ]
+      }
+    },
+    {
+      "id": "River labels",
+      "type": "symbol",
+      "source": "maptiler_planet",
+      "source-layer": "waterway",
+      "filter": ["==", "class", "river"],
+      "layout": {
+        "symbol-placement": "line-center",
+        "symbol-spacing": 650,
+        "text-field": ["coalesce", ["get", "name:en"], ["get", "name"]],
+        "text-font": ["Noto Serif Italic"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          0,
+          ["*", ["-", 16, ["sqrt", ["get", "sizerank"]]], 1],
+          22,
+          ["*", ["-", 22, ["sqrt", ["get", "sizerank"]]], 1]
+        ],
+        "visibility": "visible",
+        "symbol-avoid-edges": true,
+        "symbol-z-order": "viewport-y",
+        "text-rotation-alignment": "auto",
+        "text-justify": "center",
+        "text-anchor": "top-left",
+        "text-letter-spacing": 0.3,
+        "text-transform": "none",
+        "text-ignore-placement": false,
+        "text-optional": false,
+        "icon-allow-overlap": false,
+        "text-keep-upright": false,
+        "text-max-angle": 20,
+        "text-pitch-alignment": "auto"
+      },
+      "paint": {
+        "text-color": "rgba(217, 230, 242, 1)",
+        "text-halo-color": "rgba(26, 26, 26, 1)",
+        "text-halo-blur": 3,
+        "text-halo-width": 1
+      }
+    }
+  ],
+  "id": "lk07xdg"
+}
