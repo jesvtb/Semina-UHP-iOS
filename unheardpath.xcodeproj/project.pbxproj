@@ -52,18 +52,8 @@
 		C1037A862E7126030014D793 /* unheardpathUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		C1CD22B72E6FE5D60057E60C /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = C1CD22932E6FE5D50057E60C /* unheardpath */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C1CD22962E6FE5D50057E60C /* unheardpath */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C1CD22B72E6FE5D60057E60C /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = unheardpath; sourceTree = "<group>"; };
+		C1CD22962E6FE5D50057E60C /* unheardpath */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpath; sourceTree = "<group>"; };
 		C1CD22A82E6FE5D60057E60C /* unheardpathTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpathTests; sourceTree = "<group>"; };
 		C1CD22B22E6FE5D60057E60C /* unheardpathUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpathUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
