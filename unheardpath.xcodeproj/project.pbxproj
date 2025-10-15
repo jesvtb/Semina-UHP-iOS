@@ -53,7 +53,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C1CD22962E6FE5D50057E60C /* unheardpath */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpath; sourceTree = "<group>"; };
+		C1CD22962E6FE5D50057E60C /* unheardpath */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {".swift" = {lastKnownFileType = sourcecode.swift; }; ".json" = {lastKnownFileType = text.json; }; ".xcassets" = {lastKnownFileType = folder.assetcatalog; }; }; explicitFolders = (); path = unheardpath; sourceTree = "<group>"; };
 		C1CD22A82E6FE5D60057E60C /* unheardpathTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpathTests; sourceTree = "<group>"; };
 		C1CD22B22E6FE5D60057E60C /* unheardpathUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpathUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -291,12 +291,15 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = unheardpath/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
+				INFOPLIST_KEY_MBXAccessToken = "pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw";
+				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
+				INFOPLIST_KEY_NSAppTransportSecurity = "NSAllowsArbitraryLoads";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -333,12 +336,15 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = unheardpath/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
+				INFOPLIST_KEY_MBXAccessToken = "pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw";
+				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
+				INFOPLIST_KEY_NSAppTransportSecurity = "NSAllowsArbitraryLoads";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
