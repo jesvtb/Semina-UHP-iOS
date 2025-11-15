@@ -59,6 +59,19 @@ class APITestUtilities {
             expectedSuccess: true,
             description: "Tests request building with headers and params"
         ),
+        APITestConfig(
+            name: "Semina API",
+            url: "https://api.unheardpath.com/v1/test/connection",
+            expectedSuccess: true,
+            description: "Test Semina API"
+        ),
+        APITestConfig(
+            name: "Semina API Local",
+            url: "http://192.168.50.171:1031/v1/test/connection",
+            expectedSuccess: true,
+            description: "Test Semina API Local"
+        ),
+        
     ]
     
     // MARK: - Generic Test Runner

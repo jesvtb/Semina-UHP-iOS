@@ -14,6 +14,7 @@
 		C1037ABD2E7185550014D793 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = C1037ABC2E7185550014D793 /* PostgREST */; };
 		C1037ABF2E7185550014D793 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = C1037ABE2E7185550014D793 /* Realtime */; };
 		C1037AC12E7185550014D793 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AC02E7185550014D793 /* Storage */; };
+		C1DF004A2EC88B15009C463E /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = C1DF00492EC88B15009C463E /* PostHog */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,7 +54,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C1CD22962E6FE5D50057E60C /* unheardpath */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {".swift" = {lastKnownFileType = sourcecode.swift; }; ".json" = {lastKnownFileType = text.json; }; ".xcassets" = {lastKnownFileType = folder.assetcatalog; }; }; explicitFolders = (); path = unheardpath; sourceTree = "<group>"; };
+		C1CD22962E6FE5D50057E60C /* unheardpath */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpath; sourceTree = "<group>"; };
 		C1CD22A82E6FE5D60057E60C /* unheardpathTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpathTests; sourceTree = "<group>"; };
 		C1CD22B22E6FE5D60057E60C /* unheardpathUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpathUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -66,6 +67,7 @@
 				C1037AB52E71279A0014D793 /* MapboxMaps in Frameworks */,
 				C1037AB22E7126210014D793 /* MapLibre in Frameworks */,
 				C1037AC12E7185550014D793 /* Storage in Frameworks */,
+				C1DF004A2EC88B15009C463E /* PostHog in Frameworks */,
 				C1037ABB2E7185550014D793 /* Functions in Frameworks */,
 				C1037ABF2E7185550014D793 /* Realtime in Frameworks */,
 				C1037AB92E7185550014D793 /* Auth in Frameworks */,
@@ -205,6 +207,7 @@
 				C1037AB02E7126210014D793 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 				C1037AB32E71279A0014D793 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */,
 				C1037AB72E7185550014D793 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				C1DF00482EC88B15009C463E /* XCRemoteSwiftPackageReference "posthog-ios" */,
 			);
 			productRefGroup = C1CD228B2E6FE5D50057E60C;
 			projectDirPath = "";
@@ -293,13 +296,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
+				INFOPLIST_KEY_MBXAccessToken = pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw;
+				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
+				INFOPLIST_KEY_NSAppTransportSecurity = NSAllowsArbitraryLoads;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
-				INFOPLIST_KEY_MBXAccessToken = "pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw";
-				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
-				INFOPLIST_KEY_NSAppTransportSecurity = "NSAllowsArbitraryLoads";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
+				INFOPLIST_KEY_PostHogAPIKey = phc_eemutcq6MB1APyM02DpBfKeye36dajanLsKHhcsmRye;
+				INFOPLIST_KEY_PostHogHost = "https://www.unheardpath.com/relay-TjH4";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -313,7 +317,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mingyuluo.unheardpath;
+				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpath;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -338,13 +342,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
+				INFOPLIST_KEY_MBXAccessToken = pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw;
+				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
+				INFOPLIST_KEY_NSAppTransportSecurity = NSAllowsArbitraryLoads;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
-				INFOPLIST_KEY_MBXAccessToken = "pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw";
-				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
-				INFOPLIST_KEY_NSAppTransportSecurity = "NSAllowsArbitraryLoads";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
+				INFOPLIST_KEY_PostHogAPIKey = phc_eemutcq6MB1APyM02DpBfKeye36dajanLsKHhcsmRye;
+				INFOPLIST_KEY_PostHogHost = "https://www.unheardpath.com/relay-TjH4";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -358,7 +363,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mingyuluo.unheardpath;
+				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpath;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -498,8 +503,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = ZMR9YNSJN2;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpathTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -522,8 +526,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = ZMR9YNSJN2;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpathTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -545,8 +548,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = ZMR9YNSJN2;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpathUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -568,8 +570,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = ZMR9YNSJN2;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpathUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -649,6 +650,14 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		C1DF00482EC88B15009C463E /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.35.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -686,6 +695,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C1037AB72E7185550014D793 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Storage;
+		};
+		C1DF00492EC88B15009C463E /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C1DF00482EC88B15009C463E /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
