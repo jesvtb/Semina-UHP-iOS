@@ -15,12 +15,18 @@ struct AppleMapView: View {
     )
     
     var body: some View {
-        Map(coordinateRegion: $region, showsUserLocation: true)
-            .ignoresSafeArea()
-            .onAppear {
-                // Request location permission
-                locationManager.requestWhenInUseAuthorization()
-            }
+        ZStack {
+            Map(coordinateRegion: $region, showsUserLocation: true)
+                .ignoresSafeArea()
+                .onAppear {
+                    // Request location permission
+                    locationManager.requestWhenInUseAuthorization()
+                }
+        }
+        .overlay(alignment: .topLeading) {
+            BackButton(showBackground: true)
+        }
+        .navigationBarHidden(true)
     }
 }
 
@@ -39,6 +45,10 @@ struct MapboxMapView: View {
                 setupMapboxLocation(proxy: proxy)
             }
         }
+        .overlay(alignment: .topLeading) {
+            BackButton(showBackground: true)
+        }
+        .navigationBarHidden(true)
     }
     
     private func setupMapboxLocation(proxy: MapboxMaps.MapProxy) {

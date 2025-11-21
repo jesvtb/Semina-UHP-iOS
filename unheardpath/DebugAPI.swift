@@ -16,30 +16,34 @@ struct DebugAPIView: View {
     @State private var isSuccess = true
 
     var body: some View {
-        VStack(spacing: 16) {
-            DebugHeaderView()
-            TestButtonsView(
-                isLoading: isLoading,
-                iconForTest: iconForTest,
-                colorForTest: colorForTest,
-                runTest: runTest
-            )
-            
-            LoadingIndicatorView(isLoading: isLoading)
-            
-            ResponseDisplayView(
-                responseText: responseText,
-                errorMessage: errorMessage,
-                isSuccess: isSuccess
-            )
-            
-            Spacer()
+        ZStack {
+            VStack(spacing: 16) {
+                DebugHeaderView()
+                TestButtonsView(
+                    isLoading: isLoading,
+                    iconForTest: iconForTest,
+                    colorForTest: colorForTest,
+                    runTest: runTest
+                )
+                
+                LoadingIndicatorView(isLoading: isLoading)
+                
+                ResponseDisplayView(
+                    responseText: responseText,
+                    errorMessage: errorMessage,
+                    isSuccess: isSuccess
+                )
+                
+                Spacer()
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color.orange.opacity(0.05))
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.orange.opacity(0.05))
-        .navigationTitle("Debug API Tests")
-        .navigationBarTitleDisplayMode(.inline)
+        .overlay(alignment: .topLeading) {
+            BackButton(showBackground: true)
+        }
+        .navigationBarHidden(true)
     }
     
     // MARK: - Test Functions

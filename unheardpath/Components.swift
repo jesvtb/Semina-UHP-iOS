@@ -182,6 +182,50 @@ struct OutlinedButton: View {
     }
 }
 
+// MARK: - Navigation Components
+
+/// Back Button - Reusable back button component for navigation
+struct BackButton: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    let showBackground: Bool
+    let horizontalPadding: CGFloat
+    
+    init(
+        showBackground: Bool = false,
+        horizontalPadding: CGFloat = 20
+    ) {
+        self.showBackground = showBackground
+        self.horizontalPadding = horizontalPadding
+    }
+    
+    var body: some View {
+        Button(action: {
+            dismiss()
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("Back")
+                    .font(.headline)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                Group {
+                    if showBackground {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.black.opacity(0.4))
+                    }
+                }
+            )
+        }
+        .padding(.horizontal, horizontalPadding)
+        .padding(.top, 8)
+    }
+}
+
 // MARK: - Preview Examples
 #Preview("Button Components") {
     VStack(spacing: 20) {

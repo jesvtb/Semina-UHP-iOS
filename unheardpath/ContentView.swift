@@ -9,79 +9,29 @@ import SwiftUI
 
 // MARK: - Content View
 struct ContentView: View {
+  @State var isAuthenticated = false
+  
   var body: some View {
-    NavigationStack {
-      VStack(spacing: 20) {
-        // Main App Content
-        VStack(spacing: 20) {
-          WelcomeHeaderView()
-
-          NavigationLink(destination: AppleMapView()) {
-            HStack {
-              Image(systemName: "map")
-                .font(.title2)
-              Text("Apple Map")
-                .font(.headline)
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue)
-            .cornerRadius(12)
-          }
-
-          NavigationLink(destination: MapboxMapView()) {
-            HStack {
-              Image(systemName: "map")
-                .font(.title2)
-              Text("Mapbox Map")
-                .font(.headline)
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue)
-            .cornerRadius(12)
-          }
-
-          NavigationLink(destination: JourneyStart()) {
-            HStack {
-              Image(systemName: "play.circle")
-                .font(.title2)
-              Text("Journey Start")
-                .font(.headline)
-            }
-            .foregroundColor(.purple)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .overlay(
-              RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.purple, lineWidth: 2)
-            )
-          }
-
-          #if DEBUG
-            NavigationLink(destination: DebugAPIView()) {
-              HStack {
-                Image(systemName: "ladybug.fill")
-                  .font(.title2)
-                Text("Debug API Tests")
-                  .font(.headline)
-              }
-              .foregroundColor(.white)
-              .frame(maxWidth: .infinity)
-              .padding()
-              .background(Color.orange)
-              .cornerRadius(12)
-            }
-          #endif
-        }
-        .padding()
-
-        Spacer()
+    Group {
+      if isAuthenticated {
+        ProfileView()
+      } else {
+        AuthView()
       }
-      .navigationTitle("unheardpath")
-      .navigationBarTitleDisplayMode(.inline)
+    }
+    .task {
+      // Skip auth state changes in preview mode
+      #if DEBUG
+      guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else {
+        return
+      }
+      #endif
+      
+      for await state in supabase.auth.authStateChanges {
+        if [.initialSession, .signedIn, .signedOut].contains(state.event) {
+          isAuthenticated = state.session != nil
+        }
+      }
     }
   }
 }
