@@ -7,21 +7,15 @@
 
 import Supabase
 import Foundation
+import HTTPTypes
 
 // MARK: - Supabase Client
 // / Supabase client initialized from Info.plist
 /// Configuration values are set via Config.xcconfig and injected into Info.plist
 let supabase: SupabaseClient = {
-  // In preview mode, return a dummy client to prevent crashes
-  #if DEBUG
-  if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-    // Return a dummy client for previews - won't work but won't crash
-    return SupabaseClient(
-      supabaseURL: URL(string: "https://preview.supabase.co")!,
-      supabaseKey: "preview-key"
-    )
-  }
-  #endif
+  // Try to use real Supabase configuration from Info.plist
+  // If values are missing, the guard statements below will provide helpful error messages
+  // This works in both preview mode and actual app runs if Info.plist is properly configured
   
   // Debug: Print all Info.plist keys to help diagnose issues
   #if DEBUG
@@ -78,6 +72,10 @@ let supabase: SupabaseClient = {
   
   #if DEBUG
   print("🔗 Supabase URL: \(url.absoluteString)")
+  let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+  if isPreview {
+    print("📱 Running in SwiftUI preview mode")
+  }
   #endif
   
   guard let key = Bundle.main.infoDictionary?["SupabasePublishableKey"] as? String, !key.isEmpty else {
@@ -111,7 +109,52 @@ let supabase: SupabaseClient = {
   print("🔑 Supabase Key (first 30 chars): \(String(key.prefix(30)))...")
   #endif
   
-  return SupabaseClient(supabaseURL: url, supabaseKey: key)
+  // Configure Supabase client with SSL/TLS support for enforced SSL databases
+  // 
+  // IMPORTANT: No SSL certificates need to be included in the app bundle!
+  // iOS automatically uses the system's built-in certificate store to validate
+  // SSL certificates for HTTPS connections. Supabase uses standard SSL certificates
+  // that are trusted by iOS by default.
+  //
+  // The Supabase Swift client uses URLSession which:
+  // - Automatically validates SSL certificates using iOS system certificate store
+  // - Respects NSAppTransportSecurity settings from Info.plist
+  // - Handles certificate chain validation automatically
+  //
+  // For SSL-enforced databases, the current setup is sufficient:
+  // 1. URL uses https:// (already validated above)
+  // 2. Info.plist has proper NSAppTransportSecurity settings (already configured)
+  // 3. TLS version is 1.2 (configured in Info.plist)
+  // 4. System certificate store handles SSL validation automatically
+  //
+  // You only need to include custom certificates if:
+  // - Using self-signed certificates
+  // - Using custom CA certificates not in iOS system store
+  // - Using certificate pinning (not recommended for Supabase)
+  
+  // Configure Supabase client with AuthOptions to fix session emission issue
+  // Reference: Supabase AuthClient known issue - "Initial session emitted after attempting to refresh"
+  // Fix: Set emitLocalSessionAsInitialSession: true to ensure locally stored session is always emitted
+  let client = SupabaseClient(
+    supabaseURL: url,
+    supabaseKey: key,
+    options: SupabaseClientOptions(
+      auth: SupabaseClientOptions.AuthOptions(
+        emitLocalSessionAsInitialSession: true
+      )
+    )
+  )
+  
+  #if DEBUG
+  print("🔒 Supabase client configured with HTTPS and SSL/TLS support")
+  print("   TLS minimum version: 1.2 (configured in Info.plist)")
+  print("   SSL certificate validation: Automatic via iOS system certificate store")
+  print("   SSL enforced database: Fully supported - no custom certificates needed")
+  print("   ✅ AuthClient configured with emitLocalSessionAsInitialSession: true")
+  print("      This fixes the known issue where initial session emission was incorrect")
+  #endif
+  
+  return client
 }()
 
 // MARK: - Verification

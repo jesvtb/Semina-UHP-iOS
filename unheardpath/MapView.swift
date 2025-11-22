@@ -3,6 +3,8 @@ import MapKit
 import MapboxMaps
 import CoreLocation
 import MapLibre
+import OSLog
+import OSLog
 
 
 
@@ -30,6 +32,84 @@ struct AppleMapView: View {
     }
 }
 
+struct MapView: View {
+    var body: some View {
+        let center = CLLocationCoordinate2D(latitude: 39.5, longitude: -98.0)
+        // Mapbox SDK automatically reads MBXAccessToken from Info.plist (injected via Config.xcconfig)
+        // If token is missing from Info.plist on device, it will show black screen with Mapbox logo
+        Map(initialViewport: .camera(center: center, zoom: 2, bearing: 0, pitch: 0)) {
+            // Mapbox needs a style to render tiles
+        }
+        .mapStyle(MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
+        .ignoresSafeArea()
+        .onAppear {
+            verifyMapboxToken()
+            // Additional check: verify token is actually accessible
+            checkMapboxTokenAccessibility()
+        }
+    }
+    
+    /// Additional check to verify token is accessible (helps diagnose device vs simulator differences)
+    private func checkMapboxTokenAccessibility() {
+        guard let token = Bundle.main.infoDictionary?["MBXAccessToken"] as? String,
+              !token.isEmpty else {
+            print("❌ CRITICAL: MBXAccessToken not found in Info.plist on device!")
+            print("   This will cause black screen with Mapbox logo")
+            print("   The map loads but can't fetch tiles without a valid token")
+            print("   Solution: Ensure Config.xcconfig is properly configured and rebuild")
+            return
+        }
+        
+        print("✅ MBXAccessToken is accessible: \(String(token.prefix(20)))...")
+        print("   If map is still black, check:")
+        print("   1. Token is valid and has proper permissions")
+        print("   2. Device has internet connection")
+        print("   3. No firewall/proxy blocking Mapbox API")
+    }
+    
+    /// Verifies that Mapbox access token is available from Config.xcconfig via Info.plist
+    private func verifyMapboxToken() {
+        let logger = Logger(subsystem: "com.unheardpath.app", category: "Mapbox")
+        let verification = verifyMapboxConfiguration()
+        
+        // Always log on device (not just DEBUG) to help diagnose device issues
+        if verification.isValid {
+            let message = "✅ Mapbox access token verified from Config.xcconfig"
+            print(message)
+            logger.info("\(message)")
+            if let tokenPrefix = verification.tokenPrefix {
+                let prefixMessage = "   Token prefix: \(tokenPrefix)..."
+                print(prefixMessage)
+                logger.debug("\(prefixMessage)")
+            }
+            
+            // Check if token is actually accessible to Mapbox SDK
+            if let token = Bundle.main.infoDictionary?["MBXAccessToken"] as? String {
+                print("✅ MBXAccessToken found in Info.plist: \(String(token.prefix(20)))...")
+                // Verify token format
+                if !token.hasPrefix("pk.") && !token.hasPrefix("sk.") {
+                    print("⚠️ WARNING: Token format looks incorrect. Expected 'pk.eyJ...' or 'sk.eyJ...'")
+                }
+            }
+        } else {
+            let error = verification.error ?? "Unknown error"
+            let errorMessage = "❌ Mapbox token verification failed: \(error)"
+            print(errorMessage)
+            logger.error("\(errorMessage)")
+            
+            // Print all available Info.plist keys to help diagnose
+            if let infoDict = Bundle.main.infoDictionary {
+                print("🔍 Available Info.plist keys: \(infoDict.keys.sorted().joined(separator: ", "))")
+            }
+            
+            let helpMessage = "   Make sure Config.xcconfig has MAPBOX_ACCESS_TOKEN set and INFOPLIST_KEY_MBXAccessToken = $(MAPBOX_ACCESS_TOKEN)"
+            print(helpMessage)
+            logger.error("\(helpMessage)")
+            print("   For device builds: Clean build folder (Cmd+Shift+K) and rebuild")
+        }
+    }
+}
+
 struct MapboxMapView: View {
     @State private var locationManager = CLLocationManager()
     
@@ -39,9 +119,11 @@ struct MapboxMapView: View {
                 // Add user location puck - this is Mapbox's recommended way
                 MapboxMaps.Puck2D(bearing: MapboxMaps.PuckBearing.heading)
             }
-            .mapStyle(MapStyle(uri: StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
+            .mapStyle(MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
+            // Or use custom style: .mapStyle(MapStyle(uri: StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
             .ignoresSafeArea()
             .onAppear {
+                verifyMapboxToken()
                 setupMapboxLocation(proxy: proxy)
             }
         }
@@ -49,6 +131,29 @@ struct MapboxMapView: View {
             BackButton(showBackground: true)
         }
         .navigationBarHidden(true)
+    }
+    
+    /// Verifies that Mapbox access token is available from Config.xcconfig via Info.plist
+    /// The Mapbox iOS SDK automatically reads MBXAccessToken from Info.plist
+    private func verifyMapboxToken() {
+        // Verify token is available (loaded from Config.xcconfig via Info.plist)
+        let verification = verifyMapboxConfiguration()
+        
+        if verification.isValid {
+            #if DEBUG
+            print("✅ Mapbox access token verified from Config.xcconfig")
+            if let tokenPrefix = verification.tokenPrefix {
+                print("   Token prefix: \(tokenPrefix)...")
+            }
+            #endif
+        } else {
+            #if DEBUG
+            let error = verification.error ?? "Unknown error"
+            print("❌ Mapbox token verification failed: \(error)")
+            print("   Make sure Config.xcconfig has MAPBOX_ACCESS_TOKEN set")
+            print("   and INFOPLIST_KEY_MBXAccessToken = $(MAPBOX_ACCESS_TOKEN)")
+            #endif
+        }
     }
     
     private func setupMapboxLocation(proxy: MapboxMaps.MapProxy) {
@@ -155,95 +260,11 @@ struct MapLibreMapViewWrapper: View {
     }
 }
 
-// MARK: - Mapbox Directions API Integration
-struct MapboxDirectionsView: View {
-    @StateObject private var apiService = APIService()
-    @State private var directionsData: Any?
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-    
-    // Mapbox API configuration
-    private let mapboxToken = "pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw"
-    private let startCoordinate = "-122.42,37.78"  // San Francisco
-    private let endCoordinate = "-77.03,38.91"     // Washington DC
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Mapbox Directions API")
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Button("Get Cycling Directions") {
-                Task {
-                    await fetchDirections()
-                }
-            }
-            .disabled(isLoading)
-            .buttonStyle(.borderedProminent)
-            
-            if isLoading {
-                ProgressView("Loading directions...")
-            }
-            
-            if let error = errorMessage {
-                Text("Error: \(error)")
-                    .foregroundColor(.red)
-                    .padding()
-            }
-            
-            if let data = directionsData {
-                ScrollView {
-                    Text("Directions Response:")
-                        .font(.headline)
-                    Text(formatResponse(data))
-                        .font(.system(.caption, design: .monospaced))
-                        .padding()
-                }
-                .frame(maxHeight: 300)
-            }
-        }
-        .padding()
-    }
-    
-    private func fetchDirections() async {
-        isLoading = true
-        errorMessage = nil
-        
-        do {
-            // Convert curl command to Swift using APIService
-            // curl "https://api.mapbox.com/directions/v5/mapbox/cycling/-122.42,37.78;-77.03,38.91?access_token=..."
-            let response = try await apiService.asyncCallAPI(
-                url: "https://api.mapbox.com/directions/v5/mapbox/walking/\(startCoordinate);\(endCoordinate)",
-                method: "GET",
-                params: ["access_token": mapboxToken]
-            )
-            
-            directionsData = response
-            
-        } catch let apiError as APIError {
-            errorMessage = "API Error: \(apiError.message)"
-            if let code = apiError.code {
-                errorMessage! += " (Status: \(code))"
-            }
-        } catch {
-            errorMessage = "Network Error: \(error.localizedDescription)"
-        }
-        
-        isLoading = false
-    }
-    
-    private func formatResponse(_ data: Any) -> String {
-        do {
-            let jsonData = try JSONSerialization.data(withJSONObject: data, options: .prettyPrinted)
-            return String(data: jsonData, encoding: .utf8) ?? "Unable to format response"
-        } catch {
-            return "\(data)"
-        }
-    }
-}
+
 
 #Preview {
 //    MapboxDirectionsView()
     MapboxMapView()
+    // MapView()
     // MapLibreMapViewWrapper()
 }

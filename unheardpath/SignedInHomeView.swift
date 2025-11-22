@@ -38,7 +38,8 @@ struct SignedInHomeView: View {
       
       // Map Tab
       NavigationStack {
-        MapboxMapView()
+        // MapboxMapView()
+        MapView()
       }
       .tabItem {
         Label("Map", systemImage: "map")

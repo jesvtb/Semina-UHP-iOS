@@ -192,6 +192,15 @@ struct AuthView: View {
         }
 
         do {
+          #if DEBUG
+          print("🍎 Apple Sign-In: Starting Supabase authentication...")
+          print("   ID Token length: \(idTokenString.count)")
+          print("   Nonce provided: \(currentNonce != nil ? "Yes" : "No")")
+          if let supabaseURL = Bundle.main.infoDictionary?["SupabaseProjectUrl"] as? String {
+            print("   Supabase URL: \(supabaseURL)")
+          }
+          #endif
+          
           // Sign in with Supabase using the ID token
           // signInWithIdToken automatically creates an account if the user doesn't exist
           // According to Supabase docs: https://supabase.com/docs/guides/auth/social-login/auth-apple
@@ -201,13 +210,27 @@ struct AuthView: View {
           // In Supabase Dashboard > Authentication > Providers > Apple, the "Client IDs" field must include
           // BOTH the Service ID (e.g., com.semina.unheardpath.supabase) AND the App ID (com.semina.unheardpath).
           // Separate multiple client IDs with commas: "com.semina.unheardpath.supabase,com.semina.unheardpath"
-          try await supabase.auth.signInWithIdToken(
+          let session = try await supabase.auth.signInWithIdToken(
             credentials: .init(
               provider: .apple,
               idToken: idTokenString,
               nonce: currentNonce // Include nonce for security verification (optional but recommended)
             )
           )
+          
+          #if DEBUG
+          print("✅ Apple Sign-In: Supabase authentication successful")
+          print("   User ID: \(session.user.id)")
+          print("   Email: \(session.user.email ?? "not provided")")
+          // Verify session is stored
+          do {
+            let storedSession = try await supabase.auth.session
+            print("✅ Session stored successfully - User ID: \(storedSession.user.id)")
+            print("Session: \(storedSession.accessToken)")
+          } catch {
+            print("⚠️ Warning: Session not found after sign-in: \(error.localizedDescription)")
+          }
+          #endif
           
           // Apple only provides full name on FIRST sign-in (when account is created)
           // Capture and save it if available (per Supabase documentation)
@@ -216,7 +239,21 @@ struct AuthView: View {
           
           self.result = .success(())
         } catch {
-          // Provide more helpful error messages
+          // Provide more helpful error messages with detailed debugging
+          #if DEBUG
+          print("❌ Apple Sign-In: Supabase authentication failed")
+          print("   Error type: \(type(of: error))")
+          print("   Error description: \(error.localizedDescription)")
+          if let urlError = error as? URLError {
+            print("   URLError code: \(urlError.code.rawValue)")
+            print("   URLError domain: \(urlError.localizedDescription)")
+            print("   URLError userInfo: \(urlError.userInfo)")
+          }
+          if let authError = error as? AuthError {
+            print("   AuthError message: \(authError.localizedDescription)")
+          }
+          #endif
+          
           let errorMessage: String
           if let authError = error as? AuthError {
             errorMessage = authError.localizedDescription
@@ -225,6 +262,12 @@ struct AuthView: View {
             switch urlError.code {
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid:
               errorMessage = "SSL connection error. Please check your network connection and try again. If the problem persists, verify your Supabase configuration."
+              #if DEBUG
+              print("   🔒 SSL Error Details:")
+              print("      - Code: \(urlError.code.rawValue)")
+              print("      - Description: \(urlError.localizedDescription)")
+              print("      - UserInfo: \(urlError.userInfo)")
+              #endif
             case .notConnectedToInternet:
               errorMessage = "No internet connection. Please check your network settings."
             case .timedOut:
