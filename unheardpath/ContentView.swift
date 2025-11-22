@@ -14,7 +14,7 @@ struct ContentView: View {
   var body: some View {
     Group {
       if isAuthenticated {
-        ProfileView()
+        SignedInHomeView()
       } else {
         AuthView()
       }
