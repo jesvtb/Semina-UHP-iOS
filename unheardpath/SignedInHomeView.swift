@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Tab Selection
 enum TabSelection: Int {
@@ -37,9 +38,11 @@ struct SignedInHomeView: View {
       }
       
       // Map Tab
+      
       NavigationStack {
+        MapboxMapView()
         // MapboxMapView()
-        MapView()
+        // MapView()
       }
       .tabItem {
         Label("Map", systemImage: "map")
@@ -105,15 +108,49 @@ struct SignedInHomeView: View {
         isJourneyTabBarHidden = false
       }
     }
+    .onAppear {
+      configureTabBarAppearance()
+      print("🔵 SignedInHomeView appeared")
+    }
     .sheet(isPresented: $showChatPopup) {
       ChatInputView(isPresented: $showChatPopup)
-    }
-    .onAppear {
-      print("🔵 SignedInHomeView appeared")
     }
     .task {
       print("🔵 SignedInHomeView task started")
       await getInitialProfile()
+    }
+  }
+  
+  // MARK: - Tab Bar Styling
+  private func configureTabBarAppearance() {
+    let appearance = UITabBarAppearance()
+    
+    // Configure tab bar background
+    appearance.configureWithOpaqueBackground()
+    appearance.backgroundColor = UIColor.systemBackground
+    
+    // Configure selected tab item
+    appearance.stackedLayoutAppearance.selected.iconColor = UIColor(Color.appPrimary)
+    appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
+      .foregroundColor: UIColor(Color.appPrimary),
+      .font: UIFont.systemFont(ofSize: 10, weight: .semibold)
+    ]
+    
+    // Configure unselected tab item
+    appearance.stackedLayoutAppearance.normal.iconColor = UIColor.secondaryLabel
+    appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
+      .foregroundColor: UIColor.secondaryLabel,
+      .font: UIFont.systemFont(ofSize: 10, weight: .regular)
+    ]
+    
+    // Apply shadow/border styling
+    appearance.shadowColor = UIColor.separator
+    appearance.shadowImage = UIImage()
+    
+    // Apply the appearance
+    UITabBar.appearance().standardAppearance = appearance
+    if #available(iOS 15.0, *) {
+      UITabBar.appearance().scrollEdgeAppearance = appearance
     }
   }
 
@@ -254,6 +291,7 @@ struct JourneyHomeView: View {
         }
       )
     }
+    // .background(Color.appBackground)
     .coordinateSpace(name: "scroll")
     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
       scrollOffset = value

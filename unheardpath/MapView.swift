@@ -95,17 +95,6 @@ struct MapView: View {
             let error = verification.error ?? "Unknown error"
             let errorMessage = "❌ Mapbox token verification failed: \(error)"
             print(errorMessage)
-            logger.error("\(errorMessage)")
-            
-            // Print all available Info.plist keys to help diagnose
-            if let infoDict = Bundle.main.infoDictionary {
-                print("🔍 Available Info.plist keys: \(infoDict.keys.sorted().joined(separator: ", "))")
-            }
-            
-            let helpMessage = "   Make sure Config.xcconfig has MAPBOX_ACCESS_TOKEN set and INFOPLIST_KEY_MBXAccessToken = $(MAPBOX_ACCESS_TOKEN)"
-            print(helpMessage)
-            logger.error("\(helpMessage)")
-            print("   For device builds: Clean build folder (Cmd+Shift+K) and rebuild")
         }
     }
 }
@@ -119,16 +108,13 @@ struct MapboxMapView: View {
                 // Add user location puck - this is Mapbox's recommended way
                 MapboxMaps.Puck2D(bearing: MapboxMaps.PuckBearing.heading)
             }
-            .mapStyle(MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
-            // Or use custom style: .mapStyle(MapStyle(uri: StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
+            // .mapStyle(MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
+            .mapStyle(MapStyle(uri: StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
             .ignoresSafeArea()
             .onAppear {
                 verifyMapboxToken()
                 setupMapboxLocation(proxy: proxy)
             }
-        }
-        .overlay(alignment: .topLeading) {
-            BackButton(showBackground: true)
         }
         .navigationBarHidden(true)
     }

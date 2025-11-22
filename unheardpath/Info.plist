@@ -19,6 +19,12 @@
 	<string>https://mrrssxdxblwhdsejdlxp.supabase.co</string>
 	<key>SupabasePublishableKey</key>
 	<string>sb_publishable_mBb4Rnl2jdhbCR9EjcOK_A_WyZK2DzM</string>
+	<key>PostHogAPIKey</key>
+	<string>phc_eemutcq6MB1APyM02DpBfKeye36dajanLsKHhcsmRye</string>
+	<key>PostHogHost</key>
+	<string>https://www.unheardpath.com/relay-TjH4</string>
+	<key>MBXAccessToken</key>
+	<string>pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

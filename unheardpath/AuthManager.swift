@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Supabase
+import PostHog
 
 /// Manages authentication state for the app
 /// Similar to React Context or Redux store - provides global auth state
@@ -34,6 +35,7 @@ class AuthManager: ObservableObject {
         // IMPORTANT: With emitLocalSessionAsInitialSession: true, we must check if session is expired
         do {
             let session = try await supabase.auth.session
+            print("🔍 Initial session: \(session)")
             
             // Check if session is expired (required when using emitLocalSessionAsInitialSession: true)
             if session.isExpired {
@@ -43,24 +45,49 @@ class AuthManager: ObservableObject {
                 print("   Expires at: \(Date(timeIntervalSince1970: session.expiresAt))")
                 #endif
                 isAuthenticated = false
+                
+                // Capture PostHog event for expired session
+                captureSessionRetrievalEvent(sessionFound: true, isExpired: true, userId: session.user.id.uuidString)
             } else {
                 isAuthenticated = true
                 #if DEBUG
                 print("✅ Initial session found and valid - user is authenticated")
                 print("   User ID: \(session.user.id)")
                 #endif
+                
+                // Capture PostHog event for valid session
+                captureSessionRetrievalEvent(sessionFound: true, isExpired: false, userId: session.user.id.uuidString)
             }
         } catch {
             #if DEBUG
             print("ℹ️ No initial session - user needs to sign in: \(error.localizedDescription)")
             #endif
             isAuthenticated = false
+            
+            // Capture PostHog event for no session found
+            captureSessionRetrievalEvent(sessionFound: false, isExpired: false, userId: nil)
         }
         
         isLoading = false
         
         // Now listen for auth state changes (like React useEffect with auth dependency)
         await listenToAuthChanges()
+    }
+    
+    /// Captures PostHog event when retrieving initial session
+    /// Follows PostHog naming convention: category:object_action (past tense)
+    private func captureSessionRetrievalEvent(sessionFound: Bool, isExpired: Bool, userId: String?) {
+        var properties: [String: Any] = [
+            "session_found": sessionFound,
+            "is_expired": isExpired,
+            "event_version": "1.0"
+        ]
+        
+        if let userId = userId {
+            properties["user_id"] = userId
+        }
+        
+        PostHogSDK.shared.capture("authentication:initial_session_retrieved", properties: properties)
     }
     
     /// Listens to Supabase auth state changes

@@ -13,48 +13,44 @@ import HTTPTypes
 // / Supabase client initialized from Info.plist
 /// Configuration values are set via Config.xcconfig and injected into Info.plist
 let supabase: SupabaseClient = {
-  // Try to use real Supabase configuration from Info.plist
-  // If values are missing, the guard statements below will provide helpful error messages
-  // This works in both preview mode and actual app runs if Info.plist is properly configured
   
-  // Debug: Print all Info.plist keys to help diagnose issues
-  #if DEBUG
-  if let infoDict = Bundle.main.infoDictionary {
-    print("Available Info.plist keys: \(infoDict.keys.sorted().joined(separator: ", "))")
-  }
-  #endif
-  
-  guard let urlString = Bundle.main.infoDictionary?["SupabaseProjectUrl"] as? String,
-        !urlString.isEmpty else {
-    #if DEBUG
-    // Provide helpful error message with available keys
+  // Read Supabase URL from Info.plist (injected from Config.xcconfig)
+  // If missing, use invalid placeholder that will cause operations to fail gracefully
+  let urlString: String
+  if let infoPlistUrl = Bundle.main.infoDictionary?["SupabaseProjectUrl"] as? String,
+     !infoPlistUrl.isEmpty {
+    urlString = infoPlistUrl
+  } else {
     let availableKeys = Bundle.main.infoDictionary?.keys.sorted().joined(separator: ", ") ?? "none"
-    fatalError("""
-    SupabaseProjectUrl must be set in Info.plist (via Config.xcconfig)
-    
-    Available Info.plist keys: \(availableKeys)
+    print("""
+    ❌ SupabaseProjectUrl must be set in Info.plist (via Config.xcconfig)
     
     Make sure:
     1. Config.xcconfig has SUPABASE_PROJECT_URL set
-    2. Config.xcconfig has INFOPLIST_KEY_SupabaseProjectUrl = $(SUPABASE_PROJECT_URL)
+    2. project.pbxproj has INFOPLIST_KEY_SupabaseProjectUrl = "$(SUPABASE_PROJECT_URL)" in build settings
     3. Clean build folder (Cmd+Shift+K) and rebuild
+    
+    The key should be injected automatically from Config.xcconfig during build.
+    Supabase operations will fail until this is configured.
     """)
-    #else
-    fatalError("SupabaseProjectUrl must be set in Info.plist (via Config.xcconfig)")
-    #endif
+    // Use invalid placeholder - operations will fail but app won't crash
+    urlString = "https://invalid-supabase-url.supabase.co"
   }
   
   // Clean and validate the URL
   let cleanedUrlString = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
     .replacingOccurrences(of: "/$", with: "", options: .regularExpression) // Remove trailing slash
   
-  guard let url = URL(string: cleanedUrlString),
-        url.scheme == "https",
-        let host = url.host(),
-        host.hasSuffix(".supabase.co") else {
-    #if DEBUG
-    fatalError("""
-    Invalid Supabase URL format: \(cleanedUrlString)
+  // Validate URL format
+  let url: URL
+  if let validatedUrl = URL(string: cleanedUrlString),
+     validatedUrl.scheme == "https",
+     let host = validatedUrl.host(),
+     host.hasSuffix(".supabase.co") {
+    url = validatedUrl
+  } else {
+    print("""
+    ❌ Invalid Supabase URL format: \(cleanedUrlString)
     
     Expected format: https://[project-ref].supabase.co
     Example: https://mrrssxdxblwhdsejdlxp.supabase.co
@@ -64,10 +60,11 @@ let supabase: SupabaseClient = {
     2. URL ends with .supabase.co
     3. No trailing slash
     4. No path after the domain
+    
+    Supabase operations will fail until URL is properly configured.
     """)
-    #else
-    fatalError("Invalid Supabase URL format")
-    #endif
+    // Use invalid placeholder - operations will fail but app won't crash
+    url = URL(string: "https://invalid-supabase-url.supabase.co")!
   }
   
   #if DEBUG
@@ -78,27 +75,32 @@ let supabase: SupabaseClient = {
   }
   #endif
   
-  guard let key = Bundle.main.infoDictionary?["SupabasePublishableKey"] as? String, !key.isEmpty else {
-    #if DEBUG
-    fatalError("""
-    SupabasePublishableKey must be set in Info.plist (via Config.xcconfig)
+  // Read Supabase API key from Info.plist (injected from Config.xcconfig)
+  // If missing, use invalid placeholder that will cause operations to fail gracefully
+  let key: String
+  if let infoPlistKey = Bundle.main.infoDictionary?["SupabasePublishableKey"] as? String,
+     !infoPlistKey.isEmpty {
+    key = infoPlistKey
+  } else {
+    print("""
+    ❌ SupabasePublishableKey must be set in Info.plist (via Config.xcconfig)
     
     Make sure:
     1. Config.xcconfig has SUPABASE_PUBLISHABLE_KEY set
-    2. Config.xcconfig has INFOPLIST_KEY_SupabasePublishableKey = $(SUPABASE_PUBLISHABLE_KEY)
+    2. project.pbxproj has INFOPLIST_KEY_SupabasePublishableKey = "$(SUPABASE_PUBLISHABLE_KEY)" in build settings
     3. Clean build folder (Cmd+Shift+K) and rebuild
+    
+    The key should be injected automatically from Config.xcconfig during build.
+    Supabase operations will fail until this is configured.
     """)
-    #else
-    fatalError("SupabasePublishableKey must be set in Info.plist (via Config.xcconfig)")
-    #endif
+    // Use invalid placeholder - operations will fail but app won't crash
+    key = "invalid_key_missing_from_info_plist"
   }
   
   // Validate API key format
   #if DEBUG
   if key.hasPrefix("sb_publishable_") {
     print("✅ Using new publishable key format (sb_publishable_...)")
-    print("   Note: This is the new Supabase API key format introduced in 2025")
-    print("   Reference: https://github.com/orgs/supabase/discussions/29260")
   } else if key.hasPrefix("eyJ") {
     print("✅ Using legacy anon key format (JWT)")
   } else if key.hasPrefix("sb_") {
@@ -147,11 +149,6 @@ let supabase: SupabaseClient = {
   
   #if DEBUG
   print("🔒 Supabase client configured with HTTPS and SSL/TLS support")
-  print("   TLS minimum version: 1.2 (configured in Info.plist)")
-  print("   SSL certificate validation: Automatic via iOS system certificate store")
-  print("   SSL enforced database: Fully supported - no custom certificates needed")
-  print("   ✅ AuthClient configured with emitLocalSessionAsInitialSession: true")
-  print("      This fixes the known issue where initial session emission was incorrect")
   #endif
   
   return client

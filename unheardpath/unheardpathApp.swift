@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MapboxMaps
+import PostHog
 
 @main
 struct unheardpathApp: App {
@@ -16,16 +17,26 @@ struct unheardpathApp: App {
     @StateObject private var authManager = AuthManager()
     
     init() {
+        // Debug: Always print available Info.plist keys during initialization
+        // This helps diagnose Config.xcconfig injection issues
+        #if DEBUG
+        if let infoDict = Bundle.main.infoDictionary {
+            let availableKeys = infoDict.keys.sorted().joined(separator: ", ")
+            print("🔍 Available Info.plist keys at app init: \(availableKeys)")
+        }
+        #endif
+        
         // Set Mapbox access token programmatically as fallback
         // According to Mapbox docs: https://docs.mapbox.com/ios/maps/guides/swift-ui/
         // Token can be set via MapboxOptions.accessToken OR Info.plist
         // We set it programmatically here to ensure it works on device builds
         // even if Info.plist injection fails
         setupMapboxToken()
+        setupPostHog()
         
         // AuthManager.init() is called when @StateObject creates it above
         // This automatically checks for locally stored Supabase session
-        // No need to manually call anything - it happens during app initialization
+        // PostHog SDK handles captures gracefully even if not fully initialized
     }
     
     var body: some Scene {
@@ -51,38 +62,83 @@ struct unheardpathApp: App {
     /// According to Mapbox docs, setting MapboxOptions.accessToken programmatically
     /// takes precedence over Info.plist, so this is the primary method
     private func setupMapboxToken() {
-        // CRITICAL: Set token directly from Config.xcconfig value
-        // This is the actual token from Config.xcconfig - we hardcode it here as a fallback
-        // since Info.plist injection may fail on device builds
-        // In production, you might want to use a build script or environment variable
-        let token = "pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw"
-        
-        // Try Info.plist first (works in simulator, may fail on device)
-        if let infoPlistToken = Bundle.main.infoDictionary?["MBXAccessToken"] as? String,
-           !infoPlistToken.isEmpty,
-           infoPlistToken.hasPrefix("pk.") {
-            MapboxOptions.accessToken = infoPlistToken
-            #if DEBUG
-            print("✅ Mapbox token set from Info.plist: \(String(infoPlistToken.prefix(20)))...")
-            #endif
-        } else {
-            // Fallback: Use token directly (from Config.xcconfig value)
-            // This ensures it works even when Info.plist injection fails
-            MapboxOptions.accessToken = token
-            #if DEBUG
-            print("✅ Mapbox token set programmatically (Info.plist not available)")
-            print("   Token prefix: \(String(token.prefix(20)))...")
-            print("   Note: Info.plist injection failed - using programmatic token")
-            #endif
+        guard let token = Bundle.main.infoDictionary?["MBXAccessToken"] as? String,
+              !token.isEmpty,
+              token.hasPrefix("pk.") else {
+            return
         }
+        MapboxOptions.accessToken = token
+        print("✅ Mapbox token set from Info.plist: \(String(token.prefix(20)))...")
         
         // Verify token is set
         if MapboxOptions.accessToken.isEmpty {
-            #if DEBUG
-            fatalError("Mapbox access token is empty! Check Config.xcconfig has MAPBOX_ACCESS_TOKEN set")
-            #else
-            fatalError("Mapbox access token is required")
-            #endif
+            print("❌ Mapbox token injection failed - using programmatic token")
         }
+    }
+    
+    /// Sets up PostHog analytics using values from Info.plist (injected via Config.xcconfig)
+    /// Similar to Supabase setup - reads configuration from Bundle.main.infoDictionary
+    /// REQUIRES: PostHogAPIKey and PostHogHost must be in Info.plist (injected from Config.xcconfig)
+    /// This runs in all modes including preview - Info.plist values must be available
+    private func setupPostHog() {
+        // Read PostHog API key from Info.plist (injected from Config.xcconfig)
+        // MUST be present - no fallback values
+        guard let apiKey = Bundle.main.infoDictionary?["PostHogAPIKey"] as? String,
+              !apiKey.isEmpty else {
+            let availableKeys = Bundle.main.infoDictionary?.keys.sorted().joined(separator: ", ") ?? "none"
+            print("""
+            ❌ PostHogAPIKey must be set in Info.plist (via Config.xcconfig)
+            
+            Available Info.plist keys: \(availableKeys)
+            
+            Make sure:
+            1. Config.xcconfig has POSTHOG_API_KEY set
+            2. project.pbxproj has INFOPLIST_KEY_PostHogAPIKey = "$(POSTHOG_API_KEY)" in build settings
+            3. Clean build folder (Cmd+Shift+K) and rebuild
+            
+            The key should be injected automatically from Config.xcconfig during build.
+            PostHog will not be initialized without a valid API key.
+            """)
+            return // Skip PostHog setup if API key is missing
+        }
+        
+        // Read PostHog host from Info.plist (injected from Config.xcconfig)
+        // MUST be present - no fallback values
+        guard let host = Bundle.main.infoDictionary?["PostHogHost"] as? String,
+              !host.isEmpty else {
+            print("""
+            ❌ PostHogHost must be set in Info.plist (via Config.xcconfig)
+            
+            Make sure:
+            1. Config.xcconfig has POSTHOG_HOST set
+            2. project.pbxproj has INFOPLIST_KEY_PostHogHost = "$(POSTHOG_HOST)" in build settings
+            3. Clean build folder (Cmd+Shift+K) and rebuild
+            
+            The key should be injected automatically from Config.xcconfig during build.
+            PostHog will not be initialized without a valid host.
+            """)
+            return // Skip PostHog setup if host is missing
+        }
+        // Validate host URL format
+        guard host.hasPrefix("https://") || host.hasPrefix("http://") else {
+            print("""
+            ❌ Invalid PostHog host format: \(host)
+            
+            Host must start with https:// or http://
+            Example: https://www.unheardpath.com/relay-TjH4
+            PostHog will not be initialized with an invalid host format.
+            """)
+            return // Skip PostHog setup if host format is invalid
+        }
+        
+        #if DEBUG
+        print("📊 PostHog configured from Info.plist")
+        print("   API Key: \(String(apiKey.prefix(20)))...")
+        print("   Host: \(host)")
+        #endif
+        
+        // Configure PostHog SDK
+        let config = PostHogConfig(apiKey: apiKey, host: host)
+        PostHogSDK.shared.setup(config)
     }
 }
