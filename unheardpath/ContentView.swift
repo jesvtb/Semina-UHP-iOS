@@ -58,4 +58,5 @@ struct WelcomeHeaderView: View {
 #Preview {
   ContentView()
     .environmentObject(AuthManager()) // Provide AuthManager for preview
+    .environmentObject(APIService.shared) // Provide API service for preview
 }

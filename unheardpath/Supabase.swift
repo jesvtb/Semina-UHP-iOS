@@ -173,12 +173,3 @@ func verifySupabaseConfiguration() -> (isValid: Bool, url: String?, keyPrefix: S
   return (true, urlString, String(key.prefix(10)), nil)
 }
 
-
-// let supabase: SupabaseClient = {
-  
-//   return SupabaseClient(
-//     supabaseURL: URL(string: "https://mrrssxdxblwhdsejdlxp.supabase.co")!,
-//     supabaseKey: "sb_publishable_mBb4Rnl2jdhbCR9EjcOK_A_WyZK2DzM"
-//   )
-// }()
-

@@ -17,6 +17,7 @@ class AuthManager: ObservableObject {
     // @Published is like React's useState - changes trigger view updates
     @Published var isAuthenticated = false
     @Published var isLoading = true // Track loading state
+    @Published var userID = ""
     
     // Similar to React useEffect - runs once when object is created
     init() {
@@ -35,29 +36,27 @@ class AuthManager: ObservableObject {
         // IMPORTANT: With emitLocalSessionAsInitialSession: true, we must check if session is expired
         do {
             let session = try await supabase.auth.session
+            userID = session.user.id.uuidString
+            print("🔍 User ID: \(userID)")
             print("🔍 Initial session: \(session)")
-            
             // Check if session is expired (required when using emitLocalSessionAsInitialSession: true)
             if session.isExpired {
                 #if DEBUG
-                print("⚠️ Initial session found but expired - user needs to sign in again")
-                print("   User ID: \(session.user.id)")
+                print("⚠️ Session expired - user needs to sign in again")
                 print("   Expires at: \(Date(timeIntervalSince1970: session.expiresAt))")
                 #endif
                 isAuthenticated = false
                 
-                // Capture PostHog event for expired session
-                captureSessionRetrievalEvent(sessionFound: true, isExpired: true, userId: session.user.id.uuidString)
+                
+                // captureSessionRetrievalEvent(sessionFound: true, isExpired: true, userId: userID)
             } else {
                 isAuthenticated = true
                 #if DEBUG
-                print("✅ Initial session found and valid - user is authenticated")
-                print("   User ID: \(session.user.id)")
+                print("✅ Session alive - user is authenticated")
                 #endif
-                
-                // Capture PostHog event for valid session
-                captureSessionRetrievalEvent(sessionFound: true, isExpired: false, userId: session.user.id.uuidString)
+                // captureSessionRetrievalEvent(sessionFound: true, isExpired: false, userId: userID)
             }
+            PostHogSDK.shared.identify(userID, userProperties: ["is_signed_in": isAuthenticated], userPropertiesSetOnce: ["is_signed_up": true])
         } catch {
             #if DEBUG
             print("ℹ️ No initial session - user needs to sign in: \(error.localizedDescription)")
@@ -101,11 +100,32 @@ class AuthManager: ObservableObject {
             if [.initialSession, .signedIn, .signedOut].contains(state.event) {
                 let wasAuthenticated = isAuthenticated
                 
-                // Check if session exists and is not expired
-                if let session = state.session, !session.isExpired {
-                    isAuthenticated = true
+                // Check if session exists (regardless of expiration)
+                if let session = state.session {
+                    // Identify user with PostHog whenever we have a session
+                    // Session expiration only affects JWT token validity, not user identity
+                    // Same user ID should be used for PostHog regardless of expiration
+                    let userID = session.user.id.uuidString
+                    PostHogSDK.shared.identify(userID)
+                    #if DEBUG
+                    print("✅ PostHog identified user on auth state change: \(userID)")
+                    #endif
+                    
+                    // Check if session is expired for authentication state
+                    if session.isExpired {
+                        isAuthenticated = false
+                    } else {
+                        isAuthenticated = true
+                    }
                 } else {
                     isAuthenticated = false
+                    // Reset PostHog when user signs out
+                    if state.event == .signedOut {
+                        PostHogSDK.shared.reset()
+                        #if DEBUG
+                        print("🔄 PostHog reset after sign out")
+                        #endif
+                    }
                 }
                 
                 #if DEBUG

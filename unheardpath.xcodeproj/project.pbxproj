@@ -11,13 +11,10 @@
 		C1037AB52E71279A0014D793 /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AB42E71279A0014D793 /* MapboxMaps */; };
 		C1037AB92E7185550014D793 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AB82E7185550014D793 /* Auth */; };
 		C1037ABB2E7185550014D793 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = C1037ABA2E7185550014D793 /* Functions */; };
-		C1037ABD2E7185550014D793 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = C1037ABC2E7185550014D793 /* PostgREST */; };
 		C1037ABF2E7185550014D793 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = C1037ABE2E7185550014D793 /* Realtime */; };
 		C1037AC12E7185550014D793 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AC02E7185550014D793 /* Storage */; };
 		C1037AC32E7185550014D793 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AC22E7185550014D793 /* Supabase */; };
-		C1C87F5B2ED1557200A46F12 /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = C1C87F5A2ED1557200A46F12 /* MapboxMaps */; };
-		C1C87F5E2ED157DA00A46F12 /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = C1C87F5D2ED157DA00A46F12 /* MapboxMaps */; };
-		C1DF004A2EC88B15009C463E /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = C1DF00492EC88B15009C463E /* PostHog */; };
+		C1C87F622ED18B2C00A46F12 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = C1C87F612ED18B2C00A46F12 /* PostHog */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,13 +78,10 @@
 				C1037AB52E71279A0014D793 /* MapboxMaps in Frameworks */,
 				C1037AB22E7126210014D793 /* MapLibre in Frameworks */,
 				C1037AC12E7185550014D793 /* Storage in Frameworks */,
-				C1DF004A2EC88B15009C463E /* PostHog in Frameworks */,
-				C1C87F5B2ED1557200A46F12 /* MapboxMaps in Frameworks */,
+				C1C87F622ED18B2C00A46F12 /* PostHog in Frameworks */,
 				C1037ABB2E7185550014D793 /* Functions in Frameworks */,
 				C1037ABF2E7185550014D793 /* Realtime in Frameworks */,
 				C1037AB92E7185550014D793 /* Auth in Frameworks */,
-				C1037ABD2E7185550014D793 /* PostgREST in Frameworks */,
-				C1C87F5E2ED157DA00A46F12 /* MapboxMaps in Frameworks */,
 				C1037AC32E7185550014D793 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -331,6 +325,7 @@
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
+				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_PostHogAPIKey = "$(POSTHOG_API_KEY)";
 				INFOPLIST_KEY_PostHogHost = "$(POSTHOG_HOST)";
 				INFOPLIST_KEY_SupabaseProjectUrl = "$(SUPABASE_PROJECT_URL)";
@@ -348,11 +343,9 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				POSTHOG_HOST = "https://www.unheardpath.com/relay-TjH4";
 				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpath;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
-				SUPABASE_PROJECT_URL = "https://mrrssxdxblwhdsejdlxp.supabase.co";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -384,6 +377,7 @@
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
+				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_PostHogAPIKey = "$(POSTHOG_API_KEY)";
 				INFOPLIST_KEY_PostHogHost = "$(POSTHOG_HOST)";
 				INFOPLIST_KEY_SupabaseProjectUrl = "$(SUPABASE_PROJECT_URL)";
@@ -401,11 +395,9 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				POSTHOG_HOST = "https://www.unheardpath.com/relay-TjH4";
 				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpath;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
-				SUPABASE_PROJECT_URL = "https://mrrssxdxblwhdsejdlxp.supabase.co";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -721,11 +713,6 @@
 			package = C1037AB72E7185550014D793 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Functions;
 		};
-		C1037ABC2E7185550014D793 /* PostgREST */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C1037AB72E7185550014D793 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = PostgREST;
-		};
 		C1037ABE2E7185550014D793 /* Realtime */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C1037AB72E7185550014D793 /* XCRemoteSwiftPackageReference "supabase-swift" */;
@@ -741,17 +728,7 @@
 			package = C1037AB72E7185550014D793 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
 		};
-		C1C87F5A2ED1557200A46F12 /* MapboxMaps */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C1037AB32E71279A0014D793 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */;
-			productName = MapboxMaps;
-		};
-		C1C87F5D2ED157DA00A46F12 /* MapboxMaps */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C1037AB32E71279A0014D793 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */;
-			productName = MapboxMaps;
-		};
-		C1DF00492EC88B15009C463E /* PostHog */ = {
+		C1C87F612ED18B2C00A46F12 /* PostHog */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C1DF00482EC88B15009C463E /* XCRemoteSwiftPackageReference "posthog-ios" */;
 			productName = PostHog;

@@ -10,6 +10,8 @@ enum TabSelection: Int {
 }
 
 struct SignedInHomeView: View {
+  @EnvironmentObject var apiService: APIService
+  
   @State var username = ""
   @State var fullName = ""
   @State var website = ""
@@ -24,6 +26,7 @@ struct SignedInHomeView: View {
       // Journey Tab - Default "Home" tab
       NavigationStack {
         JourneyHomeView(isTabBarHidden: $isJourneyTabBarHidden)
+          .environmentObject(apiService)
       }
       .toolbar(isJourneyTabBarHidden ? .hidden : .visible, for: .tabBar)
       .tabItem {
@@ -80,6 +83,11 @@ struct SignedInHomeView: View {
           Section {
             Button("Update profile") {
               updateProfileButtonTapped()
+            }
+            .bold()
+
+            Button("Test API Call") {
+              testAPICall()
             }
             .bold()
 
@@ -220,6 +228,27 @@ struct SignedInHomeView: View {
       }
     }
   }
+
+  // MARK: - Simple API Call Example
+  func testAPICall() {
+    Task {
+      isLoading = true
+      defer { isLoading = false }
+      
+      do {
+        let response = try await apiService.asyncCallAPI(
+          url: "https://127.0.0.1:1031/v1/signed_in_home",
+          method: "POST",
+          includeAuthToken: true
+        )
+        
+        print("✅ API call successful: \(response)")
+        
+      } catch {
+        print("❌ API call failed: \(error.localizedDescription)")
+      }
+    }
+  }
 }
 
 // MARK: - Scroll Offset Preference Key
@@ -232,10 +261,15 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
 // MARK: - Journey Home View
 struct JourneyHomeView: View {
+  @EnvironmentObject var apiService: APIService
+  @EnvironmentObject var locationManager: LocationManager
   @Binding var isTabBarHidden: Bool
   @State private var searchText = ""
   @State private var scrollOffset: CGFloat = 0
   @State private var lastScrollOffset: CGFloat = 0
+  @State private var locationText = "Your Journeys"
+  @State private var isLoadingLocation = false
+  @State private var lastSentLocation: (latitude: Double, longitude: Double)?
   
   // Placeholder journey data - replace with real data later
   let sampleJourneys = [
@@ -249,7 +283,7 @@ struct JourneyHomeView: View {
       VStack(spacing: 10) {
         // Welcome header
         VStack(alignment: .leading, spacing: 8) {
-          Text("Your Journeys")
+          Text(locationText)
             .font(.largeTitle)
             .fontWeight(.bold)
           
@@ -312,6 +346,168 @@ struct JourneyHomeView: View {
     }
     .navigationTitle("Journeys")
     .navigationBarTitleDisplayMode(.large)
+    .onChange(of: locationManager.currentLocation) { newLocation in
+      // Only make API call when location is captured and change is significant
+      if newLocation != nil {
+        Task {
+          await loadLocationIfSignificant()
+        }
+      }
+    }
+    .task {
+      // If location is already available, call immediately (first time)
+      // Otherwise, wait for onChange to trigger when location is captured
+      if locationManager.currentLocation != nil {
+        await loadLocationIfSignificant()
+      }
+    }
+  }
+  
+  /// Checks if location change is significant (>= 0.001 for either coordinate)
+  /// Returns true if change is significant or if this is the first location
+  private func isLocationChangeSignificant(
+    newLatitude: Double,
+    newLongitude: Double
+  ) -> Bool {
+    // If we haven't sent a location before, always send it
+    guard let lastSent = lastSentLocation else {
+      return true
+    }
+    
+    // Calculate differences
+    let latDifference = abs(newLatitude - lastSent.latitude)
+    let lonDifference = abs(newLongitude - lastSent.longitude)
+    
+    // Only make request if change is >= 0.001 (3rd decimal place) for either coordinate
+    let threshold: Double = 0.001
+    let isSignificant = latDifference >= threshold || lonDifference >= threshold
+    
+    #if DEBUG
+    if isSignificant {
+      print("📍 Significant location change detected:")
+      print("   Old: [\(lastSent.latitude), \(lastSent.longitude)]")
+      print("   New: [\(newLatitude), \(newLongitude)]")
+      print("   Lat diff: \(latDifference), Lon diff: \(lonDifference)")
+    } else {
+      print("📍 Location change too small, skipping API call:")
+      print("   Lat diff: \(latDifference), Lon diff: \(lonDifference) (threshold: \(threshold))")
+    }
+    #endif
+    
+    return isSignificant
+  }
+  
+  /// Checks if location change is significant before making API call
+  private func loadLocationIfSignificant() async {
+    // Only proceed if location is actually available
+    guard let latitude = locationManager.latitude,
+          let longitude = locationManager.longitude else {
+      #if DEBUG
+      print("⚠️ Location not available yet, skipping API call")
+      #endif
+      return
+    }
+    
+    // Check if location change is significant
+    guard isLocationChangeSignificant(newLatitude: latitude, newLongitude: longitude) else {
+      return
+    }
+    
+    // Make the API call
+    await loadLocation()
+  }
+  
+  private func loadLocation() async {
+    // Only proceed if location is actually available
+    guard let latitude = locationManager.latitude,
+          let longitude = locationManager.longitude else {
+      #if DEBUG
+      print("⚠️ Location not available yet, skipping API call")
+      #endif
+      return
+    }
+    
+    isLoadingLocation = true
+    defer { isLoadingLocation = false }
+    
+    do {
+      // Prepare request data with location
+      // Location is guaranteed to be available at this point
+      let jsonDict: [String: Any] = [
+        "latitude": latitude,
+        "longitude": longitude
+      ]
+      
+      #if DEBUG
+      print("📍 Sending location to API: \(latitude), \(longitude)")
+      #endif
+      
+      let response = try await apiService.asyncCallAPI(
+        url: "http://192.168.50.171:1031/v1/signed_in_home",
+        method: "POST",
+        jsonDict: jsonDict,
+        includeAuthToken: true
+      )
+      
+      // Update last sent location after successful API call
+      lastSentLocation = (latitude: latitude, longitude: longitude)
+      
+      #if DEBUG
+      print("📦 Full API Response: \(response)")
+      #endif
+      
+      // Extract location from response
+      // API returns SuccessResponse with structure: { "result": { "location": "...", ... } }
+      if let responseDict = response as? [String: Any] {
+        // Try result.location first (expected structure)
+        if let result = responseDict["result"] as? [String: Any],
+           let location = result["location"] as? String {
+          locationText = location
+          #if DEBUG
+          print("✅ Location loaded from result.location: \(location)")
+          #endif
+          return
+        }
+        
+        // Fallback: try direct location
+        if let location = responseDict["location"] as? String {
+          locationText = location
+          #if DEBUG
+          print("✅ Location loaded from direct location: \(location)")
+          #endif
+          return
+        }
+        
+        // Fallback: try data.location
+        if let data = responseDict["data"] as? [String: Any],
+           let location = data["location"] as? String {
+          locationText = location
+          #if DEBUG
+          print("✅ Location loaded from data.location: \(location)")
+          #endif
+          return
+        }
+        
+        #if DEBUG
+        print("⚠️ Location not found in response. Available keys: \(responseDict.keys.joined(separator: ", "))")
+        #endif
+      }
+      
+    } catch let apiError as APIError {
+      #if DEBUG
+      print("❌ API Error: \(apiError.message)")
+      if let code = apiError.code {
+        print("   Status Code: \(code)")
+      }
+      #endif
+      // Keep default "Your Journeys" text on error
+    } catch {
+      #if DEBUG
+      print("❌ Failed to load location: \(error.localizedDescription)")
+      print("   Error type: \(type(of: error))")
+      #endif
+      // Keep default "Your Journeys" text on error
+    }
   }
 }
 
@@ -445,4 +641,5 @@ struct ChatInputView: View {
 
 #Preview {
   SignedInHomeView()
+    .environmentObject(APIService.shared)
 }

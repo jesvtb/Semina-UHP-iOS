@@ -226,7 +226,6 @@ struct AuthView: View {
           do {
             let storedSession = try await supabase.auth.session
             print("✅ Session stored successfully - User ID: \(storedSession.user.id)")
-            print("Session: \(storedSession.accessToken)")
           } catch {
             print("⚠️ Warning: Session not found after sign-in: \(error.localizedDescription)")
           }
