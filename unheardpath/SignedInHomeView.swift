@@ -116,6 +116,8 @@ struct SignedInHomeView: View {
         isJourneyTabBarHidden = false
       }
     }
+    .toolbarBackground(.visible, for: .tabBar)
+    .toolbarBackground(Color.appBackground, for: .tabBar)
     .onAppear {
       configureTabBarAppearance()
       print("🔵 SignedInHomeView appeared")
@@ -135,7 +137,7 @@ struct SignedInHomeView: View {
     
     // Configure tab bar background
     appearance.configureWithOpaqueBackground()
-    appearance.backgroundColor = UIColor.systemBackground
+    appearance.backgroundColor = UIColor(Color.appBackground)
     
     // Configure selected tab item
     appearance.stackedLayoutAppearance.selected.iconColor = UIColor(Color.appPrimary)
@@ -282,20 +284,47 @@ struct JourneyHomeView: View {
     ScrollView {
       VStack(spacing: 10) {
         // Welcome header
-        VStack(alignment: .leading, spacing: 8) {
-          Text(locationText)
-            .font(.largeTitle)
-            .fontWeight(.bold)
-          
-          Text("Explore historical paths and stories")
-            .font(.subheadline)
-            .foregroundColor(.secondary)
+        GeometryReader { geometry in
+          ZStack {
+            AsyncImage(url: URL(string: "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop")) { image in
+              image
+                .resizable()
+                .scaledToFill()
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
+            } placeholder: {
+              Rectangle()
+                .fill(Color(.systemGray4))
+                .frame(width: geometry.size.width, height: geometry.size.height)
+            }
+
+            LinearGradient(
+              gradient: Gradient(colors: [Color.black.opacity(0.6), Color.clear]),
+              startPoint: .bottom,
+              endPoint: .top
+            )
+            
+            VStack {
+              Text(locationText)
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+            }
+            .padding()
+          }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal)
-        .padding(.top)
-        
+        .frame(height: 300)  
         // Search bar
+
+        NavigationLink(destination: MapboxMapView()) {
+          MapboxMapView()
+            .frame(height: 200)
+            .cornerRadius(12)
+            .buttonStyle(.plain)
+        }
+        // .buttonStyle(.plain)
+
+
         HStack {
           Image(systemName: "magnifyingglass")
             .foregroundColor(.secondary)
@@ -312,25 +341,19 @@ struct JourneyHomeView: View {
             JourneyCard(journey: journey)
           }
         }
-        .padding(.horizontal)
+        // .padding(.horizontal)
         .padding(.bottom)
       }
-      .background(
-        GeometryReader { geometry in
-          Color.clear
-            .preference(
-              key: ScrollOffsetPreferenceKey.self,
-              value: geometry.frame(in: .named("scroll")).minY
-            )
-        }
-      )
+      // .background(Color.appBackground)
+      // .ignoresSafeArea(.all, edges: .top)
+      
     }
-    // .background(Color.appBackground)
-    .coordinateSpace(name: "scroll")
+    .background(Color.appBackground)
+    .ignoresSafeArea(.all, edges: .top)
     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
       scrollOffset = value
       let isScrollingDown = value < lastScrollOffset
-      let threshold: CGFloat = 50
+      let threshold: CGFloat = 100
       
       if isScrollingDown && abs(value - lastScrollOffset) > threshold && value < -threshold {
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -345,7 +368,7 @@ struct JourneyHomeView: View {
       lastScrollOffset = value
     }
     .navigationTitle("Journeys")
-    .navigationBarTitleDisplayMode(.large)
+    .navigationBarTitleDisplayMode(.inline)
     .onChange(of: locationManager.currentLocation) { newLocation in
       // Only make API call when location is captured and change is significant
       if newLocation != nil {

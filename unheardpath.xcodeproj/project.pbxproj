@@ -323,9 +323,9 @@
 				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
 				INFOPLIST_KEY_NSAppTransportSecurity = NSAllowsArbitraryLoads;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
+				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
-				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_PostHogAPIKey = "$(POSTHOG_API_KEY)";
 				INFOPLIST_KEY_PostHogHost = "$(POSTHOG_HOST)";
 				INFOPLIST_KEY_SupabaseProjectUrl = "$(SUPABASE_PROJECT_URL)";
@@ -375,9 +375,9 @@
 				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
 				INFOPLIST_KEY_NSAppTransportSecurity = NSAllowsArbitraryLoads;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show your current position on the map and provide location-based features.";
+				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
-				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_PostHogAPIKey = "$(POSTHOG_API_KEY)";
 				INFOPLIST_KEY_PostHogHost = "$(POSTHOG_HOST)";
 				INFOPLIST_KEY_SupabaseProjectUrl = "$(SUPABASE_PROJECT_URL)";

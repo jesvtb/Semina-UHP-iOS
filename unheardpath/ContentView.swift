@@ -18,7 +18,7 @@ struct ContentView: View {
     Group {
       // Show loading state while checking session (happens during app init)
       if authManager.isLoading {
-        ProgressView("Checking authentication...")
+          ProgressView("Checking authentication...")
       } else if authManager.isAuthenticated {
         SignedInHomeView()
       } else {
@@ -38,22 +38,6 @@ struct ContentView: View {
   }
 }
 
-// MARK: - Welcome Header Component
-struct WelcomeHeaderView: View {
-  var body: some View {
-    VStack(spacing: 8) {
-      Text("Welcome to unheardpath")
-        .font(.largeTitle)
-        .fontWeight(.bold)
-        .foregroundColor(.primary)
-
-      Text("Your main app content goes here")
-        .font(.body)
-        .foregroundColor(.secondary)
-        .multilineTextAlignment(.center)
-    }
-  }
-}
 
 #Preview {
   ContentView()
