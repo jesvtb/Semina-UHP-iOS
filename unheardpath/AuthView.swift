@@ -4,6 +4,58 @@ import AuthenticationServices
 import UIKit
 import CryptoKit
 
+// MARK: - Apple Sign In Coordinator
+/// Coordinator class to handle Apple Sign In authorization flow
+/// This bridges UIKit's delegate pattern to SwiftUI
+class AppleSignInCoordinator: NSObject, ObservableObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+  var onCompletion: ((Result<ASAuthorization, Error>) -> Void)?
+  
+  func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+    onCompletion?(.success(authorization))
+  }
+  
+  func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+    onCompletion?(.failure(error))
+  }
+  
+  func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+    // Get the first connected window scene and its first window
+    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+       let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first {
+      return window
+    }
+    // Fallback: create a new window (shouldn't happen in normal app flow)
+    return UIWindow()
+  }
+}
+
+// MARK: - Google Logo View
+struct GoogleLogoView: View {
+  var body: some View {
+    ZStack {
+      // Outer circle with gradient (simplified Google logo colors)
+      Circle()
+        .fill(
+          AngularGradient(
+            gradient: Gradient(colors: [
+              Color(red: 0.26, green: 0.52, blue: 0.96), // Blue
+              Color(red: 0.13, green: 0.59, blue: 0.31), // Green
+              Color(red: 0.99, green: 0.76, blue: 0.18), // Yellow
+              Color(red: 0.91, green: 0.12, blue: 0.39), // Red
+              Color(red: 0.26, green: 0.52, blue: 0.96) // Back to Blue
+            ]),
+            center: .center
+          )
+        )
+      
+      // White "G" text
+      Text("G")
+        .font(.system(size: 12, weight: .bold))
+        .foregroundColor(.white)
+    }
+  }
+}
+
 struct AuthView: View {
   @State var email = ""
   @State var isLoading = false
@@ -11,65 +63,156 @@ struct AuthView: View {
   @State var isAppleLoading = false
   @State var result: Result<Void, Error>?
   @State private var currentNonce: String?
+  @State private var showEmailSignUp = false
+  @StateObject private var appleSignInCoordinator = AppleSignInCoordinator()
 
   var body: some View {
-    Form {
-      Section {
-        TextField("Email", text: $email)
-          .textContentType(.emailAddress)
-          .textInputAutocapitalization(.never)
-          .autocorrectionDisabled()
-      }
+    ZStack {
+      // Gradient background (dark teal to black)
+      LinearGradient(
+        gradient: Gradient(colors: [
+          Color(red: 0.1, green: 0.2, blue: 0.25), // Dark teal
+          Color.black
+        ]),
+        startPoint: .top,
+        endPoint: .bottom
+      )
+      .ignoresSafeArea()
+      
+      GeometryReader { geometry in
+        VStack(spacing: 0) {
+          // Top content area
+          ScrollView {
+            VStack(spacing: 0) {
+              Spacer()
+                .frame(height: 80)
+              
+              // App logo
+              Image("Logo")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .foregroundColor(Color(red: 0.4, green: 0.7, blue: 0.75)) // Light teal
+                .frame(height: 60)
+                .padding(.bottom, 100)
+            }
+          }
+          
+          // Bottom buttons area - aligned to bottom
+          VStack(spacing: 16) {
+            // Loading indicator
+            if isLoading || isGoogleLoading || isAppleLoading {
+              ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                .padding(.bottom, 8)
+            }
+            
+            // Headline and subscription information
+            VStack(alignment: .leading, spacing: 0) {
+              Text("Enhance Your Travel Experiences")
+                .font(.system(size: 40, weight: .bold))
+                .foregroundColor(Color("onBkgTextColor90"))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 16)
+              
+              // Subscription information
+              Text("Unheard Path is a membership service with a one week free trial.")
+                .font(.system(size: 16, weight: .regular))
+                .lineSpacing(4) // Adds 4 points of space between lines
+                .foregroundColor(Color("onBkgTextColor60"))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 32)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Error/Success messages
+            if let result {
+              VStack(spacing: 8) {
+                switch result {
+                case .success:
+                  Text("Check your inbox for the magic link.")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.8))
+                case .failure(let error):
+                  Text(error.localizedDescription)
+                    .font(.system(size: 14))
+                    .foregroundColor(.red)
+                }
+              }
+              .padding(.bottom, 8)
+            }
+            
+            // Sign-in buttons
+            VStack(spacing: 16) {
+              // Sign in with Apple button - custom styled to match Google button
+              Button(action: {
+                signInWithAppleButtonTapped()
+              }) {
+                HStack(spacing: 12) {
+                  // Apple logo
+                  Image(systemName: "apple.logo")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(.black)
+                  
+                  Text("Sign in with Apple")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundColor(.black)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(Color.white)
+                .cornerRadius(2)
+              }
+              .disabled(isAppleLoading)
 
-      Section {
-        Button("Continue with Email") {
+              // Sign in with Google button
+              Button(action: {
+                signInWithGoogleButtonTapped()
+              }) {
+                HStack(spacing: 12) {
+                  // Google "G" logo - colorful design
+                  GoogleLogoView()
+                    .frame(width: 20, height: 20)
+                  
+                  Text("Sign in with Google")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundColor(.black)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(Color.white)
+                .cornerRadius(2)
+              }
+              .disabled(isGoogleLoading)
+              
+              // Sign up with email link
+              Button(action: {
+                showEmailSignUp = true
+              }) {
+                Text("Sign up with email")
+                  .font(.system(size: 17, weight: .regular))
+                  .foregroundColor(.white)
+              }
+              .padding(.top, 8)
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, max(geometry.safeAreaInsets.bottom, 32))
+          }
+        }
+      }
+    }
+    .sheet(isPresented: $showEmailSignUp) {
+      EmailSignUpView(
+        email: $email,
+        isLoading: $isLoading,
+        result: $result,
+        onSignIn: {
           signInButtonTapped()
         }
-
-        Button("Continue with Google") {
-          signInWithGoogleButtonTapped()
-        }
-        .disabled(isGoogleLoading)
-
-        SignInWithAppleButton(
-          onRequest: { request in
-            // Request scopes for name and email
-            request.requestedScopes = [.fullName, .email]
-            
-            // Generate and set nonce for security (recommended by Supabase docs)
-            let nonce = randomNonceString()
-            currentNonce = nonce
-            request.nonce = sha256(nonce)
-          },
-          onCompletion: { result in
-            handleAppleSignIn(result: result)
-          }
-        )
-        .signInWithAppleButtonStyle(.black)
-        .frame(height: 50)
-        .disabled(isAppleLoading)
-
-        if isLoading || isGoogleLoading || isAppleLoading {
-          ProgressView()
-        }
-      }
-
-      if let result {
-        Section {
-          switch result {
-          case .success:
-            Text("Check your inbox for the magic link.")
-          case .failure(let error):
-            Text(error.localizedDescription).foregroundStyle(.red)
-          }
-        }
-      }
-      
-      Section {
-        Text("New users will automatically have an account created.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
+      )
     }
     .onOpenURL(perform: { url in
       Task {
@@ -98,6 +241,7 @@ struct AuthView: View {
       }
     })
   }
+  
 
   func signInButtonTapped() {
     Task {
@@ -133,6 +277,36 @@ struct AuthView: View {
     }
   }
 
+  func signInWithAppleButtonTapped() {
+    Task {
+      isAppleLoading = true
+      defer { isAppleLoading = false }
+      
+      // Generate and set nonce for security (recommended by Supabase docs)
+      let nonce = randomNonceString()
+      currentNonce = nonce
+      
+      // Create Apple ID provider request
+      let appleIDProvider = ASAuthorizationAppleIDProvider()
+      let request = appleIDProvider.createRequest()
+      request.requestedScopes = [.fullName, .email]
+      request.nonce = sha256(nonce)
+      
+      // Set up coordinator to handle the authorization flow
+      appleSignInCoordinator.onCompletion = { result in
+        self.handleAppleSignIn(result: result)
+      }
+      
+      // Create authorization controller
+      let authorizationController = ASAuthorizationController(authorizationRequests: [request])
+      authorizationController.delegate = appleSignInCoordinator
+      authorizationController.presentationContextProvider = appleSignInCoordinator
+      
+      // Perform the authorization request
+      authorizationController.performRequests()
+    }
+  }
+
   func signInWithGoogleButtonTapped() {
     Task {
       isGoogleLoading = true
@@ -140,6 +314,7 @@ struct AuthView: View {
 
       do {
         // Use the full URL with scheme for OAuth redirect
+        // Reference: https://supabase.com/docs/guides/auth/social-login/auth-google?queryGroups=platform&platform=swift&queryGroups=environment&environment=client
         guard let redirectTo = URL(string: "unheardpath://login-callback") else {
           result = .failure(NSError(domain: "AuthError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid redirect URL"]))
           return
@@ -148,7 +323,7 @@ struct AuthView: View {
         // Get the OAuth URL and open it in Safari
         // The redirect will come back to our app via the URL scheme
         // signInWithOAuth automatically creates an account if the user doesn't exist
-        // Reference: https://supabase.com/docs/guides/auth/social-login/auth-google
+        // This is Supabase's recommended approach for iOS Google sign-in
         try await supabase.auth.signInWithOAuth(
           provider: .google,
           redirectTo: redirectTo
@@ -347,4 +522,64 @@ struct AuthView: View {
     
     return hashString
   }
+}
+
+
+// MARK: - Email Sign Up View
+struct EmailSignUpView: View {
+  @Binding var email: String
+  @Binding var isLoading: Bool
+  @Binding var result: Result<Void, Error>?
+  @Environment(\.dismiss) var dismiss
+  let onSignIn: () -> Void
+  
+  var body: some View {
+    NavigationView {
+      Form {
+        Section {
+          TextField("Email", text: $email)
+            .textContentType(.emailAddress)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+        }
+        
+        Section {
+          Button("Continue with Email") {
+            onSignIn()
+          }
+          .disabled(isLoading || email.isEmpty)
+          
+          if isLoading {
+            ProgressView()
+          }
+        }
+        
+        if let result {
+          Section {
+            switch result {
+            case .success:
+              Text("Check your inbox for the magic link.")
+                .foregroundStyle(.green)
+            case .failure(let error):
+              Text(error.localizedDescription)
+                .foregroundStyle(.red)
+            }
+          }
+        }
+      }
+      .navigationTitle("Sign up with email")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .navigationBarTrailing) {
+          Button("Done") {
+            dismiss()
+          }
+        }
+      }
+    }
+  }
+}
+
+#Preview {
+  AuthView()
 }
