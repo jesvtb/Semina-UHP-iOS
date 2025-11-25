@@ -690,9 +690,10 @@ struct LocationBottomSheet: View {
   @Binding var offset: CGFloat
   let screenHeight: CGFloat
   
-  // Snap points
+  // Snap points - visible heights
   private let collapsedHeight: CGFloat = 100
   private let partialHeight: CGFloat = 400
+  private let fullHeight: CGFloat = 700 // Fixed container height
   
   @State private var dragOffset: CGFloat = 0
   @State private var currentSnapPoint: SnapPoint = .collapsed
@@ -711,12 +712,17 @@ struct LocationBottomSheet: View {
       case .full: return 700
       }
     }
-    
-    func offset(for screenHeight: CGFloat) -> CGFloat {
-      // Calculate how much to offset from bottom (positive = move up, negative = move down)
-      // We want the sheet to show its full height, so offset = screenHeight - height
-      return screenHeight - height
-    }
+  }
+  
+  /// Calculates the vertical offset to position the container based on snap point
+  /// Returns how much to move the container up to show the desired visible height
+  private func calculatePositionOffset() -> CGFloat {
+    // Container is fixed at fullHeight (700px)
+    // We offset it upward to hide the top portion
+    // Collapsed (show 100px): offset up by (700 - 100) = 600px
+    // Partial (show 400px): offset up by (700 - 400) = 300px
+    // Full (show 700px): offset up by (700 - 700) = 0px
+    return fullHeight - currentSnapPoint.height
   }
   
   var body: some View {
@@ -864,24 +870,60 @@ struct LocationBottomSheet: View {
       }
       // When not at full, disable scrolling - drag will expand sheet instead
       .scrollDisabled(currentSnapPoint != .full)
+      // When at full and content is at top, detect downward scroll to collapse
+      .simultaneousGesture(
+        DragGesture(minimumDistance: 0)
+          .onChanged { value in
+            // Only handle when at full and content is at top
+            if currentSnapPoint == .full && value.translation.height > 0 && scrollViewContentOffset >= 0 {
+              // Start collapsing
+              dragOffset = value.translation.height
+            }
+          }
+          .onEnded { value in
+            // Only handle when at full
+            if currentSnapPoint == .full {
+              // If dragged down significantly and content was at top, collapse to collapsed
+              if value.translation.height > 50 && scrollViewContentOffset >= 0 {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                  currentSnapPoint = .collapsed
+                  dragOffset = 0
+                }
+              } else {
+                // Reset if drag wasn't significant enough
+                dragOffset = 0
+              }
+            }
+          }
+      )
     }
-    .frame(height: currentSnapPoint.height) // Use current snap point height
+    .frame(height: fullHeight) // Fixed height - always full height
     .background(
       Color(.systemBackground)
         .cornerRadius(20, corners: [.topLeft, .topRight])
         .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
     )
-    .offset(y: dragOffset) // Only apply drag offset, ZStack alignment handles positioning
+    .offset(y: calculatePositionOffset() + dragOffset) // Position based on snap point + drag
     .padding(.bottom, 0) // Ensure it's at the very bottom, above tab bar
     // Drag gesture on the drag handle and sheet background
     .gesture(
       DragGesture()
         .onChanged { value in
-          // When at full, only allow downward drag
-          if currentSnapPoint == .full && value.translation.height <= 0 {
-            return // Don't handle upward drags when at full - let content scroll
+          // When at full, only allow downward drag (and only if content is at top)
+          if currentSnapPoint == .full {
+            if value.translation.height <= 0 {
+              return // Don't handle upward drags when at full - let content scroll
+            }
+            // Only handle downward drag if content is at top
+            if scrollViewContentOffset >= 0 {
+              dragOffset = value.translation.height
+            } else {
+              return // Content is scrolled, don't collapse
+            }
+          } else {
+            // Not at full - handle all drags
+            dragOffset = value.translation.height
           }
-          dragOffset = value.translation.height
         }
         .onEnded { value in
           // When at full and dragged up, don't change state
@@ -890,6 +932,22 @@ struct LocationBottomSheet: View {
             return
           }
           
+          // When at full and dragged down, collapse to collapsed if content was at top
+          if currentSnapPoint == .full && value.translation.height > 0 {
+            if scrollViewContentOffset >= 0 {
+              // Content was at top - collapse to collapsed
+              withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                currentSnapPoint = .collapsed
+                dragOffset = 0
+              }
+            } else {
+              // Content was scrolled - just reset
+              dragOffset = 0
+            }
+            return
+          }
+          
+          // Normal drag handling for collapsed/partial states
           let velocity = value.predictedEndTranslation.height
           let currentVisibleHeight = currentSnapPoint.height - dragOffset
           let newSnapPoint = determineSnapPoint(
