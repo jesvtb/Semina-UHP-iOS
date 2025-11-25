@@ -9,6 +9,18 @@ enum TabSelection: Int {
   case profile = 3
 }
 
+// MARK: - Environment Key for Tab Selection
+private struct SelectedTabKey: EnvironmentKey {
+  static let defaultValue: Binding<TabSelection> = .constant(.journey)
+}
+
+extension EnvironmentValues {
+  var selectedTab: Binding<TabSelection> {
+    get { self[SelectedTabKey.self] }
+    set { self[SelectedTabKey.self] = newValue }
+  }
+}
+
 struct SignedInHomeView: View {
   @EnvironmentObject var apiService: APIService
   
@@ -27,8 +39,11 @@ struct SignedInHomeView: View {
       NavigationStack {
         JourneyHomeView(isTabBarHidden: $isJourneyTabBarHidden)
           .environmentObject(apiService)
+          .environment(\.selectedTab, $selectedTab)
       }
       .toolbar(isJourneyTabBarHidden ? .hidden : .visible, for: .tabBar)
+      .toolbarBackground(.visible, for: .tabBar)
+      .toolbarBackground(Color("AppBkgColor"), for: .tabBar)
       .tabItem {
         Label("Journey", systemImage: "house.fill")
       }
@@ -47,6 +62,8 @@ struct SignedInHomeView: View {
         // MapboxMapView()
         // MapView()
       }
+      .toolbarBackground(.visible, for: .tabBar)
+      .toolbarBackground(Color("AppBkgColor"), for: .tabBar)
       .tabItem {
         Label("Map", systemImage: "map")
       }
@@ -107,6 +124,8 @@ struct SignedInHomeView: View {
           }
         })
       }
+      .toolbarBackground(.visible, for: .tabBar)
+      .toolbarBackground(Color("AppBkgColor"), for: .tabBar)
       .tabItem {
         Label("Profile", systemImage: "person.circle")
       }
@@ -117,7 +136,7 @@ struct SignedInHomeView: View {
       }
     }
     .toolbarBackground(.visible, for: .tabBar)
-    .toolbarBackground(Color.appBackground, for: .tabBar)
+    .toolbarBackground(Color("AppBkgColor"), for: .tabBar)
     .onAppear {
       configureTabBarAppearance()
       print("🔵 SignedInHomeView appeared")
@@ -261,10 +280,19 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
   }
 }
 
+// MARK: - Scroll Content Offset Preference Key (for bottom sheet)
+struct ScrollContentOffsetKey: PreferenceKey {
+  static var defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
 // MARK: - Journey Home View
 struct JourneyHomeView: View {
   @EnvironmentObject var apiService: APIService
   @EnvironmentObject var locationManager: LocationManager
+  @Environment(\.selectedTab) var selectedTab: Binding<TabSelection>
   @Binding var isTabBarHidden: Bool
   @State private var searchText = ""
   @State private var scrollOffset: CGFloat = 0
@@ -272,6 +300,8 @@ struct JourneyHomeView: View {
   @State private var locationText = "Your Journeys"
   @State private var isLoadingLocation = false
   @State private var lastSentLocation: (latitude: Double, longitude: Double)?
+  @State private var bottomSheetOffset: CGFloat = 0
+  @State private var locationContent: LocationContent?
   
   // Placeholder journey data - replace with real data later
   let sampleJourneys = [
@@ -281,21 +311,23 @@ struct JourneyHomeView: View {
   ]
   
   var body: some View {
-    ScrollView {
-      VStack(spacing: 10) {
+    GeometryReader { geometry in
+      ZStack(alignment: .bottom) {
+        ScrollView {
+          VStack(spacing: 10) {
         // Welcome header
-        GeometryReader { geometry in
+        GeometryReader { headerGeometry in
           ZStack {
             AsyncImage(url: URL(string: "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop")) { image in
               image
                 .resizable()
                 .scaledToFill()
-                .frame(width: geometry.size.width, height: geometry.size.height)
+                .frame(width: headerGeometry.size.width, height: headerGeometry.size.height)
                 .clipped()
             } placeholder: {
               Rectangle()
                 .fill(Color(.systemGray4))
-                .frame(width: geometry.size.width, height: geometry.size.height)
+                .frame(width: headerGeometry.size.width, height: headerGeometry.size.height)
             }
 
             LinearGradient(
@@ -316,13 +348,15 @@ struct JourneyHomeView: View {
         .frame(height: 300)  
         // Search bar
 
-        NavigationLink(destination: MapboxMapView()) {
+        Button {
+          // Switch to map tab programmatically to reuse the same MapboxMapView instance
+          selectedTab.wrappedValue = .map
+        } label: {
           MapboxMapView()
             .frame(height: 200)
             .cornerRadius(12)
-            .buttonStyle(.plain)
         }
-        // .buttonStyle(.plain)
+        .buttonStyle(.plain)
 
 
         HStack {
@@ -342,14 +376,37 @@ struct JourneyHomeView: View {
           }
         }
         // .padding(.horizontal)
-        .padding(.bottom)
+        .padding(.bottom, bottomSheetOffset > 0 ? 400 : 0) // Add padding when bottom sheet is visible
       }
       // .background(Color.appBackground)
       // .ignoresSafeArea(.all, edges: .top)
       
+        }
+        .background(Color.appBackground)
+        .ignoresSafeArea(.all, edges: .top)
+        
+        // Location Bottom Sheet - positioned at bottom of ZStack
+        // Show sheet when location is available OR always show for testing
+        if locationManager.currentLocation != nil || true { // TODO: Remove "|| true" after testing
+          LocationBottomSheet(
+            locationContent: locationContent,
+            locationText: locationText,
+            offset: $bottomSheetOffset,
+            screenHeight: geometry.size.height
+          )
+          .zIndex(1000) // Ensure it's on top
+          .allowsHitTesting(true) // Ensure it can receive touches
+          #if DEBUG
+          .onAppear {
+            print("📍 Bottom sheet condition met - location available")
+            print("   Location: \(locationManager.currentLocation?.coordinate.latitude ?? 0), \(locationManager.currentLocation?.coordinate.longitude ?? 0)")
+            print("   Location text: \(locationText)")
+            print("   Screen height: \(geometry.size.height)")
+          }
+          #endif
+        }
+      }
     }
-    .background(Color.appBackground)
-    .ignoresSafeArea(.all, edges: .top)
     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
       scrollOffset = value
       let isScrollingDown = value < lastScrollOffset
@@ -511,6 +568,11 @@ struct JourneyHomeView: View {
           return
         }
         
+        // Try to extract location content for bottom sheet
+        if let result = responseDict["result"] as? [String: Any] {
+          locationContent = LocationContent(from: result)
+        }
+        
         #if DEBUG
         print("⚠️ Location not found in response. Available keys: \(responseDict.keys.joined(separator: ", "))")
         #endif
@@ -530,6 +592,39 @@ struct JourneyHomeView: View {
       print("   Error type: \(type(of: error))")
       #endif
       // Keep default "Your Journeys" text on error
+    }
+  }
+}
+
+// MARK: - Location Content Model
+struct LocationContent {
+  let title: String
+  let subtitle: String?
+  let description: String?
+  let imageURLs: [String]
+  let coordinates: (latitude: Double, longitude: Double)?
+  
+  init(from dict: [String: Any]) {
+    self.title = dict["location"] as? String ?? dict["title"] as? String ?? "Unknown Location"
+    self.subtitle = dict["subtitle"] as? String ?? dict["address"] as? String
+    self.description = dict["description"] as? String
+    
+    // Extract image URLs
+    var images: [String] = []
+    if let imageURL = dict["image_url"] as? String {
+      images.append(imageURL)
+    }
+    if let imageURLs = dict["image_urls"] as? [String] {
+      images.append(contentsOf: imageURLs)
+    }
+    self.imageURLs = images
+    
+    // Extract coordinates if available
+    if let lat = dict["latitude"] as? Double,
+       let lon = dict["longitude"] as? Double {
+      self.coordinates = (lat, lon)
+    } else {
+      self.coordinates = nil
     }
   }
 }
@@ -585,6 +680,313 @@ struct JourneyCard: View {
       .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
     .buttonStyle(.plain)
+  }
+}
+
+// MARK: - Location Bottom Sheet Component
+struct LocationBottomSheet: View {
+  let locationContent: LocationContent?
+  let locationText: String
+  @Binding var offset: CGFloat
+  let screenHeight: CGFloat
+  
+  // Snap points
+  private let collapsedHeight: CGFloat = 100
+  private let partialHeight: CGFloat = 400
+  
+  @State private var dragOffset: CGFloat = 0
+  @State private var currentSnapPoint: SnapPoint = .collapsed
+  @State private var scrollViewContentOffset: CGFloat = 0
+  @State private var isScrollingContent: Bool = false
+  
+  enum SnapPoint {
+    case collapsed
+    case partial
+    case full
+    
+    var height: CGFloat {
+      switch self {
+      case .collapsed: return 100
+      case .partial: return 400
+      case .full: return 700
+      }
+    }
+    
+    func offset(for screenHeight: CGFloat) -> CGFloat {
+      // Calculate how much to offset from bottom (positive = move up, negative = move down)
+      // We want the sheet to show its full height, so offset = screenHeight - height
+      return screenHeight - height
+    }
+  }
+  
+  var body: some View {
+    VStack(spacing: 0) {
+      // Drag handle
+      RoundedRectangle(cornerRadius: 3)
+        .fill(Color.secondary.opacity(0.3))
+        .frame(width: 40, height: 5)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+      
+      // Content
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          // Invisible geometry reader to track scroll position
+          GeometryReader { scrollGeometry in
+            Color.clear
+              .preference(
+                key: ScrollContentOffsetKey.self,
+                value: scrollGeometry.frame(in: .named("scroll")).minY
+              )
+          }
+          .frame(height: 0)
+          // Header
+          VStack(alignment: .leading, spacing: 4) {
+            Text(locationContent?.title ?? locationText)
+              .font(.title)
+              .fontWeight(.bold)
+            
+            if let subtitle = locationContent?.subtitle {
+              Text(subtitle)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            }
+          }
+          .padding(.horizontal)
+          
+          // Action buttons
+          HStack(spacing: 12) {
+            Button(action: {}) {
+              HStack {
+                Image(systemName: "arrow.triangle.turn.up.right")
+                Text("Directions")
+              }
+              .font(.subheadline)
+              .fontWeight(.semibold)
+              .foregroundColor(.white)
+              .frame(maxWidth: .infinity)
+              .padding(.vertical, 12)
+              .background(Color.teal)
+              .cornerRadius(8)
+            }
+            
+            Button(action: {}) {
+              Image(systemName: "bookmark")
+                .font(.title3)
+                .foregroundColor(.primary)
+              .frame(width: 44, height: 44)
+              .background(Color(.systemGray6))
+              .cornerRadius(8)
+            }
+            
+            Button(action: {}) {
+              Image(systemName: "square.and.arrow.up")
+                .font(.title3)
+                .foregroundColor(.primary)
+              .frame(width: 44, height: 44)
+              .background(Color(.systemGray6))
+              .cornerRadius(8)
+            }
+          }
+          .padding(.horizontal)
+          
+          // Image gallery
+          if let content = locationContent, !content.imageURLs.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+              HStack(spacing: 12) {
+                ForEach(Array(content.imageURLs.enumerated()), id: \.offset) { index, urlString in
+                  AsyncImage(url: URL(string: urlString)) { image in
+                    image
+                      .resizable()
+                      .aspectRatio(contentMode: .fill)
+                  } placeholder: {
+                    Rectangle()
+                      .fill(Color(.systemGray4))
+                      .overlay {
+                        ProgressView()
+                      }
+                  }
+                  .frame(width: index == 0 ? 280 : 140, height: 180)
+                  .cornerRadius(12)
+                  .clipped()
+                }
+              }
+              .padding(.horizontal)
+            }
+          } else {
+            // Default location image
+            AsyncImage(url: URL(string: "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop")) { image in
+              image
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+            } placeholder: {
+              Rectangle()
+                .fill(Color(.systemGray4))
+                .overlay {
+                  ProgressView()
+                }
+            }
+            .frame(height: 200)
+            .cornerRadius(12)
+            .padding(.horizontal)
+          }
+          
+          // Description
+          if let description = locationContent?.description {
+            Text(description)
+              .font(.body)
+              .foregroundColor(.secondary)
+              .padding(.horizontal)
+          }
+          
+          // Additional content placeholder
+          VStack(alignment: .leading, spacing: 12) {
+            Text("When to visit")
+              .font(.headline)
+              .padding(.horizontal)
+            
+            HStack {
+              Image(systemName: "calendar")
+              Text("Peak Season · Jun - Sept")
+              Spacer()
+            }
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .padding(.horizontal)
+          }
+          .padding(.top)
+        }
+        .padding(.bottom, 100) // Extra padding for scrolling
+      }
+      .coordinateSpace(name: "scroll")
+      .onPreferenceChange(ScrollContentOffsetKey.self) { offset in
+        scrollViewContentOffset = offset
+      }
+      // When not at full, disable scrolling - drag will expand sheet instead
+      .scrollDisabled(currentSnapPoint != .full)
+    }
+    .frame(height: currentSnapPoint.height) // Use current snap point height
+    .background(
+      Color(.systemBackground)
+        .cornerRadius(20, corners: [.topLeft, .topRight])
+        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
+    )
+    .offset(y: dragOffset) // Only apply drag offset, ZStack alignment handles positioning
+    .padding(.bottom, 0) // Ensure it's at the very bottom, above tab bar
+    // Drag gesture on the drag handle and sheet background
+    .gesture(
+      DragGesture()
+        .onChanged { value in
+          // When at full, only allow downward drag
+          if currentSnapPoint == .full && value.translation.height <= 0 {
+            return // Don't handle upward drags when at full - let content scroll
+          }
+          dragOffset = value.translation.height
+        }
+        .onEnded { value in
+          // When at full and dragged up, don't change state
+          if currentSnapPoint == .full && value.translation.height <= 0 {
+            dragOffset = 0
+            return
+          }
+          
+          let velocity = value.predictedEndTranslation.height
+          let currentVisibleHeight = currentSnapPoint.height - dragOffset
+          let newSnapPoint = determineSnapPoint(
+            currentOffset: currentVisibleHeight,
+            velocity: velocity
+          )
+          
+          withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            currentSnapPoint = newSnapPoint
+            dragOffset = 0
+          }
+        }
+    )
+    .onAppear {
+      currentSnapPoint = .collapsed
+      #if DEBUG
+      print("📍 Bottom sheet appeared - screenHeight: \(screenHeight)")
+      print("   Current snap point: \(currentSnapPoint), height: \(currentSnapPoint.height)")
+      #endif
+    }
+  }
+  
+  private func expandSheet() {
+    // Expand to next larger snap point
+    switch currentSnapPoint {
+    case .collapsed:
+      withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        currentSnapPoint = .partial
+      }
+    case .partial:
+      withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        currentSnapPoint = .full
+      }
+    case .full:
+      break // Already at full
+    }
+  }
+  
+  private func determineSnapPoint(currentOffset: CGFloat, velocity: CGFloat) -> SnapPoint {
+    // Determine snap point based on current position and velocity
+    let threshold: CGFloat = 50
+    
+    if abs(velocity) > 500 {
+      // Fast swipe - go to next/previous snap point
+      if velocity > 0 {
+        // Swiping down
+        switch currentSnapPoint {
+        case .full: return .partial
+        case .partial: return .collapsed
+        case .collapsed: return .collapsed
+        }
+      } else {
+        // Swiping up
+        switch currentSnapPoint {
+        case .collapsed: return .partial
+        case .partial: return .full
+        case .full: return .full
+        }
+      }
+    } else {
+      // Slow drag - snap to nearest point
+      let distances: [(SnapPoint, CGFloat)] = [
+        (.collapsed, abs(currentOffset - collapsedHeight)),
+        (.partial, abs(currentOffset - partialHeight)),
+        (.full, abs(currentOffset - SnapPoint.full.height))
+      ]
+      
+      let nearest = distances.min(by: { $0.1 < $1.1 })?.0 ?? .collapsed
+      
+      // Only snap if within threshold
+      if abs(currentOffset - nearest.height) < threshold {
+        return nearest
+      } else {
+        return currentSnapPoint
+      }
+    }
+  }
+}
+
+// MARK: - Corner Radius Extension
+extension View {
+  func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+    clipShape(RoundedCorner(radius: radius, corners: corners))
+  }
+}
+
+struct RoundedCorner: Shape {
+  var radius: CGFloat = .infinity
+  var corners: UIRectCorner = .allCorners
+
+  func path(in rect: CGRect) -> Path {
+    let path = UIBezierPath(
+      roundedRect: rect,
+      byRoundingCorners: corners,
+      cornerRadii: CGSize(width: radius, height: radius)
+    )
+    return Path(path.cgPath)
   }
 }
 
