@@ -109,13 +109,12 @@ struct AuthView: View {
             
             // Headline and subscription information
             VStack(alignment: .leading, spacing: 0) {
-              Text("Enhance Your Travel Experiences")
-                .font(.system(size: 40, weight: .bold))
+              Headline1Label(text: "Enhance Your Travel Experiences")
                 .foregroundColor(Color("onBkgTextColor90"))
-                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 32)
-                .padding(.bottom, 16)
+                .padding(.bottom, 16)       
               
               // Subscription information
               Text("Unheard Path is a membership service with a one week free trial.")

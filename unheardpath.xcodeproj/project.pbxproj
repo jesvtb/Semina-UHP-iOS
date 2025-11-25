@@ -117,14 +117,14 @@
 		C1CD228B2E6FE5D50057E60C = {
 			isa = PBXGroup;
 			children = (
-				C1DF00502EC88B15009C463F /* Config.xcconfig */,
-				C1CD22962E6FE5D50057E60C /* unheardpath */,
-				C1CD22A82E6FE5D60057E60C /* unheardpathTests */,
-				C1CD22B22E6FE5D60057E60C /* unheardpathUITests */,
 				C1037A842E7126030014D793 /* unheardpath.app */,
+				C1DF00502EC88B15009C463F /* Config.xcconfig */,
 				C1037A852E7126030014D793 /* unheardpathTests.xctest */,
 				C1037A862E7126030014D793 /* unheardpathUITests.xctest */,
 				C1C87F5C2ED157DA00A46F12 /* Frameworks */,
+				C1CD22962E6FE5D50057E60C /* unheardpath */,
+				C1CD22A82E6FE5D60057E60C /* unheardpathTests */,
+				C1CD22B22E6FE5D60057E60C /* unheardpathUITests */,
 			);
 			sourceTree = "<group>";
 		};

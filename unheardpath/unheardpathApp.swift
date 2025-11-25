@@ -26,6 +26,9 @@ struct unheardpathApp: App {
             let availableKeys = infoDict.keys.sorted().joined(separator: ", ")
             print("🔍 Available Info.plist keys at app init: \(availableKeys)")
         }
+        
+        // Verify custom fonts are loaded (debug only)
+        Typography.verifyFonts()
         #endif
         
         // Set Mapbox access token programmatically as fallback

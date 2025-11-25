@@ -25,6 +25,10 @@
 	<string>https://www.unheardpath.com/relay-TjH4</string>
 	<key>MBXAccessToken</key>
 	<string>pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>SourceSerif4Display-Semibold.ttf</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
