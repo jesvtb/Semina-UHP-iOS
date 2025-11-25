@@ -29,120 +29,29 @@ struct SignedInHomeView: View {
   @State var website = ""
 
   @State var isLoading = false
-  @State var showChatPopup = false
   @State private var selectedTab: TabSelection = .journey
   @State private var isJourneyTabBarHidden = false
 
   var body: some View {
-    TabView(selection: $selectedTab) {
-      // Journey Tab - Default "Home" tab
-      NavigationStack {
-        JourneyHomeView(isTabBarHidden: $isJourneyTabBarHidden)
-          .environmentObject(apiService)
-          .environment(\.selectedTab, $selectedTab)
-      }
-      .toolbar(isJourneyTabBarHidden ? .hidden : .visible, for: .tabBar)
-      .toolbarBackground(.visible, for: .tabBar)
-      .toolbarBackground(Color("AppBkgColor"), for: .tabBar)
-      .tabItem {
-        Label("Journey", systemImage: "house.fill")
-      }
-      .tag(TabSelection.journey)
-      .onAppear {
-        // Reset tab bar visibility when switching to this tab
-        if selectedTab == .journey {
-          isJourneyTabBarHidden = false
-        }
-      }
+    ZStack(alignment: .bottom) {
+      // Full screen map as base
+      MapboxMapView()
+        .ignoresSafeArea(.all)
       
-      // Map Tab
+      // Bottom Sheet with tab-controlled content
+      JourneyHomeView(
+        isTabBarHidden: $isJourneyTabBarHidden,
+        selectedTab: $selectedTab
+      )
+      .environmentObject(apiService)
       
-      NavigationStack {
-        MapboxMapView()
-        // MapboxMapView()
-        // MapView()
-      }
-      .toolbarBackground(.visible, for: .tabBar)
-      .toolbarBackground(Color("AppBkgColor"), for: .tabBar)
-      .tabItem {
-        Label("Map", systemImage: "map")
-      }
-      .tag(TabSelection.map)
-      .onAppear {
-        // Ensure tab bar is visible when switching to other tabs
-        isJourneyTabBarHidden = false
-      }
-      
-      // Chat Tab - Shows popup instead of navigating
-      Color.clear
-        .tabItem {
-          Label("Chat", systemImage: "message")
-        }
-        .tag(TabSelection.chat)
-        .onAppear {
-          showChatPopup = true
-        }
-      
-      // Profile Tab
-      NavigationStack {
-        Form {
-          Section {
-            TextField("Username", text: $username)
-              .textContentType(.username)
-              .textInputAutocapitalization(.never)
-            TextField("Full name", text: $fullName)
-              .textContentType(.name)
-            TextField("Website", text: $website)
-              .textContentType(.URL)
-              .textInputAutocapitalization(.never)
-          }
-
-          Section {
-            Button("Update profile") {
-              updateProfileButtonTapped()
-            }
-            .bold()
-
-            Button("Test API Call") {
-              testAPICall()
-            }
-            .bold()
-
-            if isLoading {
-              ProgressView()
-            }
-          }
-        }
-        .navigationTitle("Profile")
-        .toolbar(content: {
-          ToolbarItem(placement: .topBarLeading){
-            Button("Sign out", role: .destructive) {
-              Task {
-                try? await supabase.auth.signOut()
-              }
-            }
-          }
-        })
-      }
-      .toolbarBackground(.visible, for: .tabBar)
-      .toolbarBackground(Color("AppBkgColor"), for: .tabBar)
-      .tabItem {
-        Label("Profile", systemImage: "person.circle")
-      }
-      .tag(TabSelection.profile)
-      .onAppear {
-        // Ensure tab bar is visible when switching to other tabs
-        isJourneyTabBarHidden = false
-      }
+      // Custom Tab Bar
+      CustomTabBar(selectedTab: $selectedTab)
+        .zIndex(2000) // Above bottom sheet
     }
-    .toolbarBackground(.visible, for: .tabBar)
-    .toolbarBackground(Color("AppBkgColor"), for: .tabBar)
     .onAppear {
       configureTabBarAppearance()
       print("🔵 SignedInHomeView appeared")
-    }
-    .sheet(isPresented: $showChatPopup) {
-      ChatInputView(isPresented: $showChatPopup)
     }
     .task {
       print("🔵 SignedInHomeView task started")
@@ -292,141 +201,36 @@ struct ScrollContentOffsetKey: PreferenceKey {
 struct JourneyHomeView: View {
   @EnvironmentObject var apiService: APIService
   @EnvironmentObject var locationManager: LocationManager
-  @Environment(\.selectedTab) var selectedTab: Binding<TabSelection>
   @Binding var isTabBarHidden: Bool
-  @State private var searchText = ""
-  @State private var scrollOffset: CGFloat = 0
-  @State private var lastScrollOffset: CGFloat = 0
+  @Binding var selectedTab: TabSelection
   @State private var locationText = "Your Journeys"
   @State private var isLoadingLocation = false
   @State private var lastSentLocation: (latitude: Double, longitude: Double)?
   @State private var bottomSheetOffset: CGFloat = 0
   @State private var locationContent: LocationContent?
   
-  // Placeholder journey data - replace with real data later
-  let sampleJourneys = [
-    JourneyItem(title: "Istanbul before Islam", description: "Explore the rich history of Istanbul", imageURL: "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop"),
-    JourneyItem(title: "Ancient Rome", description: "Discover the wonders of the Roman Empire", imageURL: "https://www.cityrometours.com//upload/CONF93/20181108/fascist-architecture-eur-rome-auto-728X430-zoom.jpg"),
-    JourneyItem(title: "Medieval Paris", description: "Walk through the streets of historic Paris", imageURL: "https://media.tacdn.com/media/attractions-splice-spp-674x446/10/5c/9a/f7.jpg"),
-  ]
-  
   var body: some View {
-    GeometryReader { geometry in
-      ZStack(alignment: .bottom) {
-        ScrollView {
-          VStack(spacing: 10) {
-        // Welcome header
-        GeometryReader { headerGeometry in
-          ZStack {
-            AsyncImage(url: URL(string: "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop")) { image in
-              image
-                .resizable()
-                .scaledToFill()
-                .frame(width: headerGeometry.size.width, height: headerGeometry.size.height)
-                .clipped()
-            } placeholder: {
-              Rectangle()
-                .fill(Color(.systemGray4))
-                .frame(width: headerGeometry.size.width, height: headerGeometry.size.height)
-            }
-
-            LinearGradient(
-              gradient: Gradient(colors: [Color.black.opacity(0.6), Color.clear]),
-              startPoint: .bottom,
-              endPoint: .top
-            )
-            
-            VStack {
-              Text(locationText)
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-            }
-            .padding()
-          }
+    Group {
+      // Location Bottom Sheet - positioned at bottom
+      // Show sheet when location is available OR always show for testing
+      if locationManager.currentLocation != nil || true { // TODO: Remove "|| true" after testing
+        LocationBottomSheet(
+          locationContent: locationContent,
+          locationText: locationText,
+          offset: $bottomSheetOffset,
+          selectedTab: $selectedTab
+        )
+        .zIndex(1000) // Ensure it's on top
+        .allowsHitTesting(true) // Ensure it can receive touches
+        #if DEBUG
+        .onAppear {
+          print("📍 Bottom sheet condition met - location available")
+          print("   Location: \(locationManager.currentLocation?.coordinate.latitude ?? 0), \(locationManager.currentLocation?.coordinate.longitude ?? 0)")
+          print("   Location text: \(locationText)")
         }
-        .frame(height: 300)  
-        // Search bar
-
-        Button {
-          // Switch to map tab programmatically to reuse the same MapboxMapView instance
-          selectedTab.wrappedValue = .map
-        } label: {
-          MapboxMapView()
-            .frame(height: 200)
-            .cornerRadius(12)
-        }
-        .buttonStyle(.plain)
-
-
-        HStack {
-          Image(systemName: "magnifyingglass")
-            .foregroundColor(.secondary)
-          TextField("Search journeys...", text: $searchText)
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(10)
-        .padding(.horizontal)
-        
-        // Journey cards
-        LazyVStack(spacing: 16) {
-          ForEach(sampleJourneys) { journey in
-            JourneyCard(journey: journey)
-          }
-        }
-        // .padding(.horizontal)
-        .padding(.bottom, bottomSheetOffset > 0 ? 400 : 0) // Add padding when bottom sheet is visible
-      }
-      // .background(Color.appBackground)
-      // .ignoresSafeArea(.all, edges: .top)
-      
-        }
-        .background(Color.appBackground)
-        .ignoresSafeArea(.all, edges: .top)
-        
-        // Location Bottom Sheet - positioned at bottom of ZStack
-        // Show sheet when location is available OR always show for testing
-        if locationManager.currentLocation != nil || true { // TODO: Remove "|| true" after testing
-          LocationBottomSheet(
-            locationContent: locationContent,
-            locationText: locationText,
-            offset: $bottomSheetOffset,
-            screenHeight: geometry.size.height,
-            screenWidth: geometry.size.width
-          )
-          .zIndex(1000) // Ensure it's on top
-          .allowsHitTesting(true) // Ensure it can receive touches
-          #if DEBUG
-          .onAppear {
-            print("📍 Bottom sheet condition met - location available")
-            print("   Location: \(locationManager.currentLocation?.coordinate.latitude ?? 0), \(locationManager.currentLocation?.coordinate.longitude ?? 0)")
-            print("   Location text: \(locationText)")
-            print("   Screen height: \(geometry.size.height)")
-          }
-          #endif
-        }
+        #endif
       }
     }
-    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-      scrollOffset = value
-      let isScrollingDown = value < lastScrollOffset
-      let threshold: CGFloat = 100
-      
-      if isScrollingDown && abs(value - lastScrollOffset) > threshold && value < -threshold {
-        withAnimation(.easeInOut(duration: 0.3)) {
-          isTabBarHidden = true
-        }
-      } else if !isScrollingDown || value > -threshold {
-        withAnimation(.easeInOut(duration: 0.3)) {
-          isTabBarHidden = false
-        }
-      }
-      
-      lastScrollOffset = value
-    }
-    .navigationTitle("Journeys")
-    .navigationBarTitleDisplayMode(.inline)
     .onChange(of: locationManager.currentLocation) { newLocation in
       // Only make API call when location is captured and change is significant
       if newLocation != nil {
@@ -435,7 +239,7 @@ struct JourneyHomeView: View {
         }
       }
     }
-    .task {
+    .task { @MainActor in
       // If location is already available, call immediately (first time)
       // Otherwise, wait for onChange to trigger when location is captured
       if locationManager.currentLocation != nil {
@@ -689,8 +493,7 @@ struct LocationBottomSheet: View {
   let locationContent: LocationContent?
   let locationText: String
   @Binding var offset: CGFloat
-  let screenHeight: CGFloat
-  let screenWidth: CGFloat
+  @Binding var selectedTab: TabSelection
   
   // Snap points - visible heights
   private let collapsedHeight: CGFloat = 100
@@ -698,7 +501,7 @@ struct LocationBottomSheet: View {
   private let fullHeight: CGFloat = 700 // Fixed container height
   
   @State private var dragOffset: CGFloat = 0
-  @State private var currentSnapPoint: SnapPoint = .collapsed
+  @State private var currentSnapPoint: SnapPoint = .partial
   @State private var scrollViewContentOffset: CGFloat = 0
   @State private var isScrollingContent: Bool = false
   
@@ -736,7 +539,7 @@ struct LocationBottomSheet: View {
         .padding(.top, 12)
         .padding(.bottom, 8)
       
-      // Content
+      // Content based on selected main tab
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
           // Invisible geometry reader to track scroll position
@@ -748,122 +551,20 @@ struct LocationBottomSheet: View {
               )
           }
           .frame(height: 0)
-          // Header
-          VStack(alignment: .leading, spacing: 4) {
-            Text(locationContent?.title ?? locationText)
-              .font(.title)
-              .fontWeight(.bold)
-            
-            if let subtitle = locationContent?.subtitle {
-              Text(subtitle)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            }
-          }
-          .padding(.horizontal)
           
-          // Action buttons
-          HStack(spacing: 12) {
-            Button(action: {}) {
-              HStack {
-                Image(systemName: "arrow.triangle.turn.up.right")
-                Text("Directions")
-              }
-              .font(.subheadline)
-              .fontWeight(.semibold)
-              .foregroundColor(.white)
-              .frame(maxWidth: .infinity)
-              .padding(.vertical, 12)
-              .background(Color.teal)
-              .cornerRadius(8)
-            }
-            
-            Button(action: {}) {
-              Image(systemName: "bookmark")
-                .font(.title3)
-                .foregroundColor(.primary)
-              .frame(width: 44, height: 44)
-              .background(Color(.systemGray6))
-              .cornerRadius(8)
-            }
-            
-            Button(action: {}) {
-              Image(systemName: "square.and.arrow.up")
-                .font(.title3)
-                .foregroundColor(.primary)
-              .frame(width: 44, height: 44)
-              .background(Color(.systemGray6))
-              .cornerRadius(8)
-            }
+          // Switch content based on selected main tab
+          switch selectedTab {
+          case .journey:
+            journeyContent
+          case .map:
+            mapContent
+          case .chat:
+            chatContent
+          case .profile:
+            profileContent
           }
-          .padding(.horizontal)
-          
-          // Image gallery
-          if let content = locationContent, !content.imageURLs.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-              HStack(spacing: 12) {
-                ForEach(Array(content.imageURLs.enumerated()), id: \.offset) { index, urlString in
-                  AsyncImage(url: URL(string: urlString)) { image in
-                    image
-                      .resizable()
-                      .aspectRatio(contentMode: .fill)
-                  } placeholder: {
-                    Rectangle()
-                      .fill(Color(.systemGray4))
-                      .overlay {
-                        ProgressView()
-                      }
-                  }
-                  .frame(width: index == 0 ? 280 : 140, height: 180)
-                  .cornerRadius(12)
-                  .clipped()
-                }
-              }
-              .padding(.horizontal)
-            }
-          } else {
-            // Default location image
-            AsyncImage(url: URL(string: "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop")) { image in
-              image
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-            } placeholder: {
-              Rectangle()
-                .fill(Color(.systemGray4))
-                .overlay {
-                  ProgressView()
-                }
-            }
-            .frame(height: 200)
-            .cornerRadius(12)
-            .padding(.horizontal)
-          }
-          
-          // Description
-          if let description = locationContent?.description {
-            Text(description)
-              .font(.body)
-              .foregroundColor(.secondary)
-              .padding(.horizontal)
-          }
-          
-          // Additional content placeholder
-          VStack(alignment: .leading, spacing: 12) {
-            Text("When to visit")
-              .font(.headline)
-              .padding(.horizontal)
-            
-            HStack {
-              Image(systemName: "calendar")
-              Text("Peak Season · Jun - Sept")
-              Spacer()
-            }
-            .font(.subheadline)
-            .foregroundColor(.secondary)
-            .padding(.horizontal)
-          }
-          .padding(.top)
         }
+        .frame(maxWidth: .infinity) // Constrain width to prevent expansion
         .padding(.bottom, 100) // Extra padding for scrolling
       }
       .coordinateSpace(name: "scroll")
@@ -899,15 +600,15 @@ struct LocationBottomSheet: View {
           }
       )
     }
-    .frame(width: screenWidth) // Match device width
+    .frame(width: UIScreen.main.bounds.width) // Fixed width to prevent expansion
     .frame(height: fullHeight) // Fixed height - always full height
     .background(
-      Color(.systemBackground)
+      Color("AppBkgColor")
         .cornerRadius(20, corners: [.topLeft, .topRight])
         .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
     )
     .offset(y: calculatePositionOffset() + dragOffset) // Position based on snap point + drag
-    .padding(.bottom, 0) // Ensure it's at the very bottom, above tab bar
+    .padding(.bottom, 49) // Account for custom tab bar height
     // Drag gesture on the drag handle and sheet background
     .gesture(
       DragGesture()
@@ -965,12 +666,249 @@ struct LocationBottomSheet: View {
         }
     )
     .onAppear {
-      currentSnapPoint = .collapsed
+      currentSnapPoint = .partial
       #if DEBUG
-      print("📍 Bottom sheet appeared - screenHeight: \(screenHeight)")
+      print("📍 Bottom sheet appeared")
       print("   Current snap point: \(currentSnapPoint), height: \(currentSnapPoint.height)")
       #endif
     }
+    .onChange(of: selectedTab) { newTab in
+      // Reset to partial when switching tabs
+      withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        currentSnapPoint = .partial
+      }
+    }
+  }
+  
+  // MARK: - Tab Content Views
+  
+  @ViewBuilder
+  private var journeyContent: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      // Fixed width constraint to prevent expansion
+      Color.clear
+        .frame(width: UIScreen.main.bounds.width)
+        .frame(height: 0)
+      // Header
+      VStack(alignment: .leading, spacing: 4) {
+        Text(locationContent?.title ?? locationText)
+          .font(.title)
+          .fontWeight(.bold)
+        
+        if let subtitle = locationContent?.subtitle {
+          Text(subtitle)
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+        }
+      }
+      .padding(.horizontal)
+      .frame(maxWidth: .infinity, alignment: .leading) // Constrain width
+      
+      // Action buttons
+      HStack(spacing: 12) {
+        Button(action: {}) {
+          HStack {
+            Image(systemName: "arrow.triangle.turn.up.right")
+            Text("Directions")
+          }
+          .font(.subheadline)
+          .fontWeight(.semibold)
+          .foregroundColor(.white)
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, 12)
+          .background(Color.teal)
+          .cornerRadius(8)
+        }
+        
+        Button(action: {}) {
+          Image(systemName: "bookmark")
+            .font(.title3)
+            .foregroundColor(.primary)
+          .frame(width: 44, height: 44)
+          .background(Color(.systemGray6))
+          .cornerRadius(8)
+        }
+        
+        Button(action: {}) {
+          Image(systemName: "square.and.arrow.up")
+            .font(.title3)
+            .foregroundColor(.primary)
+          .frame(width: 44, height: 44)
+          .background(Color(.systemGray6))
+          .cornerRadius(8)
+        }
+      }
+      .padding(.horizontal)
+      
+      // Image gallery - fixed height container to prevent expansion
+      Group {
+        if let content = locationContent, !content.imageURLs.isEmpty {
+          ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+              ForEach(Array(content.imageURLs.enumerated()), id: \.offset) { index, urlString in
+              AsyncImage(url: URL(string: urlString)) { phase in
+                switch phase {
+                case .empty:
+                  Rectangle()
+                    .fill(Color(.systemGray4))
+                    .frame(width: index == 0 ? 280 : 140, height: 180)
+                    .overlay {
+                      ProgressView()
+                    }
+                case .success(let image):
+                  image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: index == 0 ? 280 : 140, height: 180)
+                case .failure:
+                  Rectangle()
+                    .fill(Color(.systemGray4))
+                    .frame(width: index == 0 ? 280 : 140, height: 180)
+                @unknown default:
+                  Rectangle()
+                    .fill(Color(.systemGray4))
+                    .frame(width: index == 0 ? 280 : 140, height: 180)
+                }
+              }
+              .cornerRadius(12)
+              .clipped()
+              }
+            }
+            .padding(.horizontal)
+          }
+          .frame(height: 180) // Fixed height to prevent expansion
+        } else {
+          // Default location image
+          AsyncImage(url: URL(string: "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop")) { image in
+            image
+              .resizable()
+              .aspectRatio(contentMode: .fill)
+          } placeholder: {
+            Rectangle()
+              .fill(Color(.systemGray4))
+              .overlay {
+                ProgressView()
+              }
+          }
+          .frame(height: 180) // Match the gallery height
+          .cornerRadius(12)
+          .padding(.horizontal)
+        }
+      }
+      .frame(maxWidth: .infinity) // Constrain width
+      .frame(height: 180) // Fixed height container
+      
+      // Description
+      if let description = locationContent?.description {
+        Text(description)
+          .font(.body)
+          .foregroundColor(.secondary)
+          .padding(.horizontal)
+          .frame(maxWidth: .infinity, alignment: .leading) // Constrain width
+      }
+      
+      // Additional content placeholder
+      VStack(alignment: .leading, spacing: 12) {
+        Text("When to visit")
+          .font(.headline)
+          .padding(.horizontal)
+        
+        HStack {
+          Image(systemName: "calendar")
+          Text("Peak Season · Jun - Sept")
+          Spacer()
+        }
+        .font(.subheadline)
+        .foregroundColor(.secondary)
+        .padding(.horizontal)
+      }
+      .padding(.top)
+    }
+    .frame(maxWidth: .infinity) // Constrain entire content width
+  }
+  
+  @ViewBuilder
+  private var mapContent: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("Map Information")
+        .font(.title2)
+        .fontWeight(.bold)
+        .padding(.horizontal)
+      
+      // Coordinates section
+      if let coordinates = locationContent?.coordinates {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Current Location")
+            .font(.headline)
+            .padding(.horizontal)
+          
+          HStack {
+            Image(systemName: "location.fill")
+            Text("\(String(format: "%.6f", coordinates.latitude)), \(String(format: "%.6f", coordinates.longitude))")
+              .font(.subheadline)
+              .foregroundColor(.secondary)
+            Spacer()
+          }
+          .padding(.horizontal)
+        }
+        .padding(.top, 8)
+      }
+      
+      // Map controls placeholder
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Map Controls")
+          .font(.headline)
+          .padding(.horizontal)
+        
+        VStack(alignment: .leading, spacing: 8) {
+          DetailRow(icon: "map", title: "Map Style", value: "Standard")
+          DetailRow(icon: "location.magnifyingglass", title: "Search Nearby", value: "Tap to search")
+          DetailRow(icon: "arrow.triangle.2.circlepath", title: "Map Layers", value: "Toggle layers")
+        }
+        .padding(.horizontal)
+      }
+      .padding(.top)
+    }
+  }
+  
+  @ViewBuilder
+  private var chatContent: some View {
+    VStack(spacing: 0) {
+      // Chat messages area
+      ScrollView {
+        VStack(alignment: .leading, spacing: 12) {
+          // Placeholder messages - replace with actual chat messages later
+          Text("Chat messages will appear here")
+            .foregroundColor(.secondary)
+            .padding()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .frame(maxWidth: .infinity)
+      
+      // Message input area
+      Divider()
+      ChatInputBar()
+    }
+  }
+  
+  @ViewBuilder
+  private var profileContent: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("Profile")
+        .font(.title2)
+        .fontWeight(.bold)
+        .padding(.horizontal)
+      
+      // Profile information would go here
+      // Note: Profile data (username, fullName, website) is in SignedInHomeView
+      // You may need to pass it down or use a shared state
+      Text("Profile information and settings")
+        .font(.body)
+        .foregroundColor(.secondary)
+        .padding(.horizontal)
+    }
+    .padding(.top)
   }
   
   private func expandSheet() {
@@ -1030,6 +968,142 @@ struct LocationBottomSheet: View {
   }
 }
 
+// MARK: - Custom Tab Bar Component
+struct CustomTabBar: View {
+  @Binding var selectedTab: TabSelection
+  
+  var body: some View {
+    HStack(spacing: 0) {
+      TabBarButton(
+        icon: "house.fill",
+        label: "Journey",
+        isSelected: selectedTab == .journey,
+        action: { selectedTab = .journey }
+      )
+      
+      TabBarButton(
+        icon: "map",
+        label: "Map",
+        isSelected: selectedTab == .map,
+        action: { selectedTab = .map }
+      )
+      
+      TabBarButton(
+        icon: "message",
+        label: "Chat",
+        isSelected: selectedTab == .chat,
+        action: { selectedTab = .chat }
+      )
+      
+      TabBarButton(
+        icon: "person.circle",
+        label: "Profile",
+        isSelected: selectedTab == .profile,
+        action: { selectedTab = .profile }
+      )
+    }
+    .frame(height: 49) // Standard tab bar height
+    .background(Color("AppBkgColor"))
+    // .overlay(
+    //   Rectangle()
+    //     .frame(height: 0.5)
+    //     .foregroundColor(Color(UIColor.separator)),
+    //   alignment: .top
+    // )
+  }
+}
+
+// MARK: - Tab Bar Button Component
+struct TabBarButton: View {
+  let icon: String
+  let label: String
+  let isSelected: Bool
+  let action: () -> Void
+  
+  var body: some View {
+    Button(action: action) {
+      VStack(spacing: 4) {
+        Image(systemName: icon)
+          .font(.system(size: 22))
+          .foregroundColor(isSelected ? Color("onBkgTextColor90") : Color("onBkgTextColor60"))
+        
+        Text(label)
+          .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
+          .foregroundColor(isSelected ? Color("onBkgTextColor90") : Color("onBkgTextColor60"))
+      }
+      .frame(maxWidth: .infinity)
+      .frame(height: 49)
+    }
+  }
+}
+
+// MARK: - Detail Row Component
+struct DetailRow: View {
+  let icon: String
+  let title: String
+  let value: String
+  
+  var body: some View {
+    HStack(spacing: 12) {
+      Image(systemName: icon)
+        .foregroundColor(.teal)
+        .frame(width: 24)
+      
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+        Text(value)
+          .font(.body)
+          .foregroundColor(.primary)
+      }
+      
+      Spacer()
+    }
+    .padding(.vertical, 8)
+  }
+}
+
+// MARK: - Review Card Component
+struct ReviewCard: View {
+  let author: String
+  let rating: Int
+  let date: String
+  let comment: String
+  
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(author)
+            .font(.headline)
+          Text(date)
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+        
+        Spacer()
+        
+        // Star rating
+        HStack(spacing: 2) {
+          ForEach(1...5, id: \.self) { index in
+            Image(systemName: index <= rating ? "star.fill" : "star")
+              .foregroundColor(index <= rating ? .yellow : .gray.opacity(0.3))
+              .font(.caption)
+          }
+        }
+      }
+      
+      Text(comment)
+        .font(.body)
+        .foregroundColor(.primary)
+    }
+    .padding()
+    .background(Color(.systemGray6))
+    .cornerRadius(12)
+  }
+}
+
 // MARK: - Corner Radius Extension
 extension View {
   func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
@@ -1051,65 +1125,30 @@ struct RoundedCorner: Shape {
   }
 }
 
-// MARK: - Chat Input View
-struct ChatInputView: View {
-  @Binding var isPresented: Bool
+// MARK: - Chat Input Bar Component
+struct ChatInputBar: View {
   @State private var messageText = ""
   @FocusState private var isTextFieldFocused: Bool
   
   var body: some View {
-    NavigationStack {
-      VStack(spacing: 0) {
-        // Chat messages area (placeholder for now)
-        ScrollView {
-          VStack(alignment: .leading, spacing: 12) {
-            Text("Chat messages will appear here")
-              .foregroundColor(.secondary)
-              .padding()
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
+    HStack(spacing: 12) {
+      TextField("Type a message...", text: $messageText, axis: .vertical)
+        .textFieldStyle(.roundedBorder)
+        .lineLimit(1...5)
+        .focused($isTextFieldFocused)
+        .onSubmit {
+          sendMessage()
         }
-        .frame(maxWidth: .infinity)
-        
-        // Message input area
-        Divider()
-        HStack(spacing: 12) {
-          TextField("Type a message...", text: $messageText, axis: .vertical)
-            .textFieldStyle(.roundedBorder)
-            .lineLimit(1...5)
-            .focused($isTextFieldFocused)
-            .onSubmit {
-              sendMessage()
-            }
-          
-          Button(action: sendMessage) {
-            Image(systemName: "arrow.up.circle.fill")
-              .font(.title2)
-              .foregroundColor(messageText.isEmpty ? .gray : .blue)
-          }
-          .disabled(messageText.isEmpty)
-        }
-        .padding()
-        .background(Color(.systemBackground))
+      
+      Button(action: sendMessage) {
+        Image(systemName: "arrow.up.circle.fill")
+          .font(.title2)
+          .foregroundColor(messageText.isEmpty ? .gray : .blue)
       }
-      .navigationTitle("Chat")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button("Done") {
-            isPresented = false
-          }
-        }
-      }
-      .onAppear {
-        // Auto-focus the text field when popup appears
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-          isTextFieldFocused = true
-        }
-      }
+      .disabled(messageText.isEmpty)
     }
-    .presentationDetents([.medium, .large])
-    .presentationDragIndicator(.visible)
+    .padding()
+    .background(Color(.systemBackground))
   }
   
   private func sendMessage() {
