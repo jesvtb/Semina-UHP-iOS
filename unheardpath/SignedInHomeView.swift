@@ -392,7 +392,8 @@ struct JourneyHomeView: View {
             locationContent: locationContent,
             locationText: locationText,
             offset: $bottomSheetOffset,
-            screenHeight: geometry.size.height
+            screenHeight: geometry.size.height,
+            screenWidth: geometry.size.width
           )
           .zIndex(1000) // Ensure it's on top
           .allowsHitTesting(true) // Ensure it can receive touches
@@ -689,6 +690,7 @@ struct LocationBottomSheet: View {
   let locationText: String
   @Binding var offset: CGFloat
   let screenHeight: CGFloat
+  let screenWidth: CGFloat
   
   // Snap points - visible heights
   private let collapsedHeight: CGFloat = 100
@@ -897,6 +899,7 @@ struct LocationBottomSheet: View {
           }
       )
     }
+    .frame(width: screenWidth) // Match device width
     .frame(height: fullHeight) // Fixed height - always full height
     .background(
       Color(.systemBackground)
