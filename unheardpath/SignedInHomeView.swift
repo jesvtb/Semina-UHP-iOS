@@ -27,6 +27,7 @@ struct SignedInHomeView: View {
   @State var username = ""
   @State var fullName = ""
   @State var website = ""
+  @State var userEmail = ""
 
   @State var isLoading = false
   @State private var selectedTab: TabSelection = .journey
@@ -47,6 +48,10 @@ struct SignedInHomeView: View {
         selectedTab: $selectedTab,
         currentNotification: $currentNotification,
         chatMessages: $chatMessages,
+        username: username,
+        fullName: fullName,
+        website: website,
+        userEmail: userEmail,
         onSendChatMessage: { messageText in
           await sendChatMessage(messageText)
         }
@@ -138,6 +143,9 @@ struct SignedInHomeView: View {
   func getInitialProfile() async {
     do {
       let currentUser = try await supabase.auth.session.user
+      
+      // Get email from session
+      self.userEmail = currentUser.email ?? "Not available"
 
       let profile: Profile =
       try await supabase
@@ -167,6 +175,14 @@ struct SignedInHomeView: View {
       }
       #endif
       debugPrint(error)
+      
+      // Still try to get email even if profile fetch fails
+      do {
+        let currentUser = try await supabase.auth.session.user
+        self.userEmail = currentUser.email ?? "Not available"
+      } catch {
+        self.userEmail = "Not available"
+      }
     }
   }
 
@@ -490,6 +506,10 @@ struct JourneyHomeView: View {
   @Binding var selectedTab: TabSelection
   @Binding var currentNotification: NotificationData?
   @Binding var chatMessages: [ChatMessage]
+  let username: String
+  let fullName: String
+  let website: String
+  let userEmail: String
   var onSendChatMessage: (String) async -> Void
   
   @State private var locationText = "Your Journeys"
@@ -509,6 +529,10 @@ struct JourneyHomeView: View {
           offset: $bottomSheetOffset,
           selectedTab: $selectedTab,
           chatMessages: $chatMessages,
+          username: username,
+          fullName: fullName,
+          website: website,
+          userEmail: userEmail,
           onSendMessage: onSendChatMessage
         )
         .zIndex(1000) // Ensure it's on top
@@ -869,6 +893,10 @@ struct LocationBottomSheet: View {
   @Binding var offset: CGFloat
   @Binding var selectedTab: TabSelection
   @Binding var chatMessages: [ChatMessage]
+  let username: String
+  let fullName: String
+  let website: String
+  let userEmail: String
   var onSendMessage: (String) async -> Void
   
   // Snap points - visible heights
@@ -1377,20 +1405,61 @@ struct LocationBottomSheet: View {
   @ViewBuilder
   private var profileContent: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text("Profile")
-        .font(.title2)
-        .fontWeight(.bold)
-        .padding(.horizontal)
+      // Fixed width constraint to prevent expansion
+      Color.clear
+        .frame(width: UIScreen.main.bounds.width)
+        .frame(height: 0)
       
-      // Profile information would go here
-      // Note: Profile data (username, fullName, website) is in SignedInHomeView
-      // You may need to pass it down or use a shared state
-      Text("Profile information and settings")
-        .font(.body)
-        .foregroundColor(.secondary)
-        .padding(.horizontal)
+      // Account Actions Section
+      VStack(alignment: .leading, spacing: 0) {
+        // Section Header
+        Text("Account Actions")
+          .font(.system(size: 13, weight: .regular))
+          .foregroundColor(.secondary)
+          .textCase(.uppercase)
+          .padding(.horizontal, 16)
+          .padding(.top, 16)
+          .padding(.bottom, 6)
+        
+        // Sign Out Button
+        Button(action: signOut) {
+          HStack(spacing: 12) {
+            Image(systemName: "rectangle.portrait.and.arrow.right")
+              .foregroundColor(.red)
+              .font(.system(size: 17))
+            Text("Sign Out")
+              .foregroundColor(.red)
+              .font(.body)
+            Spacer()
+          }
+          .padding(.horizontal, 16)
+          .padding(.vertical, 12)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(Color(.systemBackground))
+        }
+      }
+      .background(Color(.systemGroupedBackground))
+      .cornerRadius(10)
+      .padding(.horizontal)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.top)
+  }
+  
+  // MARK: - Sign Out Function
+  private func signOut() {
+    Task {
+      do {
+        try await supabase.auth.signOut()
+        #if DEBUG
+        print("✅ User signed out successfully")
+        #endif
+      } catch {
+        #if DEBUG
+        print("❌ Sign out error: \(error.localizedDescription)")
+        #endif
+      }
+    }
   }
   
   private func expandSheet() {

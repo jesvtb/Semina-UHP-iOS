@@ -38,13 +38,13 @@ struct SignInButton: View {
                 
                 Text("Sign in with \(provider)")
                     .bodyText()
-                    .foregroundColor(.black)
+                    .foregroundColor(Color("AppBkgColor"))
                 
                 Spacer()
             }
             .frame(maxWidth: .infinity)
             .frame(height: 50)
-            .background(Color.white)
+            .background(Color("buttonBkgColor90"))
             .cornerRadius(2)
         }
         .disabled(isDisabled)
@@ -93,99 +93,97 @@ struct AuthView: View {
       LinearGradient(
         gradient: Gradient(colors: [
           Color(red: 0.1, green: 0.2, blue: 0.25), // Dark teal
-          Color.black
+          Color("AppBkgColor")
         ]),
         startPoint: .top,
         endPoint: .bottom
       )
       .ignoresSafeArea()
       
-      GeometryReader { geometry in
-        VStack(spacing: 0) {
-          // Top content area
-          ScrollView {
-            VStack(spacing: 0) {
-              Spacer()
-                .frame(height: 80)
-              
-              // App logo
-              Image("Logo")
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .foregroundColor(Color(red: 0.4, green: 0.7, blue: 0.75)) // Light teal
-                .frame(height: 60)
-                .padding(.bottom, 100)
-            }
+      // App logo - fixed at top
+      VStack {
+        Image("Logo")
+          .renderingMode(.template)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .foregroundColor(Color("onBkgTextColor90")) // Light teal
+          .frame(height: 48)
+          .padding(.top)
+        
+        Spacer()
+      }
+        
+      // Bottom buttons area - aligned to bottom
+      VStack(spacing: 16) {
+          // Loading indicator
+          if isLoading || isGoogleLoading || isAppleLoading {
+            ProgressView()
+              .progressViewStyle(CircularProgressViewStyle(tint: .white))
+              .padding(.bottom, 8)
           }
           
-          // Bottom buttons area - aligned to bottom
-          VStack(spacing: 16) {
-            // Loading indicator
-            if isLoading || isGoogleLoading || isAppleLoading {
-              ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                .padding(.bottom, 8)
-            }
+          // Headline and subscription information
+          VStack() {
+            DisplayText("Enrich Your Travel Experiences", color: Color("onBkgTextColor80"))
+              .padding(.bottom, 16)       
             
-            // Headline and subscription information
-            VStack(alignment: .leading, spacing: 0) {
-              DisplayText("Enhance Your Travel Experiences", color: Color("onBkgTextColor90"))
-                .padding(.bottom, 16)       
-              
-              Text("Unheard Path is a membership service with a one week free trial.").bodyParagraph()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 32)
-            // Error/Success messages
-            if let result {
-              VStack(spacing: 8) {
-                switch result {
-                case .success:
-                  Text("Check your inbox for the magic link.")
-                    .font(.system(size: 14))
-                    .foregroundColor(.white.opacity(0.8))
-                case .failure(let error):
-                  Text(error.localizedDescription)
-                    .font(.system(size: 14))
-                    .foregroundColor(.red)
-                }
-              }
-              .padding(.bottom, 8)
-            }
-            
-            // Sign-in buttons
-            VStack(spacing: 16) {
-              // Sign in with Apple button
-              SignInButton(
-                logoImageName: "AppleLogo",
-                provider: "Apple",
-                isDisabled: isAppleLoading,
-                action: signInWithAppleButtonTapped
-              )
+            Text("Unheard Path is a membership service with a one week free trial.").bodyParagraph(color: Color("onBkgTextColor60"))
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
 
-              // Sign in with Google button
-              SignInButton(
-                logoImageName: "GoogleLogo",
-                provider: "Google",
-                isDisabled: isGoogleLoading,
-                action: signInWithGoogleButtonTapped
-              )
-              
-              // Sign up with email link
-              Button(action: {
-                showEmailSignUp = true
-              }) {
-                Text("Sign up with email").bodyParagraph(alignment: .center)
+          Spacer()
+            .frame(height: 32)
+          
+          // Error/Success messages
+          // Only show messages for email sign-in (magic link) or errors
+          // OAuth sign-ins (Apple/Google) don't need messages - navigation happens automatically
+          if let result {
+            VStack(spacing: 8) {
+              switch result {
+              case .success:
+                // Only show magic link message for email sign-in
+                Text("Check your inbox for the magic link.")
+                  .font(.system(size: 14))
+                  .foregroundColor(.white.opacity(0.8))
+              case .failure(let error):
+                Text(error.localizedDescription)
+                  .font(.system(size: 14))
+                  .foregroundColor(.red)
               }
-              .padding(.top, 8)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, max(geometry.safeAreaInsets.bottom, 32))
+            .padding(.bottom, 8)
+          }
+          
+          // Sign-in buttons
+          VStack(spacing: 16) {
+            // Sign in with Apple button
+            SignInButton(
+              logoImageName: "AppleLogo",
+              provider: "Apple",
+              isDisabled: isAppleLoading,
+              action: signInWithAppleButtonTapped
+            )
+            // Sign in with Google button
+            SignInButton(
+              logoImageName: "GoogleLogo",
+              provider: "Google",
+              isDisabled: isGoogleLoading,
+              action: signInWithGoogleButtonTapped
+            )
+            
+            // Sign up with email link
+            Button(action: {
+              showEmailSignUp = true
+            }) {
+              Text("Sign up with email").bodyParagraph(color: Color("onBkgTextColor60"), alignment: .center)
+            }
+            .padding(.top, 8)
           }
         }
+        .frame(maxHeight: .infinity, alignment: .bottom)
+        .padding(.horizontal, 32)
+        .padding(.bottom, 32)
       }
-    }
     .sheet(isPresented: $showEmailSignUp) {
       EmailSignUpView(
         email: $email,
@@ -314,7 +312,10 @@ struct AuthView: View {
         // The OAuth flow will open Safari automatically
         // When user completes auth, they'll be redirected back to our app
         // New users will have an account created automatically
-        result = .success(())
+        // Don't set result for OAuth sign-ins - AuthManager will detect the auth state change
+        // when the user returns from Safari, and ContentView will automatically navigate to SignedInHomeView
+        // Clear any previous result messages
+        result = nil
       } catch {
         // Provide more helpful error message
         let errorMessage: String
@@ -393,7 +394,10 @@ struct AuthView: View {
           // Reference: https://supabase.com/docs/guides/auth/social-login/auth-apple
           // Note: Name saving functionality can be added here if needed in the future
           
-          self.result = .success(())
+          // Don't set result for OAuth sign-ins - AuthManager will detect the auth state change
+          // and ContentView will automatically navigate to SignedInHomeView
+          // Clear any previous result messages
+          self.result = nil
         } catch {
           // Provide more helpful error messages with detailed debugging
           #if DEBUG

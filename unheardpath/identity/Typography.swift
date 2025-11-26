@@ -275,7 +275,7 @@ struct DisplayText: View {
     
     init(
         _ text: String,
-        scale: TypographyScale = .article5,
+        scale: TypographyScale = .article4,
         color: Color = .primary,
         lineHeightMultiple: CGFloat = 1.0,
         alignment: TextAlignment = .leading
@@ -288,8 +288,16 @@ struct DisplayText: View {
     }
     
     var body: some View {
-        DisplayTextLabel(text: text, scale: scale, color: color, lineHeightMultiple: lineHeightMultiple, textAlignment: textAlignment)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        DisplayTextLabel(
+            text: text,
+            scale: scale,
+            color: color,
+            lineHeightMultiple: lineHeightMultiple,
+            textAlignment: textAlignment,
+            preferredWidth: nil // Will be set from superview bounds
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -303,6 +311,7 @@ private struct DisplayTextLabel: UIViewRepresentable {
     let color: Color
     let lineHeightMultiple: CGFloat
     let textAlignment: TextAlignment
+    let preferredWidth: CGFloat?
     
     func makeUIView(context: Context) -> UILabel {
         let label = UILabel()
@@ -311,6 +320,11 @@ private struct DisplayTextLabel: UIViewRepresentable {
         label.lineBreakMode = .byWordWrapping // Ensure words don't break
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        
+        // Set preferredMaxLayoutWidth immediately if we have it
+        if let width = preferredWidth, width > 0 {
+            label.preferredMaxLayoutWidth = width
+        }
         
         updateLabel(label)
         
@@ -322,15 +336,21 @@ private struct DisplayTextLabel: UIViewRepresentable {
         uiView.lineBreakMode = .byWordWrapping // Ensure words don't break
         
         // Update preferredMaxLayoutWidth when layout changes
-        // Use GeometryReader or layout pass to get accurate width
+        // Use superview bounds if preferredWidth not provided
         DispatchQueue.main.async {
-            if let superview = uiView.superview {
-                let availableWidth = superview.bounds.width
-                if availableWidth > 0 && uiView.preferredMaxLayoutWidth != availableWidth {
-                    uiView.preferredMaxLayoutWidth = availableWidth
-                    uiView.setNeedsLayout()
-                    uiView.layoutIfNeeded()
-                }
+            let availableWidth: CGFloat
+            if let width = preferredWidth, width > 0 {
+                availableWidth = width
+            } else if let superview = uiView.superview {
+                availableWidth = superview.bounds.width
+            } else {
+                return
+            }
+            
+            if availableWidth > 0 && uiView.preferredMaxLayoutWidth != availableWidth {
+                uiView.preferredMaxLayoutWidth = availableWidth
+                uiView.setNeedsLayout()
+                uiView.layoutIfNeeded()
             }
         }
     }
