@@ -18,6 +18,29 @@ struct APIError: Codable, Error {
     let code: Int?
 }
 
+// MARK: - SSE (Server-Sent Events) Models
+struct SSEEvent {
+    let event: String?
+    let data: String
+    let id: String?
+    
+    /// Parses the data field as JSON and returns it as a dictionary
+    func parseJSONData() throws -> [String: Any]? {
+        guard let jsonData = data.data(using: .utf8) else {
+            return nil
+        }
+        return try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+    }
+    
+    /// Parses the data field as JSON and returns it as a generic Any type
+    func parseData() throws -> Any? {
+        guard let jsonData = data.data(using: .utf8) else {
+            return nil
+        }
+        return try JSONSerialization.jsonObject(with: jsonData)
+    }
+}
+
 struct AnyCodable: Codable {
     let value: Any
     
@@ -75,6 +98,9 @@ class APIService: ObservableObject {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30.0
         config.timeoutIntervalForResource = 60.0
+        // Allow streaming connections to continue in background (with limitations)
+        config.allowsCellularAccess = true
+        config.waitsForConnectivity = true // Wait for network to become available
         self.session = URLSession(configuration: config)
     }
     
@@ -387,6 +413,296 @@ class APIService: ObservableObject {
         
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         return body
+    }
+    
+    // MARK: - Streaming API Call (Server-Sent Events)
+    /// Streams Server-Sent Events (SSE) from FastAPI endpoints that yield results continuously
+    /// 
+    /// Usage:
+    /// ```swift
+    /// for try await event in apiService.streamAPI(url: "https://api.example.com/stream", jsonDict: ["key": "value"]) {
+    ///     if let jsonData = try? event.parseJSONData() {
+    ///         print("Received: \(jsonData)")
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - url: The endpoint URL
+    ///   - method: HTTP method (default: "POST")
+    ///   - headers: Additional headers (default: nil)
+    ///   - params: URL query parameters (default: [:])
+    ///   - dataDict: Form data dictionary (default: [:])
+    ///   - jsonDict: JSON body dictionary (default: [:])
+    ///   - timeout: Whether to use shorter timeout (default: false)
+    ///   - filesDict: Files to upload (default: [:])
+    ///   - includeAuthToken: Whether to include Supabase auth token (default: false)
+    /// Streams Server-Sent Events (SSE) from FastAPI endpoints that yield results continuously
+    /// 
+    /// **iOS Considerations:**
+    /// - Works well when app is in foreground
+    /// - Connection may be suspended when app goes to background
+    /// - Automatically handles network interruptions
+    /// - Uses URLSession.bytes for efficient streaming (iOS 15+)
+    ///
+    /// **Usage:**
+    /// ```swift
+    /// for try await event in apiService.streamAPI(url: "https://api.example.com/stream", jsonDict: ["key": "value"]) {
+    ///     if let jsonData = try? event.parseJSONData() {
+    ///         print("Received: \(jsonData)")
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - url: The endpoint URL
+    ///   - method: HTTP method (default: "POST")
+    ///   - headers: Additional headers (default: nil)
+    ///   - params: URL query parameters (default: [:])
+    ///   - dataDict: Form data dictionary (default: [:])
+    ///   - jsonDict: JSON body dictionary (default: [:])
+    ///   - timeout: Whether to use shorter timeout (default: false)
+    ///   - filesDict: Files to upload (default: [:])
+    ///   - includeAuthToken: Whether to include Supabase auth token (default: false)
+    /// - Returns: AsyncSequence of SSEEvent objects
+    func streamAPI(
+        url: String,
+        method: String = "POST",
+        headers: [String: String]? = nil,
+        params: [String: String] = [:],
+        dataDict: [String: Any] = [:],
+        jsonDict: [String: Any] = [:],
+        timeout: Bool = false,
+        filesDict: [String: Data] = [:],
+        includeAuthToken: Bool = false
+    ) -> AsyncThrowingStream<SSEEvent, Error> {
+        return AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    // Build URL with parameters
+                    guard var urlComponents = URLComponents(string: url) else {
+                        continuation.finish(throwing: APIError(message: "Invalid URL: \(url)", code: nil))
+                        return
+                    }
+                    
+                    if !params.isEmpty {
+                        urlComponents.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
+                    }
+                    
+                    guard let finalURL = urlComponents.url else {
+                        continuation.finish(throwing: APIError(message: "Failed to build URL", code: nil))
+                        return
+                    }
+                    
+                    // Create request
+                    var request = URLRequest(url: finalURL)
+                    request.httpMethod = method.uppercased()
+                    
+                    // Set headers - add Accept header for SSE
+                    var requestHeaders = headers ?? [:]
+                    requestHeaders["Accept"] = "text/event-stream"
+                    requestHeaders["Cache-Control"] = "no-cache"
+                    requestHeaders["Connection"] = "keep-alive"
+                    
+                    // Automatically add access token if requested
+                    if includeAuthToken {
+                        let accessToken = try await supabase.auth.session.accessToken
+                        requestHeaders["Authorization"] = "Bearer \(accessToken)"
+                    }
+                    
+                    // Apply headers to request
+                    for (key, value) in requestHeaders {
+                        request.setValue(value, forHTTPHeaderField: key)
+                    }
+                    
+                    // Set request body (same logic as asyncCallAPI)
+                    if !filesDict.isEmpty {
+                        let boundary = "Boundary-\(UUID().uuidString)"
+                        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+                        
+                        var body = Data()
+                        for (key, data) in filesDict {
+                            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+                            body.append("Content-Disposition: form-data; name=\"\(key)\"; filename=\"\(key)\"\r\n".data(using: .utf8)!)
+                            body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
+                            body.append(data)
+                            body.append("\r\n".data(using: .utf8)!)
+                        }
+                        for (key, value) in dataDict {
+                            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+                            body.append("Content-Disposition: form-data; name=\"\(key)\"\r\n\r\n".data(using: .utf8)!)
+                            body.append("\(value)\r\n".data(using: .utf8)!)
+                        }
+                        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+                        request.httpBody = body
+                    } else if method.uppercased() == "POST" || method.uppercased() == "PUT" || method.uppercased() == "PATCH" {
+                        if request.value(forHTTPHeaderField: "Content-Type") == nil {
+                            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        }
+                        let jsonData = try JSONSerialization.data(withJSONObject: jsonDict)
+                        request.httpBody = jsonData
+                    } else if !dataDict.isEmpty {
+                        let jsonData = try JSONSerialization.data(withJSONObject: dataDict)
+                        request.httpBody = jsonData
+                    }
+                    
+                    // Configure timeout
+                    if timeout {
+                        request.timeoutInterval = 10.0
+                    } else {
+                        // For streaming, use longer timeout
+                        // Note: iOS may still suspend connections in background after ~30 seconds
+                        request.timeoutInterval = 300.0 // 5 minutes for long-running streams
+                    }
+                    
+                    // Important: iOS will suspend network tasks when app goes to background
+                    // The connection will resume when app returns to foreground, but may need reconnection
+                    // Consider implementing reconnection logic if streaming is critical in background
+                    
+                    #if DEBUG
+                    print("🌊 Starting SSE Stream: \(method.uppercased()) \(url)")
+                    #endif
+                    
+                    // Use URLSession.bytes to get streaming response
+                    let (asyncBytes, response) = try await session.bytes(for: request)
+                    
+                    // Validate response
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        continuation.finish(throwing: APIError(message: "Invalid response type", code: nil))
+                        return
+                    }
+                    
+                    guard httpResponse.statusCode == 200 else {
+                        var errorData = Data()
+                        for try await byte in asyncBytes {
+                            errorData.append(byte)
+                        }
+                        let errorMessage = extractErrorMessage(from: errorData, statusCode: httpResponse.statusCode)
+                        continuation.finish(throwing: APIError(message: errorMessage, code: httpResponse.statusCode))
+                        return
+                    }
+                    
+                    #if DEBUG
+                    print("📡 SSE Stream Connected: Status \(httpResponse.statusCode)")
+                    #endif
+                    
+                    // Parse SSE stream
+                    // Note: This handles both continuous streaming (like LLM) and sparse progress notifications
+                    // The connection stays alive during gaps between progress updates
+                    
+                    var currentEvent: String?
+                    var currentData = ""
+                    var currentId: String?
+                    
+                    // asyncBytes.lines will wait for lines to arrive, handling long gaps between progress updates
+                    for try await line in asyncBytes.lines {
+                        let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                        print("SSE Line: \(trimmedLine)")
+                        // Empty line indicates end of event
+                        if trimmedLine.isEmpty {
+                            if !currentData.isEmpty {
+                                let event = SSEEvent(
+                                    event: currentEvent,
+                                    data: currentData,
+                                    id: currentId
+                                )
+                                continuation.yield(event)
+                                
+                                #if DEBUG
+                                if let eventName = currentEvent {
+                                    print("📨 SSE Event: \(eventName)")
+                                }
+                                #endif
+                                
+                                // Reset for next event
+                                currentEvent = nil
+                                currentData = ""
+                                currentId = nil
+                            }
+                            continue
+                        }
+                        
+                        // Parse SSE line format: "field: value"
+                        if let colonIndex = trimmedLine.firstIndex(of: ":") {
+                            let field = String(trimmedLine[..<colonIndex]).trimmingCharacters(in: .whitespaces)
+                            let value = String(trimmedLine[trimmedLine.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
+                            
+                            switch field.lowercased() {
+                            case "event":
+                                // If we see a new event type, yield the previous event first (if it has data)
+                                if !currentData.isEmpty {
+                                    let event = SSEEvent(
+                                        event: currentEvent,
+                                        data: currentData,
+                                        id: currentId
+                                    )
+                                    continuation.yield(event)
+                                    
+                                    #if DEBUG
+                                    if let eventName = currentEvent {
+                                        print("📨 SSE Event: \(eventName)")
+                                    }
+                                    #endif
+                                    
+                                    // Reset for new event
+                                    currentData = ""
+                                    currentId = nil
+                                }
+                                currentEvent = value
+                            case "data":
+                                if currentData.isEmpty {
+                                    currentData = value
+                                } else {
+                                    // Multiple data lines should be concatenated with newline
+                                    currentData += "\n" + value
+                                }
+                            case "id":
+                                currentId = value
+                            default:
+                                // Ignore unknown fields
+                                break
+                            }
+                        } else if trimmedLine.hasPrefix(":") {
+                            // Comment line (often used as keep-alive heartbeat)
+                            // FastAPI may send ":\n\n" as keep-alive during long operations
+                            // We ignore these but they help keep the connection alive
+                            #if DEBUG
+                            print("💓 SSE Keep-alive heartbeat received")
+                            #endif
+                            continue
+                        }
+                    }
+                    
+                    // Handle any remaining data when stream ends
+                    if !currentData.isEmpty {
+                        let event = SSEEvent(
+                            event: currentEvent,
+                            data: currentData,
+                            id: currentId
+                        )
+                        continuation.yield(event)
+                    }
+                    
+                    #if DEBUG
+                    print("✅ SSE Stream Completed")
+                    #endif
+                    
+                    continuation.finish()
+                    
+                } catch let apiError as APIError {
+                    #if DEBUG
+                    print("❌ SSE Stream Error: \(apiError.message)")
+                    #endif
+                    continuation.finish(throwing: apiError)
+                } catch {
+                    let errorMessage = "Failed to stream API at \(url): \(error.localizedDescription)"
+                    #if DEBUG
+                    print("❌ SSE Network Error: \(errorMessage)")
+                    #endif
+                    continuation.finish(throwing: APIError(message: errorMessage, code: nil))
+                }
+            }
+        }
     }
 }
 

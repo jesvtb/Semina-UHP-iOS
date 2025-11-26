@@ -99,12 +99,44 @@ struct MapView: View {
     }
 }
 
+// MARK: - Custom Location Provider for Mapbox
+/// Custom location provider that bridges the shared LocationManager to Mapbox
+/// This ensures Mapbox uses the same location data as the rest of the app
+/// Note: Mapbox's location system will still track location internally for the puck,
+/// but we configure it to match LocationManager's settings and avoid duplicate permission requests
+
 struct MapboxMapView: View {
-    @State private var locationManager = CLLocationManager()
+    @EnvironmentObject var locationManager: LocationManager
+    
+    /// Offset distance in degrees to move camera south of user location
+    /// This creates space for UI elements (like bottom sheets) above the user's location
+    private let cameraOffsetSouth: Double = 0.006 // Approximately 200-250 meters south
+    
+    /// Calculates camera center offset south of the given location
+    /// This allows the puck to show at the actual location while camera is offset
+    private func offsetCameraSouth(of location: CLLocation) -> CLLocationCoordinate2D {
+        return CLLocationCoordinate2D(
+            latitude: location.coordinate.latitude - cameraOffsetSouth,
+            longitude: location.coordinate.longitude
+        )
+    }
+    
+    /// Computes the initial viewport using the saved location from LocationManager
+    /// LocationManager loads the last saved location on init, so it should be available immediately
+    private var initialViewport: Viewport {
+        if let location = locationManager.currentLocation {
+            // Use saved location with offset south for camera center
+            let offsetCenter = offsetCameraSouth(of: location)
+            return .camera(center: offsetCenter, zoom: 14, bearing: 0, pitch: 0)
+        } else {
+            // Fallback: Use a wide viewport if no saved location exists (first time app launch)
+            return .camera(center: CLLocationCoordinate2D(latitude: 0, longitude: 0), zoom: 2, bearing: 0, pitch: 0)
+        }
+    }
     
     var body: some View {
         MapReader { proxy in
-            Map(initialViewport: .camera(center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.0), zoom: 2, bearing: 0, pitch: 0)) {
+            Map(initialViewport: initialViewport) {
                 // Add user location puck - this is Mapbox's recommended way
                 MapboxMaps.Puck2D(bearing: MapboxMaps.PuckBearing.heading)
             }
@@ -114,6 +146,18 @@ struct MapboxMapView: View {
             .onAppear {
                 verifyMapboxToken()
                 setupMapboxLocation(proxy: proxy)
+                // If we have a saved location, update camera immediately
+                // (LocationManager loads saved location on init, so it should be available)
+                if let location = locationManager.currentLocation {
+                    updateMapCamera(proxy: proxy, location: location)
+                }
+            }
+            .onChange(of: locationManager.currentLocation) { newLocation in
+                // When location updates from shared LocationManager, update camera
+                // This happens when GPS gets a fresh location update
+                if let location = newLocation {
+                    updateMapCamera(proxy: proxy, location: location)
+                }
             }
         }
         .navigationBarHidden(true)
@@ -143,24 +187,83 @@ struct MapboxMapView: View {
     }
     
     private func setupMapboxLocation(proxy: MapboxMaps.MapProxy) {
-        print("🔧 Setting up Mapbox location manager...")
+        print("🔧 Setting up Mapbox location with shared LocationManager...")
         
-        // Request location permission first
-        locationManager.requestWhenInUseAuthorization()
+        // Note: Location permission is already handled by the shared LocationManager
+        // in unheardpathApp.swift, so we don't need to request it again here.
+        // This avoids duplicate permission requests.
         
-        // Configure Mapbox's built-in location provider
-        let locationProvider = AppleLocationProvider()
-        locationProvider.options.activityType = .otherNavigation
-        locationProvider.options.desiredAccuracy = kCLLocationAccuracyBest
+        // Configure Mapbox's location provider to match LocationManager's settings
+        // This ensures consistent behavior and reduces battery usage
+        let mapboxProvider = AppleLocationProvider()
+        mapboxProvider.options.activityType = .otherNavigation
+        // Match LocationManager's accuracy setting (kCLLocationAccuracyHundredMeters)
+        mapboxProvider.options.desiredAccuracy = kCLLocationAccuracyHundredMeters
         
-        // Override the map's location provider with our configured one
-        proxy.location?.override(provider: locationProvider)
+        // Override the map's location provider
+        proxy.location?.override(provider: mapboxProvider)
         
         // Configure location puck options
         proxy.location?.options.puckType = .puck2D()
         proxy.location?.options.puckBearingEnabled = true
         
+        // If we already have a location from shared LocationManager, center the map on it
+        if let currentLocation = locationManager.currentLocation {
+            updateMapCamera(proxy: proxy, location: currentLocation)
+        }
+        
+        #if DEBUG
         print("✅ Mapbox location provider configured")
+        print("   Using shared LocationManager for permission handling")
+        print("   Mapbox location provider configured to match LocationManager accuracy settings")
+        if let currentLocation = locationManager.currentLocation {
+            print("   Current location: \(currentLocation.coordinate.latitude), \(currentLocation.coordinate.longitude)")
+        } else {
+            print("   Waiting for location update from shared LocationManager...")
+        }
+        #endif
+    }
+    
+    /// Updates the map camera to center slightly south of the user's location
+    /// The location puck will show at the actual user location, but the camera will be offset south
+    /// This creates space for UI elements (like bottom sheets) above the user's location
+    private func updateMapCamera(proxy: MapboxMaps.MapProxy, location: CLLocation) {
+        // Calculate offset camera center (south of user location)
+        let offsetCenter = offsetCameraSouth(of: location)
+        
+        // Update camera to the offset center programmatically
+        // The puck will still show at the actual user location
+        Task { @MainActor in
+            let cameraOptions = CameraOptions(
+                center: offsetCenter,
+                zoom: 14,
+                bearing: 0,
+                pitch: 0
+            )
+            
+            // Use the map's camera API to update the viewport
+            guard let camera = proxy.camera else {
+                #if DEBUG
+                print("⚠️ Camera proxy not available yet, will retry")
+                #endif
+                return
+            }
+            
+            // Try to update camera - the exact method may vary by SDK version
+            // Using flyTo with a short duration for smooth transition
+            do {
+                try await camera.fly(to: cameraOptions, duration: 0.5)
+                #if DEBUG
+                print("✅ Camera updated to offset center (south of user): \(offsetCenter.latitude), \(offsetCenter.longitude)")
+                print("   User location puck at: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                #endif
+            } catch {
+                #if DEBUG
+                print("⚠️ Camera update failed: \(error.localizedDescription)")
+                print("   Camera center state updated to: \(offsetCenter.latitude), \(offsetCenter.longitude)")
+                #endif
+            }
+        }
     }
 }
 
@@ -251,6 +354,7 @@ struct MapLibreMapViewWrapper: View {
 #Preview {
 //    MapboxDirectionsView()
     MapboxMapView()
+        .environmentObject(LocationManager())
     // MapView()
     // MapLibreMapViewWrapper()
 }

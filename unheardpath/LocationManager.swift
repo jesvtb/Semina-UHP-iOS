@@ -28,6 +28,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let backgroundAccuracy: CLLocationAccuracy = kCLLocationAccuracyKilometer  // Lower accuracy in background
     private let highAccuracyMode: CLLocationAccuracy = kCLLocationAccuracyBest  // High accuracy for navigation
     
+    // UserDefaults keys for persisting location
+    private let lastLocationLatitudeKey = "LocationManager.lastLocation.latitude"
+    private let lastLocationLongitudeKey = "LocationManager.lastLocation.longitude"
+    private let lastLocationTimestampKey = "LocationManager.lastLocation.timestamp"
+    
     override init() {
         super.init()
         locationManager.delegate = self
@@ -36,6 +41,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         locationManager.distanceFilter = activeDistanceFilter
         authorizationStatus = locationManager.authorizationStatus
         isLocationPermissionGranted = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
+        
+        // Load last saved location immediately
+        loadLastSavedLocation()
         
         // Observe app lifecycle to adapt tracking strategy
         setupAppLifecycleObservers()
@@ -232,6 +240,69 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
     
+    // MARK: - Location Persistence
+    
+    /// Saves the current location to UserDefaults for persistence across app launches
+    private func saveLocation(_ location: CLLocation) {
+        let defaults = UserDefaults.standard
+        defaults.set(location.coordinate.latitude, forKey: lastLocationLatitudeKey)
+        defaults.set(location.coordinate.longitude, forKey: lastLocationLongitudeKey)
+        defaults.set(location.timestamp.timeIntervalSince1970, forKey: lastLocationTimestampKey)
+        defaults.synchronize()
+        
+        #if DEBUG
+        print("💾 Saved location to UserDefaults: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        #endif
+    }
+    
+    /// Loads the last saved location from UserDefaults
+    /// This allows the app to start with the user's last known location
+    private func loadLastSavedLocation() {
+        let defaults = UserDefaults.standard
+        
+        guard defaults.object(forKey: lastLocationLatitudeKey) != nil,
+              defaults.object(forKey: lastLocationLongitudeKey) != nil else {
+            #if DEBUG
+            print("ℹ️ No saved location found in UserDefaults")
+            #endif
+            return
+        }
+        
+        let latitude = defaults.double(forKey: lastLocationLatitudeKey)
+        let longitude = defaults.double(forKey: lastLocationLongitudeKey)
+        let timestamp = defaults.double(forKey: lastLocationTimestampKey)
+        
+        // Validate coordinates are not zero (which would indicate no saved location)
+        guard latitude != 0.0 || longitude != 0.0 else {
+            #if DEBUG
+            print("ℹ️ Saved location coordinates are zero, ignoring")
+            #endif
+            return
+        }
+        
+        // Create CLLocation from saved coordinates
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let savedTimestamp = Date(timeIntervalSince1970: timestamp)
+        
+        // Create a CLLocation with saved coordinates
+        // Use a default accuracy since we don't save that
+        let savedLocation = CLLocation(
+            coordinate: coordinate,
+            altitude: 0,
+            horizontalAccuracy: kCLLocationAccuracyHundredMeters,
+            verticalAccuracy: -1,
+            timestamp: savedTimestamp
+        )
+        
+        // Set as current location immediately
+        currentLocation = savedLocation
+        
+        #if DEBUG
+        print("📂 Loaded saved location from UserDefaults: \(latitude), \(longitude)")
+        print("   Saved at: \(savedTimestamp)")
+        #endif
+    }
+    
     // MARK: - Location Data Access
     
     /// Returns the current latitude if available
@@ -257,6 +328,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // Update current location
         currentLocation = location
+        
+        // Save location to UserDefaults for persistence
+        saveLocation(location)
         
         // Log update with context
         let updateType = isUsingSignificantChanges ? "significant change" : "continuous"

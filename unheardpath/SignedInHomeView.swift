@@ -31,6 +31,8 @@ struct SignedInHomeView: View {
   @State var isLoading = false
   @State private var selectedTab: TabSelection = .journey
   @State private var isJourneyTabBarHidden = false
+  @State private var currentNotification: NotificationData?
+  @State private var chatMessages: [ChatMessage] = []
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -41,7 +43,12 @@ struct SignedInHomeView: View {
       // Bottom Sheet with tab-controlled content
       JourneyHomeView(
         isTabBarHidden: $isJourneyTabBarHidden,
-        selectedTab: $selectedTab
+        selectedTab: $selectedTab,
+        currentNotification: $currentNotification,
+        chatMessages: $chatMessages,
+        onSendChatMessage: { messageText in
+          await sendChatMessage(messageText)
+        }
       )
       .environmentObject(apiService)
       
@@ -159,6 +166,186 @@ struct SignedInHomeView: View {
     }
   }
 
+  // MARK: - Chat Message Handling
+  private func sendChatMessage(_ messageText: String) async {
+    #if DEBUG
+    print("🚀 sendChatMessage() called with message: '\(messageText)'")
+    #endif
+    
+    // Add user message to chat
+    await MainActor.run {
+      chatMessages.append(ChatMessage(text: messageText, isUser: true, isStreaming: false))
+      #if DEBUG
+      print("✅ User message added to chat. Total messages: \(chatMessages.count)")
+      #endif
+    }
+    
+    // Create assistant message placeholder for streaming
+    await MainActor.run {
+      chatMessages.append(ChatMessage(text: "", isUser: false, isStreaming: true))
+      #if DEBUG
+      print("✅ Assistant placeholder added. Total messages: \(chatMessages.count)")
+      #endif
+    }
+    
+    do {
+      // Prepare request data
+      let jsonDict: [String: Any] = [
+        "message": messageText
+      ]
+      
+      #if DEBUG
+      print("💬 Preparing API request:")
+      print("   URL: http://192.168.50.171:1031/v1/ask")
+      print("   Method: POST")
+      print("   Message: '\(messageText)'")
+      print("   JSON Dict: \(jsonDict)")
+      #endif
+      
+      // Use streaming API to receive notifications and content
+      let stream = apiService.streamAPI(
+        url: "http://192.168.50.171:1031/v1/ask",
+        method: "POST",
+        jsonDict: jsonDict,
+        includeAuthToken: true
+      )
+      
+      #if DEBUG
+      print("✅ Stream created, starting to process events...")
+      #endif
+      
+      var streamingContent = ""
+      
+      // Process SSE events from stream
+      var eventCount = 0
+      for try await event in stream {
+        eventCount += 1
+        #if DEBUG
+        print("📨 SSE Event #\(eventCount) received:")
+        print("   Event type: \(event.event ?? "nil")")
+        print("   Data: \(event.data.prefix(100))...")
+        #endif
+        
+        // Handle notification events
+        if event.event == "notification" {
+          #if DEBUG
+          print("🔔 Processing notification event")
+          #endif
+          // Parse the notification data
+          guard let dataDict = try event.parseJSONData() else {
+            #if DEBUG
+            print("⚠️ Failed to parse notification data as JSON")
+            #endif
+            continue
+          }
+          
+          // Create notification from parsed data
+          guard let notification = NotificationData(from: dataDict) else {
+            #if DEBUG
+            print("⚠️ Failed to create notification from data: \(dataDict)")
+            #endif
+            continue
+          }
+          
+          // Update notification on main thread
+          await MainActor.run {
+            #if DEBUG
+            print("📬 Notification received: type=\(notification.type ?? "nil"), message=\(notification.message)")
+            print("   Setting currentNotification...")
+            #endif
+            
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+              currentNotification = notification
+            }
+            
+            #if DEBUG
+            print("   currentNotification set. Value: \(currentNotification?.message ?? "nil")")
+            #endif
+            
+            // Auto-dismiss after 5 seconds
+            Task {
+              try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+              await MainActor.run {
+                #if DEBUG
+                print("   Auto-dismissing notification after 5 seconds")
+                #endif
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                  currentNotification = nil
+                }
+              }
+            }
+          }
+        }
+        // Handle streaming content events
+        else if event.event == "content" {
+          #if DEBUG
+          print("📝 Processing content event")
+          #endif
+          
+          // Parse the content data
+          guard let dataDict = try event.parseJSONData() else {
+            #if DEBUG
+            print("⚠️ Failed to parse content data as JSON")
+            #endif
+            continue
+          }
+          
+          if let content = dataDict["content"] as? String {
+            streamingContent += content
+            #if DEBUG
+            print("📝 Content chunk received: '\(content)'")
+            print("   Total streaming content length: \(streamingContent.count)")
+            #endif
+            
+            // Update the last message (assistant message) with streaming content
+            await MainActor.run {
+              if let lastIndex = chatMessages.indices.last,
+                 !chatMessages[lastIndex].isUser {
+                let isStreaming = dataDict["is_streaming"] as? Bool ?? true
+                chatMessages[lastIndex] = ChatMessage(
+                  text: streamingContent,
+                  isUser: false,
+                  isStreaming: isStreaming
+                )
+                #if DEBUG
+                print("✅ Updated assistant message. isStreaming: \(isStreaming)")
+                #endif
+              }
+            }
+          }
+        } else {
+          #if DEBUG
+          print("⚠️ Unknown event type: \(event.event ?? "nil")")
+          #endif
+        }
+      }
+      
+      #if DEBUG
+      print("✅ Stream processing completed. Total events: \(eventCount)")
+      #endif
+      
+    } catch {
+      #if DEBUG
+      print("❌ Failed to send chat message:")
+      print("   Error: \(error)")
+      print("   Error type: \(type(of: error))")
+      if let apiError = error as? APIError {
+        print("   API Error message: \(apiError.message)")
+        print("   API Error code: \(apiError.code ?? -1)")
+      }
+      #endif
+      
+      // Remove the streaming message on error
+      await MainActor.run {
+        if let lastIndex = chatMessages.indices.last,
+           !chatMessages[lastIndex].isUser,
+           chatMessages[lastIndex].text.isEmpty {
+          chatMessages.removeLast()
+        }
+      }
+    }
+  }
+
   // MARK: - Simple API Call Example
   func testAPICall() {
     Task {
@@ -197,12 +384,69 @@ struct ScrollContentOffsetKey: PreferenceKey {
   }
 }
 
+// MARK: - Notification Model
+struct NotificationData {
+  let type: String?
+  let message: String
+  
+  init?(from dict: [String: Any]) {
+    guard let message = dict["message"] as? String else {
+      return nil
+    }
+    self.type = dict["type"] as? String
+    self.message = message
+  }
+}
+
+// MARK: - Chat Message Model
+struct ChatMessage: Identifiable {
+  let id = UUID()
+  let text: String
+  let isUser: Bool
+  let isStreaming: Bool
+}
+
+// MARK: - Chat Message View
+struct ChatMessageView: View {
+  let message: ChatMessage
+  
+  var body: some View {
+    HStack {
+      if message.isUser {
+        Spacer()
+      }
+      
+      VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
+        Text(message.text)
+          .padding(.horizontal, 12)
+          .padding(.vertical, 8)
+          .background(message.isUser ? Color.blue : Color(.systemGray5))
+          .foregroundColor(message.isUser ? .white : .primary)
+          .cornerRadius(16)
+        
+        if message.isStreaming {
+          ProgressView()
+            .scaleEffect(0.8)
+        }
+      }
+      
+      if !message.isUser {
+        Spacer()
+      }
+    }
+  }
+}
+
 // MARK: - Journey Home View
 struct JourneyHomeView: View {
   @EnvironmentObject var apiService: APIService
   @EnvironmentObject var locationManager: LocationManager
   @Binding var isTabBarHidden: Bool
   @Binding var selectedTab: TabSelection
+  @Binding var currentNotification: NotificationData?
+  @Binding var chatMessages: [ChatMessage]
+  var onSendChatMessage: (String) async -> Void
+  
   @State private var locationText = "Your Journeys"
   @State private var isLoadingLocation = false
   @State private var lastSentLocation: (latitude: Double, longitude: Double)?
@@ -210,7 +454,7 @@ struct JourneyHomeView: View {
   @State private var locationContent: LocationContent?
   
   var body: some View {
-    Group {
+    ZStack(alignment: .bottom) {
       // Location Bottom Sheet - positioned at bottom
       // Show sheet when location is available OR always show for testing
       if locationManager.currentLocation != nil || true { // TODO: Remove "|| true" after testing
@@ -218,7 +462,9 @@ struct JourneyHomeView: View {
           locationContent: locationContent,
           locationText: locationText,
           offset: $bottomSheetOffset,
-          selectedTab: $selectedTab
+          selectedTab: $selectedTab,
+          chatMessages: $chatMessages,
+          onSendMessage: onSendChatMessage
         )
         .zIndex(1000) // Ensure it's on top
         .allowsHitTesting(true) // Ensure it can receive touches
@@ -230,6 +476,22 @@ struct JourneyHomeView: View {
         }
         #endif
       }
+      
+      // Notification Banner - positioned above bottom sheet
+      VStack {
+        Spacer()
+        if let notification = currentNotification {
+          NotificationBanner(notification: notification) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+              currentNotification = nil
+            }
+          }
+          .transition(.move(edge: .bottom).combined(with: .opacity))
+          .padding(.bottom, 420) // Position above bottom sheet (400px partial height + 20px padding)
+        }
+      }
+      .zIndex(1500) // Above bottom sheet but below tab bar
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .onChange(of: locationManager.currentLocation) { newLocation in
       // Only make API call when location is captured and change is significant
@@ -488,12 +750,81 @@ struct JourneyCard: View {
   }
 }
 
+// MARK: - Notification Banner Component
+struct NotificationBanner: View {
+  let notification: NotificationData
+  var onDismiss: (() -> Void)?
+  
+  /// Maps notification type to SF Symbol icon name
+  private var iconName: String {
+    guard let type = notification.type else {
+      return "bell.fill" // Default icon for null type
+    }
+    
+    switch type.lowercased() {
+    case "info", "information":
+      return "info.circle.fill"
+    case "success", "completed":
+      return "checkmark.circle.fill"
+    case "warning", "alert":
+      return "exclamationmark.triangle.fill"
+    case "error", "failure":
+      return "xmark.circle.fill"
+    case "location", "gps":
+      return "location.fill"
+    case "journey", "trip":
+      return "signpost.right.and.left.fill"
+    case "message", "chat":
+      return "message.fill"
+    case "update", "refresh":
+      return "arrow.clockwise.circle.fill"
+    default:
+      return "bell.fill" // Default icon for unknown types
+    }
+  }
+  
+  var body: some View {
+    HStack(spacing: 12) {
+      // Icon placeholder
+      Image(systemName: iconName)
+        .font(.title3)
+        .foregroundColor(.primary)
+        .frame(width: 24, height: 24)
+      
+      // Notification message
+      Text(notification.message)
+        .font(.subheadline)
+        .foregroundColor(.primary)
+        .lineLimit(2)
+        .multilineTextAlignment(.leading)
+      
+      Spacer()
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
+    .background(
+      Color(.systemBackground)
+        .opacity(0.95)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+    )
+    .padding(.horizontal)
+    .padding(.bottom, 8)
+    .contentShape(Rectangle()) // Make entire area tappable
+    .onTapGesture {
+      onDismiss?()
+    }
+  }
+}
+
 // MARK: - Location Bottom Sheet Component
 struct LocationBottomSheet: View {
   let locationContent: LocationContent?
   let locationText: String
   @Binding var offset: CGFloat
   @Binding var selectedTab: TabSelection
+  @Binding var chatMessages: [ChatMessage]
+  var onSendMessage: (String) async -> Void
   
   // Snap points - visible heights
   private let collapsedHeight: CGFloat = 100
@@ -877,18 +1208,30 @@ struct LocationBottomSheet: View {
       // Chat messages area
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
-          // Placeholder messages - replace with actual chat messages later
-          Text("Chat messages will appear here")
-            .foregroundColor(.secondary)
-            .padding()
+          if chatMessages.isEmpty {
+            Text("Chat messages will appear here")
+              .foregroundColor(.secondary)
+              .padding()
+          } else {
+            ForEach(chatMessages) { message in
+              ChatMessageView(message: message)
+            }
+          }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
       }
       .frame(maxWidth: .infinity)
       
       // Message input area
       Divider()
-      ChatInputBar()
+      ChatInputBar(
+        onSendMessage: { messageText in
+          Task {
+            await onSendMessage(messageText)
+          }
+        }
+      )
     }
   }
   
@@ -975,29 +1318,33 @@ struct CustomTabBar: View {
   var body: some View {
     HStack(spacing: 0) {
       TabBarButton(
-        icon: "house.fill",
+        selectedIcon: "signpost.right.and.left.fill",
+        unselectedIcon: "signpost.right.and.left",
         label: "Journey",
         isSelected: selectedTab == .journey,
         action: { selectedTab = .journey }
       )
       
       TabBarButton(
-        icon: "map",
+        selectedIcon: "map.fill",
+        unselectedIcon: "map",
         label: "Map",
         isSelected: selectedTab == .map,
         action: { selectedTab = .map }
       )
       
       TabBarButton(
-        icon: "message",
-        label: "Chat",
+        selectedIcon: "questionmark.bubble.fill",
+        unselectedIcon: "questionmark.bubble",
+        label: "Ask",
         isSelected: selectedTab == .chat,
         action: { selectedTab = .chat }
       )
       
       TabBarButton(
-        icon: "person.circle",
-        label: "Profile",
+        selectedIcon: "person.fill",
+        unselectedIcon: "person",
+        label: "You",
         isSelected: selectedTab == .profile,
         action: { selectedTab = .profile }
       )
@@ -1015,7 +1362,8 @@ struct CustomTabBar: View {
 
 // MARK: - Tab Bar Button Component
 struct TabBarButton: View {
-  let icon: String
+  let selectedIcon: String
+  let unselectedIcon: String
   let label: String
   let isSelected: Bool
   let action: () -> Void
@@ -1023,7 +1371,7 @@ struct TabBarButton: View {
   var body: some View {
     Button(action: action) {
       VStack(spacing: 4) {
-        Image(systemName: icon)
+        Image(systemName: isSelected ? selectedIcon : unselectedIcon)
           .font(.system(size: 22))
           .foregroundColor(isSelected ? Color("onBkgTextColor90") : Color("onBkgTextColor60"))
         
@@ -1129,6 +1477,7 @@ struct RoundedCorner: Shape {
 struct ChatInputBar: View {
   @State private var messageText = ""
   @FocusState private var isTextFieldFocused: Bool
+  var onSendMessage: (String) -> Void
   
   var body: some View {
     HStack(spacing: 12) {
@@ -1152,15 +1501,33 @@ struct ChatInputBar: View {
   }
   
   private func sendMessage() {
+    #if DEBUG
+    print("📝 ChatInputBar.sendMessage() called")
+    print("   messageText: '\(messageText)'")
+    print("   isEmpty: \(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)")
+    #endif
+    
     guard !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      #if DEBUG
+      print("⚠️ Message is empty, not sending")
+      #endif
       return
     }
     
-    // TODO: Implement message sending logic
-    print("📤 Sending message: \(messageText)")
-    
+    let textToSend = messageText
     // Clear input after sending
     messageText = ""
+    
+    #if DEBUG
+    print("✅ Calling onSendMessage with: '\(textToSend)'")
+    #endif
+    
+    // Call the callback
+    onSendMessage(textToSend)
+    
+    #if DEBUG
+    print("✅ onSendMessage callback completed")
+    #endif
   }
 }
 
