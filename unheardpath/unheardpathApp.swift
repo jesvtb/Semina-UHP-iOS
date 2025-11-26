@@ -19,30 +19,8 @@ struct unheardpathApp: App {
     @StateObject private var locationManager = LocationManager()
     
     init() {
-        // Debug: Always print available Info.plist keys during initialization
-        // This helps diagnose Config.xcconfig injection issues
-        #if DEBUG
-        if let infoDict = Bundle.main.infoDictionary {
-            let availableKeys = infoDict.keys.sorted().joined(separator: ", ")
-            print("🔍 Available Info.plist keys at app init: \(availableKeys)")
-        }
-        
-        // Verify custom fonts are loaded (debug only)
-        Typography.verifyFonts()
-        #endif
-        
-        // Set Mapbox access token programmatically as fallback
-        // According to Mapbox docs: https://docs.mapbox.com/ios/maps/guides/swift-ui/
-        // Token can be set via MapboxOptions.accessToken OR Info.plist
-        // We set it programmatically here to ensure it works on device builds
-        // even if Info.plist injection fails
         setupMapboxToken()
         setupPostHog()
-        
-        // AuthManager.init() is called when @StateObject creates it above
-        // This automatically checks for locally stored Supabase session
-        // PostHog SDK handles captures gracefully even if not fully initialized
-        // Location permission will be requested in .task modifier when app appears
     }
     
     var body: some Scene {

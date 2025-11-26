@@ -33,6 +33,7 @@ struct SignedInHomeView: View {
   @State private var isJourneyTabBarHidden = false
   @State private var currentNotification: NotificationData?
   @State private var chatMessages: [ChatMessage] = []
+  @State private var keyboardHeight: CGFloat = 0
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -52,6 +53,22 @@ struct SignedInHomeView: View {
       )
       .environmentObject(apiService)
       
+      // Chat Input Bar - positioned above CustomTabBar when keyboard is hidden, above keyboard when visible
+      if selectedTab == .chat {
+        VStack(spacing: 0) {
+          ChatInputBar(
+            onSendMessage: { messageText in
+              Task {
+                await sendChatMessage(messageText)
+              }
+            }
+          )
+          .background(Color(.systemBackground))
+        }
+        .zIndex(1999) // Above bottom sheet but below tab bar
+        .padding(.bottom, keyboardHeight > 0 ? keyboardHeight : 24) // Above keyboard when visible, above tab bar when hidden
+      }
+      
       // Custom Tab Bar
       CustomTabBar(selectedTab: $selectedTab)
         .zIndex(2000) // Above bottom sheet
@@ -59,6 +76,25 @@ struct SignedInHomeView: View {
     .onAppear {
       configureTabBarAppearance()
       print("🔵 SignedInHomeView appeared")
+    }
+    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+      if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+        // keyboardFrame is in screen coordinates
+        // We want the distance from the bottom of the screen to the top of the keyboard
+        let screenHeight = UIScreen.main.bounds.height
+        let keyboardTop = keyboardFrame.minY
+        // This gives us the distance from bottom of screen to top of keyboard
+        let distanceFromBottom = screenHeight - keyboardTop
+        
+        withAnimation(.easeOut(duration: 0.3)) {
+          keyboardHeight = distanceFromBottom
+        }
+      }
+    }
+    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+      withAnimation(.easeOut(duration: 0.3)) {
+        keyboardHeight = 0
+      }
     }
     .task {
       print("🔵 SignedInHomeView task started")
@@ -366,6 +402,7 @@ struct SignedInHomeView: View {
       }
     }
   }
+  
 }
 
 // MARK: - Scroll Offset Preference Key
@@ -378,6 +415,14 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
 // MARK: - Scroll Content Offset Preference Key (for bottom sheet)
 struct ScrollContentOffsetKey: PreferenceKey {
+  static var defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
+// MARK: - Chat Scroll Offset Preference Key
+struct ChatScrollOffsetKey: PreferenceKey {
   static var defaultValue: CGFloat = 0
   static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
     value = nextValue()
@@ -835,6 +880,8 @@ struct LocationBottomSheet: View {
   @State private var currentSnapPoint: SnapPoint = .partial
   @State private var scrollViewContentOffset: CGFloat = 0
   @State private var isScrollingContent: Bool = false
+  @State private var isChatNearBottom: Bool = true
+  @State private var hasScrolledInitially: Bool = false
   
   enum SnapPoint {
     case collapsed
@@ -871,39 +918,49 @@ struct LocationBottomSheet: View {
         .padding(.bottom, 8)
       
       // Content based on selected main tab
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          // Invisible geometry reader to track scroll position
-          GeometryReader { scrollGeometry in
-            Color.clear
-              .preference(
-                key: ScrollContentOffsetKey.self,
-                value: scrollGeometry.frame(in: .named("scroll")).minY
-              )
+      // For chat tab, use the chat's own ScrollView (handled in chatContent)
+      // For other tabs, use the outer ScrollView
+      Group {
+        if selectedTab == .chat {
+          // Chat has its own ScrollView, so we don't need the outer one
+          chatContent
+            .frame(maxWidth: .infinity)
+        } else {
+          ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+              // Invisible geometry reader to track scroll position
+              GeometryReader { scrollGeometry in
+                Color.clear
+                  .preference(
+                    key: ScrollContentOffsetKey.self,
+                    value: scrollGeometry.frame(in: .named("scroll")).minY
+                  )
+              }
+              .frame(height: 0)
+              
+              // Switch content based on selected main tab
+              switch selectedTab {
+              case .journey:
+                journeyContent
+              case .map:
+                mapContent
+              case .profile:
+                profileContent
+              case .chat:
+                EmptyView() // Handled above
+              }
+            }
+            .frame(maxWidth: .infinity) // Constrain width to prevent expansion
+            .padding(.bottom, 100) // Extra padding for scrolling
           }
-          .frame(height: 0)
-          
-          // Switch content based on selected main tab
-          switch selectedTab {
-          case .journey:
-            journeyContent
-          case .map:
-            mapContent
-          case .chat:
-            chatContent
-          case .profile:
-            profileContent
+          .coordinateSpace(name: "scroll")
+          .onPreferenceChange(ScrollContentOffsetKey.self) { offset in
+            scrollViewContentOffset = offset
           }
+          // When not at full, disable scrolling - drag will expand sheet instead
+          .scrollDisabled(currentSnapPoint != .full)
         }
-        .frame(maxWidth: .infinity) // Constrain width to prevent expansion
-        .padding(.bottom, 100) // Extra padding for scrolling
       }
-      .coordinateSpace(name: "scroll")
-      .onPreferenceChange(ScrollContentOffsetKey.self) { offset in
-        scrollViewContentOffset = offset
-      }
-      // When not at full, disable scrolling - drag will expand sheet instead
-      .scrollDisabled(currentSnapPoint != .full)
       // When at full and content is at top, detect downward scroll to collapse
       .simultaneousGesture(
         DragGesture(minimumDistance: 0)
@@ -1206,32 +1263,114 @@ struct LocationBottomSheet: View {
   private var chatContent: some View {
     VStack(spacing: 0) {
       // Chat messages area
-      ScrollView {
-        VStack(alignment: .leading, spacing: 12) {
-          if chatMessages.isEmpty {
-            Text("Chat messages will appear here")
-              .foregroundColor(.secondary)
-              .padding()
-          } else {
-            ForEach(chatMessages) { message in
-              ChatMessageView(message: message)
+      ScrollViewReader { proxy in
+        ScrollView {
+          // Allow scrolling in chat even when bottom sheet isn't at full
+          // This ensures chat messages can scroll independently
+          VStack(alignment: .leading, spacing: 12) {
+            if chatMessages.isEmpty {
+              Text("Chat messages will appear here")
+                .foregroundColor(.secondary)
+                .padding()
+                .id("empty-state")
+            } else {
+              // Show messages in order (oldest to newest, newest at bottom)
+              ForEach(chatMessages) { message in
+                ChatMessageView(message: message)
+                  .id(message.id)
+              }
+            }
+            // Bottom anchor for scrolling
+            Color.clear
+              .frame(height: 1)
+              .id("bottom-anchor")
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding()
+          .padding(.bottom, 80) // Extra padding to account for input bar above tab bar
+          .background(
+            GeometryReader { geometry in
+              Color.clear
+                .preference(
+                  key: ChatScrollOffsetKey.self,
+                  value: -geometry.frame(in: .named("chat-scroll")).minY
+                )
+            }
+          )
+        }
+        .coordinateSpace(name: "chat-scroll")
+        .onPreferenceChange(ChatScrollOffsetKey.self) { offset in
+          // Check if user is near bottom (within 150 points)
+          // Offset is negative when scrolled down, so we check if it's close to 0
+          let threshold: CGFloat = 150
+          let newIsNearBottom = abs(offset) <= threshold || offset >= 0
+          if newIsNearBottom != isChatNearBottom {
+            isChatNearBottom = newIsNearBottom
+          }
+        }
+        .onAppear {
+          // Scroll to bottom on initial appear
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            if let lastMessage = chatMessages.last {
+              withAnimation {
+                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+              }
+            } else {
+              withAnimation {
+                proxy.scrollTo("bottom-anchor", anchor: .bottom)
+              }
             }
           }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-      }
-      .frame(maxWidth: .infinity)
-      
-      // Message input area
-      Divider()
-      ChatInputBar(
-        onSendMessage: { messageText in
-          Task {
-            await onSendMessage(messageText)
+        .onChange(of: chatMessages.count) { newCount in
+          // Auto-scroll when new messages arrive
+          guard newCount > 0 else { return }
+          
+          // Always scroll on first message, then respect user's scroll position
+          let shouldScroll = !hasScrolledInitially || isChatNearBottom
+          
+          if shouldScroll {
+            // Use Task to ensure we're on the main actor and view has updated
+            Task { @MainActor in
+              try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
+              if let lastMessage = chatMessages.last {
+                withAnimation(.easeOut(duration: 0.3)) {
+                  proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                }
+                hasScrolledInitially = true
+              } else {
+                withAnimation(.easeOut(duration: 0.3)) {
+                  proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                }
+                hasScrolledInitially = true
+              }
+            }
           }
         }
-      )
+        .onChange(of: chatMessages.last?.text) { _ in
+          // Auto-scroll during streaming updates (if user is near bottom)
+          guard isChatNearBottom, let lastMessage = chatMessages.last else { return }
+          
+          // Use Task to ensure we're on the main actor and view has updated
+          Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 30_000_000) // 0.03 seconds
+            withAnimation(.easeOut(duration: 0.2)) {
+              proxy.scrollTo(lastMessage.id, anchor: .bottom)
+            }
+          }
+        }
+        .onChange(of: chatMessages.last?.isStreaming) { _ in
+          // When streaming finishes, ensure we're at the bottom
+          if isChatNearBottom, let lastMessage = chatMessages.last, !lastMessage.isStreaming {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+              withAnimation(.easeOut(duration: 0.3)) {
+                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+              }
+            }
+          }
+        }
+      }
+      .frame(maxWidth: .infinity)
     }
   }
   

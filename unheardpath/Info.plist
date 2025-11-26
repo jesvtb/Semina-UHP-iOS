@@ -28,6 +28,9 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>SourceSerif4Display-Semibold.ttf</string>
+		<string>SourceSerif4Subhead-It.ttf</string>
+		<string>SourceSerif4-Regular.ttf</string>
+		<string>SourceSans3-ExtraLight.ttf</string>
 	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>

@@ -4,6 +4,53 @@ import AuthenticationServices
 import UIKit
 import CryptoKit
 
+// MARK: - Sign In Button Component
+/// Reusable sign-in button component for providers (Apple, Google, etc.)
+/// Usage: SignInButton(logoImageName: "AppleLogo", provider: "Apple") { signInAction() }
+struct SignInButton: View {
+    let logoImageName: String
+    let provider: String
+    let action: () -> Void
+    let isDisabled: Bool
+    
+    init(
+        logoImageName: String,
+        provider: String,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.logoImageName = logoImageName
+        self.provider = provider
+        self.isDisabled = isDisabled
+        self.action = action
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Spacer()
+                
+                // Provider logo
+                Image(logoImageName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 22, height: 22)
+                
+                Text("Sign in with \(provider)")
+                    .bodyText()
+                    .foregroundColor(.black)
+                
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(Color.white)
+            .cornerRadius(2)
+        }
+        .disabled(isDisabled)
+    }
+}
+
 // MARK: - Apple Sign In Coordinator
 /// Coordinator class to handle Apple Sign In authorization flow
 /// This bridges UIKit's delegate pattern to SwiftUI
@@ -29,32 +76,6 @@ class AppleSignInCoordinator: NSObject, ObservableObject, ASAuthorizationControl
   }
 }
 
-// MARK: - Google Logo View
-struct GoogleLogoView: View {
-  var body: some View {
-    ZStack {
-      // Outer circle with gradient (simplified Google logo colors)
-      Circle()
-        .fill(
-          AngularGradient(
-            gradient: Gradient(colors: [
-              Color(red: 0.26, green: 0.52, blue: 0.96), // Blue
-              Color(red: 0.13, green: 0.59, blue: 0.31), // Green
-              Color(red: 0.99, green: 0.76, blue: 0.18), // Yellow
-              Color(red: 0.91, green: 0.12, blue: 0.39), // Red
-              Color(red: 0.26, green: 0.52, blue: 0.96) // Back to Blue
-            ]),
-            center: .center
-          )
-        )
-      
-      // White "G" text
-      Text("G")
-        .font(.system(size: 12, weight: .bold))
-        .foregroundColor(.white)
-    }
-  }
-}
 
 struct AuthView: View {
   @State var email = ""
@@ -109,24 +130,13 @@ struct AuthView: View {
             
             // Headline and subscription information
             VStack(alignment: .leading, spacing: 0) {
-              Headline1Label(text: "Enhance Your Travel Experiences")
-                .foregroundColor(Color("onBkgTextColor90"))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 32)
+              DisplayText("Enhance Your Travel Experiences", color: Color("onBkgTextColor90"))
                 .padding(.bottom, 16)       
               
-              // Subscription information
-              Text("Unheard Path is a membership service with a one week free trial.")
-                .font(.system(size: 16, weight: .regular))
-                .lineSpacing(4) // Adds 4 points of space between lines
-                .foregroundColor(Color("onBkgTextColor60"))
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 32)
-                .padding(.bottom, 32)
+              Text("Unheard Path is a membership service with a one week free trial.").bodyParagraph()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 32)
             // Error/Success messages
             if let result {
               VStack(spacing: 8) {
@@ -146,54 +156,27 @@ struct AuthView: View {
             
             // Sign-in buttons
             VStack(spacing: 16) {
-              // Sign in with Apple button - custom styled to match Google button
-              Button(action: {
-                signInWithAppleButtonTapped()
-              }) {
-                HStack(spacing: 12) {
-                  // Apple logo
-                  Image(systemName: "apple.logo")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(.black)
-                  
-                  Text("Sign in with Apple")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundColor(.black)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Color.white)
-                .cornerRadius(2)
-              }
-              .disabled(isAppleLoading)
+              // Sign in with Apple button
+              SignInButton(
+                logoImageName: "AppleLogo",
+                provider: "Apple",
+                isDisabled: isAppleLoading,
+                action: signInWithAppleButtonTapped
+              )
 
               // Sign in with Google button
-              Button(action: {
-                signInWithGoogleButtonTapped()
-              }) {
-                HStack(spacing: 12) {
-                  // Google "G" logo - colorful design
-                  GoogleLogoView()
-                    .frame(width: 20, height: 20)
-                  
-                  Text("Sign in with Google")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundColor(.black)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Color.white)
-                .cornerRadius(2)
-              }
-              .disabled(isGoogleLoading)
+              SignInButton(
+                logoImageName: "GoogleLogo",
+                provider: "Google",
+                isDisabled: isGoogleLoading,
+                action: signInWithGoogleButtonTapped
+              )
               
               // Sign up with email link
               Button(action: {
                 showEmailSignUp = true
               }) {
-                Text("Sign up with email")
-                  .font(.system(size: 17, weight: .regular))
-                  .foregroundColor(.white)
+                Text("Sign up with email").bodyParagraph(alignment: .center)
               }
               .padding(.top, 8)
             }

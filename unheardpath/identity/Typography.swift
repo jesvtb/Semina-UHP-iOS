@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreGraphics
 
 // MARK: - Typography System
 // Matches brand typography from brand.scss
@@ -8,110 +9,347 @@ import SwiftUI
 // - SourceSerif4: Body text (Regular, Italic)
 // - SourceSans3: UI elements (Regular, Semibold, ExtraLight)
 
-struct Typography {
-    // MARK: - Font Names (PostScript names)
-    static let sourceSerif4DisplaySemibold = "SourceSerif4Display-Semibold"
+// MARK: - Font Family Names
+/// Centralized font family constants (PostScript names)
+enum FontFamily {
+    // Source Serif 4 Display
+    static let serifDisplaySemibold = "SourceSerif4Display-Semibold"
     
-    // MARK: - Headlines
-    /// Headline 1 - Large display text (60pt)
-    /// Uses SourceSerif4Display-Semibold per brand guidelines
-    /// Line height: 1em (tight, typical for display fonts)
-    static let headline1 = Font.custom(sourceSerif4DisplaySemibold, size: 60)
+    // Source Serif 4
+    static let serifRegular = "SourceSerif4-Regular"
+    static let serifItalic = "SourceSerif4Subhead-It"
     
-    /// Headline 1 line spacing
-    /// For 60pt font with line-height: 1em, we use negative spacing to tighten
-    /// Most fonts have default line-height ~1.2x font size, so we subtract ~12-15pt
-    /// This matches brand.scss %Title style: line-height: 1em (tight, no extra space)
-    /// Note: SwiftUI may require more negative values to achieve tight spacing
-    static let headline1LineSpacing: CGFloat = -40
-    
-    // MARK: - Font Verification (Debug Only)
-    #if DEBUG
-    /// Verifies that custom fonts are properly loaded
-    /// Call this during app initialization to debug font loading issues
-    static func verifyFonts() {
-        print("🔍 Verifying custom fonts...")
-        
-        // Check if our custom font is available
-        if UIFont(name: sourceSerif4DisplaySemibold, size: 40) != nil {
-            print("✅ \(sourceSerif4DisplaySemibold) is available")
-        } else {
-            print("❌ \(sourceSerif4DisplaySemibold) is NOT available")
-            print("   Make sure:")
-            print("   1. Font file is in the main app bundle (e.g., fonts/ folder, not Assets.xcassets)")
-            print("   2. Font is added to the app target in Xcode")
-            print("   3. Font is registered in Info.plist under UIAppFonts (filename only, iOS searches recursively)")
-            print("   4. PostScript name matches: \(sourceSerif4DisplaySemibold)")
-        }
-        
-        // List all available font families for debugging
-        print("\n📋 Available font families:")
-        for family in UIFont.familyNames.sorted() {
-            if family.contains("Source") {
-                print("   Family: \(family)")
-                for name in UIFont.fontNames(forFamilyName: family) {
-                    print("      - \(name)")
-                }
-            }
-        }
-    }
-    #endif
+    // Source Sans 3
+    static let sansRegular = "SourceSans3-Regular"
+    static let sansSemibold = "SourceSans3-Semibold"
+    static let sansExtraLight = "SourceSans3-ExtraLight"
 }
 
-// MARK: - View Extension for Typography
+// MARK: - Typography Scale
+/// Typography scale matching brand.scss article scale
+/// Uses a single base size with ratios for all sizes
+/// Base size scales with Dynamic Type, all other sizes scale proportionally
+enum TypographyScale {
+    case articleMinus2  // 0.72rem - 0.88rem
+    case articleMinus1  // 0.9rem - 1.1rem
+    case article0       // 1.125rem - 1.375rem (body) - BASE
+    case article1       // 1.4063rem - 1.7188rem
+    case article2       // 1.7578rem - 2.1484rem
+    case article3       // 2.1973rem - 2.6855rem (heading)
+    case article4       // 2.7466rem - 3.3569rem
+    case article5       // 3.4332rem - 4.1962rem
+    case article6       // 4.2915rem - 5.2452rem (title/headline1)
+    
+    /// Ratio relative to article0 (base = 1.0)
+    /// Calculated from brand.scss values: each size / article0 base (1.125rem)
+    var ratio: CGFloat {
+        switch self {
+        case .articleMinus2: return 0.72 / 1.125      // 0.64
+        case .articleMinus1: return 0.9 / 1.125        // 0.8
+        case .article0: return 1.0                     // Base
+        case .article1: return 1.4063 / 1.125           // 1.25
+        case .article2: return 1.7578 / 1.125          // 1.5625
+        case .article3: return 2.1973 / 1.125          // 1.9536
+        case .article4: return 2.7466 / 1.125          // 2.442
+        case .article5: return 3.4332 / 1.125          // 3.052
+        case .article6: return 4.2915 / 1.125          // 3.814
+        }
+    }
+    
+    /// Base size for the scale at default text size (18pt = article0)
+    /// This is the reference size - all other sizes are calculated from this using ratios
+    static let defaultBaseSize: CGFloat = 18.0
+    
+    /// Calculates the scaled size based on a base size and this scale's ratio
+    /// Usage: TypographyScale.article6.scaledSize(from: baseSize)
+    func scaledSize(from baseSize: CGFloat) -> CGFloat {
+        return baseSize * ratio
+    }
+    
+    /// Legacy: Base size for the scale (used for non-scaled contexts)
+    /// @deprecated: Use scaledSize(from:) with a Dynamic Type base size instead
+    var baseSize: CGFloat {
+        return Self.defaultBaseSize * ratio
+    }
+}
+
+// MARK: - View Extensions for Typography
 extension View {
-    /// Applies headline1 typography style with font and tight line spacing
-    /// Usage: Text("Title").headline1()
+    /// Applies title typography style with font and tight line spacing
+    /// Usage: Text("Title").title()
     /// 
+    /// Automatically scales with Dynamic Type using a single base size
     /// Note: If line spacing doesn't appear tight enough, SwiftUI's .lineSpacing()
-    /// may not respect negative values. Try adjusting headline1LineSpacing or use
-    /// the UILabel-based approach for precise control.
-    func headline1() -> some View {
-        self
-            .font(Typography.headline1)
-            .lineSpacing(Typography.headline1LineSpacing)
+    /// may not respect negative values. Try adjusting or use the UILabel-based approach.
+    func title(size: TypographyScale = .article6) -> some View {
+        self.modifier(TitleStyle(size: size))
+    }
+    
+    /// Applies heading typography style
+    /// Usage: Text("Heading").heading()
+    /// 
+    /// Automatically scales with Dynamic Type using a single base size
+    func heading(size: TypographyScale = .article3) -> some View {
+        self.modifier(HeadingStyle(size: size))
+    }
+    
+    /// Applies body typography style
+    /// Usage: Text("Body text").bodyText()
+    /// 
+    /// Automatically scales with Dynamic Type using a single base size
+    func bodyText(size: TypographyScale = .article0) -> some View {
+        self.modifier(BodyTextStyle(size: size))
+    }
+    
+    /// Applies rubric typography style (small uppercase)
+    /// Usage: Text("RUBRIC").rubric()
+    /// 
+    /// Automatically scales with Dynamic Type using a single base size
+    func rubric(size: TypographyScale = .articleMinus1) -> some View {
+        self.modifier(RubricStyle(size: size))
+    }
+    
+    /// Applies rubric line style with tight line height and custom color
+    /// Uses modern AttributedString approach for precise line-height control
+    /// 
+    /// Recommended usage (with AttributedString for precise control):
+    /// ```swift
+    /// Text(Typography.rubricLineAttributedString("text", color: .red))
+    /// ```
+    /// 
+    /// Alternative usage (with modifier, approximate line height):
+    /// ```swift
+    /// Text("text").rubricLine(color: .red)
+    /// ```
+    func rubricLine(size: TypographyScale = .articleMinus1, color: Color = .primary) -> some View {
+        self.modifier(RubricLineStyle(size: size, color: color))
+    }
+    
+    /// Applies body paragraph style with readable line height for multiline text
+    /// Uses modern AttributedString approach for precise line-height control
+    /// Usage: Text("Long paragraph text...").bodyParagraph(color: .primary)
+    /// Usage with center alignment: Text("Long paragraph text...").bodyParagraph(color: .primary, alignment: .center)
+    func bodyParagraph(size: TypographyScale = .article0, color: Color = .primary, alignment: TextAlignment = .leading) -> some View {
+        self.modifier(BodyParagraphStyle(size: size, color: color, alignment: alignment))
+    }
+   
+}
+
+// MARK: - Typography ViewModifiers
+/// Note: If precise line-height control is needed in the future (e.g., exact 1em line-height),
+/// consider using AttributedString with NSParagraphStyle for pixel-perfect control.
+/// Example: Create AttributedString with paragraphStyle.lineHeightMultiple = 1.0
+
+struct TitleStyle: ViewModifier {
+    @ScaledMetric(relativeTo: .body) var baseSize: CGFloat = TypographyScale.defaultBaseSize
+    
+    let size: TypographyScale
+    
+    init(size: TypographyScale = .article6) {
+        self.size = size
+    }
+    
+    func body(content: Content) -> some View {
+        let fontSize = size.scaledSize(from: baseSize)
+        // Negative spacing to achieve 1em line-height
+        // Most fonts default to ~1.2x, so subtract ~20% of font size
+        let lineSpacing = -(fontSize * 0.2)
+        
+        return content
+            .font(Font.custom(FontFamily.serifDisplaySemibold, size: fontSize))
+            .lineSpacing(lineSpacing)
     }
 }
 
-// MARK: - UILabel-based Headline1 (Alternative for precise line-height control)
-/// Use this if SwiftUI's lineSpacing doesn't work with negative values
-/// Usage: Headline1Label(text: "Title")
-struct Headline1Label: UIViewRepresentable {
+struct HeadingStyle: ViewModifier {
+    @ScaledMetric(relativeTo: .body) var baseSize: CGFloat = TypographyScale.defaultBaseSize
+    
+    let size: TypographyScale
+    
+    init(size: TypographyScale = .article3) {
+        self.size = size
+    }
+    
+    func body(content: Content) -> some View {
+        let fontSize = size.scaledSize(from: baseSize)
+        return content
+            .font(Font.custom(FontFamily.serifRegular, size: fontSize))
+    }
+}
+
+struct BodyTextStyle: ViewModifier {
+    @ScaledMetric(relativeTo: .body) var baseSize: CGFloat = TypographyScale.defaultBaseSize
+    
+    let size: TypographyScale
+    
+    init(size: TypographyScale = .article0) {
+        self.size = size
+    }
+    
+    func body(content: Content) -> some View {
+        let fontSize = size.scaledSize(from: baseSize)
+        return content
+            .font(Font.custom(FontFamily.sansRegular, size: fontSize))
+    }
+}
+
+struct RubricStyle: ViewModifier {
+    @ScaledMetric(relativeTo: .body) var baseSize: CGFloat = TypographyScale.defaultBaseSize
+    
+    let size: TypographyScale
+    
+    init(size: TypographyScale = .articleMinus1) {
+        self.size = size
+    }
+    
+    func body(content: Content) -> some View {
+        let fontSize = size.scaledSize(from: baseSize)
+        return content
+            .font(Font.custom(FontFamily.sansRegular, size: fontSize))
+            .textCase(.uppercase)
+            .tracking(fontSize * 0.15) // letter-spacing: 0.15em
+    }
+}
+
+struct RubricLineStyle: ViewModifier {
+    @ScaledMetric(relativeTo: .body) var baseSize: CGFloat = TypographyScale.defaultBaseSize
+    
+    let size: TypographyScale
+    let color: Color
+    
+    init(size: TypographyScale = .articleMinus1, color: Color = .primary) {
+        self.size = size
+        self.color = color
+    }
+    
+    func body(content: Content) -> some View {
+        let fontSize = size.scaledSize(from: baseSize)
+        return content
+            .font(Font.custom(FontFamily.sansRegular, size: fontSize))
+            .foregroundColor(color)
+            .textCase(.uppercase)
+            .tracking(fontSize * 0.15)
+    }
+}
+
+struct BodyParagraphStyle: ViewModifier {
+    @ScaledMetric(relativeTo: .body) var baseSize: CGFloat = TypographyScale.defaultBaseSize
+    
+    let size: TypographyScale
+    let color: Color
+    let alignment: TextAlignment
+    
+    init(size: TypographyScale = .article0, color: Color = .primary, alignment: TextAlignment = .leading) {
+        self.size = size
+        self.color = color
+        self.alignment = alignment
+    }
+    
+    func body(content: Content) -> some View {
+        let fontSize = size.scaledSize(from: baseSize)
+        return content
+            .font(Font.custom(FontFamily.sansRegular, size: fontSize))
+            .foregroundColor(color)
+            .tracking(fontSize * 0.01) // letter-spacing: 0.01em per brand.scss
+            .lineSpacing(fontSize * 0.2) // Approximate 1.4em line height (1.4 * fontSize - fontSize = 0.4 * fontSize)
+            .frame(maxWidth: .infinity, alignment: frameAlignment)
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(alignment)
+    }
+    
+    private var frameAlignment: Alignment {
+        switch alignment {
+        case .leading: return .leading
+        case .center: return .center
+        case .trailing: return .trailing
+        }
+    }
+}
+
+struct DisplayText: View {
     let text: String
-    let fontSize: CGFloat
+    let scale: TypographyScale
+    let color: Color
     let lineHeightMultiple: CGFloat
-    let textAlignment: NSTextAlignment
-    let textColor: UIColor
+    let textAlignment: TextAlignment
     
-    init(text: String, fontSize: CGFloat = 60, lineHeightMultiple: CGFloat = 1.0, textAlignment: NSTextAlignment = .left, textColor: UIColor = .label) {
+    init(
+        _ text: String,
+        scale: TypographyScale = .article5,
+        color: Color = .primary,
+        lineHeightMultiple: CGFloat = 1.0,
+        alignment: TextAlignment = .leading
+    ) {
         self.text = text
-        self.fontSize = fontSize
+        self.scale = scale
+        self.color = color
         self.lineHeightMultiple = lineHeightMultiple
-        self.textAlignment = textAlignment
-        self.textColor = textColor
+        self.textAlignment = alignment
     }
     
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
+    var body: some View {
+        DisplayTextLabel(text: text, scale: scale, color: color, lineHeightMultiple: lineHeightMultiple, textAlignment: textAlignment)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+// MARK: - DisplayTextLabel (Internal UIViewRepresentable)
+/// Internal UIViewRepresentable implementation for DisplayText
+private struct DisplayTextLabel: UIViewRepresentable {
+    @ScaledMetric(relativeTo: .body) var baseSize: CGFloat = TypographyScale.defaultBaseSize
+    
+    let text: String
+    let scale: TypographyScale
+    let color: Color
+    let lineHeightMultiple: CGFloat
+    let textAlignment: TextAlignment
     
     func makeUIView(context: Context) -> UILabel {
         let label = UILabel()
         label.numberOfLines = 0
-        label.textAlignment = textAlignment
+        label.textAlignment = nsTextAlignment
+        label.lineBreakMode = .byWordWrapping // Ensure words don't break
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         label.setContentHuggingPriority(.defaultLow, for: .horizontal)
         
+        updateLabel(label)
+        
+        return label
+    }
+    
+    func updateUIView(_ uiView: UILabel, context: Context) {
+        updateLabel(uiView)
+        uiView.lineBreakMode = .byWordWrapping // Ensure words don't break
+        
+        // Update preferredMaxLayoutWidth when layout changes
+        // Use GeometryReader or layout pass to get accurate width
+        DispatchQueue.main.async {
+            if let superview = uiView.superview {
+                let availableWidth = superview.bounds.width
+                if availableWidth > 0 && uiView.preferredMaxLayoutWidth != availableWidth {
+                    uiView.preferredMaxLayoutWidth = availableWidth
+                    uiView.setNeedsLayout()
+                    uiView.layoutIfNeeded()
+                }
+            }
+        }
+    }
+    
+    private func updateLabel(_ label: UILabel) {
+        let fontSize = scale.scaledSize(from: baseSize)
+        
         // Create font
-        let font = UIFont(name: "SourceSerif4Display-Semibold", size: fontSize) ?? UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let font = UIFont(name: FontFamily.serifDisplaySemibold, size: fontSize) ?? 
+                   UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         label.font = font
         
-        // Create paragraph style with tight line height
+        // Create paragraph style with tight line height (matching Headline1Label exactly)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineHeightMultiple = lineHeightMultiple
         paragraphStyle.maximumLineHeight = fontSize
         paragraphStyle.minimumLineHeight = fontSize
-        paragraphStyle.alignment = textAlignment
+        paragraphStyle.alignment = nsTextAlignment
+        paragraphStyle.lineBreakMode = .byWordWrapping // Ensure proper word wrapping
         
         // Apply attributed string
         let attributedString = NSAttributedString(
@@ -119,63 +357,20 @@ struct Headline1Label: UIViewRepresentable {
             attributes: [
                 .font: font,
                 .paragraphStyle: paragraphStyle,
-                .foregroundColor: textColor
+                .foregroundColor: UIColor(color)
             ]
         )
         label.attributedText = attributedString
-        
-        return label
+        label.textAlignment = nsTextAlignment
     }
     
-    func updateUIView(_ uiView: UILabel, context: Context) {
-        // Update if text or color changes
-        let font = UIFont(name: "SourceSerif4Display-Semibold", size: fontSize) ?? UIFont.systemFont(ofSize: fontSize, weight: .semibold)
-        
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineHeightMultiple = lineHeightMultiple
-        paragraphStyle.maximumLineHeight = fontSize
-        paragraphStyle.minimumLineHeight = fontSize
-        paragraphStyle.alignment = textAlignment
-        
-        let attributedString = NSAttributedString(
-            string: text,
-            attributes: [
-                .font: font,
-                .paragraphStyle: paragraphStyle,
-                .foregroundColor: textColor
-            ]
-        )
-        uiView.attributedText = attributedString
-        uiView.textAlignment = textAlignment
-        
-        // Update preferredMaxLayoutWidth when layout changes
-        DispatchQueue.main.async {
-            if let superview = uiView.superview {
-                let availableWidth = superview.bounds.width
-                if uiView.preferredMaxLayoutWidth != availableWidth && availableWidth > 0 {
-                    uiView.preferredMaxLayoutWidth = availableWidth
-                    uiView.setNeedsLayout()
-                }
-            }
+    private var nsTextAlignment: NSTextAlignment {
+        switch textAlignment {
+        case .leading: return .left
+        case .center: return .center
+        case .trailing: return .right
         }
-    }
-    
-    class Coordinator {
-        // Can be used for additional state if needed
     }
 }
 
-// MARK: - View Extension for Headline1Label
-extension Headline1Label {
-    /// Sets the text color for the label
-    func foregroundColor(_ color: Color) -> Headline1Label {
-        Headline1Label(
-            text: self.text,
-            fontSize: self.fontSize,
-            lineHeightMultiple: self.lineHeightMultiple,
-            textAlignment: self.textAlignment,
-            textColor: UIColor(color)
-        )
-    }
-}
 
