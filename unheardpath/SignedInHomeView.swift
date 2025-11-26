@@ -1681,28 +1681,166 @@ struct RoundedCorner: Shape {
   }
 }
 
+// MARK: - Multi-line Text Input with Return Key Support
+struct MultiLineTextField: UIViewRepresentable {
+  @Binding var text: String
+  var placeholder: String
+  var onReturnKeyPress: () -> Void
+  
+  func makeUIView(context: Context) -> UITextView {
+    let textView = UITextView()
+    textView.delegate = context.coordinator
+    textView.font = UIFont.systemFont(ofSize: 16)
+    textView.backgroundColor = UIColor.systemGray6
+    textView.layer.cornerRadius = 8
+    // Reduced padding for smaller initial size
+    textView.textContainerInset = UIEdgeInsets(top: 4, left: 4, bottom: 4, right: 4)
+    textView.textContainer.lineFragmentPadding = 0
+    textView.isScrollEnabled = true
+    textView.textContainer.maximumNumberOfLines = 5
+    textView.textContainer.lineBreakMode = .byWordWrapping
+    textView.returnKeyType = .send
+    textView.enablesReturnKeyAutomatically = true
+    textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    textView.setContentHuggingPriority(.defaultHigh, for: .vertical)
+    
+    // Set initial placeholder
+    if text.isEmpty {
+      textView.text = placeholder
+      textView.textColor = UIColor.placeholderText
+    }
+    
+    return textView
+  }
+  
+  func updateUIView(_ uiView: UITextView, context: Context) {
+    // Always update when text is cleared (even if editing) to clear the input after sending
+    let currentText = (uiView.text ?? "") == placeholder ? "" : (uiView.text ?? "")
+    if currentText != text {
+      if text.isEmpty {
+        // Force clear text and show placeholder, even if editing
+        uiView.text = placeholder
+        uiView.textColor = UIColor.placeholderText
+        // Reset editing state to allow placeholder to show
+        context.coordinator.isEditing = false
+      } else if !context.coordinator.isEditing {
+        // Only update text if not editing (to avoid interfering with user typing)
+        uiView.text = text
+        uiView.textColor = UIColor.label
+      }
+    }
+  }
+  
+  func makeCoordinator() -> Coordinator {
+    Coordinator(self)
+  }
+  
+  class Coordinator: NSObject, UITextViewDelegate {
+    var parent: MultiLineTextField
+    var isEditing = false
+    
+    init(_ parent: MultiLineTextField) {
+      self.parent = parent
+    }
+    
+    func textViewDidChange(_ textView: UITextView) {
+      // Update parent text, excluding placeholder
+      let currentText = textView.text ?? ""
+      if currentText != parent.placeholder {
+        parent.text = currentText
+      } else {
+        parent.text = ""
+      }
+    }
+    
+    func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+      // Handle return key press
+      if text == "\n" {
+        let currentText = (textView.text == parent.placeholder) ? "" : (textView.text ?? "")
+        let trimmedText = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedText.isEmpty {
+          // Clear the text view immediately before calling the callback
+          textView.text = parent.placeholder
+          textView.textColor = UIColor.placeholderText
+          parent.text = ""
+          isEditing = false
+          parent.onReturnKeyPress()
+          return false // Prevent newline
+        }
+        return false // Don't add newline even if empty
+      }
+      
+      // Handle placeholder removal when user starts typing
+      let currentText = textView.text ?? ""
+      if currentText == parent.placeholder && !text.isEmpty {
+        textView.text = ""
+        textView.textColor = UIColor.label
+      }
+      
+      return true
+    }
+    
+    func textViewDidBeginEditing(_ textView: UITextView) {
+      isEditing = true
+      let currentText = textView.text ?? ""
+      if currentText == parent.placeholder {
+        textView.text = ""
+        textView.textColor = UIColor.label
+      }
+    }
+    
+    func textViewDidEndEditing(_ textView: UITextView) {
+      isEditing = false
+      let currentText = textView.text ?? ""
+      if currentText.isEmpty {
+        textView.text = parent.placeholder
+        textView.textColor = UIColor.placeholderText
+      }
+    }
+  }
+}
+
 // MARK: - Chat Input Bar Component
 struct ChatInputBar: View {
   @State private var messageText = ""
   @FocusState private var isTextFieldFocused: Bool
   var onSendMessage: (String) -> Void
   
+  // Computed property to check if message is empty (trimmed)
+  private var isEmpty: Bool {
+    messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+  
   var body: some View {
     HStack(spacing: 12) {
-      TextField("Type a message...", text: $messageText, axis: .vertical)
-        .textFieldStyle(.roundedBorder)
-        .lineLimit(1...5)
-        .focused($isTextFieldFocused)
-        .onSubmit {
+      MultiLineTextField(
+        text: $messageText,
+        placeholder: "Ask anything about your journey.",
+        onReturnKeyPress: {
           sendMessage()
         }
+      )
+      .frame(height: 32)
       
-      Button(action: sendMessage) {
-        Image(systemName: "arrow.up.circle.fill")
-          .font(.title2)
-          .foregroundColor(messageText.isEmpty ? .gray : .blue)
+      // Show voice button when empty, send button when typing
+      if isEmpty {
+        Button(action: {
+          // TODO: Implement voice mode functionality
+          #if DEBUG
+          print("🎤 Voice button tapped")
+          #endif
+        }) {
+          Image(systemName: "mic.fill")
+            .font(.title2)
+            .foregroundColor(.blue)
+        }
+      } else {
+        Button(action: sendMessage) {
+          Image(systemName: "arrow.up.circle.fill")
+            .font(.title2)
+            .foregroundColor(.blue)
+        }
       }
-      .disabled(messageText.isEmpty)
     }
     .padding()
     .background(Color(.systemBackground))
@@ -1712,10 +1850,10 @@ struct ChatInputBar: View {
     #if DEBUG
     print("📝 ChatInputBar.sendMessage() called")
     print("   messageText: '\(messageText)'")
-    print("   isEmpty: \(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)")
+    print("   isEmpty: \(isEmpty)")
     #endif
     
-    guard !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    guard !isEmpty else {
       #if DEBUG
       print("⚠️ Message is empty, not sending")
       #endif
