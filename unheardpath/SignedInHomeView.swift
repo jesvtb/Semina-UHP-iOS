@@ -486,7 +486,7 @@ struct JourneyHomeView: View {
               currentNotification = nil
             }
           }
-          .transition(.move(edge: .bottom).combined(with: .opacity))
+          .transition(.opacity)
           .padding(.bottom, 420) // Position above bottom sheet (400px partial height + 20px padding)
         }
       }
