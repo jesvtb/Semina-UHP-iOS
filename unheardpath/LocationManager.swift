@@ -12,9 +12,15 @@ import UIKit
 
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
+    private let geocoder = CLGeocoder()
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var currentLocation: CLLocation?
     @Published var isLocationPermissionGranted: Bool = false
+    
+    // Geocoding state
+    @Published var isGeocoding: Bool = false
+    @Published var geocodingError: Error?
+    @Published var locationDetails: [String: Any]?
     
     // Tracking mode state
     private var isTrackingActive = false
@@ -32,6 +38,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let lastLocationLatitudeKey = "LocationManager.lastLocation.latitude"
     private let lastLocationLongitudeKey = "LocationManager.lastLocation.longitude"
     private let lastLocationTimestampKey = "LocationManager.lastLocation.timestamp"
+    
+    // Cache configuration for places/geojson data
+    private let placesCacheExpirationHours: TimeInterval = 24 * 60 * 60 // 24 hours in seconds
     
     override init() {
         super.init()
@@ -315,10 +324,478 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         return currentLocation?.coordinate.longitude
     }
     
+    // MARK: - Places Cache Management
+    
+    /// Generate cache key from rounded coordinates (~100m precision)
+    private func placesCacheKey(userLat: Double, userLon: Double) -> String {
+        let roundedLat = round(userLat * 100) / 100
+        let roundedLon = round(userLon * 100) / 100
+        return "PlacesCache_\(roundedLat)_\(roundedLon)"
+    }
+    
+    /// Retrieve cached location data (list of {idx, pageid} dictionaries)
+    /// Returns nil if cache doesn't exist or is expired (24 hours)
+    func getCachedLocationData(userLat: Double, userLon: Double) -> [[String: Any]]? {
+        let defaults = UserDefaults.standard
+        let key = placesCacheKey(userLat: userLat, userLon: userLon)
+        
+        guard let cacheDict = defaults.dictionary(forKey: key),
+              let features = cacheDict["features"] as? [[String: Any]],
+              let timestamp = cacheDict["timestamp"] as? TimeInterval else {
+            #if DEBUG
+            print("💾 Cache miss for location: \(userLat), \(userLon)")
+            #endif
+            return nil
+        }
+        
+        // Check expiration (24 hours)
+        let cacheAge = Date().timeIntervalSince1970 - timestamp
+        if cacheAge > placesCacheExpirationHours {
+            #if DEBUG
+            print("⏰ Cache expired for location: \(userLat), \(userLon) (age: \(Int(cacheAge / 3600)) hours)")
+            #endif
+            // Clean up expired cache
+            defaults.removeObject(forKey: key)
+            return nil
+        }
+        
+        #if DEBUG
+        print("✅ Cache hit for location: \(userLat), \(userLon)")
+        #endif
+        return features
+    }
+    
+    /// Save cached location data (list of {idx, pageid} dictionaries)
+    func saveCachedLocationData(userLat: Double, userLon: Double, features: [[String: Any]]) {
+        let defaults = UserDefaults.standard
+        let key = placesCacheKey(userLat: userLat, userLon: userLon)
+        
+        let cacheDict: [String: Any] = [
+            "features": features,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+        
+        defaults.set(cacheDict, forKey: key)
+        defaults.synchronize()
+        
+        #if DEBUG
+        print("💾 Cached location data for: \(userLat), \(userLon) with \(features.count) features")
+        #endif
+    }
+    
+    /// Save individual feature by pageid
+    func saveCachedFeature(pageid: Int, feature: [String: Any]) {
+        let defaults = UserDefaults.standard
+        let key = "wiki_\(pageid)"
+        
+        defaults.set(feature, forKey: key)
+        defaults.synchronize()
+        
+        #if DEBUG
+        print("💾 Cached feature for pageid: \(pageid)")
+        #endif
+    }
+    
+    /// Retrieve individual feature by pageid
+    func getCachedFeature(pageid: Int) -> [String: Any]? {
+        let defaults = UserDefaults.standard
+        let key = "wiki_\(pageid)"
+        
+        return defaults.dictionary(forKey: key)
+    }
+    
+    /// Reconstruct GeoJSON FeatureCollection from cache
+    /// Returns nil if cache is missing or any required features are missing
+    func reconstructGeoJSONFromCache(userLat: Double, userLon: Double) -> [String: Any]? {
+        guard let featuresList = getCachedLocationData(userLat: userLat, userLon: userLon) else {
+            return nil
+        }
+        
+        var reconstructedFeatures: [[String: Any]] = []
+        
+        // Fetch each feature by pageid and sort by idx
+        for featureRef in featuresList {
+            guard let pageid = featureRef["pageid"] as? Int,
+                  let idx = featureRef["idx"] as? Int,
+                  let feature = getCachedFeature(pageid: pageid) else {
+                #if DEBUG
+                print("⚠️ Missing feature in cache for pageid: \(featureRef["pageid"] ?? "unknown")")
+                #endif
+                continue
+            }
+            
+            // Store idx for sorting
+            var featureWithIdx = feature
+            featureWithIdx["_sortIdx"] = idx
+            reconstructedFeatures.append(featureWithIdx)
+        }
+        
+        // Sort by original idx
+        reconstructedFeatures.sort { (feature1, feature2) -> Bool in
+            let idx1 = feature1["_sortIdx"] as? Int ?? 0
+            let idx2 = feature2["_sortIdx"] as? Int ?? 0
+            return idx1 < idx2
+        }
+        
+        // Remove temporary sort index
+        for i in 0..<reconstructedFeatures.count {
+            reconstructedFeatures[i].removeValue(forKey: "_sortIdx")
+        }
+        
+        // Wrap in FeatureCollection format
+        let geoJSON: [String: Any] = [
+            "event": "map",
+            "data": [
+                "type": "FeatureCollection",
+                "features": reconstructedFeatures
+            ]
+        ]
+        
+        #if DEBUG
+        print("✅ Reconstructed GeoJSON from cache with \(reconstructedFeatures.count) features")
+        #endif
+        
+        return geoJSON
+    }
+    
     /// Returns both latitude and longitude as a tuple if available
     var coordinates: (latitude: Double, longitude: Double)? {
         guard let location = currentLocation else { return nil }
         return (location.coordinate.latitude, location.coordinate.longitude)
+    }
+    
+    // MARK: - Geocoding Methods
+    
+    /// Geocodes an address string to coordinates using CLGeocoder
+    /// - Parameters:
+    ///   - addressString: The address or location name to geocode (e.g., "New York, NY" or "1600 Amphitheatre Parkway, Mountain View, CA")
+    ///   - completion: Completion handler with optional placemark and error
+    /// - Returns: The first placemark if geocoding succeeds, nil otherwise
+    func geocodeAddress(_ addressString: String, completion: @escaping (CLPlacemark?, Error?) -> Void) {
+        guard !addressString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let error = NSError(domain: "LocationManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Address string cannot be empty"])
+            completion(nil, error)
+            return
+        }
+        
+        // Cancel any ongoing geocoding request
+        geocoder.cancelGeocode()
+        
+        isGeocoding = true
+        geocodingError = nil
+        
+        #if DEBUG
+        print("🔍 Geocoding address: \(addressString)")
+        #endif
+        
+        geocoder.geocodeAddressString(addressString) { [weak self] placemarks, error in
+            guard let self = self else { return }
+            
+            self.isGeocoding = false
+            
+            if let error = error {
+                self.geocodingError = error
+                #if DEBUG
+                print("❌ Geocoding failed: \(error.localizedDescription)")
+                #endif
+                completion(nil, error)
+                return
+            }
+            
+            guard let placemark = placemarks?.first else {
+                let noResultsError = NSError(domain: "LocationManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No results found for address"])
+                self.geocodingError = noResultsError
+                #if DEBUG
+                print("⚠️ No geocoding results found for: \(addressString)")
+                #endif
+                completion(nil, noResultsError)
+                return
+            }
+            
+            #if DEBUG
+            if let location = placemark.location {
+                print("✅ Geocoded '\(addressString)' to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+            }
+            #endif
+            
+            completion(placemark, nil)
+        }
+    }
+    
+    /// Async version of geocodeAddress using async/await
+    /// - Parameter addressString: The address or location name to geocode
+    /// - Returns: The first placemark if geocoding succeeds
+    /// - Throws: Error if geocoding fails
+    func geocodeAddress(_ addressString: String) async throws -> CLPlacemark {
+        return try await withCheckedThrowingContinuation { continuation in
+            geocodeAddress(addressString) { placemark, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let placemark = placemark {
+                    continuation.resume(returning: placemark)
+                } else {
+                    let unknownError = NSError(domain: "LocationManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "Unknown geocoding error"])
+                    continuation.resume(throwing: unknownError)
+                }
+            }
+        }
+    }
+    
+    /// Constructs a JSON dictionary from location and placemark data
+    /// - Parameters:
+    ///   - location: The CLLocation with coordinates
+    ///   - placemark: Optional CLPlacemark with address information
+    /// - Returns: Dictionary with location and geocoding data
+    private func constructLocationDict(location: CLLocation, placemark: CLPlacemark?) -> [String: Any] {
+        var dict: [String: Any] = [:]
+        
+        // Required fields
+        dict["user_lat"] = location.coordinate.latitude
+        dict["user_lon"] = location.coordinate.longitude
+        dict["accuracy"] = location.horizontalAccuracy
+        
+        // Local time (timestamp localized, not UTC)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+        formatter.timeZone = TimeZone.current
+        dict["local_time"] = formatter.string(from: location.timestamp)
+        
+        // If placemark found, include address elements
+        if let placemark = placemark {
+            // Name
+            if let name = placemark.name {
+                dict["place"] = name
+            }
+            
+            // Street
+            if let street = placemark.thoroughfare {
+                dict["street"] = street
+            }
+            
+            // Combine sublocality, locality, subadministrative area, administrativeArea
+            var locationParts: [String] = []
+            if let subLocality = placemark.subLocality {
+                locationParts.append(subLocality)
+            }
+            if let locality = placemark.locality {
+                locationParts.append(locality)
+            }
+            if let subAdministrativeArea = placemark.subAdministrativeArea {
+                locationParts.append(subAdministrativeArea)
+            }
+            if let administrativeArea = placemark.administrativeArea {
+                locationParts.append(administrativeArea)
+            }
+            if !locationParts.isEmpty {
+                dict["location"] = locationParts.joined(separator: ", ")
+            }
+            
+            // Country code
+            if let countryCode = placemark.isoCountryCode {
+                dict["country_code"] = countryCode
+            }
+            
+            // Country name
+            if let country = placemark.country {
+                dict["country"] = country
+            }
+            
+            // Inland water and ocean
+            if let inlandWater = placemark.inlandWater {
+                dict["inwater"] = true
+                dict["water_name"] = inlandWater
+            } else if let ocean = placemark.ocean {
+                dict["inwater"] = true
+                dict["water_name"] = ocean
+            }
+            
+            // Areas of interest
+            if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
+                dict["areas_of_interest"] = areasOfInterest
+            }
+            
+            // Region
+            if let region = placemark.region as? CLCircularRegion {
+                dict["region_lon"] = region.center.longitude
+                dict["region_lat"] = region.center.latitude
+                dict["region_radius"] = region.radius
+            }
+        }
+        
+        return dict
+    }
+    
+    /// Reverse geocodes the current user location and returns a JSON dictionary
+    /// - Parameter completion: Completion handler with optional dictionary and error
+    func reverseGeocodeUserLocation(completion: @escaping ([String: Any]?, Error?) -> Void) {
+        #if DEBUG
+        print("🔍 reverseGeocodeUserLocation() called")
+        print("   currentLocation: \(currentLocation != nil ? "available" : "nil")")
+        if let location = currentLocation {
+            print("   Coordinates: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        }
+        #endif
+        
+        guard let location = currentLocation else {
+            #if DEBUG
+            print("❌ No user location available for reverse geocoding")
+            #endif
+            let error = NSError(domain: "LocationManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user location available"])
+            completion(nil, error)
+            return
+        }
+        
+        // Cancel any ongoing geocoding request
+        geocoder.cancelGeocode()
+        
+        isGeocoding = true
+        geocodingError = nil
+        
+        #if DEBUG
+        print("🌐 Starting reverse geocoding request...")
+        #endif
+        
+        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
+            guard let self = self else { return }
+            
+            self.isGeocoding = false
+            
+            #if DEBUG
+            let latitude = location.coordinate.latitude
+            let longitude = location.coordinate.longitude
+            
+            print("\n" + String(repeating: "=", count: 80))
+            print("📍 REVERSE GEOCODING USER LOCATION")
+            print(String(repeating: "=", count: 80))
+            print("Coordinates: \(latitude), \(longitude)")
+            print("Accuracy: ±\(Int(location.horizontalAccuracy))m")
+            print("Timestamp: \(location.timestamp)")
+            print(String(repeating: "-", count: 80))
+            #endif
+            
+            if let error = error {
+                self.geocodingError = error
+                #if DEBUG
+                print("❌ Error: \(error.localizedDescription)")
+                print(String(repeating: "=", count: 80) + "\n")
+                #endif
+                // Still return dict with location data even if geocoding fails
+                let dict = self.constructLocationDict(location: location, placemark: nil)
+                // Update locationDetails even on error (with location data only)
+                self.locationDetails = dict
+                #if DEBUG
+                print("✅ Updated locationDetails in LocationManager (location only, no placemark)")
+                #endif
+                completion(dict, error)
+                return
+            }
+            
+            // Use first placemark if available
+            let placemark = placemarks?.first
+            
+            #if DEBUG
+            if let placemarks = placemarks, !placemarks.isEmpty {
+                print("✅ Found \(placemarks.count) placemark(s):\n")
+                
+                for (index, placemark) in placemarks.enumerated() {
+                    print(String(repeating: "-", count: 80))
+                    print("📍 PLACEMARK #\(index + 1)")
+                    print(String(repeating: "-", count: 80))
+                    
+                    // Location coordinates
+                    if let placemarkLocation = placemark.location {
+                        print("Coordinates: \(placemarkLocation.coordinate.latitude), \(placemarkLocation.coordinate.longitude)")
+                        print("Accuracy: ±\(Int(placemarkLocation.horizontalAccuracy))m")
+                    }
+                    
+                    // Address components
+                    print("\n📋 Address Components:")
+                    if let name = placemark.name {
+                        print("  • Name: \(name)")
+                    }
+                    if let thoroughfare = placemark.thoroughfare {
+                        print("  • Street: \(thoroughfare)")
+                    }
+                    if let subThoroughfare = placemark.subThoroughfare {
+                        print("  • Street Number: \(subThoroughfare)")
+                    }
+                    if let subLocality = placemark.subLocality {
+                        print("  • Sub-locality: \(subLocality)")
+                    }
+                    if let locality = placemark.locality {
+                        print("  • City/Locality: \(locality)")
+                    }
+                    if let subAdministrativeArea = placemark.subAdministrativeArea {
+                        print("  • Sub-administrative Area: \(subAdministrativeArea)")
+                    }
+                    if let administrativeArea = placemark.administrativeArea {
+                        print("  • State/Province: \(administrativeArea)")
+                    }
+                    if let postalCode = placemark.postalCode {
+                        print("  • Postal Code: \(postalCode)")
+                    }
+                    if let country = placemark.country {
+                        print("  • Country: \(country)")
+                    }
+                    if let countryCode = placemark.isoCountryCode {
+                        print("  • Country Code: \(countryCode)")
+                    }
+                    if let inlandWater = placemark.inlandWater {
+                        print("  • Inland Water: \(inlandWater)")
+                    }
+                    if let ocean = placemark.ocean {
+                        print("  • Ocean: \(ocean)")
+                    }
+                    if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
+                        print("  • Areas of Interest: \(areasOfInterest.joined(separator: ", "))")
+                    }
+                    
+                    // Region
+                    if let region = placemark.region {
+                        print("\n🌍 Region:")
+                        print("  • Identifier: \(region.identifier)")
+                        if let circularRegion = region as? CLCircularRegion {
+                            print("  • Center: \(circularRegion.center.latitude), \(circularRegion.center.longitude)")
+                            print("  • Radius: \(Int(circularRegion.radius))m")
+                        }
+                    }
+                    
+                    // Timezone
+                    if let timeZone = placemark.timeZone {
+                        print("\n🕐 Timezone: \(timeZone.identifier)")
+                    }
+                    
+                    print()
+                }
+                
+                print(String(repeating: "=", count: 80))
+                print("✅ Reverse geocoding complete")
+                print(String(repeating: "=", count: 80) + "\n")
+            } else {
+                print("⚠️ No placemarks found")
+                print(String(repeating: "=", count: 80) + "\n")
+            }
+            #endif
+            
+            // Construct and return the dictionary
+            let dict = self.constructLocationDict(location: location, placemark: placemark)
+            
+            // Update locationDetails
+            self.locationDetails = dict
+            
+            #if DEBUG
+            print("📦 Constructed location dict: \(dict)")
+            print("✅ Updated locationDetails in LocationManager")
+            if let locationString = dict["location"] as? String {
+              print("   Location string: \(locationString)")
+            }
+            if let countryName = dict["country_name"] as? String {
+              print("   Country name: \(countryName)")
+            }
+            #endif
+            
+            completion(dict, nil)
+        }
     }
     
     // MARK: - CLLocationManagerDelegate

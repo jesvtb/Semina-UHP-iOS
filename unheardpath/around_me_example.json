@@ -1,0 +1,197 @@
+{
+    "event": "map",
+    "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                114.10416667,
+                22.56444444
+              ]
+            },
+            "properties": {
+              "idx": 1,
+              "pageid": 45555819,
+              "title": "Baoneng Center",
+              "wiki_url": "https://en.wikipedia.org/?curid=45555819",
+              "extract": "The Baoneng Center is a supertall skyscraper in Shenzhen, Guangdong, China. It is 328 metres (1,076.1 ft) tall. Construction started in 2014 and was completed in 2020.\nThe architecture firm Aedas designed Baoneng Center for Baoneng Group.",
+              "name": "Baoneng Center",
+              "categories": [
+                "Buildings and structures under construction in China",
+                "People's Republic of China building and structure stubs",
+                "Shenzhen stubs",
+                "Skyscraper office buildings in Shenzhen"
+              ],
+              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Baoneng_Center_Shenzhen_2021.jpg",
+              "short_description": "Supertall skyscraper in Shenzhen, Guangdong, China"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                114.11555556,
+                22.54777778
+              ]
+            },
+            "properties": {
+              "idx": 2,
+              "pageid": 7123661,
+              "title": "Dongmen, Shenzhen",
+              "wiki_url": "https://en.wikipedia.org/?curid=7123661",
+              "extract": "Dongmen (simplified Chinese: 东门; traditional Chinese: 東門; pinyin: Dōngmén; Jyutping: dung1 mun4; lit. \"East Gate\") is a subdistrict within Luohu District of Shenzhen, in China. It is a shopping district located on Dongmen Pedestrian Street (东门步行街; 東門步行街; Dōngmén Bùxíngjiē; dung1 mun4 bou6 hang4 gaai1).",
+              "name": "Dongmen, Shenzhen",
+              "categories": [
+                "Luohu District",
+                "Subdistricts of Shenzhen"
+              ],
+              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/ShenZhen_Dongmen.jpg",
+              "short_description": "Commercial area in Luohu District, Shenzhen, China"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                114.11083333,
+                22.56833333
+              ]
+            },
+            "properties": {
+              "idx": 3,
+              "pageid": 54018571,
+              "title": "Hongling North station",
+              "wiki_url": "https://en.wikipedia.org/?curid=54018571",
+              "extract": "Hongling North station (simplified Chinese: 红岭北站; traditional Chinese: 紅嶺北站; pinyin: Hónglǐng Běi Zhàn; Jyutping: hung4 ling5 bak1 zaam6) is a station of Shenzhen Metro Line 7 and Line 9. It opened on 28 October 2016.",
+              "name": "Hongling North station",
+              "categories": [
+                "2016 in Shenzhen",
+                "Futian District",
+                "Guangdong railway station stubs",
+                "Luohu District",
+                "Railway stations in China opened in 2016",
+                "Shenzhen Metro stations"
+              ],
+              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Shenzhen_Metro_Line_9_Hongling_N_Sta_Platform_1.jpg",
+              "short_description": "Metro station in Shenzhen, Guangdong, China"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                114.111225,
+                22.54553333
+              ]
+            },
+            "properties": {
+              "idx": 4,
+              "pageid": 54024746,
+              "title": "Hongling South station",
+              "wiki_url": "https://en.wikipedia.org/?curid=54024746",
+              "extract": "Hongling South station (simplified Chinese: 红岭南站; traditional Chinese: 紅嶺南站; pinyin: Hónglǐng Nán Zhàn; Jyutping: hung4 ling5 naam4 zaam6) is a metro station of Shenzhen Metro Line 9. It opened on 28 October 2016. This station is located under the southeast of the intersection of Hongling South Road and Shennan East Road. The station is an indirect interchange with Line 1 and Line 2 at Grand Theater Station.",
+              "name": "Hongling South station",
+              "categories": [
+                "2016 in Shenzhen",
+                "Futian District",
+                "Guangdong railway station stubs",
+                "Luohu District",
+                "Railway stations in China opened in 2016",
+                "Shenzhen Metro stations"
+              ],
+              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Shenzhen_Metro_Line_9_Hongling_S_Sta_Platform.jpg",
+              "short_description": "Metro station in Shenzhen, Guangdong, China"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                114.11028333,
+                22.55533056
+              ]
+            },
+            "properties": {
+              "idx": 5,
+              "pageid": 33924103,
+              "title": "Hongling station",
+              "wiki_url": "https://en.wikipedia.org/?curid=33924103",
+              "extract": "Hongling station (simplified Chinese: 红岭站; traditional Chinese: 紅嶺站; pinyin: Hónglǐng Zhàn; Jyutping: hung4 ling5 zaam6) is a station on Line 3 and Line 9 of the Shenzhen Metro. It opened on 28 June 2011 and Line 9 platforms were added on 28 October 2016. Line 3 station is located on Hongli Road, Futian District. Line 9 station is located on Hongling Middle Road, the boundary between Luohu and Futian.",
+              "name": "Hongling station",
+              "categories": [
+                "2011 in Shenzhen",
+                "Futian District",
+                "Guangdong railway station stubs",
+                "Luohu District",
+                "Railway stations in China opened in 2011",
+                "Railway stations in China opened in 2016",
+                "Shenzhen Metro stations"
+              ],
+              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Shenzhen_Metro_Line_3&9_Hongling_Sta_Exit_B.jpg",
+              "short_description": "Metro station in Shenzhen, Guangdong, China"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                114.129,
+                22.5456
+              ]
+            },
+            "properties": {
+              "idx": 6,
+              "pageid": 474810,
+              "title": "Luohu, Shenzhen",
+              "wiki_url": "https://en.wikipedia.org/?curid=474810",
+              "extract": "Luohu District is a district of Shenzhen, China, located north of the New Territories of Hong Kong, east of Futian District, southeast of Longgang District, southwest of Pingshan District, and west of Yantian District. It is one of the oldest parts of the city, having represented Shenzhen as a fishing village before 1953 and a market town from 1953 to 1979, when Bao'an County was promoted to a prefecture-level city and renamed Shenzhen.",
+              "name": "Luohu, Shenzhen",
+              "categories": [
+                "Districts of Shenzhen",
+                "Divided cities",
+                "Luohu District"
+              ],
+              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Skyline_KK101&Shun_Hing_Square2021.jpg",
+              "short_description": "District in Guangdong, China"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                114.10583333,
+                22.54527778
+              ]
+            },
+            "properties": {
+              "idx": 7,
+              "pageid": 589357,
+              "title": "Shun Hing Square",
+              "wiki_url": "https://en.wikipedia.org/?curid=589357",
+              "extract": "Shun Hing Square (Chinese: 信兴广场), also known as \"Di Wang Tower\" (地王大厦) is a 384-meter (1,260 ft)-tall skyscraper in Shenzhen, Guangdong province, China. Upon its completion in 1996, it became the tallest building in China, until being surpassed by CITIC Plaza in the next year.",
+              "name": "Shun Hing Square",
+              "categories": [
+                "1996 in Shenzhen",
+                "Buildings and structures completed in 1996",
+                "People's Republic of China building and structure stubs",
+                "Retail buildings in China",
+                "Shenzhen stubs",
+                "Skyscraper office buildings in Shenzhen",
+                "Skyscrapers in Shenzhen"
+              ],
+              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Shun_Hing_Square_exterior_southwest2021.jpg",
+              "short_description": "Supertall skyscraper in Shenzhen, Guangdong, China"
+            }
+          }
+        ]
+      }
+}

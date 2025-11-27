@@ -107,6 +107,11 @@ struct MapView: View {
 
 struct MapboxMapView: View {
     @EnvironmentObject var locationManager: LocationManager
+    @Binding var geoJSONData: [String: Any]?
+    @Binding var geoJSONUpdateTrigger: UUID
+    @State private var mapProxy: MapboxMaps.MapProxy?
+    @State private var selectedFeature: [String: Any]?
+    @State private var showPopup: Bool = false
     
     /// Offset distance in degrees to move camera south of user location
     /// This creates space for UI elements (like bottom sheets) above the user's location
@@ -135,29 +140,105 @@ struct MapboxMapView: View {
     }
     
     var body: some View {
-        MapReader { proxy in
-            Map(initialViewport: initialViewport) {
-                // Add user location puck - this is Mapbox's recommended way
-                MapboxMaps.Puck2D(bearing: MapboxMaps.PuckBearing.heading)
-            }
-            // .mapStyle(MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
-            .mapStyle(MapStyle(uri: StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
-            .ignoresSafeArea()
-            .onAppear {
-                verifyMapboxToken()
-                setupMapboxLocation(proxy: proxy)
-                // If we have a saved location, update camera immediately
-                // (LocationManager loads saved location on init, so it should be available)
-                if let location = locationManager.currentLocation {
-                    updateMapCamera(proxy: proxy, location: location)
+        ZStack {
+            MapReader { proxy in
+                MapboxMaps.Map(initialViewport: initialViewport) {
+                    // Add user location puck - this is Mapbox's recommended way
+                    MapboxMaps.Puck2D(bearing: MapboxMaps.PuckBearing.heading)
+                }
+                // .mapStyle(MapboxMaps.MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
+                .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
+                .ignoresSafeArea()
+                .onAppear {
+                    mapProxy = proxy
+                    verifyMapboxToken()
+                    setupMapboxLocation(proxy: proxy)
+                    // If we have a saved location, update camera immediately
+                    // (LocationManager loads saved location on init, so it should be available)
+                    if let location = locationManager.currentLocation {
+                        updateMapCamera(proxy: proxy, location: location)
+                    }
+                    // GeoJSON data will be added as a source when available
+                }
+                .onChange(of: locationManager.currentLocation) { newLocation in
+                    // When location updates from shared LocationManager, update camera
+                    // This happens when GPS gets a fresh location update
+                    if let location = newLocation {
+                        updateMapCamera(proxy: proxy, location: location)
+                    }
+                }
+                .onChange(of: geoJSONUpdateTrigger) { _ in
+                    // When geojson data is updated, show nearby points on map
+                    #if DEBUG
+                    print("🔄 geoJSONUpdateTrigger changed, geoJSONData: \(geoJSONData != nil ? "exists" : "nil")")
+                    #endif
+                    if let geoJSON = geoJSONData {
+                        #if DEBUG
+                        print("🗺️ Calling showNearby with geoJSON")
+                        #endif
+                        showNearby(geoJSON: geoJSON)
+                    } else {
+                        #if DEBUG
+                        print("⚠️ geoJSONData is nil, cannot show nearby points")
+                        #endif
+                    }
                 }
             }
-            .onChange(of: locationManager.currentLocation) { newLocation in
-                // When location updates from shared LocationManager, update camera
-                // This happens when GPS gets a fresh location update
-                if let location = newLocation {
-                    updateMapCamera(proxy: proxy, location: location)
+            
+            // Popup overlay
+            if showPopup, let feature = selectedFeature,
+               let properties = feature["properties"] as? [String: Any] {
+                VStack {
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            if let idx = properties["idx"] as? Int {
+                                Text("Index: \(idx)")
+                                    .font(.headline)
+                            }
+                            Spacer()
+                            Button(action: {
+                                showPopup = false
+                                selectedFeature = nil
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        
+                        if let extract = properties["extract"] as? String {
+                            Text(extract)
+                                .font(.body)
+                                .lineLimit(5)
+                        }
+                        
+                        if let imgURL = properties["img_url"] as? String,
+                           let imageURL = URL(string: imgURL) {
+                            AsyncImage(url: imageURL) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(maxHeight: 200)
+                                case .failure:
+                                    EmptyView()
+                                @unknown default:
+                                    EmptyView()
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(radius: 10)
+                    .padding(.horizontal)
+                    .padding(.bottom, 50)
                 }
+                .transition(.move(edge: .bottom))
             }
         }
         .navigationBarHidden(true)
@@ -265,6 +346,92 @@ struct MapboxMapView: View {
             }
         }
     }
+    
+    /// Adds nearby points from GeoJSON data source
+    /// - Parameter geoJSON: Dictionary containing GeoJSON FeatureCollection with features
+    func showNearby(geoJSON: [String: Any]) {
+        guard let data = geoJSON["data"] as? [String: Any] else {
+            #if DEBUG
+            print("❌ Invalid GeoJSON structure: missing 'data' key")
+            print("   Available keys: \(geoJSON.keys.joined(separator: ", "))")
+            #endif
+            return
+        }
+        
+        guard let features = data["features"] as? [[String: Any]] else {
+            #if DEBUG
+            print("❌ Invalid GeoJSON structure: missing 'data.features'")
+            print("   Data keys: \(data.keys.joined(separator: ", "))")
+            #endif
+            return
+        }
+        
+        #if DEBUG
+        print("✅ Found \(features.count) features in GeoJSON")
+        #endif
+        
+        // Add GeoJSON as a source to the map
+        addGeoJSONSource(geoJSONData: data)
+    }
+    
+    /// Add GeoJSON source and layer to the map
+    private func addGeoJSONSource(geoJSONData: [String: Any]) {
+        guard let mapProxy = mapProxy else {
+            #if DEBUG
+            print("⚠️ Map proxy not available yet")
+            #endif
+            return
+        }
+        
+        Task {
+            do {
+                // Convert GeoJSON dictionary to JSON string
+                let jsonData = try JSONSerialization.data(withJSONObject: geoJSONData)
+                guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                    #if DEBUG
+                    print("❌ Failed to convert GeoJSON to string")
+                    #endif
+                    return
+                }
+                
+                // Create GeoJSON source with data
+                let sourceId = "nearby-places-source"
+                var source = MapboxMaps.GeoJSONSource(id: sourceId)
+                source.data = .string(jsonString)
+                
+                // Add or update source
+                guard let map = mapProxy.map else {
+                    #if DEBUG
+                    print("⚠️ Map not available")
+                    #endif
+                    return
+                }
+                
+                try await map.addSource(source)
+                
+                // Create circle layer for points
+                let layerId = "nearby-places-layer"
+                var circleLayer = MapboxMaps.CircleLayer(id: layerId, source: sourceId)
+                circleLayer.circleColor = .constant(StyleColor(.blue))
+                circleLayer.circleRadius = .constant(8)
+                circleLayer.circleStrokeWidth = .constant(2)
+                circleLayer.circleStrokeColor = .constant(StyleColor(.white))
+                
+                // Remove existing layer if it exists, then add new one
+                try? await map.removeLayer(withId: layerId)
+                try await map.addLayer(circleLayer)
+                
+                #if DEBUG
+                print("✅ Added GeoJSON source and layer to map")
+                #endif
+            } catch {
+                #if DEBUG
+                print("❌ Failed to add GeoJSON source: \(error)")
+                #endif
+            }
+        }
+    }
+    
 }
 
 // MARK: - Location Manager Delegate
@@ -353,7 +520,7 @@ struct MapLibreMapViewWrapper: View {
 
 #Preview {
 //    MapboxDirectionsView()
-    MapboxMapView()
+    MapboxMapView(geoJSONData: .constant(nil), geoJSONUpdateTrigger: .constant(UUID()))
         .environmentObject(LocationManager())
     // MapView()
     // MapLibreMapViewWrapper()

@@ -39,40 +39,40 @@ struct SignedInHomeView: View {
   @State private var shouldDismissKeyboard = false
   
   // Location-related state
-  @State private var locationText = "Your Journeys"
   @State private var isLoadingLocation = false
   @State private var lastSentLocation: (latitude: Double, longitude: Double)?
   @State private var locationContent: LocationContent?
   @State private var bottomSheetOffset: CGFloat = 0
+  @State private var geoJSONData: [String: Any]?
+  @State private var geoJSONUpdateTrigger: UUID = UUID()
 
   var body: some View {
     ZStack(alignment: .bottom) {
       // Full screen map as base
-      MapboxMapView()
+      MapboxMapView(geoJSONData: $geoJSONData, geoJSONUpdateTrigger: $geoJSONUpdateTrigger)
         .ignoresSafeArea(.all)
       
       // Location Bottom Sheet - positioned at bottom
       if locationManager.currentLocation != nil || true { // TODO: Remove "|| true" after testing
         InfoSheet(
-          locationContent: locationContent,
-          locationText: locationText,
+          locationDetails: locationManager.locationDetails,
           offset: $bottomSheetOffset,
           selectedTab: $selectedTab,
-          chatMessages: $chatMessages,
           username: username,
           fullName: fullName,
           website: website,
-          userEmail: userEmail,
-          onSendMessage: { messageText in
-            await sendChatMessage(messageText)
-          }
+          userEmail: userEmail
         )
         .zIndex(1000) // Ensure it's on top
         .allowsHitTesting(true) // Ensure it can receive touches
         #if DEBUG
         .onAppear {
           print("📍 Bottom sheet condition met - location available")
-          print("   Location text: \(locationText)")
+          if let locationDetails = locationManager.locationDetails {
+            print("   Location details: \(locationDetails)")
+          } else {
+            print("   Location details: nil")
+          }
         }
         #endif
       }
@@ -104,6 +104,7 @@ struct SignedInHomeView: View {
     }
     .onChange(of: locationManager.currentLocation) { newLocation in
       // Only make API call when location is captured and change is significant
+      // Skip if this is the initial load (handled by .task)
       if newLocation != nil {
         Task {
           await loadLocationIfSignificant()
@@ -111,8 +112,10 @@ struct SignedInHomeView: View {
       }
     }
     .task { @MainActor in
-      // If location is already available, call immediately (first time)
+      // Initial load: If location is already available, call immediately (first time)
       // Otherwise, wait for onChange to trigger when location is captured
+      // Use a small delay to avoid race condition with onChange
+      try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
       if locationManager.currentLocation != nil {
         await loadLocationIfSignificant()
       }
@@ -436,6 +439,14 @@ struct SignedInHomeView: View {
   
   /// Checks if location change is significant before making API call
   private func loadLocationIfSignificant() async {
+    // Prevent concurrent API calls
+    guard !isLoadingLocation else {
+      #if DEBUG
+      print("⏸️ API call already in progress, skipping duplicate request")
+      #endif
+      return
+    }
+    
     // Only proceed if location is actually available
     guard let latitude = locationManager.latitude,
           let longitude = locationManager.longitude else {
@@ -445,38 +456,77 @@ struct SignedInHomeView: View {
       return
     }
     
-    // Check if location change is significant
+    // Check if location change is significant BEFORE reverse geocoding
     guard isLocationChangeSignificant(newLatitude: latitude, newLongitude: longitude) else {
+      #if DEBUG
+      print("⏸️ Location change not significant, skipping API call")
+      #endif
       return
     }
     
-    // Make the API call
-    await loadLocation()
+    // Reverse geocode user location and get JSON dict
+    #if DEBUG
+    print("📍 Calling reverseGeocodeUserLocation() from loadLocationIfSignificant()")
+    #endif
+    
+    let locationDict = await withCheckedContinuation { continuation in
+      locationManager.reverseGeocodeUserLocation { dict, error in
+        if let error = error {
+          #if DEBUG
+          print("⚠️ Reverse geocoding error: \(error.localizedDescription), using location only")
+          #endif
+          // Even if geocoding fails, dict should still have location data
+          continuation.resume(returning: dict)
+        } else {
+          continuation.resume(returning: dict)
+        }
+      }
+    }
+    
+    guard let locationDict = locationDict else {
+      #if DEBUG
+      print("❌ Failed to get location dict from reverse geocoding")
+      #endif
+      return
+    }
+    
+    // Make the API call with the location dict
+    await loadLocation(jsonDict: locationDict)
   }
   
-  private func loadLocation() async {
-    // Only proceed if location is actually available
-    guard let latitude = locationManager.latitude,
-          let longitude = locationManager.longitude else {
-      #if DEBUG
-      print("⚠️ Location not available yet, skipping API call")
-      #endif
-      return
-    }
-    
+  private func loadLocation(jsonDict: [String: Any]) async {
     isLoadingLocation = true
     defer { isLoadingLocation = false }
     
-    do {
-      // Prepare request data with location
-      // Location is guaranteed to be available at this point
-      let jsonDict: [String: Any] = [
-        "latitude": latitude,
-        "longitude": longitude
-      ]
-      
+    // Extract user_lat and user_lon from jsonDict (LocationManager uses user_lat/user_lon)
+    guard let userLat = jsonDict["user_lat"] as? Double,
+          let userLon = jsonDict["user_lon"] as? Double else {
       #if DEBUG
-      print("📍 Sending location to API: \(latitude), \(longitude)")
+      print("⚠️ Missing user_lat or user_lon in location dict")
+      #endif
+      return
+    }
+    
+    // Check cache first
+    if let cachedGeoJSON = locationManager.reconstructGeoJSONFromCache(userLat: userLat, userLon: userLon) {
+      #if DEBUG
+      print("✅ Using cached GeoJSON data")
+      #endif
+      // Update geoJSONData to trigger map update
+      await MainActor.run {
+        geoJSONData = cachedGeoJSON
+        geoJSONUpdateTrigger = UUID()
+      }
+      // Update last sent location
+      lastSentLocation = (latitude: userLat, longitude: userLon)
+      return
+    }
+    
+    // Cache miss - make API call
+    do {
+      #if DEBUG
+      print("📍 Sending location to API: \(userLat), \(userLon)")
+      print("📦 Full location dict: \(jsonDict)")
       #endif
       
       let response = try await uhpGateway.request(
@@ -486,49 +536,69 @@ struct SignedInHomeView: View {
       )
       
       // Update last sent location after successful API call
-      lastSentLocation = (latitude: latitude, longitude: longitude)
+      lastSentLocation = (latitude: userLat, longitude: userLon)
       
-      // Extract location from response
-      // API returns SuccessResponse with structure: { "result": { "location": "...", ... } }
-      if let responseDict = response as? [String: Any] {
-        // Try result.location first (expected structure)
-        if let result = responseDict["result"] as? [String: Any],
-           let location = result["location"] as? String {
-          locationText = location
-          #if DEBUG
-          print("✅ Location loaded from result.location: \(location)")
-          #endif
-          return
-        }
-        
-        // Fallback: try direct location
-        if let location = responseDict["location"] as? String {
-          locationText = location
-          #if DEBUG
-          print("✅ Location loaded from direct location: \(location)")
-          #endif
-          return
-        }
-        
-        // Fallback: try data.location
-        if let data = responseDict["data"] as? [String: Any],
-           let location = data["location"] as? String {
-          locationText = location
-          #if DEBUG
-          print("✅ Location loaded from data.location: \(location)")
-          #endif
-          return
-        }
-        
-        // Try to extract location content for bottom sheet
-        if let result = responseDict["result"] as? [String: Any] {
-          locationContent = LocationContent(from: result)
-        }
-        
+      // Parse response: extract data field containing GeoJSON FeatureCollection
+      // Response format: {result: {event: "map", data: {type: "FeatureCollection", features: [...]}}, status: "success", ...}
+      guard let responseDict = response as? [String: Any],
+            let result = responseDict["result"] as? [String: Any],
+            let event = result["event"] as? String,
+            event == "map",
+            let data = result["data"] as? [String: Any],
+            let features = data["features"] as? [[String: Any]] else {
         #if DEBUG
-        print("⚠️ Location not found in response. Available keys: \(responseDict.keys.joined(separator: ", "))")
+        if let responseDict = response as? [String: Any] {
+          print("⚠️ Invalid response format. Available keys: \(responseDict.keys.joined(separator: ", "))")
+          if let result = responseDict["result"] as? [String: Any] {
+            print("   Result keys: \(result.keys.joined(separator: ", "))")
+          }
+        } else {
+          print("⚠️ Invalid response format. Response is not a dictionary.")
+        }
         #endif
+        return
       }
+      
+      // Process features: extract idx and pageid, save to cache
+      var featuresList: [[String: Any]] = []
+      for feature in features {
+        guard let properties = feature["properties"] as? [String: Any],
+              let idx = properties["idx"] as? Int,
+              let pageid = properties["pageid"] as? Int else {
+          continue
+        }
+        
+        // Add to features list for location cache
+        featuresList.append([
+          "idx": idx,
+          "pageid": pageid
+        ])
+        
+        // Save individual feature to cache
+        locationManager.saveCachedFeature(pageid: pageid, feature: feature)
+      }
+      
+      // Save location cache with list of {idx, pageid}
+      locationManager.saveCachedLocationData(userLat: userLat, userLon: userLon, features: featuresList)
+      
+      // Update geoJSONData to trigger map update
+      // Format: {event: "map", data: {type: "FeatureCollection", features: [...]}}
+      let geoJSONResponse: [String: Any] = [
+        "event": event,
+        "data": data
+      ]
+      await MainActor.run {
+        geoJSONData = geoJSONResponse
+        geoJSONUpdateTrigger = UUID()
+      }
+      
+      #if DEBUG
+      print("✅ GeoJSON data loaded and cached with \(featuresList.count) features")
+      #endif
+      
+      #if DEBUG
+      print("✅ GeoJSON data loaded and cached with \(featuresList.count) features")
+      #endif
       
     } catch let apiError as APIError {
       #if DEBUG
@@ -537,13 +607,11 @@ struct SignedInHomeView: View {
         print("   Status Code: \(code)")
       }
       #endif
-      // Keep default "Your Journeys" text on error
     } catch {
       #if DEBUG
       print("❌ Failed to load location: \(error.localizedDescription)")
       print("   Error type: \(type(of: error))")
       #endif
-      // Keep default "Your Journeys" text on error
     }
   }
 
@@ -790,16 +858,13 @@ struct NotificationBanner: View {
 
 // MARK: - Location Bottom Sheet Component
 struct InfoSheet: View {
-  let locationContent: LocationContent?
-  let locationText: String
+  let locationDetails: [String: Any]?
   @Binding var offset: CGFloat
   @Binding var selectedTab: TabSelection
-  @Binding var chatMessages: [ChatMessage]
   let username: String
   let fullName: String
   let website: String
   let userEmail: String
-  var onSendMessage: (String) async -> Void
   
   // Snap points - visible heights
   private let collapsedHeight: CGFloat = 100
@@ -810,8 +875,6 @@ struct InfoSheet: View {
   @State private var currentSnapPoint: SnapPoint = .partial
   @State private var scrollViewContentOffset: CGFloat = 0
   @State private var isScrollingContent: Bool = false
-  @State private var isChatNearBottom: Bool = true
-  @State private var hasScrolledInitially: Bool = false
   
   enum SnapPoint {
     case collapsed
@@ -863,7 +926,7 @@ struct InfoSheet: View {
           // Switch content based on selected main tab
           switch selectedTab {
           case .journey:
-            journeyContent
+            journeyContent(locationDetails: locationDetails)
           case .map:
             mapContent
           case .profile:
@@ -999,7 +1062,7 @@ struct InfoSheet: View {
   // MARK: - Tab Content Views
   
   @ViewBuilder
-  private var journeyContent: some View {
+  private func journeyContent(locationDetails: [String: Any]?) -> some View {
     VStack(alignment: .leading, spacing: 16) {
       // Fixed width constraint to prevent expansion
       Color.clear
@@ -1007,14 +1070,24 @@ struct InfoSheet: View {
         .frame(height: 0)
       // Header
       VStack(alignment: .leading, spacing: 4) {
-        Text(locationContent?.title ?? locationText)
-          .font(.title)
-          .fontWeight(.bold)
-        
-        if let subtitle = locationContent?.subtitle {
-          Text(subtitle)
-            .font(.subheadline)
-            .foregroundColor(.secondary)
+        // Parse location string: first item, second item, and country name
+        if let locationDetails = locationDetails {
+          let locationString = locationDetails["location"] as? String ?? ""
+          let countryName = locationDetails["country_name"] as? String ?? ""
+          
+          let locationParts = locationString.components(separatedBy: ", ")
+          let firstItem = locationParts.count > 0 ? locationParts[0].trimmingCharacters(in: .whitespaces) : ""
+          let secondItem = locationParts.count > 1 ? locationParts[1].trimmingCharacters(in: .whitespaces) : ""
+          
+          if !firstItem.isEmpty {
+            Text(firstItem)
+          }
+          if !secondItem.isEmpty {
+            Text(secondItem)
+          }
+          if !countryName.isEmpty {
+            Text(countryName)
+          }
         }
       }
       .padding(.horizontal)
@@ -1056,89 +1129,6 @@ struct InfoSheet: View {
       }
       .padding(.horizontal)
       
-      // Image gallery - fixed height container to prevent expansion
-      Group {
-        if let content = locationContent, !content.imageURLs.isEmpty {
-          ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-              ForEach(Array(content.imageURLs.enumerated()), id: \.offset) { index, urlString in
-              AsyncImage(url: URL(string: urlString)) { phase in
-                switch phase {
-                case .empty:
-                  Rectangle()
-                    .fill(Color(.systemGray4))
-                    .frame(width: index == 0 ? 280 : 140, height: 180)
-                    .overlay {
-                      ProgressView()
-                    }
-                case .success(let image):
-                  image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: index == 0 ? 280 : 140, height: 180)
-                case .failure:
-                  Rectangle()
-                    .fill(Color(.systemGray4))
-                    .frame(width: index == 0 ? 280 : 140, height: 180)
-                @unknown default:
-                  Rectangle()
-                    .fill(Color(.systemGray4))
-                    .frame(width: index == 0 ? 280 : 140, height: 180)
-                }
-              }
-              .cornerRadius(12)
-              .clipped()
-              }
-            }
-            .padding(.horizontal)
-          }
-          .frame(height: 180) // Fixed height to prevent expansion
-        } else {
-          // Default location image
-          AsyncImage(url: URL(string: "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop")) { image in
-            image
-              .resizable()
-              .aspectRatio(contentMode: .fill)
-          } placeholder: {
-            Rectangle()
-              .fill(Color(.systemGray4))
-              .overlay {
-                ProgressView()
-              }
-          }
-          .frame(height: 180) // Match the gallery height
-          .cornerRadius(12)
-          .padding(.horizontal)
-        }
-      }
-      .frame(maxWidth: .infinity) // Constrain width
-      .frame(height: 180) // Fixed height container
-      
-      // Description
-      if let description = locationContent?.description {
-        Text(description)
-          .font(.body)
-          .foregroundColor(.secondary)
-          .padding(.horizontal)
-          .frame(maxWidth: .infinity, alignment: .leading) // Constrain width
-      }
-      
-      // Additional content placeholder
-      VStack(alignment: .leading, spacing: 12) {
-        Text("When to visit")
-          .font(.headline)
-          .padding(.horizontal)
-        
-        HStack {
-          Image(systemName: "calendar")
-          Text("Peak Season · Jun - Sept")
-          Spacer()
-        }
-        .font(.subheadline)
-        .foregroundColor(.secondary)
-        .padding(.horizontal)
-      }
-      .padding(.top)
     }
     .frame(maxWidth: .infinity) // Constrain entire content width
   }
@@ -1151,16 +1141,56 @@ struct InfoSheet: View {
         .fontWeight(.bold)
         .padding(.horizontal)
       
-      // Coordinates section
-      if let coordinates = locationContent?.coordinates {
+      // Location details section
+      if let locationDetails = locationDetails {
         VStack(alignment: .leading, spacing: 8) {
           Text("Current Location")
             .font(.headline)
             .padding(.horizontal)
           
+          // Display location using first and second items from location string and country name
+          if let locationString = locationDetails["location"] as? String,
+             let countryName = locationDetails["country_name"] as? String {
+            let locationParts = locationString.components(separatedBy: ", ")
+            let displayParts = Array(locationParts.prefix(2))
+            let displayLocation = displayParts.joined(separator: ", ")
+            let fullDisplay = "\(displayLocation), \(countryName)"
+            
+            HStack {
+              Image(systemName: "location.fill")
+              Text(fullDisplay)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+              Spacer()
+            }
+            .padding(.horizontal)
+          } else if let countryName = locationDetails["country_name"] as? String {
+            // Fallback to just country name if location string not available
+            HStack {
+              Image(systemName: "location.fill")
+              Text(countryName)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+              Spacer()
+            }
+            .padding(.horizontal)
+          }
+        }
+        .padding(.top, 8)
+      }
+      
+      // Coordinates section (fallback if locationDetails not available)
+      if let locationDetails = locationDetails,
+         let latitude = locationDetails["latitude"] as? Double,
+         let longitude = locationDetails["longitude"] as? Double {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Coordinates")
+            .font(.headline)
+            .padding(.horizontal)
+          
           HStack {
             Image(systemName: "location.fill")
-            Text("\(String(format: "%.6f", coordinates.latitude)), \(String(format: "%.6f", coordinates.longitude))")
+            Text("\(String(format: "%.6f", latitude)), \(String(format: "%.6f", longitude))")
               .font(.subheadline)
               .foregroundColor(.secondary)
             Spacer()
@@ -1184,121 +1214,6 @@ struct InfoSheet: View {
         .padding(.horizontal)
       }
       .padding(.top)
-    }
-  }
-  
-  @ViewBuilder
-  private var chatContent: some View {
-    VStack(spacing: 0) {
-      // Chat messages area
-      ScrollViewReader { proxy in
-        ScrollView {
-          // Allow scrolling in chat even when bottom sheet isn't at full
-          // This ensures chat messages can scroll independently
-          VStack(alignment: .leading, spacing: 12) {
-            if chatMessages.isEmpty {
-              Text("Chat messages will appear here")
-                .foregroundColor(.secondary)
-                .padding()
-                .id("empty-state")
-            } else {
-              // Show messages in order (oldest to newest, newest at bottom)
-              ForEach(chatMessages) { message in
-                ChatMessageView(message: message)
-                  .id(message.id)
-              }
-            }
-            // Bottom anchor for scrolling
-            Color.clear
-              .frame(height: 1)
-              .id("bottom-anchor")
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding()
-          .padding(.bottom, 80) // Extra padding to account for input bar above tab bar
-          .background(
-            GeometryReader { geometry in
-              Color.clear
-                .preference(
-                  key: ChatScrollOffsetKey.self,
-                  value: -geometry.frame(in: .named("chat-scroll")).minY
-                )
-            }
-          )
-        }
-        .coordinateSpace(name: "chat-scroll")
-        .onPreferenceChange(ChatScrollOffsetKey.self) { offset in
-          // Check if user is near bottom (within 150 points)
-          // Offset is negative when scrolled down, so we check if it's close to 0
-          let threshold: CGFloat = 150
-          let newIsNearBottom = abs(offset) <= threshold || offset >= 0
-          if newIsNearBottom != isChatNearBottom {
-            isChatNearBottom = newIsNearBottom
-          }
-        }
-        .onAppear {
-          // Scroll to bottom on initial appear
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            if let lastMessage = chatMessages.last {
-              withAnimation {
-                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-              }
-            } else {
-              withAnimation {
-                proxy.scrollTo("bottom-anchor", anchor: .bottom)
-              }
-            }
-          }
-        }
-        .onChange(of: chatMessages.count) { newCount in
-          // Auto-scroll when new messages arrive
-          guard newCount > 0 else { return }
-          
-          // Always scroll on first message, then respect user's scroll position
-          let shouldScroll = !hasScrolledInitially || isChatNearBottom
-          
-          if shouldScroll {
-            // Use Task to ensure we're on the main actor and view has updated
-            Task { @MainActor in
-              try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
-              if let lastMessage = chatMessages.last {
-                withAnimation(.easeOut(duration: 0.3)) {
-                  proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                }
-                hasScrolledInitially = true
-              } else {
-                withAnimation(.easeOut(duration: 0.3)) {
-                  proxy.scrollTo("bottom-anchor", anchor: .bottom)
-                }
-                hasScrolledInitially = true
-              }
-            }
-          }
-        }
-        .onChange(of: chatMessages.last?.text) { _ in
-          // Auto-scroll during streaming updates (if user is near bottom)
-          guard isChatNearBottom, let lastMessage = chatMessages.last else { return }
-          
-          // Use Task to ensure we're on the main actor and view has updated
-          Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 30_000_000) // 0.03 seconds
-            withAnimation(.easeOut(duration: 0.2)) {
-              proxy.scrollTo(lastMessage.id, anchor: .bottom)
-            }
-          }
-        }
-        .onChange(of: chatMessages.last?.isStreaming) { _ in
-          // When streaming finishes, ensure we're at the bottom
-          if isChatNearBottom, let lastMessage = chatMessages.last, !lastMessage.isStreaming {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-              withAnimation(.easeOut(duration: 0.3)) {
-                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-              }
-            }
-          }
-        }
-      }
-      .frame(maxWidth: .infinity)
     }
   }
   
