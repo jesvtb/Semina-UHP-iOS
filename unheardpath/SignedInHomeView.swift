@@ -45,6 +45,7 @@ struct SignedInHomeView: View {
   @State private var bottomSheetOffset: CGFloat = 0
   @State private var geoJSONData: [String: Any]?
   @State private var geoJSONUpdateTrigger: UUID = UUID()
+  @State private var places: Places = []
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -61,7 +62,9 @@ struct SignedInHomeView: View {
           username: username,
           fullName: fullName,
           website: website,
-          userEmail: userEmail
+          userEmail: userEmail,
+          places: places,
+          onPlaceBookmark: bookmarkPlace
         )
         .zIndex(1000) // Ensure it's on top
         .allowsHitTesting(true) // Ensure it can receive touches
@@ -512,10 +515,12 @@ struct SignedInHomeView: View {
       #if DEBUG
       print("✅ Using cached GeoJSON data")
       #endif
+      let cachedPlaces = parsePlaces(from: cachedGeoJSON)
       // Update geoJSONData to trigger map update
       await MainActor.run {
         geoJSONData = cachedGeoJSON
         geoJSONUpdateTrigger = UUID()
+        places = cachedPlaces
       }
       // Update last sent location
       lastSentLocation = (latitude: userLat, longitude: userLon)
@@ -587,9 +592,11 @@ struct SignedInHomeView: View {
         "event": event,
         "data": data
       ]
+      let parsedPlaces = parsePlaces(from: geoJSONResponse)
       await MainActor.run {
         geoJSONData = geoJSONResponse
         geoJSONUpdateTrigger = UUID()
+        places = parsedPlaces
       }
       
       #if DEBUG
@@ -614,7 +621,24 @@ struct SignedInHomeView: View {
       #endif
     }
   }
-
+  
+  private func parsePlaces(from geoJSON: [String: Any]) -> Places {
+    guard
+      let data = geoJSON["data"] as? [String: Any],
+      let features = data["features"] as? [[String: Any]]
+    else {
+      return []
+    }
+    
+    let parsedPlaces = features.compactMap { Place(feature: $0) }
+    return parsedPlaces.sorted { $0.sortIndex < $1.sortIndex }
+  }
+  
+  private func bookmarkPlace(_ place: Place) {
+    #if DEBUG
+    print("🔖 Bookmark tapped for \(place.title) (\(place.id))")
+    #endif
+  }
   
 }
 
@@ -668,6 +692,61 @@ struct ChatMessage: Identifiable {
     self.text = text
     self.isUser = isUser
     self.isStreaming = isStreaming
+  }
+}
+
+// MARK: - Places Model
+typealias Places = [Place]
+
+struct Place: Identifiable, Hashable {
+  let id: Int
+  let title: String
+  let description: String
+  let categories: [String]
+  let wikiURL: URL?
+  let imageURL: URL?
+  let latitude: Double?
+  let longitude: Double?
+  let sortIndex: Int
+  
+  init?(feature: [String: Any]) {
+    guard let properties = feature["properties"] as? [String: Any],
+          let pageid = properties["pageid"] as? Int else {
+      return nil
+    }
+    
+    self.id = pageid
+    self.sortIndex = properties["idx"] as? Int ?? Int.max
+    self.title = properties["title"] as? String ?? properties["name"] as? String ?? "Untitled Place"
+    
+    let extract = properties["short_description"] as? String ??
+      properties["extract"] as? String ?? ""
+    self.description = extract
+    self.categories = properties["categories"] as? [String] ?? []
+    
+    if let wikiString = properties["wiki_url"] as? String {
+      self.wikiURL = URL(string: wikiString)
+    } else {
+      self.wikiURL = nil
+    }
+    
+    if let imageString = properties["img_url"] as? String {
+      self.imageURL = URL(string: imageString)
+    } else {
+      self.imageURL = nil
+    }
+    
+    if
+      let geometry = feature["geometry"] as? [String: Any],
+      let coordinates = geometry["coordinates"] as? [Double],
+      coordinates.count >= 2
+    {
+      self.longitude = coordinates[0]
+      self.latitude = coordinates[1]
+    } else {
+      self.latitude = nil
+      self.longitude = nil
+    }
   }
 }
 
@@ -865,6 +944,8 @@ struct InfoSheet: View {
   let fullName: String
   let website: String
   let userEmail: String
+  let places: Places
+  let onPlaceBookmark: (Place) -> Void
   
   // Snap points - visible heights
   private let collapsedHeight: CGFloat = 100
@@ -926,7 +1007,7 @@ struct InfoSheet: View {
           // Switch content based on selected main tab
           switch selectedTab {
           case .journey:
-            journeyContent(locationDetails: locationDetails)
+          journeyContent(locationDetails: locationDetails, places: places)
           case .map:
             mapContent
           case .profile:
@@ -1062,7 +1143,7 @@ struct InfoSheet: View {
   // MARK: - Tab Content Views
   
   @ViewBuilder
-  private func journeyContent(locationDetails: [String: Any]?) -> some View {
+  private func journeyContent(locationDetails: [String: Any]?, places: Places) -> some View {
     VStack(alignment: .leading, spacing: 16) {
       // Fixed width constraint to prevent expansion
       Color.clear
@@ -1128,6 +1209,21 @@ struct InfoSheet: View {
         }
       }
       .padding(.horizontal)
+      
+      if !places.isEmpty {
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Nearby Places")
+            .font(.headline)
+            .padding(.horizontal)
+          
+          VStack(spacing: 12) {
+            ForEach(places) { place in
+              PlaceRow(place: place, onBookmark: onPlaceBookmark)
+            }
+          }
+          .padding(.horizontal)
+        }
+      }
       
     }
     .frame(maxWidth: .infinity) // Constrain entire content width
@@ -1405,6 +1501,62 @@ struct TabBarButton: View {
       .frame(maxWidth: .infinity)
       .frame(height: 49)
     }
+  }
+}
+
+// MARK: - Place Row
+struct PlaceRow: View {
+  let place: Place
+  let onBookmark: (Place) -> Void
+  
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "location")
+          .font(.headline)
+          .foregroundColor(.teal)
+          .padding(8)
+          .background(Color.teal.opacity(0.12))
+          .clipShape(Circle())
+        
+        VStack(alignment: .leading, spacing: 4) {
+          Text(place.title)
+            .font(.headline)
+            .foregroundColor(.primary)
+          
+          if !place.description.isEmpty {
+            Text(place.description)
+              .font(.subheadline)
+              .foregroundColor(.secondary)
+              .lineLimit(3)
+          }
+          
+          if !place.categories.isEmpty {
+            Text(place.categories.prefix(2).joined(separator: " • "))
+              .font(.caption)
+              .foregroundColor(.secondary)
+          }
+        }
+        
+        Spacer()
+        
+        Button(action: { onBookmark(place) }) {
+          Image(systemName: "bookmark")
+            .font(.title3)
+            .foregroundColor(.primary)
+            .frame(width: 32, height: 32)
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+      }
+    }
+    .padding()
+    .background(
+      RoundedRectangle(cornerRadius: 16)
+        .fill(Color(.systemBackground))
+        .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
+    )
   }
 }
 
