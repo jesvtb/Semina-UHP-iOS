@@ -11,3 +11,6 @@ struct Spacing {
     static let xl: CGFloat = 32
     static let xxl: CGFloat = 48
 }
+
+
+let tabBarHeight: CGFloat = 49

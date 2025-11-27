@@ -16,7 +16,6 @@ struct ContentView: View {
   
   var body: some View {
     Group {
-      // Show loading state while checking session (happens during app init)
       if authManager.isLoading {
           ProgressView("Checking authentication...")
       } else if authManager.isAuthenticated {
@@ -24,16 +23,6 @@ struct ContentView: View {
       } else {
         AuthView()
       }
-    }
-    // Skip auth state changes in preview mode
-    .task {
-      #if DEBUG
-      guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else {
-        return
-      }
-      #endif
-      // Auth state is now managed by AuthManager, which checks during app initialization
-      // No need to check here - it's already done in AuthManager.init()
     }
   }
 }
