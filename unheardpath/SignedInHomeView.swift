@@ -36,6 +36,7 @@ struct SignedInHomeView: View {
   @State private var currentNotification: NotificationData?
   @State private var chatMessages: [ChatMessage] = []
   @State private var showChatView = false
+  @State private var shouldDismissKeyboard = false
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -86,6 +87,7 @@ struct SignedInHomeView: View {
       ChatModalView(
         chatMessages: $chatMessages,
         currentNotification: $currentNotification,
+        shouldDismissKeyboard: $shouldDismissKeyboard,
         onSendMessage: { messageText in
           await sendChatMessage(messageText)
         }
@@ -370,6 +372,24 @@ struct SignedInHomeView: View {
                 #if DEBUG
                 print("✅ Updated assistant message. isStreaming: \(isStreaming)")
                 #endif
+              }
+            }
+          }
+        }
+        // Handle map events - dismiss keyboard and reset modal position
+        else if event.event == "map" {
+          #if DEBUG
+          print("🗺️ Processing map event - dismissing keyboard and resetting modal")
+          #endif
+          
+          // Trigger keyboard dismissal in ChatModalView
+          await MainActor.run {
+            shouldDismissKeyboard = true
+            // Reset the flag after a brief delay to allow the change to be detected
+            Task {
+              try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+              await MainActor.run {
+                shouldDismissKeyboard = false
               }
             }
           }
@@ -1798,8 +1818,13 @@ struct MultiLineTextField: UIViewRepresentable {
 // MARK: - Chat Input Bar Component
 struct ChatInputBar: View {
   @State private var messageText = ""
-  @FocusState private var isTextFieldFocused: Bool
+  @FocusState.Binding var isTextFieldFocused: Bool
   var onSendMessage: (String) -> Void
+  
+  init(isTextFieldFocused: FocusState<Bool>.Binding, onSendMessage: @escaping (String) -> Void) {
+    self._isTextFieldFocused = isTextFieldFocused
+    self.onSendMessage = onSendMessage
+  }
   
   // Computed property to check if message is empty (trimmed)
   private var isEmpty: Bool {
@@ -1884,12 +1909,14 @@ struct ChatInputBar: View {
 struct ChatModalView: View {
   @Binding var chatMessages: [ChatMessage]
   @Binding var currentNotification: NotificationData?
+  @Binding var shouldDismissKeyboard: Bool
   var onSendMessage: (String) async -> Void
   @Environment(\.dismiss) private var dismiss
   
   @State private var messageText = ""
   @State private var isChatNearBottom = true
   @State private var hasScrolledInitially = false
+  @FocusState private var isTextFieldFocused: Bool
   
   var body: some View {
     NavigationStack {
@@ -1970,6 +1997,7 @@ struct ChatModalView: View {
           
           // Input bar at bottom - SwiftUI handles keyboard automatically
           ChatInputBar(
+            isTextFieldFocused: $isTextFieldFocused,
             onSendMessage: { messageText in
               Task {
                 await onSendMessage(messageText)
@@ -1977,6 +2005,13 @@ struct ChatModalView: View {
             }
           )
           .background(Color(.systemBackground))
+        }
+        .onChange(of: shouldDismissKeyboard) { shouldDismiss in
+          if shouldDismiss {
+            // Dismiss keyboard
+            isTextFieldFocused = false
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+          }
         }
         
         // Notification Banner - positioned above input bar
