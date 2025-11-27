@@ -240,6 +240,15 @@ struct SignedInHomeView: View {
       dateFormatter.dateFormat = "EEEE"
       jsonDict["current_weekday"] = dateFormatter.string(from: now)
       
+      // Add device language
+      let languageCode: String
+      if #available(iOS 16.0, *) {
+        languageCode = Locale.current.language.languageCode?.identifier ?? "en"
+      } else {
+        languageCode = Locale.current.languageCode ?? "en"
+      }
+      jsonDict["device_lang"] = languageCode
+      
       // Add location and country from LocationManager's locationDetails
       if let locationDetails = locationManager.locationDetails {
         if let location = locationDetails["location"] as? String {
