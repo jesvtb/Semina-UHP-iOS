@@ -223,11 +223,22 @@ struct SignedInHomeView: View {
         "message": trimmedMessage
       ]
       
-      // Add device time
+      // Add device date, time, and day of week (separated)
+      let now = Date()
       let dateFormatter = DateFormatter()
-      dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
       dateFormatter.timeZone = TimeZone.current
-      jsonDict["current_time"] = dateFormatter.string(from: Date())
+      
+      // Date format: yyyy-MM-dd
+      dateFormatter.dateFormat = "yyyy-MM-dd"
+      jsonDict["current_date"] = dateFormatter.string(from: now)
+      
+      // Time format: HH:mm:ss
+      dateFormatter.dateFormat = "HH:mm:ss"
+      jsonDict["current_time"] = dateFormatter.string(from: now)
+      
+      // Day of week format: Full day name (Monday, Tuesday, etc.)
+      dateFormatter.dateFormat = "EEEE"
+      jsonDict["current_weekday"] = dateFormatter.string(from: now)
       
       // Add location and country from LocationManager's locationDetails
       if let locationDetails = locationManager.locationDetails {
