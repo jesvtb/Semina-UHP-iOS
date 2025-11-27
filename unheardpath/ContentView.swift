@@ -10,8 +10,6 @@ import SwiftUI
 // MARK: - Content View
 struct ContentView: View {
   // @EnvironmentObject is like React's useContext - gets the AuthManager from parent
-  // This is passed from unheardpathApp via .environmentObject()
-  // Similar to how React Context provides values to child components
   @EnvironmentObject var authManager: AuthManager
   
   var body: some View {

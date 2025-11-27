@@ -139,7 +139,6 @@ struct ChatMessageView: View {
       if message.isUser {
         Spacer()
       }
-      
       VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
         Text(message.text)
           .padding(.horizontal, 12)
