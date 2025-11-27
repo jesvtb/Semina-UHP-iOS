@@ -25,6 +25,7 @@ struct SignedInHomeView: View {
   @EnvironmentObject var apiClient: APIClient
 
   @EnvironmentObject var uhpGateway: UHPGateway
+  @EnvironmentObject var locationManager: LocationManager
   @State var username = ""
   @State var fullName = ""
   @State var website = ""
@@ -32,11 +33,17 @@ struct SignedInHomeView: View {
 
   @State var isLoading = false
   @State private var selectedTab: TabSelection = .journey
-  @State private var isJourneyTabBarHidden = false
   @State private var currentNotification: NotificationData?
   @State private var chatMessages: [ChatMessage] = []
   @State private var showChatView = false
   @State private var shouldDismissKeyboard = false
+  
+  // Location-related state
+  @State private var locationText = "Your Journeys"
+  @State private var isLoadingLocation = false
+  @State private var lastSentLocation: (latitude: Double, longitude: Double)?
+  @State private var locationContent: LocationContent?
+  @State private var bottomSheetOffset: CGFloat = 0
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -44,21 +51,47 @@ struct SignedInHomeView: View {
       MapboxMapView()
         .ignoresSafeArea(.all)
       
-      // Bottom Sheet with tab-controlled content (excluding chat)
-      JourneyHomeView(
-        isTabBarHidden: $isJourneyTabBarHidden,
-        selectedTab: $selectedTab,
-        currentNotification: $currentNotification,
-        chatMessages: $chatMessages,
-        username: username,
-        fullName: fullName,
-        website: website,
-        userEmail: userEmail,
-        onSendChatMessage: { messageText in
-          await sendChatMessage(messageText)
+      // Location Bottom Sheet - positioned at bottom
+      if locationManager.currentLocation != nil || true { // TODO: Remove "|| true" after testing
+        InfoSheet(
+          locationContent: locationContent,
+          locationText: locationText,
+          offset: $bottomSheetOffset,
+          selectedTab: $selectedTab,
+          chatMessages: $chatMessages,
+          username: username,
+          fullName: fullName,
+          website: website,
+          userEmail: userEmail,
+          onSendMessage: { messageText in
+            await sendChatMessage(messageText)
+          }
+        )
+        .zIndex(1000) // Ensure it's on top
+        .allowsHitTesting(true) // Ensure it can receive touches
+        #if DEBUG
+        .onAppear {
+          print("📍 Bottom sheet condition met - location available")
+          print("   Location text: \(locationText)")
         }
-      )
-      .environmentObject(uhpGateway)
+        #endif
+      }
+      
+      // Notification Banner - positioned above bottom sheet
+      VStack {
+        Spacer()
+        if let notification = currentNotification {
+          NotificationBanner(notification: notification) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+              currentNotification = nil
+            }
+          }
+          .transition(.opacity)
+          .padding(.bottom, 420) // Position above bottom sheet (400px partial height + 20px padding)
+        }
+      }
+      .zIndex(1500) // Above bottom sheet but below tab bar
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
       
       // Custom Tab Bar - always visible at absolute bottom
       CustomTabBar(selectedTab: $selectedTab)
@@ -68,6 +101,21 @@ struct SignedInHomeView: View {
     .onAppear {
       configureTabBarAppearance()
       print("🔵 SignedInHomeView appeared")
+    }
+    .onChange(of: locationManager.currentLocation) { newLocation in
+      // Only make API call when location is captured and change is significant
+      if newLocation != nil {
+        Task {
+          await loadLocationIfSignificant()
+        }
+      }
+    }
+    .task { @MainActor in
+      // If location is already available, call immediately (first time)
+      // Otherwise, wait for onChange to trigger when location is captured
+      if locationManager.currentLocation != nil {
+        await loadLocationIfSignificant()
+      }
     }
     .onChange(of: selectedTab) { newTab in
       // Show chat modal when chat tab is selected
@@ -86,7 +134,6 @@ struct SignedInHomeView: View {
       // Present chat as separate modal view
       ChatModalView(
         chatMessages: $chatMessages,
-        currentNotification: $currentNotification,
         shouldDismissKeyboard: $shouldDismissKeyboard,
         onSendMessage: { messageText in
           await sendChatMessage(messageText)
@@ -96,10 +143,7 @@ struct SignedInHomeView: View {
       .presentationDragIndicator(.visible)
       .presentationBackground(.clear)
     }
-    .task {
-      print("🔵 SignedInHomeView task started")
-      await getInitialProfile()
-    }
+  
   }
   
   // MARK: - Tab Bar Styling
@@ -135,83 +179,6 @@ struct SignedInHomeView: View {
     }
   }
 
-  func getInitialProfile() async {
-    do {
-      let currentUser = try await supabase.auth.session.user
-      
-      // Get email from session
-      self.userEmail = currentUser.email ?? "Not available"
-
-      let profile: Profile =
-      try await supabase
-        .from("profiles")
-        .select()
-        .eq("id", value: currentUser.id)
-        .single()
-        .execute()
-        .value
-
-      self.username = profile.username ?? ""
-      self.fullName = profile.fullName ?? ""
-      self.website = profile.website ?? ""
-      print("✅ Profile fetched successfully: \(profile)")
-
-    } catch {
-      #if DEBUG
-      print("❌ Profile fetch error: \(error)")
-      if let errorString = error.localizedDescription as String? {
-        if errorString.contains("Access to schema is forbidden") {
-          print("⚠️ Schema access error - this might be due to:")
-          print("   1. Using new publishable key format - verify it's enabled in Supabase Dashboard")
-          print("   2. Row Level Security (RLS) policies blocking access")
-          print("   3. Swift SDK compatibility with new key format")
-          print("   Reference: https://github.com/orgs/supabase/discussions/29260")
-        }
-      }
-      #endif
-      debugPrint(error)
-      
-      // Still try to get email even if profile fetch fails
-      do {
-        let currentUser = try await supabase.auth.session.user
-        self.userEmail = currentUser.email ?? "Not available"
-      } catch {
-        self.userEmail = "Not available"
-      }
-    }
-  }
-
-  func updateProfileButtonTapped() {
-    Task {
-      isLoading = true
-      defer { isLoading = false }
-      do {
-        let currentUser = try await supabase.auth.session.user
-
-        try await supabase
-          .from("profiles")
-          .update(
-            UpdateProfileParams(
-              username: username,
-              fullName: fullName,
-              website: website
-            )
-          )
-          .eq("id", value: currentUser.id)
-          .execute()
-      } catch {
-        #if DEBUG
-        print("❌ Profile update error: \(error)")
-        if let errorString = error.localizedDescription as String? {
-          if errorString.contains("Access to schema is forbidden") {
-            print("⚠️ Schema access error - check RLS policies and API key permissions")
-          }
-        }
-        #endif
-        debugPrint(error)
-      }
-    }
-  }
 
   // MARK: - Chat Message Handling
   private func sendChatMessage(_ messageText: String) async {
@@ -430,174 +397,8 @@ struct SignedInHomeView: View {
       }
     }
   }
-
   
-}
-
-// MARK: - Scroll Offset Preference Key
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-  static var defaultValue: CGFloat = 0
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = nextValue()
-  }
-}
-
-// MARK: - Scroll Content Offset Preference Key (for bottom sheet)
-struct ScrollContentOffsetKey: PreferenceKey {
-  static var defaultValue: CGFloat = 0
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = nextValue()
-  }
-}
-
-// MARK: - Chat Scroll Offset Preference Key
-struct ChatScrollOffsetKey: PreferenceKey {
-  static var defaultValue: CGFloat = 0
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = nextValue()
-  }
-}
-
-// MARK: - Notification Model
-struct NotificationData {
-  let type: String?
-  let message: String
-  
-  init?(from dict: [String: Any]) {
-    guard let message = dict["message"] as? String else {
-      return nil
-    }
-    self.type = dict["type"] as? String
-    self.message = message
-  }
-}
-
-// MARK: - Chat Message Model
-struct ChatMessage: Identifiable {
-  let id: UUID
-  let text: String
-  let isUser: Bool
-  let isStreaming: Bool
-  
-  init(id: UUID = UUID(), text: String, isUser: Bool, isStreaming: Bool) {
-    self.id = id
-    self.text = text
-    self.isUser = isUser
-    self.isStreaming = isStreaming
-  }
-}
-
-// MARK: - Chat Message View
-struct ChatMessageView: View {
-  let message: ChatMessage
-  
-  var body: some View {
-    HStack {
-      if message.isUser {
-        Spacer()
-      }
-      
-      VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
-        Text(message.text)
-          .padding(.horizontal, 12)
-          .padding(.vertical, 8)
-          .background(message.isUser ? Color.blue : Color(.systemGray5))
-          .foregroundColor(message.isUser ? .white : .primary)
-          .cornerRadius(16)
-        
-        if message.isStreaming {
-          ProgressView()
-            .scaleEffect(0.8)
-        }
-      }
-      
-      if !message.isUser {
-        Spacer()
-      }
-    }
-  }
-}
-
-// MARK: - Journey Home View
-struct JourneyHomeView: View {
-  @EnvironmentObject var uhpGateway: UHPGateway
-  @EnvironmentObject var locationManager: LocationManager
-  @Binding var isTabBarHidden: Bool
-  @Binding var selectedTab: TabSelection
-  @Binding var currentNotification: NotificationData?
-  @Binding var chatMessages: [ChatMessage]
-  let username: String
-  let fullName: String
-  let website: String
-  let userEmail: String
-  var onSendChatMessage: (String) async -> Void
-  
-  @State private var locationText = "Your Journeys"
-  @State private var isLoadingLocation = false
-  @State private var lastSentLocation: (latitude: Double, longitude: Double)?
-  @State private var bottomSheetOffset: CGFloat = 0
-  @State private var locationContent: LocationContent?
-  
-  var body: some View {
-    ZStack(alignment: .bottom) {
-      // Location Bottom Sheet - positioned at bottom
-      // Show sheet when location is available OR always show for testing
-      if locationManager.currentLocation != nil || true { // TODO: Remove "|| true" after testing
-        LocationBottomSheet(
-          locationContent: locationContent,
-          locationText: locationText,
-          offset: $bottomSheetOffset,
-          selectedTab: $selectedTab,
-          chatMessages: $chatMessages,
-          username: username,
-          fullName: fullName,
-          website: website,
-          userEmail: userEmail,
-          onSendMessage: onSendChatMessage
-        )
-        .zIndex(1000) // Ensure it's on top
-        .allowsHitTesting(true) // Ensure it can receive touches
-        #if DEBUG
-        .onAppear {
-          print("📍 Bottom sheet condition met - location available")
-          print("   Location: \(locationManager.currentLocation?.coordinate.latitude ?? 0), \(locationManager.currentLocation?.coordinate.longitude ?? 0)")
-          print("   Location text: \(locationText)")
-        }
-        #endif
-      }
-      
-      // Notification Banner - positioned above bottom sheet
-      VStack {
-        Spacer()
-        if let notification = currentNotification {
-          NotificationBanner(notification: notification) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-              currentNotification = nil
-            }
-          }
-          .transition(.opacity)
-          .padding(.bottom, 420) // Position above bottom sheet (400px partial height + 20px padding)
-        }
-      }
-      .zIndex(1500) // Above bottom sheet but below tab bar
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    .onChange(of: locationManager.currentLocation) { newLocation in
-      // Only make API call when location is captured and change is significant
-      if newLocation != nil {
-        Task {
-          await loadLocationIfSignificant()
-        }
-      }
-    }
-    .task { @MainActor in
-      // If location is already available, call immediately (first time)
-      // Otherwise, wait for onChange to trigger when location is captured
-      if locationManager.currentLocation != nil {
-        await loadLocationIfSignificant()
-      }
-    }
-  }
+  // MARK: - Location Management
   
   /// Checks if location change is significant (>= 0.001 for either coordinate)
   /// Returns true if change is significant or if this is the first location
@@ -743,6 +544,92 @@ struct JourneyHomeView: View {
       print("   Error type: \(type(of: error))")
       #endif
       // Keep default "Your Journeys" text on error
+    }
+  }
+
+  
+}
+
+// MARK: - Scroll Offset Preference Key
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+  static var defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
+// MARK: - Scroll Content Offset Preference Key (for bottom sheet)
+struct ScrollContentOffsetKey: PreferenceKey {
+  static var defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
+// MARK: - Chat Scroll Offset Preference Key
+struct ChatScrollOffsetKey: PreferenceKey {
+  static var defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
+// MARK: - Notification Model
+struct NotificationData {
+  let type: String?
+  let message: String
+  
+  init?(from dict: [String: Any]) {
+    guard let message = dict["message"] as? String else {
+      return nil
+    }
+    self.type = dict["type"] as? String
+    self.message = message
+  }
+}
+
+// MARK: - Chat Message Model
+struct ChatMessage: Identifiable {
+  let id: UUID
+  let text: String
+  let isUser: Bool
+  let isStreaming: Bool
+  
+  init(id: UUID = UUID(), text: String, isUser: Bool, isStreaming: Bool) {
+    self.id = id
+    self.text = text
+    self.isUser = isUser
+    self.isStreaming = isStreaming
+  }
+}
+
+// MARK: - Chat Message View
+struct ChatMessageView: View {
+  let message: ChatMessage
+  
+  var body: some View {
+    HStack {
+      if message.isUser {
+        Spacer()
+      }
+      
+      VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
+        Text(message.text)
+          .padding(.horizontal, 12)
+          .padding(.vertical, 8)
+          .background(message.isUser ? Color.blue : Color(.systemGray5))
+          .foregroundColor(message.isUser ? .white : .primary)
+          .cornerRadius(16)
+        
+        if message.isStreaming {
+          ProgressView()
+            .scaleEffect(0.8)
+        }
+      }
+      
+      if !message.isUser {
+        Spacer()
+      }
     }
   }
 }
@@ -902,7 +789,7 @@ struct NotificationBanner: View {
 }
 
 // MARK: - Location Bottom Sheet Component
-struct LocationBottomSheet: View {
+struct InfoSheet: View {
   let locationContent: LocationContent?
   let locationText: String
   @Binding var offset: CGFloat
@@ -1909,7 +1796,6 @@ struct ChatInputBar: View {
 // MARK: - Chat Modal View
 struct ChatModalView: View {
   @Binding var chatMessages: [ChatMessage]
-  @Binding var currentNotification: NotificationData?
   @Binding var shouldDismissKeyboard: Bool
   var onSendMessage: (String) async -> Void
   @Environment(\.dismiss) private var dismiss
@@ -2014,21 +1900,6 @@ struct ChatModalView: View {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
           }
         }
-        
-        // Notification Banner - positioned above input bar
-        VStack {
-          Spacer()
-          if let notification = currentNotification {
-            NotificationBanner(notification: notification) {
-              withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                currentNotification = nil
-              }
-            }
-            .transition(.opacity)
-            .padding(.bottom, 80) // Position above input bar
-          }
-        }
-        .zIndex(1000) // Above chat content but below navigation
       }
       // .navigationTitle("Ask")
       // .navigationBarTitleDisplayMode(.inline)
