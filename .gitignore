@@ -100,10 +100,9 @@ iOSInjectionProject/
 
 # macOS
 .DS_Store
+**/.DS_Store
 
 # Configuration files with secrets
 Config.plist
 *.xcconfig
 *.p8
-**/**/*/.DS_Store
-unheardpath/Assets.xcassets/.DS_Store
