@@ -219,9 +219,28 @@ struct SignedInHomeView: View {
     
     do {
       // Prepare request data (use trimmed message)
-      let jsonDict: [String: Any] = [
+      var jsonDict: [String: Any] = [
         "message": trimmedMessage
       ]
+      
+      // Add device time
+      let dateFormatter = DateFormatter()
+      dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+      dateFormatter.timeZone = TimeZone.current
+      jsonDict["current_time"] = dateFormatter.string(from: Date())
+      
+      // Add location and country from LocationManager's locationDetails
+      if let locationDetails = locationManager.locationDetails {
+        if let location = locationDetails["location"] as? String {
+          jsonDict["current_location"] = location
+        }
+        // Check both country_name and country fields
+        if let countryName = locationDetails["country_name"] as? String {
+          jsonDict["current_country"] = countryName
+        } else if let country = locationDetails["country"] as? String {
+          jsonDict["current_country"] = country
+        }
+      }
       
       #if DEBUG
       print("💬 Preparing API request:")
