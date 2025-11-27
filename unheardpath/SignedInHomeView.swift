@@ -35,7 +35,7 @@ struct SignedInHomeView: View {
   @State private var isJourneyTabBarHidden = false
   @State private var currentNotification: NotificationData?
   @State private var chatMessages: [ChatMessage] = []
-  @State private var keyboardHeight: CGFloat = 0
+  @State private var showChatView = false
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -43,7 +43,7 @@ struct SignedInHomeView: View {
       MapboxMapView()
         .ignoresSafeArea(.all)
       
-      // Bottom Sheet with tab-controlled content
+      // Bottom Sheet with tab-controlled content (excluding chat)
       JourneyHomeView(
         isTabBarHidden: $isJourneyTabBarHidden,
         selectedTab: $selectedTab,
@@ -59,54 +59,39 @@ struct SignedInHomeView: View {
       )
       .environmentObject(uhpGateway)
       
-      // Chat Input Bar - positioned above CustomTabBar when keyboard is hidden, above keyboard when visible
-      if selectedTab == .chat {
-        VStack(spacing: 0) {
-          ChatInputBar(
-            onSendMessage: { messageText in
-              #if DEBUG
-              print("📤 ChatInputBar callback invoked with message: '\(messageText)'")
-              #endif
-              Task { @MainActor in
-                #if DEBUG
-                print("🔄 Task created, about to call sendChatMessage...")
-                #endif
-                await sendChatMessage(messageText)
-              }
-            }
-          )
-          .background(Color(.systemBackground))
-        }
-        .zIndex(1999) // Above bottom sheet but below tab bar
-        .padding(.bottom, keyboardHeight > 0 ? keyboardHeight : 24) // Above keyboard when visible, above tab bar when hidden
-      }
-      
-      // Custom Tab Bar
+      // Custom Tab Bar - always visible at absolute bottom
       CustomTabBar(selectedTab: $selectedTab)
         .zIndex(2000) // Above bottom sheet
+        .ignoresSafeArea(edges: .bottom) // Keep at absolute bottom
     }
     .onAppear {
       configureTabBarAppearance()
       print("🔵 SignedInHomeView appeared")
     }
-    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
-      if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-        // keyboardFrame is in screen coordinates
-        // We want the distance from the bottom of the screen to the top of the keyboard
-        let screenHeight = UIScreen.main.bounds.height
-        let keyboardTop = keyboardFrame.minY
-        // This gives us the distance from bottom of screen to top of keyboard
-        let distanceFromBottom = screenHeight - keyboardTop
-        
-        withAnimation(.easeOut(duration: 0.3)) {
-          keyboardHeight = distanceFromBottom
-        }
+    .onChange(of: selectedTab) { newTab in
+      // Show chat modal when chat tab is selected
+      if newTab == .chat {
+        showChatView = true
       }
     }
-    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-      withAnimation(.easeOut(duration: 0.3)) {
-        keyboardHeight = 0
+    .onChange(of: showChatView) { isPresented in
+      // When modal is dismissed, switch back to journey tab and restore bottom sheet
+      if !isPresented && selectedTab == .chat {
+        selectedTab = .journey
+        // Bottom sheet will automatically fade back in and return to partial via selectedTab onChange
       }
+    }
+    .sheet(isPresented: $showChatView) {
+      // Present chat as separate modal view
+      ChatModalView(
+        chatMessages: $chatMessages,
+        currentNotification: $currentNotification,
+        onSendMessage: { messageText in
+          await sendChatMessage(messageText)
+        }
+      )
+      .presentationDetents([.height(300)])
+      .presentationDragIndicator(.visible)
     }
     .task {
       print("🔵 SignedInHomeView task started")
@@ -954,50 +939,41 @@ struct LocationBottomSheet: View {
         .padding(.top, 12)
         .padding(.bottom, 8)
       
-      // Content based on selected main tab
-      // For chat tab, use the chat's own ScrollView (handled in chatContent)
-      // For other tabs, use the outer ScrollView
-      Group {
-        if selectedTab == .chat {
-          // Chat has its own ScrollView, so we don't need the outer one
-          chatContent
-            .frame(maxWidth: .infinity)
-        } else {
-          ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-              // Invisible geometry reader to track scroll position
-              GeometryReader { scrollGeometry in
-                Color.clear
-                  .preference(
-                    key: ScrollContentOffsetKey.self,
-                    value: scrollGeometry.frame(in: .named("scroll")).minY
-                  )
-              }
-              .frame(height: 0)
-              
-              // Switch content based on selected main tab
-              switch selectedTab {
-              case .journey:
-                journeyContent
-              case .map:
-                mapContent
-              case .profile:
-                profileContent
-              case .chat:
-                EmptyView() // Handled above
-              }
-            }
-            .frame(maxWidth: .infinity) // Constrain width to prevent expansion
-            .padding(.bottom, 100) // Extra padding for scrolling
+      // Content based on selected main tab (chat is now in separate modal)
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          // Invisible geometry reader to track scroll position
+          GeometryReader { scrollGeometry in
+            Color.clear
+              .preference(
+                key: ScrollContentOffsetKey.self,
+                value: scrollGeometry.frame(in: .named("scroll")).minY
+              )
           }
-          .coordinateSpace(name: "scroll")
-          .onPreferenceChange(ScrollContentOffsetKey.self) { offset in
-            scrollViewContentOffset = offset
+          .frame(height: 0)
+          
+          // Switch content based on selected main tab
+          switch selectedTab {
+          case .journey:
+            journeyContent
+          case .map:
+            mapContent
+          case .profile:
+            profileContent
+          case .chat:
+            // Chat is now in separate modal, show placeholder or empty
+            EmptyView()
           }
-          // When not at full, disable scrolling - drag will expand sheet instead
-          .scrollDisabled(currentSnapPoint != .full)
         }
+        .frame(maxWidth: .infinity) // Constrain width to prevent expansion
+        .padding(.bottom, 100) // Extra padding for scrolling
       }
+      .coordinateSpace(name: "scroll")
+      .onPreferenceChange(ScrollContentOffsetKey.self) { offset in
+        scrollViewContentOffset = offset
+      }
+      // When not at full, disable scrolling - drag will expand sheet instead
+      .scrollDisabled(currentSnapPoint != .full)
       // When at full and content is at top, detect downward scroll to collapse
       .simultaneousGesture(
         DragGesture(minimumDistance: 0)
@@ -1033,6 +1009,7 @@ struct LocationBottomSheet: View {
         .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
     )
     .offset(y: calculatePositionOffset() + dragOffset) // Position based on snap point + drag
+    .opacity(selectedTab == .chat ? 0 : 1) // Fade out when chat tab is selected
     .padding(.bottom, 49) // Account for custom tab bar height
     // Drag gesture on the drag handle and sheet background
     .gesture(
@@ -1098,9 +1075,15 @@ struct LocationBottomSheet: View {
       #endif
     }
     .onChange(of: selectedTab) { newTab in
-      // Reset to partial when switching tabs
-      withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-        currentSnapPoint = .partial
+      // Collapse to collapsed when chat tab is selected, otherwise reset to partial
+      if newTab == .chat {
+        withAnimation(.easeOut(duration: 0.2)) {
+          currentSnapPoint = .collapsed
+        }
+      } else {
+        withAnimation(.easeOut(duration: 0.2)) {
+          currentSnapPoint = .partial
+        }
       }
     }
   }
@@ -1894,6 +1877,133 @@ struct ChatInputBar: View {
     #if DEBUG
     print("✅ onSendMessage callback completed")
     #endif
+  }
+}
+
+// MARK: - Chat Modal View
+struct ChatModalView: View {
+  @Binding var chatMessages: [ChatMessage]
+  @Binding var currentNotification: NotificationData?
+  var onSendMessage: (String) async -> Void
+  @Environment(\.dismiss) private var dismiss
+  
+  @State private var messageText = ""
+  @State private var isChatNearBottom = true
+  @State private var hasScrolledInitially = false
+  
+  var body: some View {
+    NavigationStack {
+      ZStack(alignment: .bottom) {
+        VStack(spacing: 0) {
+          // Chat messages area
+          ScrollViewReader { proxy in
+            ScrollView {
+              VStack(alignment: .leading, spacing: 12) {
+                if chatMessages.isEmpty {
+                  Text("Chat messages will appear here")
+                    .foregroundColor(.secondary)
+                    .padding()
+                    .id("empty-state")
+                } else {
+                  ForEach(chatMessages) { message in
+                    ChatMessageView(message: message)
+                      .id(message.id)
+                  }
+                }
+                // Bottom anchor for scrolling
+                Color.clear
+                  .frame(height: 1)
+                  .id("bottom-anchor")
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding()
+            }
+          .onAppear {
+            // Scroll to bottom on initial appear
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+              if let lastMessage = chatMessages.last {
+                withAnimation {
+                  proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                }
+              } else {
+                withAnimation {
+                  proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                }
+              }
+            }
+          }
+          .onChange(of: chatMessages.count) { newCount in
+            guard newCount > 0 else { return }
+            let shouldScroll = !hasScrolledInitially || isChatNearBottom
+            
+            if shouldScroll {
+              Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                if let lastMessage = chatMessages.last {
+                  withAnimation(.easeOut(duration: 0.3)) {
+                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                  }
+                  hasScrolledInitially = true
+                }
+              }
+            }
+          }
+          .onChange(of: chatMessages.last?.text) { _ in
+            guard isChatNearBottom, let lastMessage = chatMessages.last else { return }
+            Task { @MainActor in
+              try? await Task.sleep(nanoseconds: 30_000_000)
+              withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+              }
+            }
+          }
+          .onChange(of: chatMessages.last?.isStreaming) { _ in
+            if isChatNearBottom, let lastMessage = chatMessages.last, !lastMessage.isStreaming {
+              DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeOut(duration: 0.3)) {
+                  proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                }
+              }
+            }
+            }
+          }
+          
+          // Input bar at bottom - SwiftUI handles keyboard automatically
+          ChatInputBar(
+            onSendMessage: { messageText in
+              Task {
+                await onSendMessage(messageText)
+              }
+            }
+          )
+          .background(Color(.systemBackground))
+        }
+        
+        // Notification Banner - positioned above input bar
+        VStack {
+          Spacer()
+          if let notification = currentNotification {
+            NotificationBanner(notification: notification) {
+              withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                currentNotification = nil
+              }
+            }
+            .transition(.opacity)
+            .padding(.bottom, 80) // Position above input bar
+          }
+        }
+        .zIndex(1000) // Above chat content but below navigation
+      }
+      .navigationTitle("Ask")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .navigationBarTrailing) {
+          Button("Done") {
+            dismiss()
+          }
+        }
+      }
+    }
   }
 }
 
