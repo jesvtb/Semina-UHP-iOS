@@ -94,6 +94,7 @@ struct SignedInHomeView: View {
       )
       .presentationDetents([.height(300)])
       .presentationDragIndicator(.visible)
+      .presentationBackground(.clear)
     }
     .task {
       print("🔵 SignedInHomeView task started")
@@ -2029,9 +2030,18 @@ struct ChatModalView: View {
         }
         .zIndex(1000) // Above chat content but below navigation
       }
-      .navigationTitle("Ask")
-      .navigationBarTitleDisplayMode(.inline)
+      // .navigationTitle("Ask")
+      // .navigationBarTitleDisplayMode(.inline)
       .toolbar {
+          ToolbarItem(placement: .principal) {
+    HStack(spacing: 6) {
+      Image(systemName: "bubble.left.and.bubble.right")
+        .font(.headline)
+      Text("Ask")
+        .font(.headline)
+    }
+  }
+
         ToolbarItem(placement: .navigationBarTrailing) {
           Button("Done") {
             dismiss()
