@@ -9,7 +9,7 @@ import SwiftUI
 
 // MARK: - Debug API Service Interaction Component
 struct DebugAPIView: View {
-    @StateObject private var apiService = APIService()
+    @StateObject private var apiClient = APIClient()
     @State private var responseText = "Ready to make API calls"
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -52,7 +52,7 @@ struct DebugAPIView: View {
         isLoading = true
         errorMessage = nil
         
-        let result = await APITestUtilities.runTest(config: config, apiService: apiService)
+        let result = await APITestUtilities.runTest(config: config, apiClient: apiClient)
         responseText = result.response
         errorMessage = result.error
         isSuccess = result.success

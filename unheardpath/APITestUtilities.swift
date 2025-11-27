@@ -75,9 +75,9 @@ class APITestUtilities {
     ]
     
     // MARK: - Generic Test Runner
-    static func runTest(config: APITestConfig, apiService: APIService) async -> (success: Bool, response: String, error: String?) {
+    static func runTest(config: APITestConfig, apiClient: APIClient) async -> (success: Bool, response: String, error: String?) {
         do {
-            let response = try await apiService.asyncCallAPI(
+            let response = try await apiClient.asyncCallAPI(
                 url: config.url,
                 method: config.method,
                 headers: config.headers,

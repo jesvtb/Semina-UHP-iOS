@@ -27,6 +27,30 @@ class AuthManager: ObservableObject {
         }
     }
     
+    /// Private initializer for preview mode that skips session check
+    /// This prevents async operations during Xcode previews
+    #if DEBUG
+    private init(skipSessionCheck: Bool) {
+        // Skip session check for previews
+        if !skipSessionCheck {
+            Task {
+                await checkInitialSession()
+            }
+        }
+    }
+    
+    /// Preview-only initializer for Xcode previews
+    /// Allows setting up mock authentication state without checking actual session
+    /// Usage: AuthManager.preview(isAuthenticated: true)
+    static func preview(isAuthenticated: Bool = false, isLoading: Bool = false, userID: String = "preview-user-id") -> AuthManager {
+        let manager = AuthManager(skipSessionCheck: true)
+        manager.isAuthenticated = isAuthenticated
+        manager.isLoading = isLoading
+        manager.userID = userID
+        return manager
+    }
+    #endif
+    
     /// Checks for locally stored Supabase session
     /// This runs during app initialization, not when view appears
     private func checkInitialSession() async {

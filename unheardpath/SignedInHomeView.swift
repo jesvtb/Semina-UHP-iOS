@@ -22,8 +22,9 @@ extension EnvironmentValues {
 }
 
 struct SignedInHomeView: View {
-  @EnvironmentObject var apiService: APIService
-  
+  @EnvironmentObject var apiClient: APIClient
+
+  @EnvironmentObject var uhpGateway: UHPGateway
   @State var username = ""
   @State var fullName = ""
   @State var website = ""
@@ -56,14 +57,20 @@ struct SignedInHomeView: View {
           await sendChatMessage(messageText)
         }
       )
-      .environmentObject(apiService)
+      .environmentObject(uhpGateway)
       
       // Chat Input Bar - positioned above CustomTabBar when keyboard is hidden, above keyboard when visible
       if selectedTab == .chat {
         VStack(spacing: 0) {
           ChatInputBar(
             onSendMessage: { messageText in
-              Task {
+              #if DEBUG
+              print("📤 ChatInputBar callback invoked with message: '\(messageText)'")
+              #endif
+              Task { @MainActor in
+                #if DEBUG
+                print("🔄 Task created, about to call sendChatMessage...")
+                #endif
                 await sendChatMessage(messageText)
               }
             }
@@ -224,9 +231,18 @@ struct SignedInHomeView: View {
     print("🚀 sendChatMessage() called with message: '\(messageText)'")
     #endif
     
-    // Add user message to chat
+    // Validate message is not empty
+    let trimmedMessage = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedMessage.isEmpty else {
+      #if DEBUG
+      print("⚠️ sendChatMessage: Message is empty after trimming, not sending")
+      #endif
+      return
+    }
+    
+    // Add user message to chat immediately on main actor
     await MainActor.run {
-      chatMessages.append(ChatMessage(text: messageText, isUser: true, isStreaming: false))
+      chatMessages.append(ChatMessage(text: trimmedMessage, isUser: true, isStreaming: false))
       #if DEBUG
       print("✅ User message added to chat. Total messages: \(chatMessages.count)")
       #endif
@@ -241,26 +257,30 @@ struct SignedInHomeView: View {
     }
     
     do {
-      // Prepare request data
+      // Prepare request data (use trimmed message)
       let jsonDict: [String: Any] = [
-        "message": messageText
+        "message": trimmedMessage
       ]
       
       #if DEBUG
       print("💬 Preparing API request:")
       print("   URL: http://192.168.50.171:1031/v1/ask")
       print("   Method: POST")
-      print("   Message: '\(messageText)'")
+      print("   Message: '\(trimmedMessage)'")
       print("   JSON Dict: \(jsonDict)")
       #endif
       
       // Use streaming API to receive notifications and content
-      let stream = apiService.streamAPI(
-        url: "http://192.168.50.171:1031/v1/ask",
-        method: "POST",
-        jsonDict: jsonDict,
-        includeAuthToken: true
+      #if DEBUG
+      print("📡 Calling uhpGateway.stream()...")
+      #endif
+      let stream = try await uhpGateway.stream(
+        endpoint: "/v1/ask",
+        jsonDict: jsonDict
       )
+      #if DEBUG
+      print("✅ Stream received from uhpGateway.stream()")
+      #endif
       
       #if DEBUG
       print("✅ Stream created, starting to process events...")
@@ -353,8 +373,11 @@ struct SignedInHomeView: View {
             await MainActor.run {
               if let lastIndex = chatMessages.indices.last,
                  !chatMessages[lastIndex].isUser {
+                let existingMessage = chatMessages[lastIndex]
                 let isStreaming = dataDict["is_streaming"] as? Bool ?? true
+                // Preserve the original message ID to maintain SwiftUI identity
                 chatMessages[lastIndex] = ChatMessage(
+                  id: existingMessage.id,
                   text: streamingContent,
                   isUser: false,
                   isStreaming: isStreaming
@@ -381,43 +404,27 @@ struct SignedInHomeView: View {
       print("❌ Failed to send chat message:")
       print("   Error: \(error)")
       print("   Error type: \(type(of: error))")
+      print("   Error localized description: \(error.localizedDescription)")
       if let apiError = error as? APIError {
         print("   API Error message: \(apiError.message)")
         print("   API Error code: \(apiError.code ?? -1)")
       }
       #endif
       
-      // Remove the streaming message on error
+      // Remove the streaming message placeholder on error
       await MainActor.run {
         if let lastIndex = chatMessages.indices.last,
            !chatMessages[lastIndex].isUser,
            chatMessages[lastIndex].text.isEmpty {
           chatMessages.removeLast()
+          #if DEBUG
+          print("✅ Removed empty streaming message placeholder after error")
+          #endif
         }
       }
     }
   }
 
-  // MARK: - Simple API Call Example
-  func testAPICall() {
-    Task {
-      isLoading = true
-      defer { isLoading = false }
-      
-      do {
-        let response = try await apiService.asyncCallAPI(
-          url: "https://127.0.0.1:1031/v1/signed_in_home",
-          method: "POST",
-          includeAuthToken: true
-        )
-        
-        print("✅ API call successful: \(response)")
-        
-      } catch {
-        print("❌ API call failed: \(error.localizedDescription)")
-      }
-    }
-  }
   
 }
 
@@ -461,10 +468,17 @@ struct NotificationData {
 
 // MARK: - Chat Message Model
 struct ChatMessage: Identifiable {
-  let id = UUID()
+  let id: UUID
   let text: String
   let isUser: Bool
   let isStreaming: Bool
+  
+  init(id: UUID = UUID(), text: String, isUser: Bool, isStreaming: Bool) {
+    self.id = id
+    self.text = text
+    self.isUser = isUser
+    self.isStreaming = isStreaming
+  }
 }
 
 // MARK: - Chat Message View
@@ -500,7 +514,7 @@ struct ChatMessageView: View {
 
 // MARK: - Journey Home View
 struct JourneyHomeView: View {
-  @EnvironmentObject var apiService: APIService
+  @EnvironmentObject var uhpGateway: UHPGateway
   @EnvironmentObject var locationManager: LocationManager
   @Binding var isTabBarHidden: Bool
   @Binding var selectedTab: TabSelection
@@ -658,19 +672,14 @@ struct JourneyHomeView: View {
       print("📍 Sending location to API: \(latitude), \(longitude)")
       #endif
       
-      let response = try await apiService.asyncCallAPI(
-        url: "http://192.168.50.171:1031/v1/signed_in_home",
+      let response = try await uhpGateway.request(
+        endpoint: "/v1/signed-in-home",
         method: "POST",
-        jsonDict: jsonDict,
-        includeAuthToken: true
+        jsonDict: jsonDict
       )
       
       // Update last sent location after successful API call
       lastSentLocation = (latitude: latitude, longitude: longitude)
-      
-      #if DEBUG
-      print("📦 Full API Response: \(response)")
-      #endif
       
       // Extract location from response
       // API returns SuccessResponse with structure: { "result": { "location": "...", ... } }
@@ -1685,7 +1694,7 @@ struct RoundedCorner: Shape {
 struct MultiLineTextField: UIViewRepresentable {
   @Binding var text: String
   var placeholder: String
-  var onReturnKeyPress: () -> Void
+  var onReturnKeyPress: (String) -> Void
   
   func makeUIView(context: Context) -> UITextView {
     let textView = UITextView()
@@ -1759,12 +1768,15 @@ struct MultiLineTextField: UIViewRepresentable {
         let currentText = (textView.text == parent.placeholder) ? "" : (textView.text ?? "")
         let trimmedText = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedText.isEmpty {
-          // Clear the text view immediately before calling the callback
+          // Capture the text BEFORE clearing
+          let textToSend = trimmedText
+          // Clear the text view immediately after capturing
           textView.text = parent.placeholder
           textView.textColor = UIColor.placeholderText
           parent.text = ""
           isEditing = false
-          parent.onReturnKeyPress()
+          // Pass the captured text to the callback
+          parent.onReturnKeyPress(textToSend)
           return false // Prevent newline
         }
         return false // Don't add newline even if empty
@@ -1816,8 +1828,10 @@ struct ChatInputBar: View {
       MultiLineTextField(
         text: $messageText,
         placeholder: "Ask anything about your journey.",
-        onReturnKeyPress: {
-          sendMessage()
+        onReturnKeyPress: { textToSend in
+          // Use the text passed from the text field instead of reading from messageText
+          // which may have already been cleared
+          sendMessage(with: textToSend)
         }
       )
       .frame(height: 32)
@@ -1835,7 +1849,9 @@ struct ChatInputBar: View {
             .foregroundColor(.blue)
         }
       } else {
-        Button(action: sendMessage) {
+        Button(action: {
+          sendMessage()
+        }) {
           Image(systemName: "arrow.up.circle.fill")
             .font(.title2)
             .foregroundColor(.blue)
@@ -1846,30 +1862,34 @@ struct ChatInputBar: View {
     .background(Color(.systemBackground))
   }
   
-  private func sendMessage() {
+  private func sendMessage(with text: String? = nil) {
+    // Use provided text or fall back to messageText binding
+    let textToSend = text ?? messageText
+    let trimmedText = textToSend.trimmingCharacters(in: .whitespacesAndNewlines)
+    
     #if DEBUG
     print("📝 ChatInputBar.sendMessage() called")
-    print("   messageText: '\(messageText)'")
-    print("   isEmpty: \(isEmpty)")
+    print("   textToSend: '\(textToSend)'")
+    print("   trimmedText: '\(trimmedText)'")
+    print("   isEmpty: \(trimmedText.isEmpty)")
     #endif
     
-    guard !isEmpty else {
+    guard !trimmedText.isEmpty else {
       #if DEBUG
       print("⚠️ Message is empty, not sending")
       #endif
       return
     }
     
-    let textToSend = messageText
-    // Clear input after sending
+    // Clear input after capturing the text
     messageText = ""
     
     #if DEBUG
-    print("✅ Calling onSendMessage with: '\(textToSend)'")
+    print("✅ Calling onSendMessage with: '\(trimmedText)'")
     #endif
     
-    // Call the callback
-    onSendMessage(textToSend)
+    // Call the callback with the trimmed text
+    onSendMessage(trimmedText)
     
     #if DEBUG
     print("✅ onSendMessage callback completed")
@@ -1879,5 +1899,7 @@ struct ChatInputBar: View {
 
 #Preview {
   SignedInHomeView()
-    .environmentObject(APIService.shared)
+    .environmentObject(UHPGateway())
+    .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
+    .environmentObject(LocationManager())
 }

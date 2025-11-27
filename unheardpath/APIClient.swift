@@ -1,5 +1,5 @@
 //
-//  APIService.swift
+//  APIClient.swift
 //  unheardpath
 //
 //  Created by Jessica Luo on 2025-09-09.
@@ -87,14 +87,89 @@ struct AnyCodable: Codable {
     }
 }
 
-// MARK: - API Service
-class APIService: ObservableObject {
-    static let shared = APIService()
+class UHPGateway: ObservableObject {
+    // Private instance of APIClient configured for internal gateway
+    private let apiClient: APIClient
     
+    // Pre-configured settings
+    private let baseURL: String
+    private let defaultHeaders: [String: String]
+    
+    init(
+        baseURL: String = "http://192.168.50.171:1031",  // Your FastAPI gateway
+    ) {
+        self.baseURL = baseURL
+        self.apiClient = APIClient()
+        
+        // Set default headers (e.g., content type)
+        // Note: Auth token is added dynamically in request() method since it's async
+        self.defaultHeaders = [
+            "Content-Type": "application/json"
+        ]
+    }
+    
+    /// Builds headers with access token included
+    /// Always retrieves auth token from Supabase for internal gateway requests
+    private func buildHeaders() async throws -> [String: String] {
+        var headers = defaultHeaders
+        
+        // Always include auth token from Supabase
+        let accessToken = try await supabase.auth.session.accessToken
+        headers["Authorization"] = "Bearer \(accessToken)"
+        
+        return headers
+    }
+    
+    // Simplified request method that automatically adds baseURL and headers
+    func request(
+        endpoint: String,  // Just the endpoint path, not full URL
+        method: String = "POST",
+        params: [String: String] = [:],
+        jsonDict: [String: Any] = [:]
+    ) async throws -> Any {
+        // Combine baseURL with endpoint
+        let fullURL = "\(baseURL)\(endpoint)"
+        
+        // Build headers with auth token (always included)
+        let headers = try await buildHeaders()
+        
+        // Use the wrapped APIClient
+        // Headers already include auth token from buildHeaders()
+        return try await apiClient.asyncCallAPI(
+            url: fullURL,
+            method: method,
+            headers: headers,
+            params: params,
+            jsonDict: jsonDict
+        )
+    }
+
+    func stream(
+        endpoint: String,
+        method: String = "POST",
+        params: [String: String] = [:],
+        jsonDict: [String: Any] = [:]
+    ) async throws -> AsyncThrowingStream<SSEEvent, Error> {
+        let fullURL = "\(baseURL)\(endpoint)"
+        let headers = try await buildHeaders()
+        return apiClient.streamAPI(
+            url: fullURL,
+            method: method,
+            headers: headers,
+            params: params,
+            jsonDict: jsonDict,
+            timeout: false,
+            filesDict: [:]
+        )
+    }
+}
+
+// MARK: - API Service
+class APIClient: ObservableObject {
     private let session: URLSession
     
     init() {
-        // Create a custom URLSession configuration
+        // See https://developer.apple.com/documentation/foundation/urlsessionconfiguration
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30.0
         config.timeoutIntervalForResource = 60.0
@@ -104,19 +179,19 @@ class APIService: ObservableObject {
         self.session = URLSession(configuration: config)
     }
     
-    // MARK: - Async API Call Function (mirrors Python async_call_api)
-    func asyncCallAPI(
+    // MARK: - Request Building
+    /// Builds a URLRequest from the provided parameters
+    /// Similar to building a request object in Python's httpx or JavaScript's axios
+    private func buildRequest(
         url: String,
-        method: String = "POST",
-        headers: [String: String]? = nil,
-        params: [String: String] = [:],
-        dataDict: [String: Any] = [:],
-        jsonDict: [String: Any] = [:],
-        timeout: Bool = false,
-        filesDict: [String: Data] = [:],
-        includeAuthToken: Bool = false
-    ) async throws -> Any {
-        
+        method: String,
+        headers: [String: String]?,
+        params: [String: String],
+        dataDict: [String: Any],
+        jsonDict: [String: Any],
+        timeout: Bool,
+        filesDict: [String: Data]
+    ) async throws -> URLRequest {
         // Build URL with parameters
         guard var urlComponents = URLComponents(string: url) else {
             throw APIError(message: "Invalid URL: \(url)", code: nil)
@@ -134,14 +209,8 @@ class APIService: ObservableObject {
         var request = URLRequest(url: finalURL)
         request.httpMethod = method.uppercased()
         
-        // Set headers
-        var requestHeaders = headers ?? [:]
-        
-        // Automatically add access token if requested
-        if includeAuthToken {
-            let accessToken = try await supabase.auth.session.accessToken
-            requestHeaders["Authorization"] = "Bearer \(accessToken)"
-        }
+        // Set headers (auth token should be included in headers if needed)
+        let requestHeaders = headers ?? [:]
 
         // Apply headers to request
         for (key, value) in requestHeaders {
@@ -208,7 +277,14 @@ class APIService: ObservableObject {
         #if DEBUG
         print("🚀 API Request: \(method.uppercased()) \(url)")
         if let headers = headers {
-            print("📋 Headers: \(headers)")
+            // Print a truncated view of the headers (showing up to 2 entries)
+            let maxToShow = 2
+            let shownHeaders = headers.prefix(maxToShow).map { "\($0.key): \($0.value)" }
+            var headersString = shownHeaders.joined(separator: ", ")
+            if headers.count > maxToShow {
+                headersString += ", ... (\(headers.count - maxToShow) more)"
+            }
+            print("📋 Headers: [\(headersString)]")
         }
         if !jsonDict.isEmpty {
             print("📦 JSON Body: \(jsonDict)")
@@ -217,6 +293,32 @@ class APIService: ObservableObject {
             print("📦 Data Body: \(dataDict)")
         }
         #endif
+        
+        return request
+    }
+    
+    // MARK: - Async API Call Function (mirrors Python async_call_api)
+    func asyncCallAPI(
+        url: String,
+        method: String = "POST",
+        headers: [String: String]? = nil,
+        params: [String: String] = [:],
+        dataDict: [String: Any] = [:],
+        jsonDict: [String: Any] = [:],
+        timeout: Bool = false,
+        filesDict: [String: Data] = [:]
+    ) async throws -> Any {
+        // Build the request (like preparing a request object in Python httpx)
+        let request = try await buildRequest(
+            url: url,
+            method: method,
+            headers: headers,
+            params: params,
+            dataDict: dataDict,
+            jsonDict: jsonDict,
+            timeout: timeout,
+            filesDict: filesDict
+        )
         
         do {
             let (data, response) = try await session.data(for: request)
@@ -262,120 +364,6 @@ class APIService: ObservableObject {
         }
     }
     
-    // MARK: - Decoded JSON API Call (Handles camelCase conversion, returns generic JSON)
-    func asyncCallAPIDecoded(
-        url: String,
-        method: String = "POST",
-        headers: [String: String]? = nil,
-        params: [String: String] = [:],
-        dataDict: [String: Any] = [:],
-        jsonDict: [String: Any] = [:],
-        timeout: Bool = false,
-        filesDict: [String: Data] = [:]
-    ) async throws -> Any {
-        
-        // Build URL with parameters
-        guard var urlComponents = URLComponents(string: url) else {
-            throw APIError(message: "Invalid URL: \(url)", code: nil)
-        }
-        
-        if !params.isEmpty {
-            urlComponents.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
-        }
-        
-        guard let finalURL = urlComponents.url else {
-            throw APIError(message: "Failed to build URL with parameters", code: nil)
-        }
-        
-        // Create request
-        var request = URLRequest(url: finalURL)
-        request.httpMethod = method
-        
-        // Add headers
-        if let headers = headers {
-            for (key, value) in headers {
-                request.setValue(value, forHTTPHeaderField: key)
-            }
-        }
-        
-        // Add body data
-        if !jsonDict.isEmpty {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: jsonDict)
-        } else if !dataDict.isEmpty {
-            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-            let formData = dataDict.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-            request.httpBody = formData.data(using: .utf8)
-        }
-        
-        // Add files if any
-        if !filesDict.isEmpty {
-            let boundary = "Boundary-\(UUID().uuidString)"
-            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-            request.httpBody = createMultipartBody(files: filesDict, boundary: boundary)
-        }
-        
-        // Configure timeout
-        if timeout {
-            request.timeoutInterval = 30.0
-        }
-        
-        #if DEBUG
-        print("🚀 API Request: \(method.uppercased()) \(url)")
-        if let headers = headers {
-            print("📋 Headers: \(headers)")
-        }
-        if !jsonDict.isEmpty {
-            print("📦 JSON Body: \(jsonDict)")
-        }
-        if !dataDict.isEmpty {
-            print("📦 Data Body: \(dataDict)")
-        }
-        #endif
-        
-        do {
-            let (data, response) = try await session.data(for: request)
-            
-            // Validate response (like screenshot pattern)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-                let errorMessage = extractErrorMessage(from: data, statusCode: statusCode)
-                #if DEBUG
-                print("❌ API Error: \(errorMessage)")
-                #endif
-                throw APIError(message: errorMessage, code: statusCode)
-            }
-            
-            #if DEBUG
-            print("📊 Response Status: \(httpResponse.statusCode)")
-            #endif
-            
-            // Decode JSON with camelCase conversion (like screenshot pattern)
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            
-            // Decode to generic JSON object
-            let responseData = try JSONSerialization.jsonObject(with: data)
-            #if DEBUG
-            print("✅ API Response: \(responseData)")
-            #endif
-            
-            return responseData
-            
-        } catch let apiError as APIError {
-            #if DEBUG
-            print("❌ API Error: \(apiError.message)")
-            #endif
-            throw apiError
-        } catch {
-            let errorMessage = "Failed to call API at \(url): \(error.localizedDescription)"
-            #if DEBUG
-            print("❌ Network Error: \(errorMessage)")
-            #endif
-            throw APIError(message: errorMessage, code: nil)
-        }
-    }
     
     // MARK: - Error Message Extraction (mirrors Python _extract_error_message)
     private func extractErrorMessage(from data: Data, statusCode: Int) -> String {
@@ -398,73 +386,7 @@ class APIService: ObservableObject {
         
         return "HTTP \(statusCode) Error"
     }
-    
-    // MARK: - Multipart Body Creation
-    private func createMultipartBody(files: [String: Data], boundary: String) -> Data {
-        var body = Data()
-        
-        for (key, data) in files {
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"\(key)\"; filename=\"\(key)\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
-            body.append(data)
-            body.append("\r\n".data(using: .utf8)!)
-        }
-        
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        return body
-    }
-    
-    // MARK: - Streaming API Call (Server-Sent Events)
-    /// Streams Server-Sent Events (SSE) from FastAPI endpoints that yield results continuously
-    /// 
-    /// Usage:
-    /// ```swift
-    /// for try await event in apiService.streamAPI(url: "https://api.example.com/stream", jsonDict: ["key": "value"]) {
-    ///     if let jsonData = try? event.parseJSONData() {
-    ///         print("Received: \(jsonData)")
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// - Parameters:
-    ///   - url: The endpoint URL
-    ///   - method: HTTP method (default: "POST")
-    ///   - headers: Additional headers (default: nil)
-    ///   - params: URL query parameters (default: [:])
-    ///   - dataDict: Form data dictionary (default: [:])
-    ///   - jsonDict: JSON body dictionary (default: [:])
-    ///   - timeout: Whether to use shorter timeout (default: false)
-    ///   - filesDict: Files to upload (default: [:])
-    ///   - includeAuthToken: Whether to include Supabase auth token (default: false)
-    /// Streams Server-Sent Events (SSE) from FastAPI endpoints that yield results continuously
-    /// 
-    /// **iOS Considerations:**
-    /// - Works well when app is in foreground
-    /// - Connection may be suspended when app goes to background
-    /// - Automatically handles network interruptions
-    /// - Uses URLSession.bytes for efficient streaming (iOS 15+)
-    ///
-    /// **Usage:**
-    /// ```swift
-    /// for try await event in apiService.streamAPI(url: "https://api.example.com/stream", jsonDict: ["key": "value"]) {
-    ///     if let jsonData = try? event.parseJSONData() {
-    ///         print("Received: \(jsonData)")
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// - Parameters:
-    ///   - url: The endpoint URL
-    ///   - method: HTTP method (default: "POST")
-    ///   - headers: Additional headers (default: nil)
-    ///   - params: URL query parameters (default: [:])
-    ///   - dataDict: Form data dictionary (default: [:])
-    ///   - jsonDict: JSON body dictionary (default: [:])
-    ///   - timeout: Whether to use shorter timeout (default: false)
-    ///   - filesDict: Files to upload (default: [:])
-    ///   - includeAuthToken: Whether to include Supabase auth token (default: false)
-    /// - Returns: AsyncSequence of SSEEvent objects
+
     func streamAPI(
         url: String,
         method: String = "POST",
@@ -707,10 +629,10 @@ class APIService: ObservableObject {
 }
 
 // MARK: - JSON Response Utilities
-extension APIService {
+extension APIClient {
     
     /// Converts generic JSON response to a specific Codable struct
-    /// Usage: let user: User = try apiService.decodeResponse(response, to: User.self)
+    /// Usage: let user: User = try apiClient.decodeResponse(response, to: User.self)
     func decodeResponse<T: Codable>(_ response: Any, to type: T.Type) throws -> T {
         // Convert Any to Data first
         let jsonData = try JSONSerialization.data(withJSONObject: response)
@@ -723,7 +645,7 @@ extension APIService {
     }
     
     /// Converts generic JSON response to a specific Codable struct (static method)
-    /// Usage: let user: User = try APIService.decodeJSON(response, to: User.self)
+    /// Usage: let user: User = try APIClient.decodeJSON(response, to: User.self)
     static func decodeJSON<T: Codable>(_ response: Any, to type: T.Type) throws -> T {
         // Convert Any to Data first
         let jsonData = try JSONSerialization.data(withJSONObject: response)

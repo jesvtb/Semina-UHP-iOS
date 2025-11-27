@@ -15,7 +15,8 @@ struct unheardpathApp: App {
     // Creates AuthManager once and checks session during initialization
     // This is similar to creating a Context Provider in React
     @StateObject private var authManager = AuthManager()
-    @StateObject private var apiService = APIService.shared
+    @StateObject private var apiClient = APIClient()
+    @StateObject private var uhpGateway = UHPGateway()
     @StateObject private var locationManager = LocationManager()
     
     init() {
@@ -27,8 +28,9 @@ struct unheardpathApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(authManager) // Pass auth state to all views (like React Context)
-                .environmentObject(apiService) // Pass shared API service to all views
+                .environmentObject(apiClient) // Pass shared API service to all views
                 .environmentObject(locationManager) // Pass location manager to all views
+                .environmentObject(uhpGateway) // Pass UHP Gateway to all views
                 .onOpenURL { url in
                     Task {
                         do {
