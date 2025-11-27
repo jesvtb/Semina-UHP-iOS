@@ -161,6 +161,104 @@ struct ChatMessageView: View {
   }
 }
 
+// MARK: - Chat Messages Scroll View
+// Handles all scrolling behavior and lifecycle events
+struct ChatMessagesScrollView: View {
+  let chatMessages: [ChatMessage]
+  @Binding var isChatNearBottom: Bool
+  @Binding var hasScrolledInitially: Bool
+  
+  var body: some View {
+    ScrollViewReader { proxy in
+      ScrollView {
+        VStack(alignment: .leading, spacing: 12) {
+          if chatMessages.isEmpty {
+            Text("Chat messages will appear here")
+              .foregroundColor(.secondary)
+              .padding()
+              .id("empty-state")
+          } else {
+            ForEach(chatMessages) { message in
+              ChatMessageView(message: message)
+                .id(message.id)
+            }
+          }
+          // Bottom anchor for scrolling
+          Color.clear
+            .frame(height: 1)
+            .id("bottom-anchor")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+      }
+      .onAppear {
+        handleInitialScroll(proxy: proxy)
+      }
+      .onChange(of: chatMessages.count) { newCount in
+        handleMessageCountChange(proxy: proxy, newCount: newCount)
+      }
+      .onChange(of: chatMessages.last?.text) { _ in
+        handleLastMessageTextChange(proxy: proxy)
+      }
+      .onChange(of: chatMessages.last?.isStreaming) { _ in
+        handleStreamingStateChange(proxy: proxy)
+      }
+    }
+  }
+  
+  // MARK: - Scroll Handlers
+  private func handleInitialScroll(proxy: ScrollViewProxy) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      if let lastMessage = chatMessages.last {
+        withAnimation {
+          proxy.scrollTo(lastMessage.id, anchor: .bottom)
+        }
+      } else {
+        withAnimation {
+          proxy.scrollTo("bottom-anchor", anchor: .bottom)
+        }
+      }
+    }
+  }
+  
+  private func handleMessageCountChange(proxy: ScrollViewProxy, newCount: Int) {
+    guard newCount > 0 else { return }
+    let shouldScroll = !hasScrolledInitially || isChatNearBottom
+    
+    if shouldScroll {
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        if let lastMessage = chatMessages.last {
+          withAnimation(.easeOut(duration: 0.3)) {
+            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+          }
+          hasScrolledInitially = true
+        }
+      }
+    }
+  }
+  
+  private func handleLastMessageTextChange(proxy: ScrollViewProxy) {
+    guard isChatNearBottom, let lastMessage = chatMessages.last else { return }
+    Task { @MainActor in
+      try? await Task.sleep(nanoseconds: 30_000_000)
+      withAnimation(.easeOut(duration: 0.2)) {
+        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+      }
+    }
+  }
+  
+  private func handleStreamingStateChange(proxy: ScrollViewProxy) {
+    if isChatNearBottom, let lastMessage = chatMessages.last, !lastMessage.isStreaming {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        withAnimation(.easeOut(duration: 0.3)) {
+          proxy.scrollTo(lastMessage.id, anchor: .bottom)
+        }
+      }
+    }
+  }
+}
+
 
 // MARK: - Chat Modal View
 struct ChatModalView: View {
@@ -178,78 +276,12 @@ struct ChatModalView: View {
     NavigationStack {
       ZStack(alignment: .bottom) {
         VStack(spacing: 0) {
-          // Chat messages area
-          ScrollViewReader { proxy in
-            ScrollView {
-              VStack(alignment: .leading, spacing: 12) {
-                if chatMessages.isEmpty {
-                  Text("Chat messages will appear here")
-                    .foregroundColor(.secondary)
-                    .padding()
-                    .id("empty-state")
-                } else {
-                  ForEach(chatMessages) { message in
-                    ChatMessageView(message: message)
-                      .id(message.id)
-                  }
-                }
-                // Bottom anchor for scrolling
-                Color.clear
-                  .frame(height: 1)
-                  .id("bottom-anchor")
-              }
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding()
-            }
-          .onAppear {
-            // Scroll to bottom on initial appear
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-              if let lastMessage = chatMessages.last {
-                withAnimation {
-                  proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                }
-              } else {
-                withAnimation {
-                  proxy.scrollTo("bottom-anchor", anchor: .bottom)
-                }
-              }
-            }
-          }
-          .onChange(of: chatMessages.count) { newCount in
-            guard newCount > 0 else { return }
-            let shouldScroll = !hasScrolledInitially || isChatNearBottom
-            
-            if shouldScroll {
-              Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 50_000_000)
-                if let lastMessage = chatMessages.last {
-                  withAnimation(.easeOut(duration: 0.3)) {
-                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                  }
-                  hasScrolledInitially = true
-                }
-              }
-            }
-          }
-          .onChange(of: chatMessages.last?.text) { _ in
-            guard isChatNearBottom, let lastMessage = chatMessages.last else { return }
-            Task { @MainActor in
-              try? await Task.sleep(nanoseconds: 30_000_000)
-              withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-              }
-            }
-          }
-          .onChange(of: chatMessages.last?.isStreaming) { _ in
-            if isChatNearBottom, let lastMessage = chatMessages.last, !lastMessage.isStreaming {
-              DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.easeOut(duration: 0.3)) {
-                  proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                }
-              }
-            }
-            }
-          }
+          // Chat messages area with auto-scrolling behavior
+          ChatMessagesScrollView(
+            chatMessages: chatMessages,
+            isChatNearBottom: $isChatNearBottom,
+            hasScrolledInitially: $hasScrolledInitially
+          )
           
           // Input bar at bottom - SwiftUI handles keyboard automatically
           ChatInputBar(
@@ -260,7 +292,6 @@ struct ChatModalView: View {
               }
             }
           )
-          .background(Color(.systemBackground))
         }
         .onChange(of: shouldDismissKeyboard) { shouldDismiss in
           if shouldDismiss {
@@ -276,6 +307,9 @@ struct ChatModalView: View {
         })
       }
     }
+    .presentationDetents([.height(300)])
+    .presentationDragIndicator(.visible)
+    .presentationBackground(.clear)
   }
 }
 
@@ -301,8 +335,6 @@ struct ChatModalToolbar: ToolbarContent {
   }
 }
 
-
-
 // MARK: - Preview Helper
 struct ChatSheetPreviewContainer: View {
   let chatMessages: [ChatMessage]
@@ -310,20 +342,18 @@ struct ChatSheetPreviewContainer: View {
   
   var body: some View {
     // Simulate the underlying view
-    UnderlyingView()
+    PreviewMockBkg()
     .sheet(isPresented: $showSheet) {
       ChatModalView(
         chatMessages: .constant(chatMessages),
         shouldDismissKeyboard: .constant(false),
         onSendMessage: { _ in }
       )
-      .presentationDetents([.height(300)])              // Custom fixed height (300 points)
-      .presentationDragIndicator(.visible)
     }
   }
 }
 
-struct UnderlyingView: View {
+struct PreviewMockBkg: View {
   var body: some View {
     VStack {
       Text("Underlying View")

@@ -21,7 +21,7 @@ extension EnvironmentValues {
   }
 }
 
-struct SignedInHomeView: View {
+struct MainView: View {
   @EnvironmentObject var apiClient: APIClient
 
   @EnvironmentObject var uhpGateway: UHPGateway
@@ -102,7 +102,7 @@ struct SignedInHomeView: View {
     }
     .onAppear {
       configureTabBarAppearance()
-      print("🔵 SignedInHomeView appeared")
+      print("🔵 MainView appeared")
     }
     .onChange(of: locationManager.currentLocation) { newLocation in
       // Only make API call when location is captured and change is significant
@@ -144,11 +144,7 @@ struct SignedInHomeView: View {
           await sendChatMessage(messageText)
         }
       )
-      .presentationDetents([.height(300)])
-      .presentationDragIndicator(.visible)
-      .presentationBackground(.clear)
     }
-  
   }
   
   // MARK: - Tab Bar Styling
@@ -1183,7 +1179,7 @@ struct MultiLineTextField: UIViewRepresentable {
 
 
 #Preview {
-  SignedInHomeView()
+  MainView()
     .environmentObject(UHPGateway())
     .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
     .environmentObject(LocationManager())

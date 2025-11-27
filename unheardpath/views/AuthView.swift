@@ -313,7 +313,7 @@ struct AuthView: View {
         // When user completes auth, they'll be redirected back to our app
         // New users will have an account created automatically
         // Don't set result for OAuth sign-ins - AuthManager will detect the auth state change
-        // when the user returns from Safari, and ContentView will automatically navigate to SignedInHomeView
+        // when the user returns from Safari, and ContentView will automatically navigate to MainView
         // Clear any previous result messages
         result = nil
       } catch {
@@ -395,7 +395,7 @@ struct AuthView: View {
           // Note: Name saving functionality can be added here if needed in the future
           
           // Don't set result for OAuth sign-ins - AuthManager will detect the auth state change
-          // and ContentView will automatically navigate to SignedInHomeView
+          // and ContentView will automatically navigate to MainView
           // Clear any previous result messages
           self.result = nil
         } catch {

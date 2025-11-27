@@ -17,21 +17,21 @@ struct unheardpathTests {
 
 }
 
-// MARK: - APIService Unit Tests
-struct APIServiceTests {
+// MARK: - APIClient Unit Tests
+struct APIClientTests {
     
-    @Test func testAPIServiceInitialization() async throws {
-        // Test that APIService can be initialized without throwing an error
-        let apiService = APIService()
+    @Test func testAPIClientInitialization() async throws {
+        // Test that APIClient can be initialized without throwing an error
+        let apiClient = APIClient()
         // If we get here without throwing, the initialization was successful
-        #expect(true, "APIService should initialize successfully")
+        #expect(true, "APIClient should initialize successfully")
     }
     
     @Test func testInvalidURLHandling() async throws {
-        let apiService = APIService()
+        let apiClient = APIClient()
         
         do {
-            _ = try await apiService.asyncCallAPI(url: "invalid-url")
+            _ = try await apiClient.asyncCallAPI(url: "invalid-url")
             #expect(Bool(false), "Should have thrown an error for invalid URL")
         } catch {
             #expect(error is APIError, "Should throw APIError for invalid URL")
@@ -42,8 +42,8 @@ struct APIServiceTests {
     
     @Test(arguments: APITestUtilities.testConfigurations)
     func testAPIs(config: APITestConfig) async throws {
-        let apiService = APIService()
-        let result = await APITestUtilities.runTest(config: config, apiService: apiService)
+        let apiClient = APIClient()
+        let result = await APITestUtilities.runTest(config: config, apiClient: apiClient)
         
         if config.expectedSuccess {
             #expect(result.success, "\(config.name) should work correctly - \(config.description)")
