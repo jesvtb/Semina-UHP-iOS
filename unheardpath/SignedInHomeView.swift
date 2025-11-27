@@ -41,7 +41,6 @@ struct SignedInHomeView: View {
   // Location-related state
   @State private var isLoadingLocation = false
   @State private var lastSentLocation: (latitude: Double, longitude: Double)?
-  @State private var locationContent: LocationContent?
   @State private var bottomSheetOffset: CGFloat = 0
   @State private var geoJSONData: [String: Any]?
   @State private var geoJSONUpdateTrigger: UUID = UUID()
@@ -820,38 +819,6 @@ struct ChatMessageView: View {
   }
 }
 
-// MARK: - Location Content Model
-struct LocationContent {
-  let title: String
-  let subtitle: String?
-  let description: String?
-  let imageURLs: [String]
-  let coordinates: (latitude: Double, longitude: Double)?
-  
-  init(from dict: [String: Any]) {
-    self.title = dict["location"] as? String ?? dict["title"] as? String ?? "Unknown Location"
-    self.subtitle = dict["subtitle"] as? String ?? dict["address"] as? String
-    self.description = dict["description"] as? String
-    
-    // Extract image URLs
-    var images: [String] = []
-    if let imageURL = dict["image_url"] as? String {
-      images.append(imageURL)
-    }
-    if let imageURLs = dict["image_urls"] as? [String] {
-      images.append(contentsOf: imageURLs)
-    }
-    self.imageURLs = images
-    
-    // Extract coordinates if available
-    if let lat = dict["latitude"] as? Double,
-       let lon = dict["longitude"] as? Double {
-      self.coordinates = (lat, lon)
-    } else {
-      self.coordinates = nil
-    }
-  }
-}
 
 // MARK: - Journey Item Model
 struct JourneyItem: Identifiable {
