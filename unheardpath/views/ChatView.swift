@@ -263,6 +263,7 @@ struct ChatMessagesScrollView: View {
 struct ChatModalView: View {
   @Binding var chatMessages: [ChatMessage]
   @Binding var shouldDismissKeyboard: Bool
+  @Binding var currentNotification: NotificationData?
   var onSendMessage: (String) async -> Void
   @Environment(\.dismiss) private var dismiss
   
@@ -300,10 +301,20 @@ struct ChatModalView: View {
           }
         }
       }
+      .navigationBarTitleDisplayMode(.inline) // Make toolbar more compact
       .toolbar {
         ChatModalToolbar(onDismiss: {
           dismiss()
         })
+      }
+      .chatToolbarStyle() // Apply toolbar styling from ChatModalToolbar
+      .overlay(alignment: .top) {
+        // Notification Banner - overlaid on chat sheet so it's visible when sheet is open
+        if let notification = currentNotification {
+          NotificationBanner(notification: notification) {
+            currentNotification = nil
+          }
+        }
       }
     }
     .presentationDetents([.height(300)])
@@ -318,19 +329,51 @@ struct ChatModalToolbar: ToolbarContent {
   
   var body: some ToolbarContent {
     ToolbarItem(placement: .principal) {
-      HStack(spacing: 6) {
+      HStack(spacing: 4) {
         Image(systemName: "bubble.left.and.bubble.right")
-          .font(.headline)
+          .font(.subheadline)
+          .foregroundColor(Color("onBkgTextColor90"))
         Text("Ask")
-          .font(.headline)
+          .font(.subheadline)
+          .foregroundColor(Color("onBkgTextColor90"))
       }
     }
     
     ToolbarItem(placement: .navigationBarTrailing) {
-      Button("Done") {
-        onDismiss()
+      Button(action: onDismiss) {
+        Text("Done")
+          .font(.subheadline)
+          .fontWeight(.medium)
+          .foregroundColor(Color("onBkgTextColor90"))
+          .padding(.horizontal, 10)
+          .padding(.vertical, 4)
+          .background(
+            Color("onBkgTextColor90")
+              .opacity(0.1)
+              .cornerRadius(6)
+          )
       }
+      .buttonStyle(.plain)
     }
+  }
+}
+
+// MARK: - Chat Toolbar Style Extension
+extension View {
+  /// Applies transparent toolbar styling for ChatModalView
+  func chatToolbarStyle() -> some View {
+    self
+      .toolbarBackground(.hidden, for: .navigationBar) // Remove toolbar background completely
+      .onAppear {
+        // Use UIKit to make navigation bar truly transparent
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundColor = .clear
+        appearance.shadowColor = .clear
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
+      }
   }
 }
 
@@ -338,14 +381,34 @@ struct ChatModalToolbar: ToolbarContent {
 struct ChatSheetPreviewContainer: View {
   let chatMessages: [ChatMessage]
   @State private var showSheet = true
+  let showNotification: Bool
+  
+  init(chatMessages: [ChatMessage], showNotification: Bool = false) {
+    self.chatMessages = chatMessages
+    self.showNotification = showNotification
+  }
   
   var body: some View {
     // Simulate the underlying view
-    PreviewMockBkg()
+    ZStack {
+      PreviewMockBkg()
+      
+      // Test notification banner - positioned from above
+      if showNotification {
+        NotificationBanner(
+          notification: NotificationData(
+            type: "search",
+            message: "This is a test notification banner with a mock message"
+          ),
+          onDismiss: nil
+        )
+      }
+    }
     .sheet(isPresented: $showSheet) {
       ChatModalView(
         chatMessages: .constant(chatMessages),
         shouldDismissKeyboard: .constant(false),
+        currentNotification: .constant(nil),
         onSendMessage: { _ in }
       )
     }
@@ -368,7 +431,7 @@ struct PreviewMockBkg: View {
 }   
 
 #Preview("Empty Chat") {
-  ChatSheetPreviewContainer(chatMessages: [])
+  ChatSheetPreviewContainer(chatMessages: [], showNotification: true)
 }
 
 #Preview("Chat with Messages") {

@@ -820,7 +820,16 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        authorizationStatus = manager.authorizationStatus
+        let newStatus = manager.authorizationStatus
+        let oldStatus = authorizationStatus
+        
+        // Only process if status actually changed (prevents duplicate processing)
+        guard newStatus != oldStatus else {
+            return
+        }
+        
+        // Update status
+        authorizationStatus = newStatus
         isLocationPermissionGranted = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
         
         print("🔄 Location authorization changed to: \(authorizationStatus.rawValue)")
@@ -856,5 +865,79 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             print("❓ Unknown location permission status: \(authorizationStatus.rawValue)")
         }
     }
+    
+    // MARK: - Debug Helpers
+    
+    #if DEBUG
+    /// Debug function to print all UserDefaults data stored by this app
+    /// Call from Xcode debug console: po LocationManager().debugPrintAllUserDefaults()
+    func debugPrintAllUserDefaults() {
+        let defaults = UserDefaults.standard
+        let dict = defaults.dictionaryRepresentation()
+        
+        print("📦 UserDefaults Contents for Unheard Path:")
+        print("Total keys in UserDefaults: \(dict.count)")
+        print("---")
+        
+        // Filter to only our app's keys
+        let appKeys = dict.keys.filter { key in
+            key.hasPrefix("LocationManager.") || 
+            key.hasPrefix("PlacesCache_") || 
+            key.hasPrefix("wiki_")
+        }
+        
+        print("App-specific keys: \(appKeys.count)")
+        print("---")
+        
+        for key in appKeys.sorted() {
+            if let value = dict[key] {
+                // Calculate approximate size
+                let valueString = "\(value)"
+                let size = valueString.data(using: .utf8)?.count ?? 0
+                
+                print("🔑 \(key)")
+                print("   Size: \(size) bytes (~\(size / 1024) KB)")
+                
+                // Print small values, summarize large ones
+                if size < 500 {
+                    print("   Value: \(valueString.prefix(200))")
+                } else {
+                    if let dictValue = value as? [String: Any] {
+                        print("   Value: [Dictionary with \(dictValue.count) keys]")
+                        if let features = dictValue["features"] as? [[String: Any]] {
+                            print("   Features count: \(features.count)")
+                        }
+                    } else {
+                        print("   Value: [Large object, \(size) bytes]")
+                    }
+                }
+                print("")
+            }
+        }
+        
+        // Calculate total size
+        let totalSize = appKeys.compactMap { key -> Int? in
+            guard let value = dict[key] else { return nil }
+            let valueString = "\(value)"
+            return valueString.data(using: .utf8)?.count
+        }.reduce(0, +)
+        
+        print("---")
+        print("📊 Summary:")
+        print("   Total app keys: \(appKeys.count)")
+        print("   Total size: \(totalSize) bytes (~\(totalSize / 1024) KB)")
+        print("   Estimated limit: ~1-2 MB (you're using \(String(format: "%.1f", Double(totalSize) / 1024 / 1024 * 100))% of 1 MB)")
+    }
+    
+    /// Debug function to clear all cached location data
+    func debugClearAllCache() {
+        let defaults = UserDefaults.standard
+        let keys = defaults.dictionaryRepresentation().keys.filter { key in
+            key.hasPrefix("PlacesCache_") || key.hasPrefix("wiki_")
+        }
+        keys.forEach { defaults.removeObject(forKey: $0) }
+        print("🗑️ Cleared \(keys.count) cache entries")
+    }
+    #endif
 }
 

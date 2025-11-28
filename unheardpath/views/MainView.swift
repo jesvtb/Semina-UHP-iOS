@@ -79,21 +79,19 @@ struct MainView: View {
         #endif
       }
       
-      // Notification Banner - positioned above bottom sheet
-      VStack {
-        Spacer()
-        if let notification = currentNotification {
+      // Notification Banner - positioned above bottom sheet (hidden when chat sheet is open)
+      if let notification = currentNotification, !showChatView {
+        VStack {
+          Spacer()
           NotificationBanner(notification: notification) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-              currentNotification = nil
-            }
+            currentNotification = nil
           }
-          .transition(.opacity)
-          .padding(.bottom, 420) // Position above bottom sheet (400px partial height + 20px padding)
+          .padding(.bottom, 720) // Position above bottom sheet (400px partial height + 120px padding)
         }
+        .zIndex(1500) // Above bottom sheet but below tab bar
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(true)
       }
-      .zIndex(1500) // Above bottom sheet but below tab bar
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
       
       // Custom Tab Bar - always visible at absolute bottom
       CustomTabBar(selectedTab: $selectedTab)
@@ -140,6 +138,7 @@ struct MainView: View {
       ChatModalView(
         chatMessages: $chatMessages,
         shouldDismissKeyboard: $shouldDismissKeyboard,
+        currentNotification: $currentNotification,
         onSendMessage: { messageText in
           await sendChatMessage(messageText)
         }
@@ -259,7 +258,7 @@ struct MainView: View {
       
       #if DEBUG
       print("💬 Preparing API request:")
-      print("   URL: http://192.168.50.171:1031/v1/ask")
+      print("   Endpoint: /v1/ask")
       print("   Method: POST")
       print("   Message: '\(trimmedMessage)'")
       print("   JSON Dict: \(jsonDict)")
@@ -269,6 +268,7 @@ struct MainView: View {
       #if DEBUG
       print("📡 Calling uhpGateway.stream()...")
       #endif
+
       let stream = try await uhpGateway.stream(
         endpoint: "/v1/ask",
         jsonDict: jsonDict
@@ -712,6 +712,12 @@ struct NotificationData {
     self.type = dict["type"] as? String
     self.message = message
   }
+  
+  // Convenience initializer for creating mock notifications
+  init(type: String? = nil, message: String) {
+    self.type = type
+    self.message = message
+  }
 }
 
 // MARK: - Chat Message Model
@@ -844,6 +850,7 @@ struct JourneyCard: View {
 struct NotificationBanner: View {
   let notification: NotificationData
   var onDismiss: (() -> Void)?
+  var zIndex: Double = 1500
   
   /// Maps notification type to SF Symbol icon name
   private var iconName: String {
@@ -854,6 +861,8 @@ struct NotificationBanner: View {
     switch type.lowercased() {
     case "info", "information":
       return "info.circle.fill"
+    case "search", "search web":
+      return "magnifyingglass"
     case "success", "completed":
       return "checkmark.circle.fill"
     case "warning", "alert":
@@ -873,7 +882,8 @@ struct NotificationBanner: View {
     }
   }
   
-  var body: some View {
+  // The banner content itself
+  private var bannerContent: some View {
     HStack(spacing: 12) {
       // Icon placeholder
       Image(systemName: iconName)
@@ -890,20 +900,38 @@ struct NotificationBanner: View {
       
       Spacer()
     }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 12)
+    .padding(.horizontal, 16)  // Inner padding: space between content and background
+    .padding(.vertical, 12)     // Inner padding: space between content and background
     .background(
       Color(.systemBackground)
         .opacity(0.95)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
     )
-    .padding(.horizontal)
-    .padding(.bottom, 8)
+    .padding(.horizontal)       // Outer padding: margin from screen edges
+    .padding(.bottom, 8)        // Outer padding: margin from bottom
     .contentShape(Rectangle()) // Make entire area tappable
     .onTapGesture {
-      onDismiss?()
+      withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        onDismiss?()
+      }
     }
+  }
+  
+  var body: some View {
+    // Always positioned from top, independent of other views
+    VStack {
+      bannerContent
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .padding(.top, 8)
+      Spacer()
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .ignoresSafeArea(.all) // Position absolutely from screen edges, not relative to other views
+    .zIndex(zIndex)
+    .allowsHitTesting(true) // Allow interaction when notification is visible
+    .id(notification.message) // Force SwiftUI to recognize view updates
+    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: notification.message)
   }
 }
 
