@@ -438,6 +438,19 @@ struct ScrollOffsetTracker: View {
     let currentSnapPoint: TestInfoSheet.SnapPoint
     let hideTabBarThreshold: CGFloat
     
+    // Track previous offset to detect scroll direction
+    @State private var previousOffset: CGFloat = 0
+    // Track when tab bar was hidden (timestamp)
+    @State private var tabBarHiddenTimestamp: Date?
+    // Track if tab bar was just hidden (to handle state synchronization)
+    @State private var wasTabBarHidden: Bool = false
+    // Track if tab bar was just shown due to scroll up (to prevent immediate re-hiding)
+    @State private var wasShownOnScrollUp: Bool = false
+    // Time window for showing tab bar again when scrolling up (in seconds)
+    private let showTabBarTimeWindow: TimeInterval = 2.0
+    // Hysteresis: require scrolling down more than this amount after showing to hide again
+    private let hideHysteresis: CGFloat = 10.0
+    
     var body: some View {
         VStack(spacing: 0) {
             // Invisible tracking element at the very top
@@ -462,15 +475,103 @@ struct ScrollOffsetTracker: View {
         .onPreferenceChange(TestScrollOffsetPreferenceKey.self) { newOffset in
             // Update state directly from GeometryReader offset
             if abs(offset - newOffset) > 0.01 {
+                // Use current binding value as old offset (before update)
+                let oldOffset = offset
                 offset = newOffset
                 
-                // Hide tab bar when scrolled down significantly
-                let isScrolledDown = newOffset < hideTabBarThreshold
-                let shouldHide = currentSnapPoint == .full && isScrolledDown
+                // Only process if we're at full snap point
+                guard currentSnapPoint == .full else {
+                    previousOffset = newOffset
+                    wasTabBarHidden = false
+                    tabBarHiddenTimestamp = nil
+                    return
+                }
                 
+                // Detect scroll direction: scrolling up means offset is increasing (becoming less negative)
+                let isScrollingUp = newOffset > oldOffset
+                let isScrollingDownDirection = newOffset < oldOffset
+                
+                // Update our internal tracking of tab bar state
+                let tabBarIsCurrentlyHidden = shouldHideTabBar || wasTabBarHidden
+                
+                // PRIORITY: If scrolling up and tab bar is currently hidden, check if we should show it again
+                if isScrollingUp && tabBarIsCurrentlyHidden {
+                    if let hiddenTimestamp = tabBarHiddenTimestamp {
+                        let timeSinceHidden = Date().timeIntervalSince(hiddenTimestamp)
+                        // Show tab bar if scrolling up within the time window
+                        if timeSinceHidden <= showTabBarTimeWindow {
+                            // Update immediately without animation to avoid opacity fade-in
+                            shouldHideTabBar = false
+                            tabBarHiddenTimestamp = nil
+                            wasTabBarHidden = false
+                            wasShownOnScrollUp = true
+                            previousOffset = newOffset
+                            #if DEBUG
+                            print("📊 ScrollOffsetTracker: Showing tab bar on scroll up (time since hidden: \(String(format: "%.2f", timeSinceHidden))s, offset: \(String(format: "%.2f", newOffset)))")
+                            #endif
+                            return
+                        } else {
+                            // Time window expired, clear timestamp
+                            tabBarHiddenTimestamp = nil
+                            wasTabBarHidden = false
+                            wasShownOnScrollUp = false
+                            #if DEBUG
+                            print("📊 ScrollOffsetTracker: Time window expired (time since hidden: \(String(format: "%.2f", timeSinceHidden))s)")
+                            #endif
+                        }
+                    } else if newOffset >= hideTabBarThreshold {
+                        // No timestamp recorded, but scrolling up above threshold - show it
+                        // Update immediately without animation to avoid opacity fade-in
+                        shouldHideTabBar = false
+                        wasTabBarHidden = false
+                        wasShownOnScrollUp = true
+                        previousOffset = newOffset
+                        #if DEBUG
+                        print("📊 ScrollOffsetTracker: Showing tab bar on scroll up (no timestamp, but offset \(String(format: "%.2f", newOffset)) above threshold \(hideTabBarThreshold))")
+                        #endif
+                        return
+                    }
+                }
+                
+                // If tab bar was shown on scroll up, add hysteresis to prevent flickering
+                // Only hide again if scrolling down significantly past the threshold
+                let effectiveHideThreshold = wasShownOnScrollUp ? (hideTabBarThreshold - hideHysteresis) : hideTabBarThreshold
+                let shouldHide = newOffset < effectiveHideThreshold
+                
+                // If scrolling down and we were shown on scroll up, clear that flag
+                if isScrollingDownDirection && wasShownOnScrollUp {
+                    // Only clear if we've scrolled down significantly
+                    if newOffset < effectiveHideThreshold {
+                        wasShownOnScrollUp = false
+                    }
+                }
+                
+                // If hiding the tab bar, record the timestamp
+                if shouldHide {
+                    if !wasTabBarHidden {
+                        tabBarHiddenTimestamp = Date()
+                        wasTabBarHidden = true
+                        wasShownOnScrollUp = false
+                        #if DEBUG
+                        print("📊 ScrollOffsetTracker: Hiding tab bar at offset \(String(format: "%.2f", newOffset)), threshold: \(effectiveHideThreshold)")
+                        #endif
+                    }
+                } else {
+                    // Not scrolled down - clear tracking state
+                    wasTabBarHidden = false
+                    tabBarHiddenTimestamp = nil
+                    // Keep wasShownOnScrollUp true if we're above threshold (user is still near top)
+                    if newOffset >= hideTabBarThreshold {
+                        wasShownOnScrollUp = false
+                    }
+                }
+                
+                // Update tab bar visibility
                 withAnimation(.easeInOut(duration: 0.2)) {
                     shouldHideTabBar = shouldHide
                 }
+                
+                previousOffset = newOffset
             }
         }
     }
