@@ -25,6 +25,7 @@ struct ChatDetailView: View {
                     proxy.scrollTo(messages.indices.last, anchor: .bottom)
                 }
             }
+            .background(Color("onBkgTextColor60"))
         }
     }
 }

@@ -1,17 +1,25 @@
 import SwiftUI
 
+// MARK: - Input Tab Selection
+enum InputTabSelection: Int, CaseIterable {
+    case journey = 0
+    case map = 1
+    case chat = 2
+    case profile = 3
+}
+
 struct TestMainView: View {
     @State private var messages: [String] = ["Hello", "How can I help?"]
     @State private var draftMessage: String = ""
-    @State private var selectedTab: Int = 0
+    @State private var selectedTab: InputTabSelection = .journey
     @FocusState private var isTextFieldFocused: Bool
     @State private var geoJSONData: [String: Any]?
     @State private var geoJSONUpdateTrigger: UUID = UUID()
     private let tabs: [(name: String, selectedIcon: String, unselectedIcon: String)] = [
-        ("Text", "text.bubble.fill", "text.bubble"),
-        ("Voice", "mic.fill", "mic"),
-        ("Image", "photo.fill", "photo"),
-        ("More", "ellipsis.circle.fill", "ellipsis.circle")
+        ("Journey", "signpost.right.and.left.fill", "signpost.right.and.left"),
+        ("Map", "map.fill", "map"),
+        ("Ask", "questionmark.bubble.fill", "questionmark.bubble"),
+        ("You", "person.fill", "person")
     ]
 
     var body: some View {
@@ -25,7 +33,7 @@ struct TestMainView: View {
                 .ignoresSafeArea(.container)
                 .ignoresSafeArea(.keyboard)
             // Main content (messages list)
-            if selectedTab == 0 {
+            if selectedTab == .chat {
                 VStack {
                     ChatDetailView(messages: messages)
 
@@ -58,15 +66,16 @@ struct TestMainView: View {
 
     private var tabSelectorView: some View {
         HStack(spacing: 0) {
-            ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
+            ForEach(Array(InputTabSelection.allCases.enumerated()), id: \.element) { index, tabCase in
+                let tab = tabs[index]
                 TabBarButton(
                     selectedIcon: tab.selectedIcon,
                     unselectedIcon: tab.unselectedIcon,
                     label: tab.name,
-                    isSelected: selectedTab == index,
+                    isSelected: selectedTab == tabCase,
                     action: {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedTab = index
+                            selectedTab = tabCase
                         }
                     }
                 )
@@ -78,7 +87,7 @@ struct TestMainView: View {
     
     private var chatInputBar: some View {
         HStack(spacing: 8) {
-            TextField("Ask Gemini", text: $draftMessage, axis: .vertical)
+            TextField("Ask any thing...", text: $draftMessage, axis: .vertical)
                 .textFieldStyle(.plain)
                 .focused($isTextFieldFocused)
                 .padding(.horizontal, 12)
