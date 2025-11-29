@@ -16,32 +16,13 @@ struct TestMainView: View {
     @State private var geoJSONData: [String: Any]?
     @State private var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
+    @State private var latestMsg: String?
     private let tabs: [(name: String, selectedIcon: String, unselectedIcon: String)] = [
         ("Journey", "signpost.right.and.left.fill", "signpost.right.and.left"),
         ("Map", "map.fill", "map"),
         ("Ask", "questionmark.bubble.fill", "questionmark.bubble"),
         ("You", "person.fill", "person")
     ]
-    
-    private var sheetFullHeight: CGFloat {
-        UIScreen.main.bounds.height + 1
-    }
-    
-    /// Calculates the exact height of the bottom safe area inset (chatInputBar + tabSelectorView)
-    private var bottomSafeAreaInsetHeight: CGFloat {
-        // chatInputBar components:
-        // - HStack vertical padding: 8 top + 8 bottom = 16 points
-        // - TextField vertical padding: 10 top + 10 bottom = 20 points
-        // - TextField content height (single line, system font ~17pt): ~20 points
-        let chatInputBarHeight: CGFloat = 16 + 20 + 20 // 56 points minimum
-        
-        // tabSelectorView:
-        // - Uses tabBarHeight constant = 49 points
-        let tabSelectorHeight: CGFloat = 49
-        
-        // VStack spacing: 0 (no spacing between components)
-        return chatInputBarHeight + tabSelectorHeight // 105 points total
-    }
 
     var body: some View {
         ZStack {
@@ -86,24 +67,73 @@ struct TestMainView: View {
         // Input bar pinned to bottom; moves with keyboard
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
-                // Tab selector
+                // Sent message bubble (shown when message is sent) - transparent background
+                if let latestMsg = latestMsg, selectedTab != .chat {
+                    latestMsgBubble(message: latestMsg)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .background(Color.clear)
+                }
                 
-                // Chat input bar
-                chatInputBar
-                tabSelectorView
+                // Chat input bar and tab selector with background
+                VStack(spacing: 0) {
+                    chatInputBar
+                    tabSelectorView
+                }
+                .background(.ultraThinMaterial)
+                .overlay(
+                    Divider()
+                        .background(Color("onBkgTextColor60")),
+                    alignment: .top
+                )
             }
-            .background(.ultraThinMaterial)
-            .overlay(
-                Divider()
-                    .background(Color("onBkgTextColor60")),
-                alignment: .top
-            )
             .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
             // .opacity(0.2)
             .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
         }
     }
+}
 
+// MARK: - TestMainView: Computed Properties
+extension TestMainView {
+    private var sheetFullHeight: CGFloat {
+        UIScreen.main.bounds.height + 1
+    }
+    
+    /// Calculates the exact height of the bottom safe area inset (chatInputBar + tabSelectorView)
+    private var bottomSafeAreaInsetHeight: CGFloat {
+        // chatInputBar components:
+        // - HStack vertical padding: 8 top + 8 bottom = 16 points
+        // - TextField vertical padding: 10 top + 10 bottom = 20 points
+        // - TextField content height (single line, system font ~17pt): ~20 points
+        let chatInputBarHeight: CGFloat = 16 + 20 + 20 // 56 points minimum
+        
+        // tabSelectorView:
+        // - Uses tabBarHeight constant = 49 points
+        let tabSelectorHeight: CGFloat = 49
+        
+        // VStack spacing: 0 (no spacing between components)
+        return chatInputBarHeight + tabSelectorHeight // 105 points total
+    }
+}
+
+// MARK: - TestMainView: View Components
+extension TestMainView {
+    private func latestMsgBubble(message: String) -> some View {
+        HStack {
+            Text(message)
+                .font(.system(size: 15))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.accentColor)
+                .cornerRadius(16)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+
+            Spacer()
+        }
+    }
+    
     private var tabSelectorView: some View {
         HStack(spacing: 0) {
             ForEach(Array(InputTabSelection.allCases.enumerated()), id: \.element) { index, tabCase in
@@ -153,13 +183,22 @@ struct TestMainView: View {
                 .ignoresSafeArea(edges: .bottom)
         )
     }
+}
 
+// MARK: - TestMainView: Actions
+extension TestMainView {
     private func sendMessage() {
         guard draftMessage.isEmpty == false else { return }
         let text = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.isEmpty == false else { return }
 
         messages.append(text)
+        
+        // Show sent message bubble above input bar
+        withAnimation(.easeOut(duration: 0.2)) {
+            latestMsg = text
+        }
+        
         draftMessage = ""
         isTextFieldFocused = false // Dismiss keyboard after sending
     }
