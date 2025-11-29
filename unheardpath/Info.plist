@@ -32,7 +32,7 @@
 		<string>SourceSerif4-Regular.ttf</string>
 		<string>SourceSans3-ExtraLight.ttf</string>
 		<string>SourceSans3-Regular.ttf</string>
-		<string>SourceSans3-SemiBold.ttf</string>
+		<string>SourceSans3-Semibold.ttf</string>
 	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
