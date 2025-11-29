@@ -9,14 +9,23 @@ enum InputTabSelection: Int, CaseIterable {
 }
 
 struct TestMainView: View {
-    @State private var messages: [String] = ["Hello", "How can I help?"]
+    @EnvironmentObject var uhpGateway: UHPGateway
+    @EnvironmentObject var locationManager: LocationManager
+    
+    @State private var messages: [ChatMessage] = []
     @State private var draftMessage: String = ""
     @State private var selectedTab: InputTabSelection = .journey
     @FocusState private var isTextFieldFocused: Bool
     @State private var geoJSONData: [String: Any]?
     @State private var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
-    @State private var latestMsg: String?
+    @State private var lastMessage: ChatMessage?
+    @State private var currentNotification: NotificationData?
+    @State private var shouldDismissKeyboard: Bool = false
+    
+    // Location-related state
+    @State private var isLoadingLocation = false
+    @State private var lastSentLocation: (latitude: Double, longitude: Double)?
     private let tabs: [(name: String, selectedIcon: String, unselectedIcon: String)] = [
         ("Journey", "signpost.right.and.left.fill", "signpost.right.and.left"),
         ("Map", "map.fill", "map"),
@@ -71,8 +80,8 @@ struct TestMainView: View {
                 }
             }
             
-            if let latestMsg = latestMsg, selectedTab != .chat, shouldHideTabBar == false {
-                latestMsgBubble(message: latestMsg)
+            if let lastMessage = lastMessage, selectedTab != .chat, shouldHideTabBar == false {
+                latestMsgBubble(message: lastMessage.text)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         isTextFieldFocused = false
@@ -94,6 +103,29 @@ struct TestMainView: View {
             .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
             // .opacity(0.2)
             .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
+        }
+        .onChange(of: shouldDismissKeyboard) { shouldDismiss in
+            if shouldDismiss {
+                isTextFieldFocused = false
+            }
+        }
+        .onChange(of: locationManager.currentLocation) { newLocation in
+            // Only make API call when location is captured and change is significant
+            // Skip if this is the initial load (handled by .task)
+            if newLocation != nil {
+                Task {
+                    await loadLocationIfSignificant()
+                }
+            }
+        }
+        .task { @MainActor in
+            // Initial load: If location is already available, call immediately (first time)
+            // Otherwise, wait for onChange to trigger when location is captured
+            // Use a small delay to avoid race condition with onChange
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
+            if locationManager.currentLocation != nil {
+                await loadLocationIfSignificant()
+            }
         }
     }
 }
@@ -201,15 +233,190 @@ extension TestMainView {
         let text = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.isEmpty == false else { return }
 
-        messages.append(text)
-        
-        // Show sent message bubble above input bar
-        withAnimation(.easeOut(duration: 0.2)) {
-            latestMsg = text
+        Task {
+            await sendChatMessage(text)
         }
         
         draftMessage = ""
         isTextFieldFocused = false // Dismiss keyboard after sending
+    }
+    
+    // MARK: - Chat Message Handling
+    private func sendChatMessage(_ messageText: String) async {
+        #if DEBUG
+        print("🚀 sendChatMessage() called with message: '\(messageText)'")
+        #endif
+        
+        // Validate message is not empty
+        let trimmedMessage = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedMessage.isEmpty else {
+            #if DEBUG
+            print("⚠️ sendChatMessage: Message is empty after trimming, not sending")
+            #endif
+            return
+        }
+        
+        // Add user message to chat immediately on main actor
+        await MainActor.run {
+            let userMessage = ChatMessage(text: trimmedMessage, isUser: true, isStreaming: false)
+            messages.append(userMessage)
+            // Update lastMessage for the bubble display
+            lastMessage = userMessage
+            #if DEBUG
+            print("✅ User message added to chat. Total messages: \(messages.count)")
+            #endif
+        }
+        
+        // Create assistant message placeholder for streaming
+        await MainActor.run {
+            messages.append(ChatMessage(text: "", isUser: false, isStreaming: true))
+            #if DEBUG
+            print("✅ Assistant placeholder added. Total messages: \(messages.count)")
+            #endif
+        }
+        
+        do {
+            // Prepare request data (use trimmed message)
+            var jsonDict: [String: Any] = [
+                "message": trimmedMessage
+            ]
+            
+            // Add device date, time, and day of week (separated)
+            let now = Date()
+            let dateFormatter = DateFormatter()
+            dateFormatter.timeZone = TimeZone.current
+            
+            // Date format: yyyy-MM-dd
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            jsonDict["current_date"] = dateFormatter.string(from: now)
+            
+            // Time format: HH:mm:ss
+            dateFormatter.dateFormat = "HH:mm:ss"
+            jsonDict["current_time"] = dateFormatter.string(from: now)
+            
+            // Day of week format: Full day name (Monday, Tuesday, etc.)
+            dateFormatter.dateFormat = "EEEE"
+            jsonDict["current_weekday"] = dateFormatter.string(from: now)
+            
+            // Add device language
+            let languageCode: String
+            if #available(iOS 16.0, *) {
+                languageCode = Locale.current.language.languageCode?.identifier ?? "en"
+            } else {
+                languageCode = Locale.current.languageCode ?? "en"
+            }
+            jsonDict["device_lang"] = languageCode
+            
+            // Add location and country from LocationManager's locationDetails
+            // Always include these fields (use empty strings if not available) to satisfy backend requirements
+            if let locationDetails = locationManager.locationDetails {
+                if let location = locationDetails["location"] as? String {
+                    jsonDict["current_location"] = location
+                } else {
+                    jsonDict["current_location"] = ""
+                }
+                // Check both country_name and country fields
+                if let countryName = locationDetails["country_name"] as? String {
+                    jsonDict["current_country"] = countryName
+                } else if let country = locationDetails["country"] as? String {
+                    jsonDict["current_country"] = country
+                } else {
+                    jsonDict["current_country"] = ""
+                }
+            } else {
+                // If locationDetails is nil, provide empty strings
+                jsonDict["current_location"] = ""
+                jsonDict["current_country"] = ""
+            }
+            
+            #if DEBUG
+            print("💬 Preparing API request:")
+            print("   Endpoint: /v1/ask")
+            print("   Method: POST")
+            print("   Message: '\(trimmedMessage)'")
+            print("   JSON Dict: \(jsonDict)")
+            #endif
+            
+            // Use streaming API to receive notifications and content
+            #if DEBUG
+            print("📡 Calling uhpGateway.stream()...")
+            #endif
+
+            let stream = try await uhpGateway.stream(
+                endpoint: "/v1/ask",
+                jsonDict: jsonDict
+            )
+            #if DEBUG
+            print("✅ Stream received from uhpGateway.stream()")
+            #endif
+            
+            #if DEBUG
+            print("✅ Stream created, starting to process events...")
+            #endif
+            
+            var streamingContent = ""
+            
+            // Process SSE events from stream
+            var eventCount = 0
+            for try await event in stream {
+                eventCount += 1
+                #if DEBUG
+                print("📨 SSE Event #\(eventCount) received:")
+                print("   Event type: \(event.event ?? "nil")")
+                print("   Data: \(event.data.prefix(100))...")
+                #endif
+                
+                await handleChatStreamEvent(event: event, streamingContent: &streamingContent)
+            }
+            
+            // Ensure the final assistant message is marked as not streaming
+            await MainActor.run {
+                if let lastIndex = messages.indices.last,
+                   !messages[lastIndex].isUser {
+                    let existingMessage = messages[lastIndex]
+                    let updatedMessage = ChatMessage(
+                        id: existingMessage.id,
+                        text: existingMessage.text,
+                        isUser: existingMessage.isUser,
+                        isStreaming: false
+                    )
+                    messages[lastIndex] = updatedMessage
+                    // Update lastMessage for the bubble display
+                    lastMessage = updatedMessage
+                    #if DEBUG
+                    print("✅ Stream finished, marked last assistant message as not streaming")
+                    #endif
+                }
+            }
+            
+            #if DEBUG
+            print("✅ Stream processing completed. Total events: \(eventCount)")
+            #endif
+            
+        } catch {
+            #if DEBUG
+            print("❌ Failed to send chat message:")
+            print("   Error: \(error)")
+            print("   Error type: \(type(of: error))")
+            print("   Error localized description: \(error.localizedDescription)")
+            if let apiError = error as? APIError {
+                print("   API Error message: \(apiError.message)")
+                print("   API Error code: \(apiError.code ?? -1)")
+            }
+            #endif
+            
+            // Remove the streaming message placeholder on error
+            await MainActor.run {
+                if let lastIndex = messages.indices.last,
+                   !messages[lastIndex].isUser,
+                   messages[lastIndex].text.isEmpty {
+                    messages.removeLast()
+                    #if DEBUG
+                    print("✅ Removed empty streaming message placeholder after error")
+                    #endif
+                }
+            }
+        }
     }
 }
 
@@ -631,6 +838,428 @@ struct TestScrollOffsetPreferenceKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
+}
+
+// MARK: - Location Management
+extension TestMainView {
+    /// Checks if location change is significant (>= 0.001 for either coordinate)
+    /// Returns true if change is significant or if this is the first location
+    private func isLocationChangeSignificant(
+        newLatitude: Double,
+        newLongitude: Double
+    ) -> Bool {
+        // If we haven't sent a location before, always send it
+        guard let lastSent = lastSentLocation else {
+            return true
+        }
+        
+        // Calculate differences
+        let latDifference = abs(newLatitude - lastSent.latitude)
+        let lonDifference = abs(newLongitude - lastSent.longitude)
+        
+        // Only make request if change is >= 0.001 (3rd decimal place) for either coordinate
+        let threshold: Double = 0.001
+        let isSignificant = latDifference >= threshold || lonDifference >= threshold
+        
+        #if DEBUG
+        if isSignificant {
+            print("📍 Significant location change detected:")
+            print("   Old: [\(lastSent.latitude), \(lastSent.longitude)]")
+            print("   New: [\(newLatitude), \(newLongitude)]")
+            print("   Lat diff: \(latDifference), Lon diff: \(lonDifference)")
+        } else {
+            print("📍 Location change too small, skipping API call:")
+            print("   Lat diff: \(latDifference), Lon diff: \(lonDifference) (threshold: \(threshold))")
+        }
+        #endif
+        
+        return isSignificant
+    }
+    
+    /// Checks if location change is significant before making API call
+    private func loadLocationIfSignificant() async {
+        // Prevent concurrent API calls
+        guard !isLoadingLocation else {
+            #if DEBUG
+            print("⏸️ API call already in progress, skipping duplicate request")
+            #endif
+            return
+        }
+        
+        // Only proceed if location is actually available
+        guard let latitude = locationManager.latitude,
+              let longitude = locationManager.longitude else {
+            #if DEBUG
+            print("⚠️ Location not available yet, skipping API call")
+            #endif
+            return
+        }
+        
+        // Check if location change is significant BEFORE reverse geocoding
+        guard isLocationChangeSignificant(newLatitude: latitude, newLongitude: longitude) else {
+            #if DEBUG
+            print("⏸️ Location change not significant, skipping API call")
+            #endif
+            return
+        }
+        
+        // Reverse geocode user location and get JSON dict
+        #if DEBUG
+        print("📍 Calling reverseGeocodeUserLocation() from loadLocationIfSignificant()")
+        #endif
+        
+        let locationDict = await withCheckedContinuation { continuation in
+            locationManager.reverseGeocodeUserLocation { dict, error in
+                if let error = error {
+                    #if DEBUG
+                    print("⚠️ Reverse geocoding error: \(error.localizedDescription), using location only")
+                    #endif
+                    // Even if geocoding fails, dict should still have location data
+                    continuation.resume(returning: dict)
+                } else {
+                    continuation.resume(returning: dict)
+                }
+            }
+        }
+        
+        guard let locationDict = locationDict else {
+            #if DEBUG
+            print("❌ Failed to get location dict from reverse geocoding")
+            #endif
+            return
+        }
+        
+        // Make the API call with the location dict
+        await loadLocation(jsonDict: locationDict)
+    }
+    
+    private func loadLocation(jsonDict: [String: Any]) async {
+        isLoadingLocation = true
+        defer { isLoadingLocation = false }
+        
+        // Extract user_lat and user_lon from jsonDict (LocationManager uses user_lat/user_lon)
+        guard let userLat = jsonDict["user_lat"] as? Double,
+              let userLon = jsonDict["user_lon"] as? Double else {
+            #if DEBUG
+            print("⚠️ Missing user_lat or user_lon in location dict")
+            #endif
+            return
+        }
+        
+        // Check cache first
+        if let cachedGeoJSON = locationManager.reconstructGeoJSONFromCache(userLat: userLat, userLon: userLon) {
+            #if DEBUG
+            print("✅ Using cached GeoJSON data")
+            #endif
+            // Update geoJSONData to trigger map update
+            await MainActor.run {
+                geoJSONData = cachedGeoJSON
+                geoJSONUpdateTrigger = UUID()
+            }
+            // Update last sent location
+            lastSentLocation = (latitude: userLat, longitude: userLon)
+            return
+        }
+        
+        // Cache miss - make API call
+        do {
+            #if DEBUG
+            print("📍 Sending location to API: \(userLat), \(userLon)")
+            print("📦 Full location dict: \(jsonDict)")
+            #endif
+            
+            let response = try await uhpGateway.request(
+                endpoint: "/v1/signed-in-home",
+                method: "POST",
+                jsonDict: jsonDict
+            )
+            
+            // Update last sent location after successful API call
+            lastSentLocation = (latitude: userLat, longitude: userLon)
+            
+            // Parse response: extract data field containing GeoJSON FeatureCollection
+            // Response format: {result: {event: "map", data: {type: "FeatureCollection", features: [...]}}, status: "success", ...}
+            guard let responseDict = response as? [String: Any],
+                  let result = responseDict["result"] as? [String: Any],
+                  let event = result["event"] as? String,
+                  event == "map",
+                  let data = result["data"] as? [String: Any],
+                  let features = data["features"] as? [[String: Any]] else {
+                #if DEBUG
+                if let responseDict = response as? [String: Any] {
+                    print("⚠️ Invalid response format. Available keys: \(responseDict.keys.joined(separator: ", "))")
+                    if let result = responseDict["result"] as? [String: Any] {
+                        print("   Result keys: \(result.keys.joined(separator: ", "))")
+                    }
+                } else {
+                    print("⚠️ Invalid response format. Response is not a dictionary.")
+                }
+                #endif
+                return
+            }
+            
+            // Process features: extract idx and pageid, save to cache
+            var featuresList: [[String: Any]] = []
+            for feature in features {
+                guard let properties = feature["properties"] as? [String: Any],
+                      let idx = properties["idx"] as? Int,
+                      let pageid = properties["pageid"] as? Int else {
+                    continue
+                }
+                
+                // Add to features list for location cache
+                featuresList.append([
+                    "idx": idx,
+                    "pageid": pageid
+                ])
+                
+                // Save individual feature to cache
+                locationManager.saveCachedFeature(pageid: pageid, feature: feature)
+            }
+            
+            // Save location cache with list of {idx, pageid}
+            locationManager.saveCachedLocationData(userLat: userLat, userLon: userLon, features: featuresList)
+            
+            // Update geoJSONData to trigger map update
+            // Format: {event: "map", data: {type: "FeatureCollection", features: [...]}}
+            let geoJSONResponse: [String: Any] = [
+                "event": event,
+                "data": data
+            ]
+            await MainActor.run {
+                geoJSONData = geoJSONResponse
+                geoJSONUpdateTrigger = UUID()
+            }
+            
+            #if DEBUG
+            print("✅ GeoJSON data loaded and cached with \(featuresList.count) features")
+            #endif
+            
+        } catch let apiError as APIError {
+            #if DEBUG
+            print("❌ API Error: \(apiError.message)")
+            if let code = apiError.code {
+                print("   Status Code: \(code)")
+            }
+            #endif
+        } catch {
+            #if DEBUG
+            print("❌ Failed to load location: \(error.localizedDescription)")
+            print("   Error type: \(type(of: error))")
+            #endif
+        }
+    }
+}
+
+// MARK: - Chat SSE Workflows
+extension TestMainView {
+  
+  /// Dispatches handling for different SSE event types coming from the chat stream.
+  /// Keeps `sendChatMessage` focused on request/response orchestration while this
+  /// function owns the per-event workflows.
+  func handleChatStreamEvent(
+    event: SSEEvent,
+    streamingContent: inout String
+  ) async {
+    let eventType = (event.event ?? "").lowercased()
+    
+    switch eventType {
+    case "notification":
+      await handleNotificationEvent(event: event)
+      
+    case "content":
+      await handleContentEvent(event: event, streamingContent: &streamingContent)
+      
+    case "finish":
+      await handleSSEFinishEvent(event: event)
+      
+    case "map":
+      await handleMapEvent()
+      
+    default:
+      #if DEBUG
+      print("⚠️ Unknown or unsupported event type: \(event.event ?? "nil")")
+      #endif
+    }
+  }
+  
+  /// Handles `finish` SSE events, which signal the end of streaming.
+  /// Ensures the progress spinner is stopped and removed from the last
+  /// assistant message by setting `isStreaming` to false or dropping an
+  /// empty placeholder message.
+  func handleSSEFinishEvent(event: SSEEvent) async {
+    #if DEBUG
+    print("🏁 Processing finish event")
+    print("   Raw data: \(event.data)")
+    #endif
+    
+    await MainActor.run {
+      guard let lastIndex = messages.indices.last,
+            !messages[lastIndex].isUser else {
+        #if DEBUG
+        print("⚠️ No assistant message found to finish")
+        #endif
+        return
+      }
+      
+      let lastMsg = messages[lastIndex]
+      
+      if lastMsg.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        // If it's just an empty streaming placeholder, remove it entirely
+        messages.removeLast()
+        #if DEBUG
+        print("✅ Removed empty streaming assistant placeholder on finish event")
+        #endif
+      } else {
+        // Otherwise, keep the content and just stop streaming
+        messages[lastIndex] = ChatMessage(
+          id: lastMsg.id,
+          text: lastMsg.text,
+          isUser: lastMsg.isUser,
+          isStreaming: false
+        )
+        #if DEBUG
+        print("✅ Marked last assistant message as not streaming on finish event")
+        #endif
+      }
+      
+      // Update lastMessage for the bubble display
+      if let lastMsg = messages.last, !lastMsg.isUser {
+        lastMessage = lastMsg
+      }
+    }
+  }
+  
+  /// Handles `notification` SSE events by parsing the payload and updating
+  /// `currentNotification`, including auto-dismiss behavior.
+  func handleNotificationEvent(event: SSEEvent) async {
+    #if DEBUG
+    print("🔔 Processing notification event")
+    #endif
+    
+    do {
+      guard let dataDict = try event.parseJSONData() else {
+        #if DEBUG
+        print("⚠️ Failed to parse notification data as JSON")
+        #endif
+        return
+      }
+      
+      guard let notification = NotificationData(from: dataDict) else {
+        #if DEBUG
+        print("⚠️ Failed to create notification from data: \(dataDict)")
+        #endif
+        return
+      }
+      
+      await MainActor.run {
+        #if DEBUG
+        print("📬 Notification received: type=\(notification.type ?? "nil"), message=\(notification.message)")
+        print("   Setting currentNotification...")
+        #endif
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+          currentNotification = notification
+        }
+        
+        #if DEBUG
+        print("   currentNotification set. Value: \(currentNotification?.message ?? "nil")")
+        #endif
+        
+        // Auto-dismiss after 5 seconds
+        Task {
+          try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+          await MainActor.run {
+            #if DEBUG
+            print("   Auto-dismissing notification after 5 seconds")
+            #endif
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+              currentNotification = nil
+            }
+          }
+        }
+      }
+    } catch {
+      #if DEBUG
+      print("❌ Error handling notification event: \(error)")
+      #endif
+    }
+  }
+  
+  /// Handles `content` SSE events by updating the streaming assistant message.
+  func handleContentEvent(
+    event: SSEEvent,
+    streamingContent: inout String
+  ) async {
+    #if DEBUG
+    print("📝 Processing content event")
+    #endif
+    
+    do {
+      guard let dataDict = try event.parseJSONData() else {
+        #if DEBUG
+        print("⚠️ Failed to parse content data as JSON")
+        #endif
+        return
+      }
+      
+      guard let content = dataDict["content"] as? String else {
+        #if DEBUG
+        print("⚠️ Content event payload missing 'content' field")
+        #endif
+        return
+      }
+      
+      streamingContent += content
+      #if DEBUG
+      print("📝 Content chunk received: '\(content)'")
+      print("   Total streaming content length: \(streamingContent.count)")
+      #endif
+      
+      await MainActor.run {
+        if let lastIndex = messages.indices.last,
+           !messages[lastIndex].isUser {
+          let existingMessage = messages[lastIndex]
+          let isStreaming = dataDict["is_streaming"] as? Bool ?? true
+          messages[lastIndex] = ChatMessage(
+            id: existingMessage.id,
+            text: streamingContent,
+            isUser: false,
+            isStreaming: isStreaming
+          )
+          #if DEBUG
+          print("✅ Updated assistant message. isStreaming: \(isStreaming)")
+          #endif
+          
+          // Update lastMessage for the bubble display
+          lastMessage = messages[lastIndex]
+        }
+      }
+    } catch {
+      #if DEBUG
+      print("❌ Error handling content event: \(error)")
+      #endif
+    }
+  }
+  
+  /// Handles `map` SSE events by dismissing the keyboard and resetting
+  /// the modal position in `ChatModalView`.
+  func handleMapEvent() async {
+    #if DEBUG
+    print("🗺️ Processing map event - dismissing keyboard and resetting modal")
+    #endif
+    
+    await MainActor.run {
+      shouldDismissKeyboard = true
+      // Reset the flag after a brief delay to allow the change to be detected
+      Task {
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        await MainActor.run {
+          shouldDismissKeyboard = false
+        }
+      }
+    }
+  }
 }
 
 // MARK: - Debug Info View
