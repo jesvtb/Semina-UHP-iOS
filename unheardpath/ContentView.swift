@@ -17,7 +17,8 @@ struct ContentView: View {
       if authManager.isLoading {
           ProgressView("Checking authentication...")
       } else if authManager.isAuthenticated {
-        MainView()
+        // MainView()
+        TestMainView()
       } else {
         AuthView()
       }

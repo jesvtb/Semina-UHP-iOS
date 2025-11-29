@@ -53,8 +53,8 @@ According to [Supabase documentation](https://supabase.com/docs/guides/auth/soci
      - Get this URL from Supabase Dashboard > Authentication > Providers > Google
 4. Click **Create**
 5. **Save** Client ID and Client Secret to your `.env` file:
-   - `GOOGLE_SUPBASE_UHP_CLIENT_ID` = Your Client ID
-   - `GOOGLE_SUPBASE_UHP_CLIENT_SECRET` = Your Client Secret
+   - `GOOGLE_SUPABASE_UHP_CLIENT_ID` = Your Client ID
+   - `GOOGLE_SUPABASE_UHP_CLIENT_SECRET` = Your Client Secret
 
 ---
 
@@ -64,8 +64,8 @@ According to [Supabase documentation](https://supabase.com/docs/guides/auth/soci
 2. **Authentication** > **Providers** > **Google**
 3. Configure:
    - **Enable Sign in with Google**: Toggle **ON**
-   - **Client IDs**: Value from `GOOGLE_SUPBASE_UHP_CLIENT_ID` in your `.env`
-   - **Client Secret**: Value from `GOOGLE_SUPBASE_UHP_CLIENT_SECRET` in your `.env`
+   - **Client IDs**: Value from `GOOGLE_SUPABASE_UHP_CLIENT_ID` in your `.env`
+   - **Client Secret**: Value from `GOOGLE_SUPABASE_UHP_CLIENT_SECRET` in your `.env`
    - **Callback URL**: Should auto-populate (verify it matches Google Console)
 4. Click **Save**
 
@@ -120,8 +120,8 @@ According to [Supabase documentation](https://supabase.com/docs/guides/auth/soci
 - [ ] **Branding configured** (strongly recommended - logo, app domain, authorized domains)
 - [ ] Web Application OAuth client created
 - [ ] Authorized redirect URI set to Supabase callback URL
-- [ ] `GOOGLE_SUPBASE_UHP_CLIENT_ID` saved to `.env`
-- [ ] `GOOGLE_SUPBASE_UHP_CLIENT_SECRET` saved to `.env`
+- [ ] `GOOGLE_SUPABASE_UHP_CLIENT_ID` saved to `.env`
+- [ ] `GOOGLE_SUPABASE_UHP_CLIENT_SECRET` saved to `.env`
 - [ ] Supabase Google provider enabled
 - [ ] Client ID and Secret added to Supabase
 - [ ] URL scheme `unheardpath` configured in Xcode
@@ -135,8 +135,8 @@ Add these to your `.env` file:
 
 ```bash
 # Google OAuth
-GOOGLE_SUPBASE_UHP_CLIENT_ID="your-client-id-here"
-GOOGLE_SUPBASE_UHP_CLIENT_SECRET="your-client-secret-here"
+GOOGLE_SUPABASE_UHP_CLIENT_ID="your-client-id-here"
+GOOGLE_SUPABASE_UHP_CLIENT_SECRET="your-client-secret-here"
 ```
 
 ---

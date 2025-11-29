@@ -33,10 +33,10 @@ struct MainView: View {
 
   @State var isLoading = false
   @State private var selectedTab: TabSelection = .journey
-  @State private var currentNotification: NotificationData?
-  @State private var chatMessages: [ChatMessage] = []
+  @State var currentNotification: NotificationData?
+  @State var chatMessages: [ChatMessage] = []
   @State private var showChatView = false
-  @State private var shouldDismissKeyboard = false
+  @State var shouldDismissKeyboard = false
   
   // Location-related state
   @State private var isLoadingLocation = false
@@ -293,117 +293,22 @@ struct MainView: View {
         print("   Data: \(event.data.prefix(100))...")
         #endif
         
-        // Handle notification events
-        if event.event == "notification" {
+        await handleChatStreamEvent(event: event, streamingContent: &streamingContent)
+      }
+      
+      // Ensure the final assistant message is marked as not streaming
+      await MainActor.run {
+        if let lastIndex = chatMessages.indices.last,
+           !chatMessages[lastIndex].isUser {
+          let existingMessage = chatMessages[lastIndex]
+          chatMessages[lastIndex] = ChatMessage(
+            id: existingMessage.id,
+            text: existingMessage.text,
+            isUser: existingMessage.isUser,
+            isStreaming: false
+          )
           #if DEBUG
-          print("🔔 Processing notification event")
-          #endif
-          // Parse the notification data
-          guard let dataDict = try event.parseJSONData() else {
-            #if DEBUG
-            print("⚠️ Failed to parse notification data as JSON")
-            #endif
-            continue
-          }
-          
-          // Create notification from parsed data
-          guard let notification = NotificationData(from: dataDict) else {
-            #if DEBUG
-            print("⚠️ Failed to create notification from data: \(dataDict)")
-            #endif
-            continue
-          }
-          
-          // Update notification on main thread
-          await MainActor.run {
-            #if DEBUG
-            print("📬 Notification received: type=\(notification.type ?? "nil"), message=\(notification.message)")
-            print("   Setting currentNotification...")
-            #endif
-            
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-              currentNotification = notification
-            }
-            
-            #if DEBUG
-            print("   currentNotification set. Value: \(currentNotification?.message ?? "nil")")
-            #endif
-            
-            // Auto-dismiss after 5 seconds
-            Task {
-              try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
-              await MainActor.run {
-                #if DEBUG
-                print("   Auto-dismissing notification after 5 seconds")
-                #endif
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                  currentNotification = nil
-                }
-              }
-            }
-          }
-        }
-        // Handle streaming content events
-        else if event.event == "content" {
-          #if DEBUG
-          print("📝 Processing content event")
-          #endif
-          
-          // Parse the content data
-          guard let dataDict = try event.parseJSONData() else {
-            #if DEBUG
-            print("⚠️ Failed to parse content data as JSON")
-            #endif
-            continue
-          }
-          
-          if let content = dataDict["content"] as? String {
-            streamingContent += content
-            #if DEBUG
-            print("📝 Content chunk received: '\(content)'")
-            print("   Total streaming content length: \(streamingContent.count)")
-            #endif
-            
-            // Update the last message (assistant message) with streaming content
-            await MainActor.run {
-              if let lastIndex = chatMessages.indices.last,
-                 !chatMessages[lastIndex].isUser {
-                let existingMessage = chatMessages[lastIndex]
-                let isStreaming = dataDict["is_streaming"] as? Bool ?? true
-                // Preserve the original message ID to maintain SwiftUI identity
-                chatMessages[lastIndex] = ChatMessage(
-                  id: existingMessage.id,
-                  text: streamingContent,
-                  isUser: false,
-                  isStreaming: isStreaming
-                )
-                #if DEBUG
-                print("✅ Updated assistant message. isStreaming: \(isStreaming)")
-                #endif
-              }
-            }
-          }
-        }
-        // Handle map events - dismiss keyboard and reset modal position
-        else if event.event == "map" {
-          #if DEBUG
-          print("🗺️ Processing map event - dismissing keyboard and resetting modal")
-          #endif
-          
-          // Trigger keyboard dismissal in ChatModalView
-          await MainActor.run {
-            shouldDismissKeyboard = true
-            // Reset the flag after a brief delay to allow the change to be detected
-            Task {
-              try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-              await MainActor.run {
-                shouldDismissKeyboard = false
-              }
-            }
-          }
-        } else {
-          #if DEBUG
-          print("⚠️ Unknown event type: \(event.event ?? "nil")")
+          print("✅ Stream finished, marked last assistant message as not streaming")
           #endif
         }
       }
