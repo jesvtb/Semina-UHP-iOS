@@ -22,6 +22,7 @@ struct TestMainView: View {
     @State private var lastMessage: ChatMessage?
     @State private var currentNotification: NotificationData?
     @State private var shouldDismissKeyboard: Bool = false
+    @State private var isMessageExpanded: Bool = false
     
     // Location-related state
     @State private var isLoadingLocation = false
@@ -81,7 +82,10 @@ struct TestMainView: View {
             }
             
             if let lastMessage = lastMessage, selectedTab != .chat, shouldHideTabBar == false {
-                latestMsgBubble(message: lastMessage.text)
+                latestMsgBubble(message: lastMessage.text, isExpanded: $isMessageExpanded, onDismiss: {
+                    self.lastMessage = nil
+                    self.isMessageExpanded = false
+                })
                     .contentShape(Rectangle())
                     .onTapGesture {
                         isTextFieldFocused = false
@@ -155,24 +159,86 @@ extension TestMainView {
 
 // MARK: - TestMainView: View Components
 extension TestMainView {
-    private func latestMsgBubble(message: String) -> some View {
-        VStack {
+    private func latestMsgBubble(message: String, isExpanded: Binding<Bool>, onDismiss: @escaping () -> Void) -> some View {
+        // Helper to check if text would exceed 3 lines
+        let estimatedLineCount = estimateLineCount(for: message, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
+        let shouldShowExpandButton = estimatedLineCount > 3
+        
+        return VStack {
             Spacer()
-            HStack {
-                Text(message)
-                    .font(.system(size: 15))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor)
-                    .cornerRadius(16)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-
+            HStack(alignment: .top, spacing: 8) {
+                // Message bubble with text
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(message)
+                        .font(.system(size: 15))
+                        .foregroundColor(.white)
+                        .lineLimit(isExpanded.wrappedValue ? nil : 3)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                    
+                    // Expand/Collapse button - only show if text is longer than 3 lines
+                    if shouldShowExpandButton {
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isExpanded.wrappedValue.toggle()
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Text(isExpanded.wrappedValue ? "Show less" : "Show more")
+                                        .font(.system(size: 11, weight: .medium))
+                                    Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 10, weight: .semibold))
+                                }
+                                .foregroundColor(.white.opacity(0.9))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                            }
+                            .padding(.trailing, 12)
+                            .padding(.bottom, 4)
+                        }
+                    }
+                }
+                .background(Color.accentColor)
+                .cornerRadius(16)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                
+                // Dismiss button
+                Button(action: {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        onDismiss()
+                    }
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(6)
+                        .background(Color.white.opacity(0.2))
+                        .clipShape(Circle())
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 8)
+                
                 Spacer()
             }
         }
         .background(Color.clear)
+    }
+    
+    /// Estimates the number of lines needed to display text
+    private func estimateLineCount(for text: String, font: UIFont, maxWidth: CGFloat) -> Int {
+        let attributes = [NSAttributedString.Key.font: font]
+        let attributedString = NSAttributedString(string: text, attributes: attributes)
+        let textSize = attributedString.boundingRect(
+            with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+        let lineHeight = font.lineHeight
+        let estimatedLines = Int(ceil(textSize.height / lineHeight))
+        return estimatedLines
     }
     
     private var tabSelectorView: some View {
