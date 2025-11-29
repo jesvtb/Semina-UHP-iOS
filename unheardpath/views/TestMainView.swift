@@ -63,29 +63,23 @@ struct TestMainView: View {
                         )
                 }
             }
+            
+            if let latestMsg = latestMsg, selectedTab != .chat, shouldHideTabBar == false {
+                latestMsgBubble(message: latestMsg)
+            }
         }
         // Input bar pinned to bottom; moves with keyboard
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
-                // Sent message bubble (shown when message is sent) - transparent background
-                if let latestMsg = latestMsg, selectedTab != .chat {
-                    latestMsgBubble(message: latestMsg)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .background(Color.clear)
-                }
-                
-                // Chat input bar and tab selector with background
-                VStack(spacing: 0) {
-                    chatInputBar
-                    tabSelectorView
-                }
-                .background(.ultraThinMaterial)
-                .overlay(
-                    Divider()
-                        .background(Color("onBkgTextColor60")),
-                    alignment: .top
-                )
+                chatInputBar
+                tabSelectorView
             }
+            .background(.ultraThinMaterial)
+            .overlay(
+                Divider()
+                    .background(Color("onBkgTextColor60")),
+                alignment: .top
+            )
             .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
             // .opacity(0.2)
             .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
@@ -119,19 +113,23 @@ extension TestMainView {
 // MARK: - TestMainView: View Components
 extension TestMainView {
     private func latestMsgBubble(message: String) -> some View {
-        HStack {
-            Text(message)
-                .font(.system(size: 15))
-                .foregroundColor(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.accentColor)
-                .cornerRadius(16)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-
+        VStack {
             Spacer()
+            HStack {
+                Text(message)
+                    .font(.system(size: 15))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.accentColor)
+                    .cornerRadius(16)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+
+                Spacer()
+            }
         }
+        .background(Color.clear)
     }
     
     private var tabSelectorView: some View {
