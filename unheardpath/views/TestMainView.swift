@@ -34,6 +34,10 @@ struct TestMainView: View {
             MapboxMapView(geoJSONData: $geoJSONData, geoJSONUpdateTrigger: $geoJSONUpdateTrigger)
                 .ignoresSafeArea(.container)
                 .ignoresSafeArea(.keyboard)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isTextFieldFocused = false
+                }
             // Main content (messages list)
             if selectedTab == .chat {
                 VStack {
@@ -43,7 +47,6 @@ struct TestMainView: View {
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    // Dismiss keyboard when tapping outside safeAreaInset
                     isTextFieldFocused = false
                 }
             }
@@ -62,10 +65,18 @@ struct TestMainView: View {
                             y: geometry.size.height - (sheetFullHeight / 2) // Dynamic: half of actual sheet height
                         )
                 }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isTextFieldFocused = false
+                }
             }
             
             if let latestMsg = latestMsg, selectedTab != .chat, shouldHideTabBar == false {
                 latestMsgBubble(message: latestMsg)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        isTextFieldFocused = false
+                    }
             }
         }
         // Input bar pinned to bottom; moves with keyboard
