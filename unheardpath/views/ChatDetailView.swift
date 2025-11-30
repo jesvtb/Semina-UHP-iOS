@@ -6,34 +6,22 @@ struct ChatDetailView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: Spacing.current.spaceS) {
                     ForEach(messages) { message in
-                        HStack {
-                            if message.isUser {
-                                Spacer()
-                            }
-                            
-                            Text(message.text)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(message.isUser ? Color.blue : Color(.secondarySystemBackground))
-                                .foregroundColor(message.isUser ? .white : .primary)
-                                .cornerRadius(16)
-                            
-                            if !message.isUser {
-                                Spacer()
-                            }
-                        }
-                        .id(message.id)
+                        MessageBubble(message: message)
                     }
                     // Bottom anchor for scrolling
                     Color.clear
-                        .frame(height: 1)
+                        .frame(height: Spacing.current.spaceM)
                         .id("bottom-anchor")
+                    
+                    // Final anchor at the very bottom for spacing
+                    Color.clear
+                        .frame(height: 1)
+                        .id("bottom-spacer")
                 }
-                .padding(.top, 16)
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8) // extra space above input bar
+                .padding(.top, Spacing.current.spaceM)
+                .padding(.horizontal, Spacing.current.space2xs)
             }
             .onAppear {
                 handleInitialScroll(proxy: proxy)
@@ -44,7 +32,7 @@ struct ChatDetailView: View {
             .onChange(of: messages.last?.text) { _ in
                 handleLastMessageTextChange(proxy: proxy)
             }
-            .background(Color("onBkgTextColor60"))
+            .background(Color("AppBkgColor"))
         }
     }
     
@@ -53,11 +41,11 @@ struct ChatDetailView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             if let lastMessage = messages.last {
                 withAnimation {
-                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                    proxy.scrollTo("bottom-spacer", anchor: .bottom)
                 }
             } else {
                 withAnimation {
-                    proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                    proxy.scrollTo("bottom-spacer", anchor: .bottom)
                 }
             }
         }
@@ -80,7 +68,7 @@ struct ChatDetailView: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 50_000_000)
             withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                proxy.scrollTo("bottom-spacer", anchor: .bottom)
             }
         }
     }

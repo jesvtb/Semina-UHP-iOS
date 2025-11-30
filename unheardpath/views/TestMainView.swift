@@ -12,6 +12,7 @@ struct TestMainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var locationManager: LocationManager
     
+    
     @State private var messages: [ChatMessage] = []
     @State private var draftMessage: String = ""
     @State private var selectedTab: InputTabSelection = .journey
@@ -97,7 +98,9 @@ struct TestMainView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
                 chatInputBar
-                tabSelectorView
+                if !isTextFieldFocused {
+                    tabSelectorView
+                }
             }
             .background(.ultraThinMaterial)
             .overlay(
@@ -174,8 +177,9 @@ extension TestMainView {
                     // Message bubble with text
                     VStack(alignment: .leading, spacing: 0) {
                         Text(message.text)
-                            .font(.system(size: 15))
-                            .foregroundColor(.white)
+                            .bodyText(size: .article0)
+                            .foregroundColor(Color("onBkgTextColor90"))
+                            // .foregroundColor(.primary)
                             .lineLimit(isExpanded.wrappedValue ? nil : 3)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
@@ -191,11 +195,11 @@ extension TestMainView {
                                 }) {
                                     HStack(spacing: 4) {
                                         Text(isExpanded.wrappedValue ? "Show less" : "Show more")
-                                            .font(.system(size: 11, weight: .medium))
+                                            .bodyText(size: .articleMinus1)
                                         Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                                            .font(.system(size: 10, weight: .semibold))
+                                            .bodyText(size: .articleMinus1)
                                     }
-                                    .foregroundColor(.white.opacity(0.9))
+                                    .foregroundColor(Color("onBkgTextColor60"))
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
                                 }
@@ -204,8 +208,8 @@ extension TestMainView {
                             }
                         }
                     }
-                    .background(message.isUser ? Color.blue : Color(.systemGray3))
-                    .cornerRadius(16)
+                    .background(message.isUser ? Color("AccentColor") : Color("buttonBkgColor90"))
+                    .cornerRadius(Spacing.current.spaceXs)
                     
                     // Dismiss button positioned at upper right corner, overlapping the border
                     Button(action: {
@@ -215,9 +219,9 @@ extension TestMainView {
                     }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(Color("onBkgTextColor90"))
                             .padding(6)
-                            .background(Color.white.opacity(0.2))
+                            .background(Color("onBkgTextColor60"))
                             .clipShape(Circle())
                     }
                     .padding(.top, -6)
@@ -584,23 +588,26 @@ struct TestInfoSheet: View {
                         ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: currentSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
                         
                         // Minimal test content
-                        VStack(alignment: .leading, spacing: 16) {
-                        Text("Journey Content")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal)
+                        VStack(alignment: .leading) {
+                        // Text("Journey Content")
+                            // .heading(size: .article2)
                         
+                        DisplayText("Journey Content", scale: .article2)
+                            .padding(.top, currentSnapPoint == .full ? Spacing.current.spaceXl : Spacing.current.spaceXs)
+                            .padding(.bottom, Spacing.current.spaceM)
+
                         Text("This is a test view for the journey bottom sheet with snapping behavior.")
-                            .padding(.horizontal)
+                            .bodyText()
                         
                         ForEach(0..<20, id: \.self) { index in
                             Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
-                                .padding(.horizontal)
+                                .bodyText(size: .article0)
                         }
                         }
                         // .background(Color.red.opacity(0.3))
                         // .background(Color)
                         .frame(maxWidth: .infinity)
+                        .padding(.horizontal, Spacing.current.spaceS)
                         .padding(.bottom, 100)
                     }
                 }
@@ -645,7 +652,7 @@ struct TestInfoSheet: View {
         .frame(height: fullHeight)
         .background(
             Color("AppBkgColor")
-                .cornerRadius(20)
+                .cornerRadius(Spacing.current.spaceL, corners: [.topLeft, .topRight])
                 .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
         )
         .offset(y: offsetForSnapPoint(currentSnapPoint) + dragOffset)

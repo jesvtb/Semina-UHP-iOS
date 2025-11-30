@@ -8,36 +8,6 @@ import SwiftUI
 // 4. State management for messages
 // 5. Auto-scroll to bottom on new messages
 
-// MARK: - Simple Chat Message Model (minimal version)
-struct SimpleChatMessage: Identifiable {
-  let id = UUID()
-  let text: String
-  let isUser: Bool
-}
-
-// MARK: - Chat Bubble View
-struct ChatBubble: View {
-  let message: SimpleChatMessage
-  
-  var body: some View {
-    HStack {
-      if message.isUser {
-        Spacer()
-      }
-      
-      Text(message.text)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(message.isUser ? Color.blue : Color(.systemGray5))
-        .foregroundColor(message.isUser ? .white : .primary)
-        .cornerRadius(16)
-      
-      if !message.isUser {
-        Spacer()
-      }
-    }
-  }
-}
 
 
 // MARK: - Chat Input Bar Component
@@ -436,11 +406,11 @@ struct PreviewMockBkg: View {
 
 #Preview("Chat with Messages") {
   ChatSheetPreviewContainer(chatMessages: [
-    ChatMessage(text: "What's the history of this place?", isUser: true, isStreaming: false),
-    ChatMessage(text: "This location has a rich history dating back to the 18th century. It was originally built as a trading post and later became a significant cultural center.", isUser: false, isStreaming: false),
-    ChatMessage(text: "Can you tell me more about the architecture?", isUser: true, isStreaming: false),
-    ChatMessage(text: "The architecture reflects a blend of colonial and local styles. The main building features distinctive columns and a symmetrical design typical of that era.", isUser: false, isStreaming: false),
-    ChatMessage(text: "What are the best times to visit?", isUser: true, isStreaming: false),
-    ChatMessage(text: "Early morning or late afternoon are ideal times to visit, as the lighting is perfect for photography and the crowds are smaller.", isUser: false, isStreaming: false)
+    ChatMessage(id: UUID(), text: "What's the history of this place?", isUser: true, isStreaming: false),
+    ChatMessage(id: UUID(), text: "This location has a rich history dating back to the 18th century. It was originally built as a trading post and later became a significant cultural center.", isUser: false, isStreaming: false),
+    ChatMessage(id: UUID(), text: "Can you tell me more about the architecture?", isUser: true, isStreaming: false),
+    ChatMessage(id: UUID(), text: "The architecture reflects a blend of colonial and local styles. The main building features distinctive columns and a symmetrical design typical of that era.", isUser: false, isStreaming: false),
+    ChatMessage(id: UUID(), text: "What are the best times to visit?", isUser: true, isStreaming: false),
+    ChatMessage(id: UUID(), text: "Early morning or late afternoon are ideal times to visit, as the lighting is perfect for photography and the crowds are smaller.", isUser: false, isStreaming: false)
   ])
 }

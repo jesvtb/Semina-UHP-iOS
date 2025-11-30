@@ -31,6 +31,7 @@ struct unheardpathApp: App {
                 .environmentObject(apiClient) // Pass shared API service to all views
                 .environmentObject(locationManager) // Pass location manager to all views
                 .environmentObject(uhpGateway) // Pass UHP Gateway to all views
+                .withScaledSpacing() // Inject scaled spacing values into environment
                 .onOpenURL { url in
                     Task {
                         do {

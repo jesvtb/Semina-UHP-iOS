@@ -12,10 +12,8 @@ import CoreGraphics
 // MARK: - Font Family Names
 /// Centralized font family constants (PostScript names)
 enum FontFamily {
-    // Source Serif 4 Display
-    static let serifDisplaySemibold = "SourceSerif4Display-Semibold"
-    
     // Source Serif 4
+    static let serifDisplay = "SourceSerif4Display-Semibold"
     static let serifRegular = "SourceSerif4-Regular"
     static let serifItalic = "SourceSerif4Subhead-It"
     
@@ -58,7 +56,7 @@ enum TypographyScale {
     
     /// Base size for the scale at default text size (18pt = article0)
     /// This is the reference size - all other sizes are calculated from this using ratios
-    static let defaultBaseSize: CGFloat = 18.0
+    static let defaultBaseSize: CGFloat = 16.0
     
     /// Calculates the scaled size based on a base size and this scale's ratio
     /// Usage: TypographyScale.article6.scaledSize(from: baseSize)
@@ -156,7 +154,7 @@ struct TitleStyle: ViewModifier {
         let lineSpacing = -(fontSize * 0.2)
         
         return content
-            .font(Font.custom(FontFamily.serifDisplaySemibold, size: fontSize))
+            .font(Font.custom(FontFamily.serifDisplay, size: fontSize))
             .lineSpacing(lineSpacing)
     }
 }
@@ -359,7 +357,7 @@ private struct DisplayTextLabel: UIViewRepresentable {
         let fontSize = scale.scaledSize(from: baseSize)
         
         // Create font
-        let font = UIFont(name: FontFamily.serifDisplaySemibold, size: fontSize) ?? 
+        let font = UIFont(name: FontFamily.serifDisplay, size: fontSize) ?? 
                    UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         label.font = font
         
