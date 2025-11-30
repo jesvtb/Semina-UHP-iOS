@@ -35,6 +35,9 @@ struct TestMainView: View {
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
     @FocusState private var isTextFieldFocused: Bool
+    
+    // Sheet snap point control - universal binding for bidirectional control
+    @State private var sheetSnapPoint: TestInfoSheet.SnapPoint = .partial
     private let tabs: [(name: String, selectedIcon: String, unselectedIcon: String)] = [
         ("Journey", "signpost.right.and.left.fill", "signpost.right.and.left"),
         ("Locate", "mappin.circle.fill", "mappin.and.ellipse"),
@@ -90,7 +93,8 @@ struct TestMainView: View {
                         selectedTab: $selectedTab,
                         shouldHideTabBar: $shouldHideTabBar,
                         sheetFullHeight: sheetFullHeight,
-                        bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight
+                        bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight,
+                        sheetSnapPoint: $sheetSnapPoint
                     )
                         .position(
                             x: geometry.size.width / 2,
@@ -560,6 +564,7 @@ struct TestInfoSheet: View {
     @Binding var shouldHideTabBar: Bool
     let sheetFullHeight: CGFloat
     let bottomSafeAreaInsetHeight: CGFloat
+    @Binding var sheetSnapPoint: SnapPoint
     
     // Snap points - visible heights
     private var fullHeight: CGFloat {
@@ -567,7 +572,6 @@ struct TestInfoSheet: View {
     }
     
     @State private var dragOffset: CGFloat = 0
-    @State private var currentSnapPoint: SnapPoint = .partial
     @State private var scrollViewContentOffset: CGFloat = 0
     
     // Offset adjustment for sheet positioning (bottom safe area + optional padding)
@@ -606,7 +610,7 @@ struct TestInfoSheet: View {
             
             // Hide tab bar when scrolled down significantly
             let isScrolledDown = offset < hideTabBarThreshold
-            let shouldHide = currentSnapPoint == .full && isScrolledDown
+            let shouldHide = sheetSnapPoint == .full && isScrolledDown
             
             withAnimation(.easeInOut(duration: 0.2)) {
                 shouldHideTabBar = shouldHide
@@ -623,7 +627,7 @@ struct TestInfoSheet: View {
         // let isAtTop = scrollViewContentOffset >= 0 && scrollViewContentOffset <= 0.5
         let isAtTop = scrollViewContentOffset >= 0 
         #if DEBUG
-        if currentSnapPoint == .full && abs(scrollViewContentOffset) > 0.1 {
+        if sheetSnapPoint == .full && abs(scrollViewContentOffset) > 0.1 {
             print("🔍 isScrollAtTop check: offset=\(String(format: "%.2f", scrollViewContentOffset)), isAtTop=\(isAtTop)")
         }
         #endif
@@ -645,7 +649,7 @@ struct TestInfoSheet: View {
                     VStack(spacing: 0) {
                         // Scroll offset tracker with visual top edge marker
                         // This must be at the very top of the scroll content
-                        ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: currentSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
+                        ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: sheetSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
                         
                         // Minimal test content
                         VStack(alignment: .leading) {
@@ -653,7 +657,7 @@ struct TestInfoSheet: View {
                             // .heading(size: .article2)
                         
                         DisplayText("Journey Content", scale: .article2)
-                            .padding(.top, currentSnapPoint == .full ? Spacing.current.spaceXl : Spacing.current.spaceXs)
+                            .padding(.top, sheetSnapPoint == .full ? Spacing.current.spaceXl : Spacing.current.spaceXs)
                             .padding(.bottom, Spacing.current.spaceM)
 
                         Text("This is a test view for the journey bottom sheet with snapping behavior.")
@@ -672,12 +676,12 @@ struct TestInfoSheet: View {
                     }
                 }
                 .coordinateSpace(name: "scroll")
-                .scrollDisabled(currentSnapPoint != .full || (currentSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
+                .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
                 .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         // Only allow drag to collapse when at full AND scroll is exactly at top
-                        if currentSnapPoint == .full && value.translation.height > 0 {
+                        if sheetSnapPoint == .full && value.translation.height > 0 {
                             guard isScrollAtTop else {
                                 dragOffset = 0
                                 return
@@ -687,13 +691,13 @@ struct TestInfoSheet: View {
                     }
                     .onEnded { value in
                         // Handle swipe from .full to .collapsed (only if scroll is at top)
-                        if currentSnapPoint == .full && value.translation.height > 0 {
+                        if sheetSnapPoint == .full && value.translation.height > 0 {
                             guard isScrollAtTop else {
                                 dragOffset = 0
                                 return
                             }
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                currentSnapPoint = .collapsed
+                                sheetSnapPoint = .collapsed
                                 dragOffset = 0
                             }
                         }
@@ -705,7 +709,7 @@ struct TestInfoSheet: View {
             // DebugInfoView(
             //     scrollOffset: scrollViewContentOffset,
             //     isScrollAtTop: isScrollAtTop,
-            //     currentSnapPoint: currentSnapPoint
+            //     currentSnapPoint: sheetSnapPoint
             // )
         }
         .frame(width: UIScreen.main.bounds.width)
@@ -715,13 +719,13 @@ struct TestInfoSheet: View {
                 .cornerRadius(Spacing.current.spaceL, corners: [.topLeft, .topRight])
                 .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
         )
-        .offset(y: offsetForSnapPoint(currentSnapPoint) + dragOffset)
+        .offset(y: offsetForSnapPoint(sheetSnapPoint) + dragOffset)
         .opacity(selectedTab == .journey ? 1 : 0)
         .ignoresSafeArea(edges: .bottom) // Extend to bottom of screen
         .gesture(
             DragGesture()
                 .onChanged { value in
-                    if currentSnapPoint == .full {
+                    if sheetSnapPoint == .full {
                         // Don't handle upward drags when at full - let content scroll
                         if value.translation.height <= 0 {
                             return
@@ -745,13 +749,13 @@ struct TestInfoSheet: View {
                 }
                 .onEnded { value in
                     // Handle swipe from .full to .collapsed (only if scroll is at top)
-                    if currentSnapPoint == .full && value.translation.height > 0 {
+                    if sheetSnapPoint == .full && value.translation.height > 0 {
                         guard isScrollAtTop else {
                             dragOffset = 0
                             return
                         }
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            currentSnapPoint = .collapsed
+                            sheetSnapPoint = .collapsed
                             dragOffset = 0
                         }
                         return
@@ -763,9 +767,9 @@ struct TestInfoSheet: View {
                     )
                     
                     // Only update if snap point changed
-                    if newSnapPoint != currentSnapPoint {
+                    if newSnapPoint != sheetSnapPoint {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            currentSnapPoint = newSnapPoint
+                            sheetSnapPoint = newSnapPoint
                             dragOffset = 0
                         }
                     } else {
@@ -774,22 +778,24 @@ struct TestInfoSheet: View {
                 }
         )
         .onAppear {
-            currentSnapPoint = .partial
+            withAnimation(.easeOut(duration: 0.2)) {
+                sheetSnapPoint = .partial
+            }
         }
         .onChange(of: selectedTab) { newTab in
             if newTab == .journey {
                 withAnimation(.easeOut(duration: 0.2)) {
-                    currentSnapPoint = .partial
+                    sheetSnapPoint = .partial
                 }
             } else {
                 withAnimation(.easeOut(duration: 0.2)) {
-                    currentSnapPoint = .collapsed
+                    sheetSnapPoint = .collapsed
                 }
                 // Reset tab bar visibility when leaving journey tab
                 shouldHideTabBar = false
             }
         }
-        .onChange(of: currentSnapPoint) { newSnapPoint in
+        .onChange(of: sheetSnapPoint) { newSnapPoint in
             // Show tab bar when not at full snap point
             if newSnapPoint != .full {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -802,7 +808,7 @@ struct TestInfoSheet: View {
     private func determineSnapPoint(dragDistance: CGFloat) -> SnapPoint {
         // Swipe down (positive dragDistance)
         if dragDistance > 0 {
-            switch currentSnapPoint {
+            switch sheetSnapPoint {
             case .partial: return .collapsed
             case .full: return .collapsed  // Only if scroll is at top (checked in caller)
             case .collapsed: return .collapsed
@@ -811,7 +817,7 @@ struct TestInfoSheet: View {
         
         // Swipe up (negative dragDistance)
         if dragDistance < 0 {
-            switch currentSnapPoint {
+            switch sheetSnapPoint {
             case .partial: return .full
             case .collapsed: return .partial
             case .full: return .full
@@ -819,7 +825,7 @@ struct TestInfoSheet: View {
         }
         
         // No drag: stay at current
-        return currentSnapPoint
+        return sheetSnapPoint
     }
 }
 
@@ -1213,6 +1219,9 @@ extension TestMainView {
     case "map":
       await handleMapEvent()
       
+    case "interface":
+      await handleInterfaceEvent(event: event)
+      
     default:
       #if DEBUG
       print("⚠️ Unknown or unsupported event type: \(event.event ?? "nil")")
@@ -1383,6 +1392,50 @@ extension TestMainView {
           shouldDismissKeyboard = false
         }
       }
+    }
+  }
+  
+  /// Handles `interface` SSE events by controlling UI elements like the info sheet.
+  /// If message is "show info sheet", sets sheetSnapPoint to .full.
+  func handleInterfaceEvent(event: SSEEvent) async {
+    #if DEBUG
+    print("🖥️ Processing interface event")
+    #endif
+    
+    do {
+      guard let dataDict = try event.parseJSONData() else {
+        #if DEBUG
+        print("⚠️ Failed to parse interface data as JSON")
+        #endif
+        return
+      }
+      
+      guard let message = dataDict["message"] as? String else {
+        #if DEBUG
+        print("⚠️ Interface event payload missing 'message' field")
+        #endif
+        return
+      }
+      
+      #if DEBUG
+      print("🖥️ Interface message received: '\(message)'")
+      #endif
+      
+      await MainActor.run {
+        if message.lowercased() == "show info sheet" {
+          #if DEBUG
+          print("📋 Setting sheetSnapPoint to .full")
+          #endif
+          
+          withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            sheetSnapPoint = .full
+          }
+        }
+      }
+    } catch {
+      #if DEBUG
+      print("❌ Error handling interface event: \(error)")
+      #endif
     }
   }
 }
