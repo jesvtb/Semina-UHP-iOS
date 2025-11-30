@@ -52,7 +52,7 @@ struct MessageBubble: View {
 
 // #Preview("Latest Message Bubble") {
 //     VStack {
-//         latestMsgBubble(message: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false), isExpanded: .constant(false), onDismiss: {})
+//         liveUpdateStack(message: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false), isExpanded: .constant(false), onDismiss: {})
 //     }
 //     .padding(.horizontal, Spacing.current.space2xs)
 // }

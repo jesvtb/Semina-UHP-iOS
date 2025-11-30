@@ -798,12 +798,11 @@ struct NotificationBanner: View {
       
       // Notification message
       Text(notification.message)
-        .font(.subheadline)
-        .foregroundColor(.primary)
+        // .font(.subheadline)
+        .bodyText()
+        .foregroundColor(Color("onBkgTextColor90"))
         .lineLimit(2)
         .multilineTextAlignment(.leading)
-      
-      Spacer()
     }
     .padding(.horizontal, 16)  // Inner padding: space between content and background
     .padding(.vertical, 12)     // Inner padding: space between content and background
@@ -813,14 +812,8 @@ struct NotificationBanner: View {
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
     )
-    .padding(.horizontal)       // Outer padding: margin from screen edges
-    .padding(.bottom, 8)        // Outer padding: margin from bottom
-    .contentShape(Rectangle()) // Make entire area tappable
-    .onTapGesture {
-      withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-        onDismiss?()
-      }
-    }
+    // .padding(.horizontal)       // Outer padding: margin from screen edges
+    // .padding(.bottom, 8)        // Outer padding: margin from bottom
   }
   
   var body: some View {
@@ -829,14 +822,14 @@ struct NotificationBanner: View {
       bannerContent
         .transition(.move(edge: .top).combined(with: .opacity))
         .padding(.top, 8)
-      Spacer()
+      // Spacer()
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .ignoresSafeArea(.all) // Position absolutely from screen edges, not relative to other views
-    .zIndex(zIndex)
-    .allowsHitTesting(true) // Allow interaction when notification is visible
-    .id(notification.message) // Force SwiftUI to recognize view updates
-    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: notification.message)
+    // .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    // .ignoresSafeArea(.all) // Position absolutely from screen edges, not relative to other views
+    // .zIndex(zIndex)
+    // .allowsHitTesting(true) // Allow interaction when notification is visible
+    // .id(notification.message) // Force SwiftUI to recognize view updates
+    // .animation(.spring(response: 0.3, dampingFraction: 0.8), value: notification.message)
   }
 }
 

@@ -99,12 +99,11 @@ struct TestMainView: View {
                 } 
             }
 
-                
-            
             
             if let lastMessage = lastMessage, selectedTab != .chat {
-                latestMsgBubble(
+                liveUpdateStack(
                     message: lastMessage,
+                    currentNotificationBinding: $currentNotification,
                     isExpanded: $isMessageExpanded,
                     onDismiss: {
                         self.lastMessage = nil
@@ -202,7 +201,7 @@ extension TestMainView {
 
 // MARK: - TestMainView: View Components
 extension TestMainView {
-    private func latestMsgBubble(message: ChatMessage, isExpanded: Binding<Bool>, onDismiss: @escaping () -> Void) -> some View {
+    private func liveUpdateStack(message: ChatMessage, currentNotificationBinding: Binding<NotificationData?>, isExpanded: Binding<Bool>, onDismiss: @escaping () -> Void) -> some View {
         // Helper to check if text would exceed 3 lines
         let estimatedLineCount = estimateLineCount(for: message.text, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
         let shouldShowExpandButton = estimatedLineCount > 5
@@ -210,6 +209,14 @@ extension TestMainView {
         
         return VStack {
             Spacer()
+            if let notification = currentNotificationBinding.wrappedValue {
+                ProgressNotificationBanner(
+                    notification: notification,
+                    onNotificationDismiss: {
+                        currentNotificationBinding.wrappedValue = nil
+                    }
+                )
+            }
             HStack {
                 
                 // Message bubble with text and dismiss button overlay
@@ -1261,7 +1268,7 @@ extension TestMainView {
   }
   
   /// Handles `notification` SSE events by parsing the payload and updating
-  /// `currentNotification`, including auto-dismiss behavior.
+  /// `currentNotification`. The ProgressNotificationBanner handles its own auto-dismiss.
   func handleNotificationEvent(event: SSEEvent) async {
     #if DEBUG
     print("🔔 Processing notification event")
@@ -1295,19 +1302,7 @@ extension TestMainView {
         #if DEBUG
         print("   currentNotification set. Value: \(currentNotification?.message ?? "nil")")
         #endif
-        
-        // Auto-dismiss after 5 seconds
-        Task {
-          try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
-          await MainActor.run {
-            #if DEBUG
-            print("   Auto-dismissing notification after 5 seconds")
-            #endif
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-              currentNotification = nil
-            }
-          }
-        }
+        // Note: ProgressNotificationBanner handles its own auto-dismiss
       }
     } catch {
       #if DEBUG
@@ -1390,6 +1385,94 @@ extension TestMainView {
       }
     }
   }
+}
+
+// MARK: - Progress Notification Banner Component
+/// A notification banner specifically for progress-related notifications in liveUpdateStack.
+/// Auto-dismisses after 4 seconds. When a new notification arrives, SwiftUI automatically
+/// removes this banner (onDisappear cancels the dismiss task).
+/// Uses `onNotificationDismiss` (separate from the message bubble's `onDismiss`).
+struct ProgressNotificationBanner: View {
+    let notification: NotificationData
+    let onNotificationDismiss: () -> Void
+    @State private var dismissTask: Task<Void, Never>?
+    
+    /// Maps notification type to SF Symbol icon name
+    private var iconName: String {
+        guard let type = notification.type else {
+            return "bell.fill" // Default icon for null type
+        }
+        
+        switch type.lowercased() {
+        case "info", "information":
+            return "info.circle.fill"
+        case "search", "search web":
+            return "magnifyingglass"
+        case "success", "completed":
+            return "checkmark.circle.fill"
+        case "warning", "alert":
+            return "exclamationmark.triangle.fill"
+        case "error", "failure":
+            return "xmark.circle.fill"
+        case "location", "gps":
+            return "location.fill"
+        case "journey", "trip":
+            return "signpost.right.and.left.fill"
+        case "message", "chat":
+            return "message.fill"
+        case "update", "refresh":
+            return "arrow.clockwise.circle.fill"
+        default:
+            return "bell.fill" // Default icon for unknown types
+        }
+    }
+    
+    // The banner content itself
+    private var bannerContent: some View {
+        HStack(spacing: 12) {
+            // Icon placeholder
+            Image(systemName: iconName)
+                .font(.title3)
+                .foregroundColor(.primary)
+                .frame(width: 24, height: 24)
+            
+            // Notification message
+            Text(notification.message)
+                .bodyText()
+                .foregroundColor(Color("onBkgTextColor90"))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(.horizontal, 16)  // Inner padding: space between content and background
+        .padding(.vertical, 12)     // Inner padding: space between content and background
+        .background(
+            Color(.systemBackground)
+                .opacity(0.95)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+        )
+    }
+    
+    var body: some View {
+        bannerContent
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .onAppear {
+                // Start auto-dismiss timer
+                dismissTask = Task {
+                    try? await Task.sleep(nanoseconds: 4_000_000_000) // 4 seconds
+                    await MainActor.run {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            onNotificationDismiss()
+                        }
+                    }
+                }
+            }
+            .onDisappear {
+                // Cancel dismiss task when view disappears (e.g., when new notification arrives)
+                // SwiftUI automatically calls this when currentNotification changes
+                dismissTask?.cancel()
+            }
+    }
 }
 
 // MARK: - Debug Info View
