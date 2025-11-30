@@ -12,11 +12,17 @@ struct TestMainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var locationManager: LocationManager
     
+    // Preview values for preview purposes
+    private let previewTab: InputTabSelection?
+    private let previewMessages: [ChatMessage]?
+    private let previewGeoJSONData: [String: Any]?
+    private let previewLastMessage: ChatMessage?
+    private let previewCurrentNotification: NotificationData?
     
     @State private var messages: [ChatMessage] = []
     @State private var draftMessage: String = ""
+    @State private var inputLocation: String = ""
     @State private var selectedTab: InputTabSelection = .journey
-    @FocusState private var isTextFieldFocused: Bool
     @State private var geoJSONData: [String: Any]?
     @State private var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
@@ -28,12 +34,27 @@ struct TestMainView: View {
     // Location-related state
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
+    @FocusState private var isTextFieldFocused: Bool
     private let tabs: [(name: String, selectedIcon: String, unselectedIcon: String)] = [
         ("Journey", "signpost.right.and.left.fill", "signpost.right.and.left"),
-        ("Map", "map.fill", "map"),
+        ("Locate", "mappin.circle.fill", "mappin.and.ellipse"),
         ("Ask", "questionmark.bubble.fill", "questionmark.bubble"),
         ("You", "person.fill", "person")
     ]
+    
+    init(
+        previewTab: InputTabSelection? = nil,
+        previewMessages: [ChatMessage]? = nil,
+        previewGeoJSONData: [String: Any]? = nil,
+        previewLastMessage: ChatMessage? = nil,
+        previewCurrentNotification: NotificationData? = nil
+    ) {
+        self.previewTab = previewTab
+        self.previewMessages = previewMessages
+        self.previewGeoJSONData = previewGeoJSONData
+        self.previewLastMessage = previewLastMessage
+        self.previewCurrentNotification = previewCurrentNotification
+    }
 
     var body: some View {
         ZStack {
@@ -127,6 +148,24 @@ struct TestMainView: View {
             }
         }
         .task { @MainActor in
+            // Set preview values if provided (for preview purposes)
+            if let previewTab = previewTab {
+                selectedTab = previewTab
+            }
+            if let previewMessages = previewMessages {
+                messages = previewMessages
+            }
+            if let previewGeoJSONData = previewGeoJSONData {
+                geoJSONData = previewGeoJSONData
+                geoJSONUpdateTrigger = UUID()
+            }
+            if let previewLastMessage = previewLastMessage {
+                lastMessage = previewLastMessage
+            }
+            if let previewCurrentNotification = previewCurrentNotification {
+                currentNotification = previewCurrentNotification
+            }
+            
             // Initial load: If location is already available, call immediately (first time)
             // Otherwise, wait for onChange to trigger when location is captured
             // Use a small delay to avoid race condition with onChange
@@ -166,7 +205,8 @@ extension TestMainView {
     private func latestMsgBubble(message: ChatMessage, isExpanded: Binding<Bool>, onDismiss: @escaping () -> Void) -> some View {
         // Helper to check if text would exceed 3 lines
         let estimatedLineCount = estimateLineCount(for: message.text, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
-        let shouldShowExpandButton = estimatedLineCount > 3
+        let shouldShowExpandButton = estimatedLineCount > 5
+        let bkgColor = message.isUser ? Color("AccentColor") : Color("AppBkgColor")
         
         return VStack {
             Spacer()
@@ -177,12 +217,14 @@ extension TestMainView {
                     // Message bubble with text
                     VStack(alignment: .leading, spacing: 0) {
                         Text(message.text)
-                            .bodyText(size: .article0)
-                            .foregroundColor(Color("onBkgTextColor90"))
-                            // .foregroundColor(.primary)
-                            .lineLimit(isExpanded.wrappedValue ? nil : 3)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
+                            .bodyText()
+                            .padding(.horizontal, Spacing.current.spaceXs)
+                            .padding(.vertical, Spacing.current.space2xs)
+                            .foregroundColor(Color.white)
+                            .background(bkgColor)
+                            .cornerRadius(Spacing.current.spaceS)
+                            .lineLimit(isExpanded.wrappedValue ? nil : 5)
+                            
                         
                         // Expand/Collapse button - only show if text is longer than 3 lines
                         if shouldShowExpandButton {
@@ -200,15 +242,17 @@ extension TestMainView {
                                             .bodyText(size: .articleMinus1)
                                     }
                                     .foregroundColor(Color("onBkgTextColor60"))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
+                                    
+                                    .padding(.horizontal, Spacing.current.space2xs)
+                                    .padding(.vertical, Spacing.current.space3xs)
                                 }
-                                .padding(.trailing, 12)
-                                .padding(.bottom, 4)
+                                .padding(.trailing, Spacing.current.space2xs)
+                                .padding(.bottom, Spacing.current.space3xs)
                             }
                         }
                     }
-                    .background(message.isUser ? Color("AccentColor") : Color("buttonBkgColor90"))
+                    .background(bkgColor)
+                    // .shadow(color: Color("onBkgTextColor60").opacity(0.2), radius: 2, x: 0, y: 2)
                     .cornerRadius(Spacing.current.spaceXs)
                     
                     // Dismiss button positioned at upper right corner, overlapping the border
@@ -218,17 +262,16 @@ extension TestMainView {
                         }
                     }) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(Color("onBkgTextColor90"))
-                            .padding(6)
-                            .background(Color("onBkgTextColor60"))
+                            .bodyText(size: .articleMinus1)
+                            .foregroundColor(Color.white)
+                            .padding(Spacing.current.space3xs)
+                            .background(bkgColor)
                             .clipShape(Circle())
                     }
                     .padding(.top, -6)
                     .padding(.trailing, -6)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+                .padding(.horizontal, Spacing.current.spaceXs)
                 Spacer()
             }
         }
@@ -266,32 +309,42 @@ extension TestMainView {
                 )
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, Spacing.current.space2xs)
         .background(Color("AppBkgColor"))
     }
     
     private var chatInputBar: some View {
-        HStack(spacing: 8) {
-            TextField("Ask any thing...", text: $draftMessage, axis: .vertical)
-                .textFieldStyle(.plain)
+        HStack(spacing: Spacing.current.spaceXs) {
+            TextField(
+                selectedTab == .map ? "Find any place..." : "Ask any thing...",
+                text: selectedTab == .map ? $inputLocation : $draftMessage,
+                axis: .vertical
+            )
+                .bodyText()
                 .focused($isTextFieldFocused)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(20)
+                .padding(.horizontal, Spacing.current.spaceXs)
+                .padding(.vertical, Spacing.current.space2xs)
+                .background(Color("AppBkgColor"))
+                .cornerRadius(Spacing.current.spaceXs)
 
+            if selectedTab != .chat {
+                Button(action: {
+                    selectedTab = .chat
+                }) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .bodyText(size: .article0)
+                        .foregroundColor(Color.white)
+                }
+            }
             Button(action: sendMessage) {
-                Image(systemName: "paperplane.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(10)
-                    .background(draftMessage.isEmpty ? Color.gray.opacity(0.4) : Color.accentColor)
-                    .clipShape(Circle())
+                Image(systemName: "arrow.up.circle.fill")
+                    .bodyText(size: .article2)
+                    .foregroundColor(draftMessage.isEmpty ? Color.gray.opacity(0.4) : Color.white)
             }
             .disabled(draftMessage.isEmpty)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.current.spaceXs)
+        .padding(.vertical, Spacing.current.space2xs)
         .background(
             Color("AppBkgColor")
                 // .opacity(0.9)
@@ -1396,3 +1449,21 @@ struct DebugInfoView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+#Preview("Map Tab with last user message") {
+    TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
+        .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
+        .environmentObject(APIClient())
+        .environmentObject(UHPGateway())
+        .environmentObject(LocationManager())
+}
+
+#Preview("Map Tab with last assistant message") {
+    TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
+        .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
+        .environmentObject(APIClient())
+        .environmentObject(UHPGateway())
+        .environmentObject(LocationManager())
+}
+
+

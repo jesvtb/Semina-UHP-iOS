@@ -56,7 +56,7 @@ enum TypographyScale {
     
     /// Base size for the scale at default text size (18pt = article0)
     /// This is the reference size - all other sizes are calculated from this using ratios
-    static let defaultBaseSize: CGFloat = 16.0
+    static let defaultBaseSize: CGFloat = 17.0
     
     /// Calculates the scaled size based on a base size and this scale's ratio
     /// Usage: TypographyScale.article6.scaledSize(from: baseSize)

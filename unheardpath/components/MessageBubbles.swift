@@ -18,8 +18,8 @@ struct MessageBubble: View {
                 .bodyText()
                 .padding(.horizontal, Spacing.current.spaceXs)
                 .padding(.vertical, Spacing.current.space2xs)
-                .foregroundColor(Color("AppBkgColor"))
-                .background(message.isUser ? Color("AccentColor") : Color("buttonBkgColor90"))
+                .foregroundColor(message.isUser ? Color.white : Color("onBkgTextColor90"))
+                .background(message.isUser ? Color("AccentColor") : Color("AppBkgColor"))
                 .cornerRadius(Spacing.current.spaceS)
                 .frame(maxWidth: message.isUser ? messageWidth : .infinity, alignment: message.isUser ? .trailing : .leading)
             if !message.isUser {
@@ -46,5 +46,14 @@ struct MessageBubble: View {
         MessageBubble(message: ChatMessage(text: "", isUser: false, isStreaming: true))
         MessageBubble(message: ChatMessage(text: "Ridiculus tellus placerat massa euismod arcu amet mus suscipit conubia cubilia nascetur, taciti iaculis augue leo curae sagittis laoreet parturient risus orci dictumst praesent, ut felis nullam ornare aptent aenean magna tempus dolor lectus. Magna platea ac sapien nunc praesent etiam ultricies habitasse nisl habitant suscipit vulputate, sed dis lobortis diam ut cubilia blandit aptent aenean quisque placerat.", isUser: false, isStreaming: false))
     }
+    .background(Color("AppBkgColor"))
     .padding(.horizontal, Spacing.current.space2xs)
 }
+
+// #Preview("Latest Message Bubble") {
+//     VStack {
+//         latestMsgBubble(message: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false), isExpanded: .constant(false), onDismiss: {})
+//     }
+//     .padding(.horizontal, Spacing.current.space2xs)
+// }
+
