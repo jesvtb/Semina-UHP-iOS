@@ -82,7 +82,7 @@ struct TestMainView: View {
             
             if let lastMessage = lastMessage, selectedTab != .chat {
                 latestMsgBubble(
-                    message: lastMessage.text,
+                    message: lastMessage,
                     isExpanded: $isMessageExpanded,
                     onDismiss: {
                         self.lastMessage = nil
@@ -160,9 +160,9 @@ extension TestMainView {
 
 // MARK: - TestMainView: View Components
 extension TestMainView {
-    private func latestMsgBubble(message: String, isExpanded: Binding<Bool>, onDismiss: @escaping () -> Void) -> some View {
+    private func latestMsgBubble(message: ChatMessage, isExpanded: Binding<Bool>, onDismiss: @escaping () -> Void) -> some View {
         // Helper to check if text would exceed 3 lines
-        let estimatedLineCount = estimateLineCount(for: message, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
+        let estimatedLineCount = estimateLineCount(for: message.text, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
         let shouldShowExpandButton = estimatedLineCount > 3
         
         return VStack {
@@ -173,7 +173,7 @@ extension TestMainView {
                 ZStack(alignment: .topTrailing) {
                     // Message bubble with text
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(message)
+                        Text(message.text)
                             .font(.system(size: 15))
                             .foregroundColor(.white)
                             .lineLimit(isExpanded.wrappedValue ? nil : 3)
@@ -204,7 +204,7 @@ extension TestMainView {
                             }
                         }
                     }
-                    .background(Color.accentColor)
+                    .background(message.isUser ? Color.blue : Color(.systemGray3))
                     .cornerRadius(16)
                     
                     // Dismiss button positioned at upper right corner, overlapping the border
