@@ -74,22 +74,23 @@ struct TestMainView: View {
                             x: geometry.size.width / 2,
                             y: geometry.size.height - (sheetFullHeight / 2) // Dynamic: half of actual sheet height
                         )
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isTextFieldFocused = false
-                }
+                } 
             }
+
+                
             
-            if let lastMessage = lastMessage, selectedTab != .chat, shouldHideTabBar == false {
-                latestMsgBubble(message: lastMessage.text, isExpanded: $isMessageExpanded, onDismiss: {
-                    self.lastMessage = nil
-                    self.isMessageExpanded = false
-                })
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        isTextFieldFocused = false
+            
+            if let lastMessage = lastMessage, selectedTab != .chat {
+                latestMsgBubble(
+                    message: lastMessage.text,
+                    isExpanded: $isMessageExpanded,
+                    onDismiss: {
+                        self.lastMessage = nil
+                        self.isMessageExpanded = false
                     }
+                )
+                .opacity(shouldHideTabBar ? 0 : 1)
+                .allowsHitTesting(!shouldHideTabBar)
             }
         }
         // Input bar pinned to bottom; moves with keyboard
@@ -166,61 +167,64 @@ extension TestMainView {
         
         return VStack {
             Spacer()
-            HStack(alignment: .top, spacing: 8) {
-                // Message bubble with text
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(message)
-                        .font(.system(size: 15))
-                        .foregroundColor(.white)
-                        .lineLimit(isExpanded.wrappedValue ? nil : 3)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                    
-                    // Expand/Collapse button - only show if text is longer than 3 lines
-                    if shouldShowExpandButton {
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    isExpanded.wrappedValue.toggle()
+            HStack {
+                
+                // Message bubble with text and dismiss button overlay
+                ZStack(alignment: .topTrailing) {
+                    // Message bubble with text
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(message)
+                            .font(.system(size: 15))
+                            .foregroundColor(.white)
+                            .lineLimit(isExpanded.wrappedValue ? nil : 3)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                        
+                        // Expand/Collapse button - only show if text is longer than 3 lines
+                        if shouldShowExpandButton {
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        isExpanded.wrappedValue.toggle()
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Text(isExpanded.wrappedValue ? "Show less" : "Show more")
+                                            .font(.system(size: 11, weight: .medium))
+                                        Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
+                                            .font(.system(size: 10, weight: .semibold))
+                                    }
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
                                 }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Text(isExpanded.wrappedValue ? "Show less" : "Show more")
-                                        .font(.system(size: 11, weight: .medium))
-                                    Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                                        .font(.system(size: 10, weight: .semibold))
-                                }
-                                .foregroundColor(.white.opacity(0.9))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
+                                .padding(.trailing, 12)
+                                .padding(.bottom, 4)
                             }
-                            .padding(.trailing, 12)
-                            .padding(.bottom, 4)
                         }
                     }
+                    .background(Color.accentColor)
+                    .cornerRadius(16)
+                    
+                    // Dismiss button positioned at upper right corner, overlapping the border
+                    Button(action: {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            onDismiss()
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(6)
+                            .background(Color.white.opacity(0.2))
+                            .clipShape(Circle())
+                    }
+                    .padding(.top, -6)
+                    .padding(.trailing, -6)
                 }
-                .background(Color.accentColor)
-                .cornerRadius(16)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
-                
-                // Dismiss button
-                Button(action: {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        onDismiss()
-                    }
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(6)
-                        .background(Color.white.opacity(0.2))
-                        .clipShape(Circle())
-                }
-                .padding(.trailing, 16)
-                .padding(.bottom, 8)
-                
                 Spacer()
             }
         }
