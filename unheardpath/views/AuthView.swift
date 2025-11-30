@@ -106,7 +106,7 @@ struct AuthView: View {
           .renderingMode(.template)
           .resizable()
           .aspectRatio(contentMode: .fit)
-          .foregroundColor(Color("onBkgTextColor90")) // Light teal
+          .foregroundColor(Color("onBkgTextColor20")) // Light teal
           .frame(height: 48)
           .padding(.top)
         
@@ -124,10 +124,10 @@ struct AuthView: View {
           
           // Headline and subscription information
           VStack() {
-            DisplayText("Enrich Your Travel Experiences", color: Color("onBkgTextColor80"))
+            DisplayText("Enrich Your Travel Experiences", color: Color("onBkgTextColor20"))
               .padding(.bottom, 16)       
             
-            Text("Unheard Path is a membership service with a one week free trial.").bodyParagraph(color: Color("onBkgTextColor60"))
+            Text("Unheard Path is a membership service with a one week free trial.").bodyParagraph(color: Color("onBkgTextColor30"))
           }
           .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -175,7 +175,7 @@ struct AuthView: View {
             Button(action: {
               showEmailSignUp = true
             }) {
-              Text("Sign up with email").bodyParagraph(color: Color("onBkgTextColor60"), alignment: .center)
+              Text("Sign up with email").bodyParagraph(color: Color("onBkgTextColor30"), alignment: .center)
             }
             .padding(.top, 8)
           }

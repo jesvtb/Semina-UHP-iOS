@@ -800,7 +800,7 @@ struct NotificationBanner: View {
       Text(notification.message)
         // .font(.subheadline)
         .bodyText()
-        .foregroundColor(Color("onBkgTextColor90"))
+        .foregroundColor(Color("onBkgTextColor20"))
         .lineLimit(2)
         .multilineTextAlignment(.leading)
     }

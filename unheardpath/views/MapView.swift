@@ -202,7 +202,7 @@ struct MapboxMapView: View {
                                 selectedFeature = nil
                             }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(Color("onBkgTextColor30"))
                             }
                         }
                         
@@ -232,7 +232,7 @@ struct MapboxMapView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color("onBkgTextColor10"))
                     .cornerRadius(12)
                     .shadow(radius: 10)
                     .padding(.horizontal)

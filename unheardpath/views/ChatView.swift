@@ -302,10 +302,10 @@ struct ChatModalToolbar: ToolbarContent {
       HStack(spacing: 4) {
         Image(systemName: "bubble.left.and.bubble.right")
           .font(.subheadline)
-          .foregroundColor(Color("onBkgTextColor90"))
+          .foregroundColor(Color("onBkgTextColor20"))
         Text("Ask")
           .font(.subheadline)
-          .foregroundColor(Color("onBkgTextColor90"))
+          .foregroundColor(Color("onBkgTextColor20"))
       }
     }
     
@@ -314,11 +314,11 @@ struct ChatModalToolbar: ToolbarContent {
         Text("Done")
           .font(.subheadline)
           .fontWeight(.medium)
-          .foregroundColor(Color("onBkgTextColor90"))
+          .foregroundColor(Color("onBkgTextColor20"))
           .padding(.horizontal, 10)
           .padding(.vertical, 4)
           .background(
-            Color("onBkgTextColor90")
+            Color("onBkgTextColor20")
               .opacity(0.1)
               .cornerRadius(6)
           )

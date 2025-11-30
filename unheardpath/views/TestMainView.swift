@@ -129,7 +129,7 @@ struct TestMainView: View {
             .background(.ultraThinMaterial)
             .overlay(
                 Divider()
-                    .background(Color("onBkgTextColor60")),
+                    .background(Color("onBkgTextColor30")),
                 alignment: .top
             )
             .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
@@ -209,7 +209,7 @@ extension TestMainView {
         // Helper to check if text would exceed 3 lines
         let estimatedLineCount = estimateLineCount(for: message.text, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
         let shouldShowExpandButton = estimatedLineCount > 5
-        let bkgColor = message.isUser ? Color("AccentColor") : Color("AppBkgColor")
+        let bkgColor = message.isUser ? Color("AccentColor") : Color("onBkgTextColor30")
         
         return VStack {
             Spacer()
@@ -231,10 +231,13 @@ extension TestMainView {
                             .bodyText()
                             .padding(.horizontal, Spacing.current.spaceXs)
                             .padding(.vertical, Spacing.current.space2xs)
-                            .foregroundColor(Color.white)
+                            .foregroundColor(Color("AppBkgColor"))
                             .background(bkgColor)
                             .cornerRadius(Spacing.current.spaceS)
                             .lineLimit(isExpanded.wrappedValue ? nil : 5)
+                            
+                       
+                           
                             
                         
                         // Expand/Collapse button - only show if text is longer than 3 lines
@@ -252,7 +255,7 @@ extension TestMainView {
                                         Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
                                             .bodyText(size: .articleMinus1)
                                     }
-                                    .foregroundColor(Color("onBkgTextColor60"))
+                                    .foregroundColor(Color("onBkgTextColor10"))
                                     
                                     .padding(.horizontal, Spacing.current.space2xs)
                                     .padding(.vertical, Spacing.current.space3xs)
@@ -263,7 +266,6 @@ extension TestMainView {
                         }
                     }
                     .background(bkgColor)
-                    // .shadow(color: Color("onBkgTextColor60").opacity(0.2), radius: 2, x: 0, y: 2)
                     .cornerRadius(Spacing.current.spaceXs)
                     
                     // Dismiss button positioned at upper right corner, overlapping the border
@@ -274,18 +276,20 @@ extension TestMainView {
                     }) {
                         Image(systemName: "xmark")
                             .bodyText(size: .articleMinus1)
-                            .foregroundColor(Color.white)
-                            .padding(Spacing.current.space3xs)
+                            .foregroundColor(Color("AppBkgColor"))
+                            .padding(Spacing.current.space2xs)
                             .background(bkgColor)
                             .clipShape(Circle())
                     }
                     .padding(.top, -6)
                     .padding(.trailing, -6)
                 }
+                
                 .padding(.horizontal, Spacing.current.spaceXs)
                 Spacer()
             }
         }
+        .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 5)
         .background(Color.clear)
     }
     
@@ -344,13 +348,13 @@ extension TestMainView {
                 }) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .bodyText(size: .article0)
-                        .foregroundColor(Color.white)
+                        .foregroundColor(Color("onBkgTextColor30"))
                 }
             }
             Button(action: sendMessage) {
                 Image(systemName: "arrow.up.circle.fill")
                     .bodyText(size: .article2)
-                    .foregroundColor(draftMessage.isEmpty ? Color.gray.opacity(0.4) : Color.white)
+                    .foregroundColor(draftMessage.isEmpty ? Color("onBkgTextColor30") : Color("onBkgTextColor10"))
             }
             .disabled(draftMessage.isEmpty)
         }
@@ -638,7 +642,7 @@ struct TestInfoSheet: View {
         ZStack(alignment: .top) {
             VStack(spacing: 0) {
                 // Drag handle
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: Spacing.current.space3xs)
                     .fill(Color.secondary.opacity(0.3))
                     .frame(width: 40, height: 5)
                     .padding(.top, 12)
@@ -656,20 +660,16 @@ struct TestInfoSheet: View {
                         // Text("Journey Content")
                             // .heading(size: .article2)
                         
-                        DisplayText("Journey Content", scale: .article2)
+                        DisplayText("Journey Content", scale: .article2,  color: Color("onBkgTextColor20"))
                             .padding(.top, sheetSnapPoint == .full ? Spacing.current.spaceXl : Spacing.current.spaceXs)
                             .padding(.bottom, Spacing.current.spaceM)
-
-                        Text("This is a test view for the journey bottom sheet with snapping behavior.")
-                            .bodyText()
+                            
                         
                         ForEach(0..<20, id: \.self) { index in
                             Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
-                                .bodyText(size: .article0)
+                                .bodyParagraph(color: Color("onBkgTextColor30"))
                         }
                         }
-                        // .background(Color.red.opacity(0.3))
-                        // .background(Color)
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, Spacing.current.spaceS)
                         .padding(.bottom, 100)
@@ -716,7 +716,7 @@ struct TestInfoSheet: View {
         .frame(height: fullHeight)
         .background(
             Color("AppBkgColor")
-                .cornerRadius(Spacing.current.spaceL, corners: [.topLeft, .topRight])
+                .cornerRadius(Spacing.current.spaceM, corners: [.topLeft, .topRight])
                 .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
         )
         .offset(y: offsetForSnapPoint(sheetSnapPoint) + dragOffset)
@@ -1492,16 +1492,16 @@ struct ProgressNotificationBanner: View {
             // Notification message
             Text(notification.message)
                 .bodyText()
-                .foregroundColor(Color("onBkgTextColor90"))
+                .foregroundColor(Color("onBkgTextColor20"))
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
         }
         .padding(.horizontal, 16)  // Inner padding: space between content and background
         .padding(.vertical, 12)     // Inner padding: space between content and background
         .background(
-            Color(.systemBackground)
+            Color("AppBkgColor")
                 .opacity(0.95)
-                .cornerRadius(12)
+                .cornerRadius(Spacing.current.spaceS)
                 .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
         )
     }
@@ -1594,8 +1594,8 @@ struct DebugInfoView: View {
         .environmentObject(LocationManager())
 }
 
-#Preview("Map Tab with last assistant message") {
-    TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
+#Preview("Journey Tab with last assistant message") {
+    TestMainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
         .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
         .environmentObject(APIClient())
         .environmentObject(UHPGateway())

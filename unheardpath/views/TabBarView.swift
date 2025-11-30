@@ -53,7 +53,7 @@ struct TabBarButton: View {
   let action: () -> Void
   
   private var foregroundColor: Color {
-    isSelected ? Color("onBkgTextColor90") : Color("onBkgTextColor60")
+    isSelected ? Color("onBkgTextColor10") : Color("onBkgTextColor30")
   }
   
   var body: some View {

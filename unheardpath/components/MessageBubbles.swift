@@ -18,8 +18,8 @@ struct MessageBubble: View {
                 .bodyText()
                 .padding(.horizontal, Spacing.current.spaceXs)
                 .padding(.vertical, Spacing.current.space2xs)
-                .foregroundColor(message.isUser ? Color.white : Color("onBkgTextColor90"))
-                .background(message.isUser ? Color("AccentColor") : Color("AppBkgColor"))
+                .foregroundColor(message.isUser ? Color("AppBkgColor") : Color("onBkgTextColor20"))
+                .background(message.isUser ? Color("onBkgTextColor30") : Color("AppBkgColor"))
                 .cornerRadius(Spacing.current.spaceS)
                 .frame(maxWidth: message.isUser ? messageWidth : .infinity, alignment: message.isUser ? .trailing : .leading)
             if !message.isUser {
