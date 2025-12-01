@@ -49,7 +49,11 @@ struct MainView: View {
   var body: some View {
     ZStack(alignment: .bottom) {
       // Full screen map as base
-      MapboxMapView(geoJSONData: $geoJSONData, geoJSONUpdateTrigger: $geoJSONUpdateTrigger)
+      MapboxMapView(
+        geoJSONData: $geoJSONData,
+        geoJSONUpdateTrigger: $geoJSONUpdateTrigger,
+        targetCameraLocation: .constant(nil)
+      )
         .ignoresSafeArea(.all)
       
       // Location Bottom Sheet - positioned at bottom

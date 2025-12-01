@@ -41,7 +41,8 @@ struct TestMainView: View {
     @State private var searchCompleter = MKLocalSearchCompleter()
     @State private var autocompleteResults: [MKLocalSearchCompletion] = []
     @State private var searchCompleterDelegate: SearchCompleterDelegate?
-    @State private var shouldSearchAround: Bool = true
+    @State private var shouldSearchAround: Bool = false
+    @State private var targetCameraLocation: CLLocation?
     
     // Sheet snap point control - universal binding for bidirectional control
     @State private var sheetSnapPoint: TestInfoSheet.SnapPoint = .partial
@@ -73,7 +74,11 @@ struct TestMainView: View {
             //     .ignoresSafeArea(.container)
             //     .ignoresSafeArea(.keyboard)
 
-            MapboxMapView(geoJSONData: $geoJSONData, geoJSONUpdateTrigger: $geoJSONUpdateTrigger)
+            MapboxMapView(
+                geoJSONData: $geoJSONData,
+                geoJSONUpdateTrigger: $geoJSONUpdateTrigger,
+                targetCameraLocation: $targetCameraLocation
+            )
                 .ignoresSafeArea(.container)
                 .ignoresSafeArea(.keyboard)
                 .contentShape(Rectangle())
@@ -380,10 +385,15 @@ extension TestMainView {
                     let isMostRelevant = index == lastIndex
                     
                     Button(action: {
-                        // Handle selection - could geocode and update map
+                        // Handle selection - geocode and update map
                         inputLocation = result.title
                         autocompleteResults = []
                         isTextFieldFocused = false
+                        
+                        // Geocode the selected location and fly to it
+                        Task {
+                            await geocodeAndFlyToLocation(completion: result)
+                        }
                     }) {
                         HStack(alignment: .top, spacing: Spacing.current.spaceXs) {
                             Image(systemName: "mappin.circle.fill")
@@ -1130,6 +1140,37 @@ extension TestMainView {
             autocompleteResults = []
         } else {
             searchCompleter.queryFragment = trimmedQuery
+        }
+    }
+    
+    /// Geocodes a selected autocomplete result and flies to that location on the map
+    /// Uses MKLocalSearch to get coordinates from MKLocalSearchCompletion
+    private func geocodeAndFlyToLocation(completion: MKLocalSearchCompletion) async {
+        let request = MKLocalSearch.Request(completion: completion)
+        let search = MKLocalSearch(request: request)
+        
+        do {
+            let response = try await search.start()
+            guard let mapItem = response.mapItems.first,
+                  let location = mapItem.placemark.location else {
+                #if DEBUG
+                print("⚠️ No location found for selected autocomplete result")
+                #endif
+                return
+            }
+            
+            #if DEBUG
+            print("✅ Geocoded '\(completion.title)' to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+            #endif
+            
+            // Update target camera location to trigger map camera update
+            await MainActor.run {
+                targetCameraLocation = location
+            }
+        } catch {
+            #if DEBUG
+            print("❌ Failed to geocode autocomplete result: \(error.localizedDescription)")
+            #endif
         }
     }
 }

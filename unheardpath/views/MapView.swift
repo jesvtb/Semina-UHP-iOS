@@ -8,97 +8,6 @@ import OSLog
 
 
 
-struct AppleMapView: View {
-    @State private var locationManager = CLLocationManager()
-    
-    @State private var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 41.015944, longitude: 28.955556),
-        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-    )
-    
-    var body: some View {
-        ZStack {
-            Map(coordinateRegion: $region, showsUserLocation: true)
-                .ignoresSafeArea()
-                .onAppear {
-                    // Request location permission
-                    locationManager.requestWhenInUseAuthorization()
-                }
-        }
-        .overlay(alignment: .topLeading) {
-            BackButton(showBackground: true)
-        }
-        .navigationBarHidden(true)
-    }
-}
-
-struct MapView: View {
-    var body: some View {
-        let center = CLLocationCoordinate2D(latitude: 39.5, longitude: -98.0)
-        // Mapbox SDK automatically reads MBXAccessToken from Info.plist (injected via Config.xcconfig)
-        // If token is missing from Info.plist on device, it will show black screen with Mapbox logo
-        Map(initialViewport: .camera(center: center, zoom: 2, bearing: 0, pitch: 0)) {
-            // Mapbox needs a style to render tiles
-        }
-        .mapStyle(MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
-        .ignoresSafeArea()
-        .onAppear {
-            verifyMapboxToken()
-            // Additional check: verify token is actually accessible
-            checkMapboxTokenAccessibility()
-        }
-    }
-    
-    /// Additional check to verify token is accessible (helps diagnose device vs simulator differences)
-    private func checkMapboxTokenAccessibility() {
-        guard let token = Bundle.main.infoDictionary?["MBXAccessToken"] as? String,
-              !token.isEmpty else {
-            print("❌ CRITICAL: MBXAccessToken not found in Info.plist on device!")
-            print("   This will cause black screen with Mapbox logo")
-            print("   The map loads but can't fetch tiles without a valid token")
-            print("   Solution: Ensure Config.xcconfig is properly configured and rebuild")
-            return
-        }
-        
-        print("✅ MBXAccessToken is accessible: \(String(token.prefix(20)))...")
-        print("   If map is still black, check:")
-        print("   1. Token is valid and has proper permissions")
-        print("   2. Device has internet connection")
-        print("   3. No firewall/proxy blocking Mapbox API")
-    }
-    
-    /// Verifies that Mapbox access token is available from Config.xcconfig via Info.plist
-    private func verifyMapboxToken() {
-        let logger = Logger(subsystem: "com.unheardpath.app", category: "Mapbox")
-        let verification = verifyMapboxConfiguration()
-        
-        // Always log on device (not just DEBUG) to help diagnose device issues
-        if verification.isValid {
-            let message = "✅ Mapbox access token verified from Config.xcconfig"
-            print(message)
-            logger.info("\(message)")
-            if let tokenPrefix = verification.tokenPrefix {
-                let prefixMessage = "   Token prefix: \(tokenPrefix)..."
-                print(prefixMessage)
-                logger.debug("\(prefixMessage)")
-            }
-            
-            // Check if token is actually accessible to Mapbox SDK
-            if let token = Bundle.main.infoDictionary?["MBXAccessToken"] as? String {
-                print("✅ MBXAccessToken found in Info.plist: \(String(token.prefix(20)))...")
-                // Verify token format
-                if !token.hasPrefix("pk.") && !token.hasPrefix("sk.") {
-                    print("⚠️ WARNING: Token format looks incorrect. Expected 'pk.eyJ...' or 'sk.eyJ...'")
-                }
-            }
-        } else {
-            let error = verification.error ?? "Unknown error"
-            let errorMessage = "❌ Mapbox token verification failed: \(error)"
-            print(errorMessage)
-        }
-    }
-}
-
 // MARK: - Custom Location Provider for Mapbox
 /// Custom location provider that bridges the shared LocationManager to Mapbox
 /// This ensures Mapbox uses the same location data as the rest of the app
@@ -109,6 +18,7 @@ struct MapboxMapView: View {
     @EnvironmentObject var locationManager: LocationManager
     @Binding var geoJSONData: [String: Any]?
     @Binding var geoJSONUpdateTrigger: UUID
+    @Binding var targetCameraLocation: CLLocation?
     @State private var mapProxy: MapboxMaps.MapProxy?
     @State private var selectedFeature: [String: Any]?
     @State private var showPopup: Bool = false
@@ -174,7 +84,7 @@ struct MapboxMapView: View {
                     // If we have a saved location, update camera immediately
                     // (LocationManager loads saved location on init, so it should be available)
                     if let location = locationManager.currentLocation {
-                        updateMapCamera(proxy: proxy, location: location)
+                        updateMapCamera(proxy: proxy, location: location, isUserLocation: true)
                     }
                     // GeoJSON data will be added as a source when available
                 }
@@ -182,13 +92,23 @@ struct MapboxMapView: View {
                     // When location updates from shared LocationManager, update camera
                     // This happens when GPS gets a fresh location update
                     if let location = newLocation {
-                        updateMapCamera(proxy: proxy, location: location)
+                        updateMapCamera(proxy: proxy, location: location, isUserLocation: true)
                     }
                 }
                 .onChange(of: geoJSONUpdateTrigger) { _ in
                     // When GeoJSON data updates, fit camera to show all features
                     if let featureCollection = featureCollection {
                         fitCameraToGeoJSON(proxy: proxy, featureCollection: featureCollection)
+                    }
+                }
+                .onChange(of: targetCameraLocation) { newLocation in
+                    // When target camera location is set (from autocomplete selection), fly to it
+                    if let location = newLocation {
+                        updateMapCamera(proxy: proxy, location: location, isUserLocation: false)
+                        // Reset the binding after updating to allow future updates
+                        Task { @MainActor in
+                            targetCameraLocation = nil
+                        }
                     }
                 }
                 // Note: geoJSONUpdateTrigger is still used to trigger re-rendering when data changes
@@ -300,7 +220,7 @@ struct MapboxMapView: View {
         
         // If we already have a location from shared LocationManager, center the map on it
         if let currentLocation = locationManager.currentLocation {
-            updateMapCamera(proxy: proxy, location: currentLocation)
+            updateMapCamera(proxy: proxy, location: currentLocation, isUserLocation: true)
         }
         
         #if DEBUG
@@ -318,15 +238,15 @@ struct MapboxMapView: View {
     /// Updates the map camera to center slightly south of the user's location
     /// The location puck will show at the actual user location, but the camera will be offset south
     /// This creates space for UI elements (like bottom sheets) above the user's location
-    private func updateMapCamera(proxy: MapboxMaps.MapProxy, location: CLLocation) {
-        // Calculate offset camera center (south of user location)
-        let offsetCenter = offsetCameraSouth(of: location)
+    /// When isUserLocation is false, centers directly on the target location without offset
+    private func updateMapCamera(proxy: MapboxMaps.MapProxy, location: CLLocation, isUserLocation: Bool = true) {
+        // For user location, offset camera south; for target locations (autocomplete), center directly
+        let cameraCenter = isUserLocation ? offsetCameraSouth(of: location) : location.coordinate
         
-        // Update camera to the offset center programmatically
-        // The puck will still show at the actual user location
+        // Update camera to the center programmatically
         Task { @MainActor in
             let cameraOptions = CameraOptions(
-                center: offsetCenter,
+                center: cameraCenter,
                 zoom: 14,
                 bearing: 0,
                 pitch: 60
@@ -342,18 +262,15 @@ struct MapboxMapView: View {
             
             // Try to update camera - the exact method may vary by SDK version
             // Using flyTo with a short duration for smooth transition
-            do {
-                try await camera.fly(to: cameraOptions, duration: 0.5)
-                #if DEBUG
-                print("✅ Camera updated to offset center (south of user): \(offsetCenter.latitude), \(offsetCenter.longitude)")
+            camera.fly(to: cameraOptions, duration: 0.5)
+            #if DEBUG
+            if isUserLocation {
+                print("✅ Camera updated to offset center (south of user): \(cameraCenter.latitude), \(cameraCenter.longitude)")
                 print("   User location puck at: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-                #endif
-            } catch {
-                #if DEBUG
-                print("⚠️ Camera update failed: \(error.localizedDescription)")
-                print("   Camera center state updated to: \(offsetCenter.latitude), \(offsetCenter.longitude)")
-                #endif
+            } else {
+                print("✅ Camera flew to target location: \(cameraCenter.latitude), \(cameraCenter.longitude)")
             }
+            #endif
         }
     }
     
@@ -580,7 +497,6 @@ fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
     /// The body is called only when component's properties are changed
     var body: some MapboxMaps.MapContent {
         let sourceId = "geojson-preview-source"
-        let layerId = "geojson-preview-layer"
         
         // Create GeoJSON source with data using method chaining (like Mapbox example)
         MapboxMaps.GeoJSONSource(id: sourceId)
@@ -689,7 +605,11 @@ struct MapLibreMapViewWrapper: View {
 
 #Preview {
 //    MapboxDirectionsView()
-    MapboxMapView(geoJSONData: .constant(nil), geoJSONUpdateTrigger: .constant(UUID()))
+    MapboxMapView(
+        geoJSONData: .constant(nil),
+        geoJSONUpdateTrigger: .constant(UUID()),
+        targetCameraLocation: .constant(nil)
+    )
         .environmentObject(LocationManager())
     // MapView()
     // MapLibreMapViewWrapper()

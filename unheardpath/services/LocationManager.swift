@@ -10,6 +10,8 @@ import CoreLocation
 import SwiftUI
 import UIKit
 
+// struct LocationDetails
+
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private let geocoder = CLGeocoder()
