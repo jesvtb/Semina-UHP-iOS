@@ -139,15 +139,33 @@ struct MapboxMapView: View {
         }
     }
     
+    /// Extracts the FeatureCollection from geoJSONData
+    /// geoJSONData format: {event: "map", data: {type: "FeatureCollection", features: [...]}}
+    /// Returns the "data" field which contains the FeatureCollection
+    private var featureCollection: [String: Any]? {
+        guard let geoJSON = geoJSONData,
+              let data = geoJSON["data"] as? [String: Any] else {
+            return nil
+        }
+        return data
+    }
+    
     var body: some View {
         ZStack {
             MapReader { proxy in
                 MapboxMaps.Map(initialViewport: initialViewport) {
                     // Add user location puck - this is Mapbox's recommended way
                     MapboxMaps.Puck2D(bearing: MapboxMaps.PuckBearing.heading)
+                    
+                    // Add GeoJSON content using declarative MapContent API
+                    // Extract FeatureCollection from geoJSONData and display it
+                    if let featureCollection = featureCollection {
+                        showGeoJSON(featureCollection: featureCollection)
+                    }
                 }
                 // .mapStyle(MapboxMaps.MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
                 .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
+                .id(geoJSONUpdateTrigger) // Force re-render when GeoJSON data updates
                 .ignoresSafeArea()
                 .onAppear {
                     mapProxy = proxy
@@ -167,22 +185,8 @@ struct MapboxMapView: View {
                         updateMapCamera(proxy: proxy, location: location)
                     }
                 }
-                .onChange(of: geoJSONUpdateTrigger) { _ in
-                    // When geojson data is updated, show nearby points on map
-                    #if DEBUG
-                    print("🔄 geoJSONUpdateTrigger changed, geoJSONData: \(geoJSONData != nil ? "exists" : "nil")")
-                    #endif
-                    if let geoJSON = geoJSONData {
-                        #if DEBUG
-                        print("🗺️ Calling showNearby with geoJSON")
-                        #endif
-                        showNearby(geoJSON: geoJSON)
-                    } else {
-                        #if DEBUG
-                        print("⚠️ geoJSONData is nil, cannot show nearby points")
-                        #endif
-                    }
-                }
+                // Note: geoJSONUpdateTrigger is still used to trigger re-rendering when data changes
+                // The declarative MapContent API will automatically update when featureCollection changes
             }
             
             // Popup overlay
@@ -452,8 +456,8 @@ fileprivate struct PlaceView: View {
     var body: some View {
         VStack(spacing: 4) {
             // Pin icon
-            Image(systemName: "mappin.circle.fill")
-                .font(.system(size: 24))
+            Image(systemName: "mappin")
+                .font(.system(size: Spacing.current.spaceL))
                 .foregroundColor(.blue)
             
             // Title text
@@ -464,7 +468,6 @@ fileprivate struct PlaceView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.white)
                 .cornerRadius(8)
                 .shadow(radius: 2)
         }
