@@ -432,6 +432,131 @@ struct MapboxMapView: View {
         }
     }
     
+    /// Shows GeoJSON data on the map using declarative MapContent API
+    /// Follows Mapbox best practices for declarative map styling
+    /// - Parameter featureCollection: Dictionary containing GeoJSON FeatureCollection (the "data" field from JSON)
+    /// - Returns: A MapContent component that can be added directly to the Map closure
+    fileprivate func showGeoJSON(featureCollection: [String: Any]) -> GeoJSONMapContent {
+        return GeoJSONMapContent(featureCollection: featureCollection)
+    }
+    
+}
+
+// MARK: - Custom Annotation View
+/// Custom SwiftUI view for GeoJSON feature annotations
+/// Used with MapViewAnnotation to display feature information on the map
+fileprivate struct PlaceView: View {
+    let title: String
+    let shortDescription: String?
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            // Pin icon
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.blue)
+            
+            // Title text
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.black)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white)
+                .cornerRadius(8)
+                .shadow(radius: 2)
+        }
+    }
+}
+
+// MARK: - GeoJSON MapContent Component
+/// A custom MapContent component that renders GeoJSON data on the map
+/// Follows Mapbox best practices for declarative map styling
+fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
+    /// The FeatureCollection data to render
+    let featureCollection: [String: Any]
+    
+    /// Computed property to get JSON string from FeatureCollection
+    private var jsonString: String {
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: featureCollection),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            #if DEBUG
+            print("❌ Failed to convert FeatureCollection to JSON string")
+            #endif
+            return "{\"type\":\"FeatureCollection\",\"features\":[]}"
+        }
+        return jsonString
+    }
+    
+    /// Extract features from FeatureCollection
+    private var features: [[String: Any]] {
+        guard let features = featureCollection["features"] as? [[String: Any]] else {
+            return []
+        }
+        return features
+    }
+    
+    /// Extract coordinate from a Point geometry feature
+    private func coordinate(from feature: [String: Any]) -> CLLocationCoordinate2D? {
+        guard let geometry = feature["geometry"] as? [String: Any],
+              let type = geometry["type"] as? String,
+              type == "Point",
+              let coordinates = geometry["coordinates"] as? [Double],
+              coordinates.count >= 2 else {
+            return nil
+        }
+        // GeoJSON coordinates are [longitude, latitude]
+        return CLLocationCoordinate2D(latitude: coordinates[1], longitude: coordinates[0])
+    }
+    
+    /// Extract properties from a feature
+    private func properties(from feature: [String: Any]) -> [String: Any]? {
+        return feature["properties"] as? [String: Any]
+    }
+    
+    /// The body is called only when component's properties are changed
+    var body: some MapboxMaps.MapContent {
+        let sourceId = "geojson-preview-source"
+        let layerId = "geojson-preview-layer"
+        
+        // Create GeoJSON source with data using method chaining (like Mapbox example)
+        MapboxMaps.GeoJSONSource(id: sourceId)
+            .data(.string(jsonString))
+        
+        // Create circle layer (must use property assignment as method chaining may not be available)
+        // Note: Creating as let after configuration
+        let configuredLayer: MapboxMaps.CircleLayer = {
+            var layer = MapboxMaps.CircleLayer(id: layerId, source: sourceId)
+            layer.circleColor = .constant(StyleColor(.blue))
+            layer.circleRadius = .constant(8)
+            layer.circleStrokeWidth = .constant(2)
+            layer.circleStrokeColor = .constant(StyleColor(.white))
+            return layer
+        }()
+        configuredLayer
+        
+        // Add MapViewAnnotation for each Point feature using ForEvery
+        // Following Mapbox documentation pattern: https://docs.mapbox.com/ios/maps/api/11.2.0/documentation/mapboxmaps/forevery
+        MapboxMaps.ForEvery(Array(features.enumerated()), id: \.offset) { index, feature in
+            if let coordinate = coordinate(from: feature),
+               let properties = properties(from: feature),
+               let title = properties["title"] as? String ?? properties["name"] as? String {
+                let shortDescription = properties["extract"] as? String
+                
+                MapboxMaps.MapViewAnnotation(coordinate: coordinate) {
+                    PlaceView(
+                        title: title,
+                        shortDescription: shortDescription
+                    )
+                }
+                .allowOverlap(false)
+                .priority(0)
+            }
+        }
+    }
+    
 }
 
 // MARK: - Location Manager Delegate
@@ -524,4 +649,75 @@ struct MapLibreMapViewWrapper: View {
         .environmentObject(LocationManager())
     // MapView()
     // MapLibreMapViewWrapper()
+}
+
+// MARK: - GeoJSON Preview
+/// Preview view that demonstrates loading and rendering GeoJSON using the declarative MapContent API
+struct MapViewGeoJSONPreview: View {
+    @State private var featureCollection: [String: Any]?
+    
+    var body: some View {
+        MapboxMaps.Map(initialViewport: .camera(
+            center: CLLocationCoordinate2D(latitude: 22.55, longitude: 114.11), // Shenzhen coordinates
+            zoom: 12,
+            bearing: 0,
+            pitch: 0
+        )) {
+            // Add GeoJSON content if available using showGeoJSON function
+            if let featureCollection = featureCollection {
+                GeoJSONMapContent(featureCollection: featureCollection)
+            }
+        }
+        .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
+        .ignoresSafeArea()
+        .onAppear {
+            loadGeoJSONFromBundle()
+        }
+    }
+    
+    /// Loads GeoJSON data from around_me_example.json bundle file
+    private func loadGeoJSONFromBundle() {
+        // Try to find the file in the bundle
+        // First try with subdirectory
+        var url = Bundle.main.url(forResource: "around_me_example", withExtension: "json", subdirectory: "mock")
+        
+        // If not found, try without subdirectory
+        if url == nil {
+            url = Bundle.main.url(forResource: "around_me_example", withExtension: "json")
+        }
+        
+        guard let fileURL = url else {
+            #if DEBUG
+            print("❌ Could not find around_me_example.json in bundle")
+            #endif
+            return
+        }
+        
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            
+            // Extract the "data" field which contains the FeatureCollection
+            if let dataField = json?["data"] as? [String: Any] {
+                featureCollection = dataField
+                #if DEBUG
+                if let features = dataField["features"] as? [[String: Any]] {
+                    print("✅ Loaded GeoJSON preview with \(features.count) features")
+                }
+                #endif
+            } else {
+                #if DEBUG
+                print("❌ Invalid JSON structure: missing 'data' field")
+                #endif
+            }
+        } catch {
+            #if DEBUG
+            print("❌ Failed to load GeoJSON: \(error.localizedDescription)")
+            #endif
+        }
+    }
+}
+
+#Preview("GeoJSON Preview") {
+    MapViewGeoJSONPreview()
 }

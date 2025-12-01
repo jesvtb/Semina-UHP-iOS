@@ -236,9 +236,6 @@ extension TestMainView {
                             .cornerRadius(Spacing.current.spaceS)
                             .lineLimit(isExpanded.wrappedValue ? nil : 5)
                             
-                       
-                           
-                            
                         
                         // Expand/Collapse button - only show if text is longer than 3 lines
                         if shouldShowExpandButton {
