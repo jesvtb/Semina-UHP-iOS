@@ -39,7 +39,7 @@ struct MapboxMapView: View {
     /// Computes the initial viewport using the saved location from LocationManager
     /// LocationManager loads the last saved location on init, so it should be available immediately
     private var initialViewport: Viewport {
-        if let location = locationManager.currentLocation {
+        if let location = locationManager.deviceLocation {
             // Use saved location with offset south for camera center
             let offsetCenter = offsetCameraSouth(of: location)
             return .camera(center: offsetCenter, zoom: 14, bearing: 0, pitch: 60)
@@ -83,12 +83,12 @@ struct MapboxMapView: View {
                     setupMapboxLocation(proxy: proxy)
                     // If we have a saved location, update camera immediately
                     // (LocationManager loads saved location on init, so it should be available)
-                    if let location = locationManager.currentLocation {
+                    if let location = locationManager.deviceLocation {
                         updateMapCamera(proxy: proxy, location: location, isUserLocation: true)
                     }
                     // GeoJSON data will be added as a source when available
                 }
-                .onChange(of: locationManager.currentLocation) { newLocation in
+                .onChange(of: locationManager.deviceLocation) { newLocation in
                     // When location updates from shared LocationManager, update camera
                     // This happens when GPS gets a fresh location update
                     if let location = newLocation {
@@ -220,16 +220,16 @@ struct MapboxMapView: View {
         proxy.location?.options.puckBearingEnabled = true
         
         // If we already have a location from shared LocationManager, center the map on it
-        if let currentLocation = locationManager.currentLocation {
-            updateMapCamera(proxy: proxy, location: currentLocation, isUserLocation: true)
+        if let deviceLocation = locationManager.deviceLocation {
+            updateMapCamera(proxy: proxy, location: deviceLocation, isUserLocation: true)
         }
         
         #if DEBUG
         print("✅ Mapbox location provider configured")
         print("   Using shared LocationManager for permission handling")
         print("   Mapbox location provider configured to match LocationManager accuracy settings")
-        if let currentLocation = locationManager.currentLocation {
-            print("   Current location: \(currentLocation.coordinate.latitude), \(currentLocation.coordinate.longitude)")
+        if let deviceLocation = locationManager.deviceLocation {
+            print("   Current location: \(deviceLocation.coordinate.latitude), \(deviceLocation.coordinate.longitude)")
         } else {
             print("   Waiting for location update from shared LocationManager...")
         }

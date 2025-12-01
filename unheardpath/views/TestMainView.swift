@@ -160,7 +160,7 @@ struct TestMainView: View {
                 isTextFieldFocused = false
             }
         }
-        .onChange(of: locationManager.currentLocation) { newLocation in
+        .onChange(of: locationManager.deviceLocation) { newLocation in
             // Only make API call when location is captured and change is significant
             // Skip if this is the initial load (handled by .task)
             if newLocation != nil {
@@ -222,7 +222,7 @@ struct TestMainView: View {
             // Otherwise, wait for onChange to trigger when location is captured
             // Use a small delay to avoid race condition with onChange
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
-            if locationManager.currentLocation != nil {
+            if locationManager.deviceLocation != nil {
                 await loadLocationIfSignificant()
             }
         }

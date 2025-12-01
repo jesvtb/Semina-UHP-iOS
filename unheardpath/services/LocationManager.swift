@@ -16,7 +16,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private let geocoder = CLGeocoder()
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
-    @Published var currentLocation: CLLocation?
+    @Published var deviceLocation: CLLocation?
     @Published var isLocationPermissionGranted: Bool = false
     
     // Geocoding state
@@ -306,7 +306,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         )
         
         // Set as current location immediately
-        currentLocation = savedLocation
+        deviceLocation = savedLocation
         
         #if DEBUG
         print("📂 Loaded saved location from UserDefaults: \(latitude), \(longitude)")
@@ -318,12 +318,12 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     /// Returns the current latitude if available
     var latitude: Double? {
-        return currentLocation?.coordinate.latitude
+        return deviceLocation?.coordinate.latitude
     }
     
     /// Returns the current longitude if available
     var longitude: Double? {
-        return currentLocation?.coordinate.longitude
+        return deviceLocation?.coordinate.longitude
     }
     
     // MARK: - Places Cache Management
@@ -462,7 +462,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     /// Returns both latitude and longitude as a tuple if available
     var coordinates: (latitude: Double, longitude: Double)? {
-        guard let location = currentLocation else { return nil }
+        guard let location = deviceLocation else { return nil }
         return (location.coordinate.latitude, location.coordinate.longitude)
     }
     
@@ -632,13 +632,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func reverseGeocodeUserLocation(completion: @escaping ([String: Any]?, Error?) -> Void) {
         #if DEBUG
         print("🔍 reverseGeocodeUserLocation() called")
-        print("   currentLocation: \(currentLocation != nil ? "available" : "nil")")
-        if let location = currentLocation {
+        print("   deviceLocation: \(deviceLocation != nil ? "available" : "nil")")
+        if let location = deviceLocation {
             print("   Coordinates: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         }
         #endif
         
-        guard let location = currentLocation else {
+        guard let location = deviceLocation else {
             #if DEBUG
             print("❌ No user location available for reverse geocoding")
             #endif
@@ -806,7 +806,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         guard let location = locations.last else { return }
         
         // Update current location
-        currentLocation = location
+        deviceLocation = location
         
         // Save location to UserDefaults for persistence
         saveLocation(location)
