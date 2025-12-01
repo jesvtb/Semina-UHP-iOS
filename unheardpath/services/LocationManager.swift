@@ -37,9 +37,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let highAccuracyMode: CLLocationAccuracy = kCLLocationAccuracyBest  // High accuracy for navigation
     
     // UserDefaults keys for persisting location
-    private let lastLocationLatitudeKey = "LocationManager.lastLocation.latitude"
-    private let lastLocationLongitudeKey = "LocationManager.lastLocation.longitude"
-    private let lastLocationTimestampKey = "LocationManager.lastLocation.timestamp"
+    private let lastLocationLatitudeKey = "UHP.LastDeviceCoord.latitude"
+    private let lastLocationLongitudeKey = "UHP.LastDeviceCoord.longitude"
+    private let lastLocationTimestampKey = "UHP.LastDeviceCoord.timestamp"
     
     // Cache configuration for places/geojson data
     private let placesCacheExpirationHours: TimeInterval = 24 * 60 * 60 // 24 hours in seconds
