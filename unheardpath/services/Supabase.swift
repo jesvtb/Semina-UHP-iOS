@@ -49,26 +49,12 @@ let supabase: SupabaseClient = {
      host.hasSuffix(".supabase.co") {
     url = validatedUrl
   } else {
-    print("""
-    ❌ Invalid Supabase URL format: \(cleanedUrlString)
-    
-    Expected format: https://[project-ref].supabase.co
-    Example: https://mrrssxdxblwhdsejdlxp.supabase.co
-    
-    Make sure:
-    1. URL starts with https://
-    2. URL ends with .supabase.co
-    3. No trailing slash
-    4. No path after the domain
-    
-    Supabase operations will fail until URL is properly configured.
-    """)
+    print("❌ Invalid Supabase URL format: \(cleanedUrlString)")
     // Use invalid placeholder - operations will fail but app won't crash
     url = URL(string: "https://invalid-supabase-url.supabase.co")!
   }
   
   #if DEBUG
-  print("🔗 Supabase URL: \(url.absoluteString)")
   let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
   if isPreview {
     print("📱 Running in SwiftUI preview mode")
@@ -82,17 +68,8 @@ let supabase: SupabaseClient = {
      !infoPlistKey.isEmpty {
     key = infoPlistKey
   } else {
-    print("""
-    ❌ SupabasePublishableKey must be set in Info.plist (via Config.xcconfig)
-    
-    Make sure:
-    1. Config.xcconfig has SUPABASE_PUBLISHABLE_KEY set
-    2. project.pbxproj has INFOPLIST_KEY_SupabasePublishableKey = "$(SUPABASE_PUBLISHABLE_KEY)" in build settings
-    3. Clean build folder (Cmd+Shift+K) and rebuild
-    
-    The key should be injected automatically from Config.xcconfig during build.
-    Supabase operations will fail until this is configured.
-    """)
+    print("❌ SupabasePublishableKey NOT set in Info.plist (via Config.xcconfig)")
+  
     // Use invalid placeholder - operations will fail but app won't crash
     key = "invalid_key_missing_from_info_plist"
   }
@@ -101,14 +78,11 @@ let supabase: SupabaseClient = {
   #if DEBUG
   if key.hasPrefix("sb_publishable_") {
     print("✅ Using new publishable key format (sb_publishable_...)")
-  } else if key.hasPrefix("eyJ") {
-    print("✅ Using legacy anon key format (JWT)")
-  } else if key.hasPrefix("sb_") {
-    print("✅ Using new key format (sb_...)")
+    print("🔑 Supabase Key (first 30 chars): \(String(key.prefix(30)))...")
   } else {
-    print("⚠️ Warning: API key format looks unusual. Expected 'eyJ...' (JWT) or 'sb_...' (publishable/secret key)")
+    print("❌ Supabase Publishable Key NOT set in Info.plist (via Config.xcconfig)")
   }
-  print("🔑 Supabase Key (first 30 chars): \(String(key.prefix(30)))...")
+  
   #endif
   
   // Configure Supabase client with SSL/TLS support for enforced SSL databases
@@ -146,10 +120,6 @@ let supabase: SupabaseClient = {
       )
     )
   )
-  
-  #if DEBUG
-  print("🔒 Supabase client configured with HTTPS and SSL/TLS support")
-  #endif
   
   return client
 }()

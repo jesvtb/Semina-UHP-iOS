@@ -22,6 +22,7 @@ struct MapboxMapView: View {
     @State private var mapProxy: MapboxMaps.MapProxy?
     @State private var selectedFeature: [String: Any]?
     @State private var showPopup: Bool = false
+    @State private var defaultPitch: Double = 60
     
     /// Offset distance in degrees to move camera south of user location
     /// This creates space for UI elements (like bottom sheets) above the user's location
@@ -42,10 +43,18 @@ struct MapboxMapView: View {
         if let location = locationManager.deviceLocation {
             // Use saved location with offset south for camera center
             let offsetCenter = offsetCameraSouth(of: location)
-            return .camera(center: offsetCenter, zoom: 14, bearing: 0, pitch: 60)
+            #if DEBUG 
+            print("🌍 Initalizd map with device location offset: \(offsetCenter.latitude), \(offsetCenter.longitude)")
+            #endif
+
+            
+            return .camera(center: offsetCenter, zoom: 14, bearing: 0, pitch: defaultPitch)
         } else {
+            #if DEBUG
+            print("🌍 Initalizd map with fallback viewport")
+            #endif
             // Fallback: Use a wide viewport if no saved location exists (first time app launch)
-            return .camera(center: CLLocationCoordinate2D(latitude: 0, longitude: 0), zoom: 2, bearing: 0, pitch: 60)
+            return .camera(center: CLLocationCoordinate2D(latitude: 0, longitude: 0), zoom: 3, bearing: 0, pitch: defaultPitch)
         }
     }
     
@@ -79,12 +88,11 @@ struct MapboxMapView: View {
                 .ignoresSafeArea()
                 .onAppear {
                     mapProxy = proxy
-                    verifyMapboxToken()
                     setupMapboxLocation(proxy: proxy)
                     // If we have a saved location, update camera immediately
                     // (LocationManager loads saved location on init, so it should be available)
                     if let location = locationManager.deviceLocation {
-                        updateMapCamera(proxy: proxy, location: location, isUserLocation: true)
+                        updateMapCamera(proxy: proxy, location: location, isDeviceLocation: true)
                     }
                     // GeoJSON data will be added as a source when available
                 }
@@ -92,7 +100,7 @@ struct MapboxMapView: View {
                     // When location updates from shared LocationManager, update camera
                     // This happens when GPS gets a fresh location update
                     if let location = newLocation {
-                        updateMapCamera(proxy: proxy, location: location, isUserLocation: true)
+                        updateMapCamera(proxy: proxy, location: location, isDeviceLocation: true)
                     }
                 }
                 .onChange(of: geoJSONUpdateTrigger) { _ in
@@ -104,7 +112,7 @@ struct MapboxMapView: View {
                 .onChange(of: targetCameraLocation) { newLocation in
                     // When target camera location is set (from autocomplete selection), fly to it
                     if let location = newLocation {
-                        updateMapCamera(proxy: proxy, location: location, isUserLocation: false)
+                        updateMapCamera(proxy: proxy, location: location, isDeviceLocation: false)
                         // Reset the binding after updating to allow future updates
                         Task { @MainActor in
                             targetCameraLocation = nil
@@ -174,28 +182,6 @@ struct MapboxMapView: View {
         .navigationBarHidden(true)
     }
     
-    /// Verifies that Mapbox access token is available from Config.xcconfig via Info.plist
-    /// The Mapbox iOS SDK automatically reads MBXAccessToken from Info.plist
-    private func verifyMapboxToken() {
-        // Verify token is available (loaded from Config.xcconfig via Info.plist)
-        let verification = verifyMapboxConfiguration()
-        
-        if verification.isValid {
-            #if DEBUG
-            print("✅ Mapbox access token verified from Config.xcconfig")
-            if let tokenPrefix = verification.tokenPrefix {
-                print("   Token prefix: \(tokenPrefix)...")
-            }
-            #endif
-        } else {
-            #if DEBUG
-            let error = verification.error ?? "Unknown error"
-            print("❌ Mapbox token verification failed: \(error)")
-            print("   Make sure Config.xcconfig has MAPBOX_ACCESS_TOKEN set")
-            print("   and INFOPLIST_KEY_MBXAccessToken = $(MAPBOX_ACCESS_TOKEN)")
-            #endif
-        }
-    }
     
     private func setupMapboxLocation(proxy: MapboxMaps.MapProxy) {
         #if DEBUG
@@ -221,7 +207,7 @@ struct MapboxMapView: View {
         
         // If we already have a location from shared LocationManager, center the map on it
         if let deviceLocation = locationManager.deviceLocation {
-            updateMapCamera(proxy: proxy, location: deviceLocation, isUserLocation: true)
+            updateMapCamera(proxy: proxy, location: deviceLocation, isDeviceLocation: true)
         }
         
         #if DEBUG
@@ -239,10 +225,10 @@ struct MapboxMapView: View {
     /// Updates the map camera to center slightly south of the user's location
     /// The location puck will show at the actual user location, but the camera will be offset south
     /// This creates space for UI elements (like bottom sheets) above the user's location
-    /// When isUserLocation is false, centers directly on the target location without offset
-    private func updateMapCamera(proxy: MapboxMaps.MapProxy, location: CLLocation, isUserLocation: Bool = true) {
+    /// When isDeviceLocation is false, centers directly on the target location without offset
+    private func updateMapCamera(proxy: MapboxMaps.MapProxy, location: CLLocation, isDeviceLocation: Bool = true) {
         // For user location, offset camera south; for target locations (autocomplete), center directly
-        let cameraCenter = isUserLocation ? offsetCameraSouth(of: location) : location.coordinate
+        let cameraCenter = isDeviceLocation ? offsetCameraSouth(of: location) : location.coordinate
         
         // Update camera to the center programmatically
         Task { @MainActor in
@@ -265,9 +251,9 @@ struct MapboxMapView: View {
             // Using flyTo with a short duration for smooth transition
             camera.fly(to: cameraOptions, duration: 0.5)
             #if DEBUG
-            if isUserLocation {
+            if isDeviceLocation {
                 print("✅ Camera updated to offset center (south of user): \(cameraCenter.latitude), \(cameraCenter.longitude)")
-                print("   User location puck at: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                print("📍 User location puck at: \(location.coordinate.latitude), \(location.coordinate.longitude)")
             } else {
                 print("✅ Camera flew to target location: \(cameraCenter.latitude), \(cameraCenter.longitude)")
             }

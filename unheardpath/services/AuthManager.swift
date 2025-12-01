@@ -61,7 +61,6 @@ class AuthManager: ObservableObject {
         do {
             let session = try await supabase.auth.session
             userID = session.user.id.uuidString
-            print("🔍 User ID: \(userID)")
             // print("🔍 Initial session: \(session)")
             // Check if session is expired (required when using emitLocalSessionAsInitialSession: true)
             if session.isExpired {

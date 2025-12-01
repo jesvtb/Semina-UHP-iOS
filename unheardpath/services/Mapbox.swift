@@ -67,14 +67,3 @@ let mapboxAccessToken: String = {
   
   return token
 }()
-
-// MARK: - Verification
-func verifyMapboxConfiguration() -> (isValid: Bool, tokenPrefix: String?, error: String?) {
-  guard let token = Bundle.main.infoDictionary?["MBXAccessToken"] as? String,
-        !token.isEmpty else {
-    return (false, nil, "MBXAccessToken is missing or empty in Info.plist")
-  }
-  
-  return (true, String(token.prefix(20)), nil)
-}
-

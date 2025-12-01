@@ -234,7 +234,7 @@ class StorageManager {
         saveToUserDefaults(timestampValue, forKey: "LocationManager.lastLocation.timestamp")
         
         #if DEBUG
-        print("💾 Saved location to UserDefaults: \(latitude), \(longitude)")
+        print("💾 Saved Latest Device Location to UserDefaults: \(latitude), \(longitude)")
         #endif
     }
     
@@ -259,7 +259,7 @@ class StorageManager {
         }
         
         #if DEBUG
-        print("📂 Loaded saved location from UserDefaults: \(latitude), \(longitude)")
+        print("📂 Loaded UserDefaults Last Device Coordinates: \(latitude), \(longitude)")
         print("   Saved at: \(Date(timeIntervalSince1970: timestamp))")
         #endif
         

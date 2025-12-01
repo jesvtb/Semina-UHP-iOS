@@ -83,9 +83,7 @@ struct unheardpathApp: App {
         }
         
         #if DEBUG
-        print("📊 PostHog configured from Info.plist")
-        print("   API Key: \(String(apiKey.prefix(20)))...")
-        print("   Host: \(host)")
+        print("📊 PostHog token set from Info.plist")
         #endif
         
         // Configure PostHog SDK

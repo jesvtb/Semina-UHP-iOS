@@ -17,6 +17,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let geocoder = CLGeocoder()
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var deviceLocation: CLLocation?
+    @Published var lookupLocation: CLLocation?
     @Published var isLocationPermissionGranted: Bool = false
     
     // Geocoding state
@@ -168,9 +169,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if !isTrackingActive {
             locationManager.startUpdatingLocation()
             isTrackingActive = true
-            print("📍 Started active location tracking (accuracy: \(activeAccuracy)m, filter: \(activeDistanceFilter)m)")
+            print("📡 Started active location tracking (accuracy: \(activeAccuracy)m, filter: \(activeDistanceFilter)m)")
         } else {
-            print("📍 Updated active tracking configuration")
+            print("📡 Updated active tracking configuration")
         }
     }
     
@@ -262,7 +263,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         defaults.synchronize()
         
         #if DEBUG
-        print("💾 Saved location to UserDefaults: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        print("💾 Saved Latest Device Location to UserDefaults: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         #endif
     }
     
@@ -309,8 +310,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         deviceLocation = savedLocation
         
         #if DEBUG
-        print("📂 Loaded saved location from UserDefaults: \(latitude), \(longitude)")
-        print("   Saved at: \(savedTimestamp)")
+        print("📂 Loaded UserDefaults Last Device Coordinates: \(latitude), \(longitude)")
         #endif
     }
     
@@ -807,14 +807,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // Update current location
         deviceLocation = location
-        
-        // Save location to UserDefaults for persistence
-        saveLocation(location)
-        
         // Log update with context
         let updateType = isUsingSignificantChanges ? "significant change" : "continuous"
         let accuracy = location.horizontalAccuracy
         print("📍 Location updated (\(updateType)): \(location.coordinate.latitude), \(location.coordinate.longitude) (accuracy: ±\(Int(accuracy))m)")
+
+        // Save location to UserDefaults for persistence
+        saveLocation(location)
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
