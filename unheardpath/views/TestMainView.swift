@@ -1297,6 +1297,10 @@ extension TestMainView {
             let placeName = lookupDict["place"] as? String
             await MainActor.run {
                 targetLocation = TargetLocation(location: location, name: placeName)
+                // Clear autocomplete results and input location after flying to the location
+                autocompleteResults = []
+                inputLocation = ""
+                isTextFieldFocused = false
             }
         } catch {
             #if DEBUG
