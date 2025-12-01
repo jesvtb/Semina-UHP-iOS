@@ -185,6 +185,12 @@ struct MapboxMapView: View {
                         updateMapCamera(proxy: proxy, location: location)
                     }
                 }
+                .onChange(of: geoJSONUpdateTrigger) { _ in
+                    // When GeoJSON data updates, fit camera to show all features
+                    if let featureCollection = featureCollection {
+                        fitCameraToGeoJSON(proxy: proxy, featureCollection: featureCollection)
+                    }
+                }
                 // Note: geoJSONUpdateTrigger is still used to trigger re-rendering when data changes
                 // The declarative MapContent API will automatically update when featureCollection changes
             }
@@ -351,6 +357,72 @@ struct MapboxMapView: View {
         }
     }
     
+    /// Extracts all coordinates from GeoJSON features
+    /// Supports Point geometry types
+    private func extractCoordinates(from featureCollection: [String: Any]) -> [CLLocationCoordinate2D] {
+        guard let features = featureCollection["features"] as? [[String: Any]] else {
+            return []
+        }
+        
+        return features.compactMap { extractCoordinateFromFeature($0) }
+    }
+    
+    /// Fits the camera to show all GeoJSON features' coordinates
+    /// Uses Mapbox SDK's camera(for:...) method following the recommended workflow
+    private func fitCameraToGeoJSON(proxy: MapboxMaps.MapProxy, featureCollection: [String: Any]) {
+        let coordinates = extractCoordinates(from: featureCollection)
+        
+        guard !coordinates.isEmpty else {
+            #if DEBUG
+            print("⚠️ No coordinates found in GeoJSON features to fit camera")
+            #endif
+            return
+        }
+        
+        Task { @MainActor in
+            // The reference camera options will be applied before calculating a camera fitting the given coordinates
+            // If any of the fields in this reference camera options is not provided then the current value from the map will be used
+            let referenceCamera = CameraOptions(pitch: 60)
+            
+            // Access the underlying MapboxMap instance via proxy.map
+            // Fit camera to the given coordinates using Mapbox SDK's recommended method
+            guard let mapboxMap = proxy.map,
+                  let cameraOptions = try? mapboxMap.camera(
+                      for: coordinates,
+                      camera: referenceCamera,
+                      coordinatesPadding: .zero,
+                      maxZoom: nil,
+                      offset: nil
+                  ) else {
+                #if DEBUG
+                print("⚠️ Failed to calculate camera for GeoJSON coordinates using SDK method")
+                #endif
+                return
+            }
+            
+            // Apply the fitted camera
+            guard let camera = proxy.camera else {
+                #if DEBUG
+                print("⚠️ Camera proxy not available for fitting")
+                #endif
+                return
+            }
+            
+            // Use flyTo with a short duration for smooth transition
+            camera.fly(to: cameraOptions, duration: 0.5)
+            
+            #if DEBUG
+            print("✅ Camera fitted to \(coordinates.count) GeoJSON feature coordinates using SDK method")
+            if let center = cameraOptions.center {
+                print("   Center: \(center.latitude), \(center.longitude)")
+            }
+            if let zoom = cameraOptions.zoom {
+                print("   Zoom: \(zoom)")
+            }
+            #endif
+        }
+    }
+    
     fileprivate func showGeoJSON(featureCollection: [String: Any]) -> GeoJSONMapContent {
         return GeoJSONMapContent(featureCollection: featureCollection)
     }
@@ -397,7 +469,7 @@ fileprivate struct PlaceView: View {
                             .frame(width: imageFrameSize, height: imageFrameSize)
                             .clipShape(Circle())
                             .overlay(Circle().stroke(Color("AppBkgColor"), lineWidth: 2))
-                            .shadow(radius: Spacing.current.space3xs)
+                .shadow(radius: Spacing.current.space3xs)
                     case .failure:
                         EmptyView()
                     @unknown default:
@@ -426,6 +498,46 @@ fileprivate struct PlaceView: View {
             
         }
     }
+}
+
+// MARK: - GeoJSON Helper Functions
+/// Shared helper function to extract coordinate from a Point geometry feature
+/// GeoJSON coordinates format: [longitude, latitude]
+fileprivate func extractCoordinateFromFeature(_ feature: [String: Any]) -> CLLocationCoordinate2D? {
+    guard let geometry = feature["geometry"] as? [String: Any],
+          let type = geometry["type"] as? String,
+          type == "Point",
+          let coordinatesArray = geometry["coordinates"] as? [Any],
+          coordinatesArray.count >= 2 else {
+        return nil
+    }
+    
+    // Convert coordinates from Any to Double
+    let longitude: Double?
+    let latitude: Double?
+    
+    if let lon = coordinatesArray[0] as? Double {
+        longitude = lon
+    } else if let lonNum = coordinatesArray[0] as? NSNumber {
+        longitude = lonNum.doubleValue
+    } else {
+        longitude = nil
+    }
+    
+    if let lat = coordinatesArray[1] as? Double {
+        latitude = lat
+    } else if let latNum = coordinatesArray[1] as? NSNumber {
+        latitude = latNum.doubleValue
+    } else {
+        latitude = nil
+    }
+    
+    guard let lon = longitude, let lat = latitude else {
+        return nil
+    }
+    
+    // GeoJSON coordinates are [longitude, latitude]
+    return CLLocationCoordinate2D(latitude: lat, longitude: lon)
 }
 
 // MARK: - GeoJSON MapContent Component
@@ -457,40 +569,7 @@ fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
     
     /// Extract coordinate from a Point geometry feature
     private func coordinate(from feature: [String: Any]) -> CLLocationCoordinate2D? {
-        guard let geometry = feature["geometry"] as? [String: Any],
-              let type = geometry["type"] as? String,
-              type == "Point",
-              let coordinatesArray = geometry["coordinates"] as? [Any],
-              coordinatesArray.count >= 2 else {
-            return nil
-        }
-        
-        // Convert coordinates from Any (could be NSNumber, Double, Int, etc.) to Double
-        let longitude: Double?
-        let latitude: Double?
-        
-        if let lon = coordinatesArray[0] as? Double {
-            longitude = lon
-        } else if let lonNum = coordinatesArray[0] as? NSNumber {
-            longitude = lonNum.doubleValue
-        } else {
-            longitude = nil
-        }
-        
-        if let lat = coordinatesArray[1] as? Double {
-            latitude = lat
-        } else if let latNum = coordinatesArray[1] as? NSNumber {
-            latitude = latNum.doubleValue
-        } else {
-            latitude = nil
-        }
-        
-        guard let lon = longitude, let lat = latitude else {
-            return nil
-        }
-        
-        // GeoJSON coordinates are [longitude, latitude]
-        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        return extractCoordinateFromFeature(feature)
     }
     
     /// Extract properties from a feature
