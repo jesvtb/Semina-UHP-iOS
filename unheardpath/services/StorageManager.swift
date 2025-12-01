@@ -10,32 +10,40 @@ import Foundation
 /// StorageManager handles both large file storage and caching
 /// Similar to a utility class in Python or a service in React
 /// Provides unified interface for storing data in appropriate locations
-class StorageManager {
-    // MARK: - Singleton Pattern
-    // Similar to a module-level instance in Python or a Context provider in React
-    static let shared = StorageManager()
+enum StorageManager {
+    // MARK: - Initialization
+    // Lazy initialization - runs setup code on first access
+    private static let _initialize: Void = {
+        // Print UHP-prefixed keys during initialization for development
+        printUHPKeysInUserDefaults()
+    }()
     
-    // Private initializer to enforce singleton pattern
-    private init() {}
+    /// Call this to trigger initialization (or it will happen automatically on first method call)
+    static func initialize() {
+        _ = _initialize
+    }
     
     // MARK: - Directory URLs
     // These are like constants in Python or environment variables in React
     
     /// Documents directory - for user-visible files that should be backed up
     /// Use for: Downloaded content, user-saved files
-    var documentsURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    static var documentsURL: URL {
+        _ = _initialize // Trigger initialization
+        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
     
     /// Caches directory - for re-downloadable files
     /// Use for: Large cache files, downloaded media that can be re-fetched
-    var cachesURL: URL {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+    static var cachesURL: URL {
+        _ = _initialize // Trigger initialization
+        return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
     }
     
     /// Application Support directory - for app-generated persistent data
     /// Use for: Database files, app configuration
-    var appSupportURL: URL {
+    static var appSupportURL: URL {
+        _ = _initialize // Trigger initialization
         let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         // Create directory if it doesn't exist (like os.makedirs in Python)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -44,8 +52,9 @@ class StorageManager {
     
     /// Temporary directory - for short-lived files
     /// Use for: Processing temporary files, downloads in progress
-    var temporaryURL: URL {
-        FileManager.default.temporaryDirectory
+    static var temporaryURL: URL {
+        _ = _initialize // Trigger initialization
+        return FileManager.default.temporaryDirectory
     }
     
     // MARK: - Key Prefix Helper
@@ -54,7 +63,7 @@ class StorageManager {
     /// Prefixes a key with "UHP." if it doesn't already have the prefix
     /// - Parameter key: The key to prefix
     /// - Returns: The prefixed key
-    private func prefixedKey(_ key: String) -> String {
+    private static func prefixedKey(_ key: String) -> String {
         if key.hasPrefix("UHP.") {
             return key
         }
@@ -69,7 +78,8 @@ class StorageManager {
     /// - Parameters:
     ///   - value: The value to save (must be PropertyList compatible)
     ///   - key: The key to store under (will be prefixed with "UHP.")
-    func saveToUserDefaults<T>(_ value: T, forKey key: String) {
+    static func saveToUserDefaults<T>(_ value: T, forKey key: String) {
+        _ = _initialize // Trigger initialization
         let prefixed = prefixedKey(key)
         UserDefaults.standard.set(value, forKey: prefixed)
         UserDefaults.standard.synchronize()
@@ -79,7 +89,8 @@ class StorageManager {
     /// Automatically prefixes key with "UHP."
     /// - Parameter key: The key to retrieve (will be prefixed with "UHP.")
     /// - Returns: The stored value, or nil if not found
-    func loadFromUserDefaults<T>(forKey key: String, as type: T.Type) -> T? {
+    static func loadFromUserDefaults<T>(forKey key: String, as type: T.Type) -> T? {
+        _ = _initialize // Trigger initialization
         let prefixed = prefixedKey(key)
         return UserDefaults.standard.object(forKey: prefixed) as? T
     }
@@ -87,7 +98,8 @@ class StorageManager {
     /// Check if key exists in UserDefaults
     /// Automatically prefixes key with "UHP."
     /// - Parameter key: The key to check (will be prefixed with "UHP.")
-    func existsInUserDefaults(forKey key: String) -> Bool {
+    static func existsInUserDefaults(forKey key: String) -> Bool {
+        _ = _initialize // Trigger initialization
         let prefixed = prefixedKey(key)
         return UserDefaults.standard.object(forKey: prefixed) != nil
     }
@@ -95,7 +107,8 @@ class StorageManager {
     /// Remove data from UserDefaults
     /// Automatically prefixes key with "UHP."
     /// - Parameter key: The key to remove (will be prefixed with "UHP.")
-    func removeFromUserDefaults(forKey key: String) {
+    static func removeFromUserDefaults(forKey key: String) {
+        _ = _initialize // Trigger initialization
         let prefixed = prefixedKey(key)
         UserDefaults.standard.removeObject(forKey: prefixed)
         UserDefaults.standard.synchronize()
@@ -111,7 +124,8 @@ class StorageManager {
     ///   - subdirectory: Optional subdirectory within Documents
     /// - Returns: URL of saved file
     /// - Throws: Error if save fails
-    func saveToDocuments(data: Data, filename: String, subdirectory: String? = nil) throws -> URL {
+    static func saveToDocuments(data: Data, filename: String, subdirectory: String? = nil) throws -> URL {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
         throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "saveToDocuments not yet implemented"])
     }
@@ -123,7 +137,8 @@ class StorageManager {
     ///   - subdirectory: Optional subdirectory within Caches
     /// - Returns: URL of saved file
     /// - Throws: Error if save fails
-    func saveToCaches(data: Data, filename: String, subdirectory: String? = nil) throws -> URL {
+    static func saveToCaches(data: Data, filename: String, subdirectory: String? = nil) throws -> URL {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
         throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "saveToCaches not yet implemented"])
     }
@@ -134,7 +149,8 @@ class StorageManager {
     ///   - subdirectory: Optional subdirectory
     /// - Returns: The file data
     /// - Throws: Error if file doesn't exist or can't be read
-    func loadFromDocuments(filename: String, subdirectory: String? = nil) throws -> Data {
+    static func loadFromDocuments(filename: String, subdirectory: String? = nil) throws -> Data {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
         throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "loadFromDocuments not yet implemented"])
     }
@@ -145,30 +161,35 @@ class StorageManager {
     ///   - subdirectory: Optional subdirectory
     /// - Returns: The file data
     /// - Throws: Error if file doesn't exist or can't be read
-    func loadFromCaches(filename: String, subdirectory: String? = nil) throws -> Data {
+    static func loadFromCaches(filename: String, subdirectory: String? = nil) throws -> Data {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
         throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "loadFromCaches not yet implemented"])
     }
     
     /// Check if file exists in Documents directory
-    func existsInDocuments(filename: String, subdirectory: String? = nil) -> Bool {
+    static func existsInDocuments(filename: String, subdirectory: String? = nil) -> Bool {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
         return false
     }
     
     /// Check if file exists in Caches directory
-    func existsInCaches(filename: String, subdirectory: String? = nil) -> Bool {
+    static func existsInCaches(filename: String, subdirectory: String? = nil) -> Bool {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
         return false
     }
     
     /// Delete file from Documents directory
-    func deleteFromDocuments(filename: String, subdirectory: String? = nil) throws {
+    static func deleteFromDocuments(filename: String, subdirectory: String? = nil) throws {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
     }
     
     /// Delete file from Caches directory
-    func deleteFromCaches(filename: String, subdirectory: String? = nil) throws {
+    static func deleteFromCaches(filename: String, subdirectory: String? = nil) throws {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
     }
     
@@ -236,7 +257,8 @@ class StorageManager {
     /// - Returns: URL if saved as file, nil if saved to UserDefaults
     /// - Throws: Error if save fails
     @discardableResult
-    func saveCache<T>(_ data: T, forKey key: String, maxUserDefaultsSize: Int = 100 * 1024, subdirectory: String? = nil) throws -> URL? {
+    static func saveCache<T>(_ data: T, forKey key: String, maxUserDefaultsSize: Int = 100 * 1024, subdirectory: String? = nil) throws -> URL? {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
         throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "saveCache not yet implemented"])
     }
@@ -249,7 +271,8 @@ class StorageManager {
     ///   - subdirectory: Optional subdirectory for file storage
     /// - Returns: Cached data or nil if not found
     /// - Throws: Error if load fails
-    func loadCache<T>(forKey key: String, as type: T.Type, subdirectory: String? = nil) throws -> T? {
+    static func loadCache<T>(forKey key: String, as type: T.Type, subdirectory: String? = nil) throws -> T? {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
         throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "loadCache not yet implemented"])
     }
@@ -257,14 +280,16 @@ class StorageManager {
     /// Remove cache entry (from both UserDefaults and file storage)
     /// Automatically prefixes key with "UHP."
     /// - Parameter key: Cache key (will be prefixed with "UHP.")
-    func removeCache(forKey key: String, subdirectory: String? = nil) {
+    static func removeCache(forKey key: String, subdirectory: String? = nil) {
+        _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
     }
     
     // MARK: - File Size Utilities
     
     /// Get size of file in bytes
-    func sizeOfFile(at url: URL) -> Int64? {
+    static func sizeOfFile(at url: URL) -> Int64? {
+        _ = _initialize // Trigger initialization
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               let size = attributes[.size] as? Int64 else {
             return nil
@@ -273,7 +298,8 @@ class StorageManager {
     }
     
     /// Get total size of all files in a directory
-    func totalSizeOfDirectory(at url: URL) -> Int64 {
+    static func totalSizeOfDirectory(at url: URL) -> Int64 {
+        _ = _initialize // Trigger initialization
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.fileSizeKey]
@@ -290,7 +316,8 @@ class StorageManager {
     }
     
     /// Get available storage space in bytes
-    func availableStorage() -> Int64? {
+    static func availableStorage() -> Int64? {
+        _ = _initialize // Trigger initialization
         guard let attributes = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),
               let freeSize = attributes[.systemFreeSize] as? Int64 else {
             return nil
@@ -301,7 +328,8 @@ class StorageManager {
     // MARK: - List Files
     
     /// List all files in Documents directory
-    func listFilesInDocuments(subdirectory: String? = nil) throws -> [String] {
+    static func listFilesInDocuments(subdirectory: String? = nil) throws -> [String] {
+        _ = _initialize // Trigger initialization
         var directoryURL = documentsURL
         
         if let subdir = subdirectory {
@@ -316,7 +344,8 @@ class StorageManager {
     }
     
     /// List all files in Caches directory
-    func listFilesInCaches(subdirectory: String? = nil) throws -> [String] {
+    static func listFilesInCaches(subdirectory: String? = nil) throws -> [String] {
+        _ = _initialize // Trigger initialization
         var directoryURL = cachesURL
         
         if let subdir = subdirectory {
@@ -332,9 +361,55 @@ class StorageManager {
     
     // MARK: - Debug Helpers
     
+    /// Print all "UHP." prefixed keys in UserDefaults
+    /// Useful for development to see what keys are stored
+    static func printUHPKeysInUserDefaults() {
+        let defaults = UserDefaults.standard
+        let allKeys = defaults.dictionaryRepresentation().keys
+        
+        // Filter keys that start with "UHP."
+        let uhpKeys = allKeys.filter { $0.hasPrefix("UHP.") }.sorted()
+        
+        print("🔑 UHP-Prefixed Keys in UserDefaults")
+        print("═══════════════════════════════════════════════════════════")
+        
+        if uhpKeys.isEmpty {
+            print("   (0 keys found)")
+        } else {
+            print("   Total: \(uhpKeys.count) key\(uhpKeys.count == 1 ? "" : "s")")
+            print("")
+            for (index, key) in uhpKeys.enumerated() {
+                let value = defaults.object(forKey: key)
+                let valueDescription: String
+                
+                if let stringValue = value as? String {
+                    valueDescription = "\"\(stringValue)\""
+                } else if let numberValue = value as? NSNumber {
+                    valueDescription = "\(numberValue)"
+                } else if let boolValue = value as? Bool {
+                    valueDescription = "\(boolValue)"
+                } else if let dataValue = value as? Data {
+                    valueDescription = "Data(\(dataValue.count) bytes)"
+                } else if let arrayValue = value as? [Any] {
+                    valueDescription = "Array(\(arrayValue.count) items)"
+                } else if let dictValue = value as? [String: Any] {
+                    valueDescription = "Dictionary(\(dictValue.count) keys)"
+                } else {
+                    valueDescription = "\(type(of: value))"
+                }
+                
+                print("   \(index + 1). \(key)")
+                print("      └─ Value: \(valueDescription)")
+            }
+        }
+        
+        print("═══════════════════════════════════════════════════════════")
+    }
+    
     #if DEBUG
     /// Print storage usage summary
-    func printStorageSummary() {
+    static func printStorageSummary() {
+        _ = _initialize // Trigger initialization
         print("📦 Storage Summary:")
         print("---")
         

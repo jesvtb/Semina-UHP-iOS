@@ -24,6 +24,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var isGeocoding: Bool = false
     @Published var geocodingError: Error?
     @Published var locationDetails: [String: Any]?
+    @Published var lookupLocationDetails: [String: Any]?
     
     // Tracking mode state
     private var isTrackingActive = false
@@ -38,9 +39,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let highAccuracyMode: CLLocationAccuracy = kCLLocationAccuracyBest  // High accuracy for navigation
     
     // UserDefaults keys for persisting location
-    private let lastLocationLatitudeKey = "UHP.LastDeviceCoord.latitude"
-    private let lastLocationLongitudeKey = "UHP.LastDeviceCoord.longitude"
-    private let lastLocationTimestampKey = "UHP.LastDeviceCoord.timestamp"
+    // Note: StorageManager will automatically add "UHP." prefix
+    private let lastDeviceLatKey = "LastDeviceCoord.latitude"
+    private let lastDeviceLonKey = "LastDeviceCoord.longitude"
+    private let lastDeviceCoordTimestamp = "LastDeviceCoord.timestamp"
+    private let lastLookupLatKey = "LastLookupCoord.latitude"
+    private let lastLookupLonKey = "LastLookupCoord.longitude"
+    private let lastLookupCoordTimestamp = "LastLookupCoord.timestamp"
     
     // Cache configuration for places/geojson data
     private let placesCacheExpirationHours: TimeInterval = 24 * 60 * 60 // 24 hours in seconds
@@ -244,7 +249,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             locationManager.desiredAccuracy = activeAccuracy
             locationManager.distanceFilter = activeDistanceFilter
         }
-        print("📍 Disabled high accuracy mode, returned to adaptive strategy")
+        print("🚫 Disabled high accuracy mode, returned to adaptive strategy")
         
         // Restart tracking if it was active
         if !isTrackingActive && !isAppInBackground {
@@ -255,34 +260,56 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // MARK: - Location Persistence
     
     /// Saves the current location to UserDefaults for persistence across app launches
+    /// Uses StorageManager for consistent UserDefaults management
     private func saveLocation(_ location: CLLocation) {
-        let defaults = UserDefaults.standard
-        defaults.set(location.coordinate.latitude, forKey: lastLocationLatitudeKey)
-        defaults.set(location.coordinate.longitude, forKey: lastLocationLongitudeKey)
-        defaults.set(location.timestamp.timeIntervalSince1970, forKey: lastLocationTimestampKey)
-        defaults.synchronize()
+        StorageManager.saveToUserDefaults(location.coordinate.latitude, forKey: lastDeviceLatKey)
+        StorageManager.saveToUserDefaults(location.coordinate.longitude, forKey: lastDeviceLonKey)
+        StorageManager.saveToUserDefaults(location.timestamp.timeIntervalSince1970, forKey: lastDeviceCoordTimestamp)
         
         #if DEBUG
         print("💾 Saved Latest Device Location to UserDefaults: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         #endif
     }
     
+    /// Saves the lookup location to UserDefaults for persistence across app launches
+    /// Uses StorageManager for consistent UserDefaults management
+    func saveLookupLocation(_ location: CLLocation) {
+        StorageManager.saveToUserDefaults(location.coordinate.latitude, forKey: lastLookupLatKey)
+        StorageManager.saveToUserDefaults(location.coordinate.longitude, forKey: lastLookupLonKey)
+        StorageManager.saveToUserDefaults(location.timestamp.timeIntervalSince1970, forKey: lastLookupCoordTimestamp)
+        
+        // Update the published property
+        lookupLocation = location
+        
+        #if DEBUG
+        print("💾 Saved Latest Lookup Location to UserDefaults: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        #endif
+    }
+    
     /// Loads the last saved location from UserDefaults
     /// This allows the app to start with the user's last known location
+    /// Uses StorageManager for consistent UserDefaults management
     private func loadLastSavedLocation() {
-        let defaults = UserDefaults.standard
-        
-        guard defaults.object(forKey: lastLocationLatitudeKey) != nil,
-              defaults.object(forKey: lastLocationLongitudeKey) != nil else {
+        guard StorageManager.existsInUserDefaults(forKey: lastDeviceLatKey),
+              StorageManager.existsInUserDefaults(forKey: lastDeviceLonKey) else {
             #if DEBUG
             print("ℹ️ No saved location found in UserDefaults")
             #endif
             return
         }
         
-        let latitude = defaults.double(forKey: lastLocationLatitudeKey)
-        let longitude = defaults.double(forKey: lastLocationLongitudeKey)
-        let timestamp = defaults.double(forKey: lastLocationTimestampKey)
+        guard let latitudeValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceLatKey, as: Double.self),
+              let longitudeValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceLonKey, as: Double.self),
+              let timestampValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceCoordTimestamp, as: TimeInterval.self) else {
+            #if DEBUG
+            print("ℹ️ Failed to load saved location from UserDefaults")
+            #endif
+            return
+        }
+        
+        let latitude: CLLocationDegrees = latitudeValue
+        let longitude: CLLocationDegrees = longitudeValue
+        let timestamp = timestampValue
         
         // Validate coordinates are not zero (which would indicate no saved location)
         guard latitude != 0.0 || longitude != 0.0 else {
@@ -317,12 +344,12 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // MARK: - Location Data Access
     
     /// Returns the current latitude if available
-    var latitude: Double? {
+    var latitude: CLLocationDegrees? {
         return deviceLocation?.coordinate.latitude
     }
     
     /// Returns the current longitude if available
-    var longitude: Double? {
+    var longitude: CLLocationDegrees? {
         return deviceLocation?.coordinate.longitude
     }
     
@@ -461,7 +488,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     /// Returns both latitude and longitude as a tuple if available
-    var coordinates: (latitude: Double, longitude: Double)? {
+    var coordinates: (latitude: CLLocationDegrees, longitude: CLLocationDegrees)? {
         guard let location = deviceLocation else { return nil }
         return (location.coordinate.latitude, location.coordinate.longitude)
     }
@@ -552,9 +579,12 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         var dict: [String: Any] = [:]
         
         // Required fields
-        dict["user_lat"] = location.coordinate.latitude
-        dict["user_lon"] = location.coordinate.longitude
+        dict["latitude"] = location.coordinate.latitude
+        dict["longitude"] = location.coordinate.longitude
         dict["accuracy"] = location.horizontalAccuracy
+        
+        // Location type
+        dict["location_type"] = "device"
         
         // Local time (timestamp localized, not UTC)
         let formatter = DateFormatter()
@@ -569,9 +599,16 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 dict["place"] = name
             }
             
-            // Street
-            if let street = placemark.thoroughfare {
-                dict["street"] = street
+            // Street address components
+            var streetParts: [String] = []
+            if let subThoroughfare = placemark.subThoroughfare {
+                streetParts.append(subThoroughfare)
+            }
+            if let thoroughfare = placemark.thoroughfare {
+                streetParts.append(thoroughfare)
+            }
+            if !streetParts.isEmpty {
+                dict["street"] = streetParts.joined(separator: " ")
             }
             
             // Combine sublocality, locality, subadministrative area, administrativeArea
@@ -590,6 +627,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             }
             if !locationParts.isEmpty {
                 dict["location"] = locationParts.joined(separator: ", ")
+            }
+            
+            // Postal code
+            if let postalCode = placemark.postalCode {
+                dict["postal_code"] = postalCode
             }
             
             // Country code
@@ -622,6 +664,141 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 dict["region_lat"] = region.center.latitude
                 dict["region_radius"] = region.radius
             }
+        }
+        
+        // Construct full address string
+        var addressParts: [String] = []
+        if let street = dict["street"] as? String {
+            addressParts.append(street)
+        }
+        if let location = dict["location"] as? String {
+            addressParts.append(location)
+        }
+        if let postalCode = dict["postal_code"] as? String {
+            addressParts.append(postalCode)
+        }
+        if let country = dict["country"] as? String {
+            addressParts.append(country)
+        }
+        if !addressParts.isEmpty {
+            dict["full_address"] = addressParts.joined(separator: ", ")
+        }
+        
+        return dict
+    }
+    
+    /// Constructs a JSON dictionary from placemark data for lookup/search results
+    /// - Parameters:
+    ///   - location: The CLLocation with coordinates
+    ///   - placemark: CLPlacemark with address information from MKLocalSearch
+    ///   - mapItemName: Optional name from MKMapItem
+    /// - Returns: Dictionary with location and address data
+    func constructLookupPlaceDict(location: CLLocation, placemark: CLPlacemark, mapItemName: String?) -> [String: Any] {
+        var dict: [String: Any] = [:]
+        
+        // Required fields
+        dict["latitude"] = location.coordinate.latitude
+        dict["longitude"] = location.coordinate.longitude
+        dict["accuracy"] = location.horizontalAccuracy
+        
+        // Location type
+        dict["location_type"] = "lookup"
+        
+        // Local time (timestamp localized, not UTC)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+        formatter.timeZone = TimeZone.current
+        dict["local_time"] = formatter.string(from: location.timestamp)
+        
+        // Name from mapItem or placemark
+        if let name = mapItemName {
+            dict["place"] = name
+        } else if let name = placemark.name {
+            dict["place"] = name
+        }
+        
+        // Street address components
+        var streetParts: [String] = []
+        if let subThoroughfare = placemark.subThoroughfare {
+            streetParts.append(subThoroughfare)
+        }
+        if let thoroughfare = placemark.thoroughfare {
+            streetParts.append(thoroughfare)
+        }
+        if !streetParts.isEmpty {
+            dict["street"] = streetParts.joined(separator: " ")
+        }
+        
+        // Combine sublocality, locality, subadministrative area, administrativeArea
+        var locationParts: [String] = []
+        if let subLocality = placemark.subLocality {
+            locationParts.append(subLocality)
+        }
+        if let locality = placemark.locality {
+            locationParts.append(locality)
+        }
+        if let subAdministrativeArea = placemark.subAdministrativeArea {
+            locationParts.append(subAdministrativeArea)
+        }
+        if let administrativeArea = placemark.administrativeArea {
+            locationParts.append(administrativeArea)
+        }
+        if !locationParts.isEmpty {
+            dict["location"] = locationParts.joined(separator: ", ")
+        }
+        
+        // Postal code
+        if let postalCode = placemark.postalCode {
+            dict["postal_code"] = postalCode
+        }
+        
+        // Country code
+        if let countryCode = placemark.isoCountryCode {
+            dict["country_code"] = countryCode
+        }
+        
+        // Country name
+        if let country = placemark.country {
+            dict["country"] = country
+        }
+        
+        // Inland water and ocean
+        if let inlandWater = placemark.inlandWater {
+            dict["inwater"] = true
+            dict["water_name"] = inlandWater
+        } else if let ocean = placemark.ocean {
+            dict["inwater"] = true
+            dict["water_name"] = ocean
+        }
+        
+        // Areas of interest
+        if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
+            dict["areas_of_interest"] = areasOfInterest
+        }
+        
+        // Region
+        if let region = placemark.region as? CLCircularRegion {
+            dict["region_lon"] = region.center.longitude
+            dict["region_lat"] = region.center.latitude
+            dict["region_radius"] = region.radius
+        }
+        
+        // Construct full address string
+        var addressParts: [String] = []
+        if let street = dict["street"] as? String {
+            addressParts.append(street)
+        }
+        if let location = dict["location"] as? String {
+            addressParts.append(location)
+        }
+        if let postalCode = dict["postal_code"] as? String {
+            addressParts.append(postalCode)
+        }
+        if let country = dict["country"] as? String {
+            addressParts.append(country)
+        }
+        if !addressParts.isEmpty {
+            dict["full_address"] = addressParts.joined(separator: ", ")
         }
         
         return dict

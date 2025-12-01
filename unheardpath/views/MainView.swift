@@ -444,11 +444,11 @@ struct MainView: View {
     isLoadingLocation = true
     defer { isLoadingLocation = false }
     
-    // Extract user_lat and user_lon from jsonDict (LocationManager uses user_lat/user_lon)
-    guard let userLat = jsonDict["user_lat"] as? Double,
-          let userLon = jsonDict["user_lon"] as? Double else {
+    // Extract latitude and longitude from jsonDict
+    guard let userLat = jsonDict["latitude"] as? Double,
+          let userLon = jsonDict["longitude"] as? Double else {
       #if DEBUG
-      print("⚠️ Missing user_lat or user_lon in location dict")
+      print("⚠️ Missing latitude or longitude in location dict")
       #endif
       return
     }

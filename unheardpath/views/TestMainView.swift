@@ -450,7 +450,7 @@ extension TestMainView {
                 .background(Color("AppBkgColor"))
                 .cornerRadius(Spacing.current.spaceXs)
 
-            if selectedTab != .chat {
+            if selectedTab != .chat && selectedTab != .map {
                 Button(action: {
                     selectedTab = .chat
                 }) {
@@ -459,12 +459,28 @@ extension TestMainView {
                         .foregroundColor(Color("onBkgTextColor30"))
                 }
             }
-            Button(action: sendMessage) {
+            if selectedTab != .map {
+                Button(action: sendMessage) {
                 Image(systemName: "arrow.up.circle.fill")
                     .bodyText(size: .article2)
                     .foregroundColor(draftMessage.isEmpty ? Color("onBkgTextColor30") : Color("onBkgTextColor10"))
+                }
+                .disabled(draftMessage.isEmpty)
             }
-            .disabled(draftMessage.isEmpty)
+            // if selectedTab == .map {
+            //     Button(action: {
+            //         // Geocode the selected location and fly to it
+            //         Task {
+                        
+            //         }
+            //     }) {
+            //     Image(systemName: "mappin.circle.fill")
+            //         .bodyText(size: .article2)
+            //         .foregroundColor(draftMessage.isEmpty ? Color("onBkgTextColor30") : Color("onBkgTextColor10"))
+            //     }
+            //     .disabled(draftMessage.isEmpty)
+            // }
+           
         }
         .padding(.horizontal, Spacing.current.spaceXs)
         .padding(.vertical, Spacing.current.space2xs)
@@ -557,26 +573,18 @@ extension TestMainView {
             }
             jsonDict["device_lang"] = languageCode
             
-            // Add location and country from LocationManager's locationDetails
-            // Always include these fields (use empty strings if not available) to satisfy backend requirements
-            if let locationDetails = locationManager.locationDetails {
-                if let location = locationDetails["location"] as? String {
-                    jsonDict["current_location"] = location
-                } else {
-                    jsonDict["current_location"] = ""
-                }
-                // Check both country_name and country fields
-                if let countryName = locationDetails["country_name"] as? String {
-                    jsonDict["current_country"] = countryName
-                } else if let country = locationDetails["country"] as? String {
-                    jsonDict["current_country"] = country
-                } else {
-                    jsonDict["current_country"] = ""
-                }
+            // Add location details from LocationManager
+            // Use empty string if location details are not available
+            if let deviceLocationDetails = locationManager.locationDetails {
+                jsonDict["last_device_location"] = deviceLocationDetails
             } else {
-                // If locationDetails is nil, provide empty strings
-                jsonDict["current_location"] = ""
-                jsonDict["current_country"] = ""
+                jsonDict["last_device_location"] = ""
+            }
+            
+            if let lookupLocationDetails = locationManager.lookupLocationDetails {
+                jsonDict["last_lookup_location"] = lookupLocationDetails
+            } else {
+                jsonDict["last_lookup_location"] = ""
             }
             
             #if DEBUG
@@ -1146,11 +1154,113 @@ extension TestMainView {
     /// Geocodes a selected autocomplete result and flies to that location on the map
     /// Uses MKLocalSearch to get coordinates from MKLocalSearchCompletion
     private func geocodeAndFlyToLocation(completion: MKLocalSearchCompletion) async {
+        #if DEBUG
+        print("\n" + String(repeating: "=", count: 80))
+        print("🔍 MKLocalSearchCompletion - All Available Properties")
+        print(String(repeating: "=", count: 80))
+        
+        // Print title
+        print("📝 title: String")
+        print("   Value: \(completion.title)")
+        
+        // Print titleHighlightRanges
+        print("\n✨ titleHighlightRanges: [NSValue]")
+        print("   Count: \(completion.titleHighlightRanges.count)")
+        for (index, rangeValue) in completion.titleHighlightRanges.enumerated() {
+            let range = rangeValue.rangeValue
+            let startIndex = completion.title.index(completion.title.startIndex, offsetBy: range.location)
+            let endIndex = completion.title.index(startIndex, offsetBy: range.length)
+            let highlightedText = String(completion.title[startIndex..<endIndex])
+            print("   Range #\(index + 1): location=\(range.location), length=\(range.length)")
+            print("   Highlighted text: \"\(highlightedText)\"")
+        }
+        
+        // Print subtitle
+        print("\n📄 subtitle: String")
+        print("   Value: \(completion.subtitle)")
+        
+        // Print subtitleHighlightRanges
+        print("\n✨ subtitleHighlightRanges: [NSValue]")
+        print("   Count: \(completion.subtitleHighlightRanges.count)")
+        for (index, rangeValue) in completion.subtitleHighlightRanges.enumerated() {
+            let range = rangeValue.rangeValue
+            let startIndex = completion.subtitle.index(completion.subtitle.startIndex, offsetBy: range.location)
+            let endIndex = completion.subtitle.index(startIndex, offsetBy: range.length)
+            let highlightedText = String(completion.subtitle[startIndex..<endIndex])
+            print("   Range #\(index + 1): location=\(range.location), length=\(range.length)")
+            print("   Highlighted text: \"\(highlightedText)\"")
+        }
+        
+        print(String(repeating: "=", count: 80) + "\n")
+        #endif
+        
         let request = MKLocalSearch.Request(completion: completion)
         let search = MKLocalSearch(request: request)
         
         do {
             let response = try await search.start()
+            
+            #if DEBUG
+            print("\n" + String(repeating: "=", count: 80))
+            print("🔍 MKLocalSearch.Response - All Available Properties")
+            print(String(repeating: "=", count: 80))
+            
+            // Print mapItems
+            print("📋 mapItems: [MKMapItem]")
+            print("   Count: \(response.mapItems.count)")
+            for (index, mapItem) in response.mapItems.enumerated() {
+                print("   --- MapItem #\(index + 1) ---")
+                print("   • Name: \(mapItem.name ?? "nil")")
+                print("   • Phone Number: \(mapItem.phoneNumber ?? "nil")")
+                print("   • URL: \(mapItem.url?.absoluteString ?? "nil")")
+                let placemark = mapItem.placemark
+                
+                print("\n   📍 Placemark - Full Address Components:")
+                print("   • Location: \(placemark.location?.coordinate.latitude ?? 0), \(placemark.location?.coordinate.longitude ?? 0)")
+                print("   • Name: \(placemark.name ?? "nil")")
+                
+                // Street address components
+                print("\n   🏠 Street Address:")
+                print("   • Sub Thoroughfare (Street Number): \(placemark.subThoroughfare ?? "nil")")
+                print("   • Thoroughfare (Street Name): \(placemark.thoroughfare ?? "nil")")
+                print("   • Sub Locality: \(placemark.subLocality ?? "nil")")
+                
+                // City/Region components
+                print("\n   🏙️ City/Region:")
+                print("   • Locality (City): \(placemark.locality ?? "nil")")
+                print("   • Sub Administrative Area: \(placemark.subAdministrativeArea ?? "nil")")
+                print("   • Administrative Area (State/Province): \(placemark.administrativeArea ?? "nil")")
+                print("   • Postal Code: \(placemark.postalCode ?? "nil")")
+                
+                // Country components
+                print("\n   🌍 Country:")
+                print("   • Country: \(placemark.country ?? "nil")")
+                print("   • ISO Country Code: \(placemark.isoCountryCode ?? "nil")")
+                
+                // Additional placemark properties
+                print("\n   📋 Additional Properties:")
+                print("   • Areas of Interest: \(placemark.areasOfInterest?.joined(separator: ", ") ?? "nil")")
+                print("   • Inland Water: \(placemark.inlandWater ?? "nil")")
+                print("   • Ocean: \(placemark.ocean ?? "nil")")
+                if let region = placemark.region as? CLCircularRegion {
+                    print("   • Region Center: \(region.center.latitude), \(region.center.longitude)")
+                    print("   • Region Radius: \(Int(region.radius))m")
+                    print("   • Region Identifier: \(region.identifier)")
+                }
+                print("   • Timezone: \(placemark.timeZone?.identifier ?? "nil")")
+                
+                print("\n   🎯 MapItem Properties:")
+                print("   • Point of Interest Category: \(mapItem.pointOfInterestCategory?.rawValue ?? "nil")")
+                print("   • Is Current Location: \(mapItem.isCurrentLocation)")
+            }
+            
+            // Print boundingRegion
+            print("\n🌍 boundingRegion: MKCoordinateRegion")
+            print("   • Center: \(response.boundingRegion.center.latitude), \(response.boundingRegion.center.longitude)")
+            print("   • Span: \(response.boundingRegion.span.latitudeDelta) lat, \(response.boundingRegion.span.longitudeDelta) lon")
+            print(String(repeating: "=", count: 80) + "\n")
+            #endif
+            
             guard let mapItem = response.mapItems.first,
                   let location = mapItem.placemark.location else {
                 #if DEBUG
@@ -1162,6 +1272,26 @@ extension TestMainView {
             #if DEBUG
             print("✅ Geocoded '\(completion.title)' to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
             #endif
+            
+            // Construct lookup place dictionary and update lookupLocationDetails
+            let placemark = mapItem.placemark
+            let lookupDict = locationManager.constructLookupPlaceDict(
+                location: location,
+                placemark: placemark,
+                mapItemName: mapItem.name
+            )
+            locationManager.lookupLocationDetails = lookupDict
+            
+            #if DEBUG
+            print("📦 Constructed lookup place dict: \(lookupDict)")
+            print("✅ Updated lookupLocationDetails in LocationManager")
+            if let fullAddress = lookupDict["full_address"] as? String {
+                print("   Full address: \(fullAddress)")
+            }
+            #endif
+            
+            // Save lookup location to UserDefaults
+            locationManager.saveLookupLocation(location)
             
             // Update target camera location to trigger map camera update
             await MainActor.run {
@@ -1292,11 +1422,11 @@ extension TestMainView {
         isLoadingLocation = true
         defer { isLoadingLocation = false }
         
-        // Extract user_lat and user_lon from jsonDict (LocationManager uses user_lat/user_lon)
-        guard let userLat = jsonDict["user_lat"] as? Double,
-              let userLon = jsonDict["user_lon"] as? Double else {
+        // Extract latitude and longitude from jsonDict
+        guard let userLat = jsonDict["latitude"] as? Double,
+              let userLon = jsonDict["longitude"] as? Double else {
             #if DEBUG
-            print("⚠️ Missing user_lat or user_lon in location dict")
+            print("⚠️ Missing latitude or longitude in location dict")
             #endif
             return
         }

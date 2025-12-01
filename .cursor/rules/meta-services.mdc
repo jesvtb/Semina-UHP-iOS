@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+When proposing to save data to UserDefaults, always use the StorageManager class from StorageManager.swift. All keys saved by own code should have the "UHP." prefix. Saving and loading the key while using the methods from StorageManager.swift will automatically add the "UHP." prefix to the key. No need to add the "UHP." prefix manually.

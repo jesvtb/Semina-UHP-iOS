@@ -181,7 +181,7 @@ struct MapboxMapView: View {
                 center: cameraCenter,
                 zoom: 14,
                 bearing: 0,
-                pitch: 60
+                pitch: defaultPitch
             )
             
             // Use the map's camera API to update the viewport
@@ -231,7 +231,7 @@ struct MapboxMapView: View {
         Task { @MainActor in
             // The reference camera options will be applied before calculating a camera fitting the given coordinates
             // If any of the fields in this reference camera options is not provided then the current value from the map will be used
-            let referenceCamera = CameraOptions(pitch: 60)
+            let referenceCamera = CameraOptions(pitch: defaultPitch)
             
             // Access the underlying MapboxMap instance via proxy.map
             // Fit camera to the given coordinates using Mapbox SDK's recommended method
