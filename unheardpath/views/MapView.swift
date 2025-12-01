@@ -8,6 +8,20 @@ import OSLog
 
 
 
+// MARK: - Target Location Model
+/// Represents a target location with its coordinates and place name
+/// Used for autocomplete selections to update map camera and show marker
+struct TargetLocation: Equatable {
+    let location: CLLocation
+    let name: String?
+    
+    static func == (lhs: TargetLocation, rhs: TargetLocation) -> Bool {
+        return lhs.location.coordinate.latitude == rhs.location.coordinate.latitude &&
+               lhs.location.coordinate.longitude == rhs.location.coordinate.longitude &&
+               lhs.name == rhs.name
+    }
+}
+
 // MARK: - Custom Location Provider for Mapbox
 /// Custom location provider that bridges the shared LocationManager to Mapbox
 /// This ensures Mapbox uses the same location data as the rest of the app
@@ -18,7 +32,7 @@ struct MapboxMapView: View {
     @EnvironmentObject var locationManager: LocationManager
     @Binding var geoJSONData: [String: Any]?
     @Binding var geoJSONUpdateTrigger: UUID
-    @Binding var targetCameraLocation: CLLocation?
+    @Binding var targetLocation: TargetLocation?
     @State private var mapProxy: MapboxMaps.MapProxy?
     @State private var selectedFeature: [String: Any]?
     @State private var showPopup: Bool = false
@@ -81,6 +95,14 @@ struct MapboxMapView: View {
                     if let featureCollection = featureCollection {
                         showGeoJSON(featureCollection: featureCollection)
                     }
+                    
+                    // Add lookup location marker when autocomplete selection is made
+                    if let targetLocation = targetLocation {
+                        MapboxMaps.MapViewAnnotation(coordinate: targetLocation.location.coordinate) {
+                            LookupLocation(targetLocation: targetLocation)
+                        }
+                        .allowOverlap(true)
+                    }
                 }
                 // .mapStyle(MapboxMaps.MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
                 .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
@@ -109,14 +131,12 @@ struct MapboxMapView: View {
                         fitCameraToGeoJSON(proxy: proxy, featureCollection: featureCollection)
                     }
                 }
-                .onChange(of: targetCameraLocation) { newLocation in
-                    // When target camera location is set (from autocomplete selection), fly to it
-                    if let location = newLocation {
-                        updateMapCamera(proxy: proxy, location: location, isDeviceLocation: false)
-                        // Reset the binding after updating to allow future updates
-                        Task { @MainActor in
-                            targetCameraLocation = nil
-                        }
+                .onChange(of: targetLocation) { newTargetLocation in
+                    // When target location is set (from autocomplete selection), fly to it and show marker
+                    if let target = newTargetLocation {
+                        updateMapCamera(proxy: proxy, location: target.location, isDeviceLocation: false)
+                        // Note: We don't reset targetLocation to nil here because it's needed to display the marker
+                        // The marker will persist until a new targetLocation is set (replacing the old one)
                     }
                 }
                 // Note: geoJSONUpdateTrigger is still used to trigger re-rendering when data changes
@@ -344,6 +364,36 @@ fileprivate struct PlaceView: View {
     }
 }
 
+// MARK: - Lookup Location Annotation View
+/// Custom SwiftUI view for lookup location annotations (from autocomplete selection)
+/// Used with MapViewAnnotation to display lookup place information on the map
+fileprivate struct LookupLocation: View {
+    let targetLocation: TargetLocation
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            // Pin icon
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: Spacing.current.spaceM))
+                .foregroundColor(Color("AppBkgColor"))
+                .shadow(radius: Spacing.current.space3xs)
+            
+            // Place name text (only show if name exists)
+            if let name = targetLocation.name {
+                Text(name)
+                    .bodyText(size: .articleMinus1)
+                    .foregroundColor(Color("onBkgTextColor10"))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.vertical, Spacing.current.space3xs)
+                    .padding(.horizontal, Spacing.current.space2xs)
+                    .background(Color("AppBkgColor").cornerRadius(Spacing.current.spaceXs))
+                    .shadow(radius: Spacing.current.space3xs)
+            }
+        }
+    }
+}
+
 // MARK: - GeoJSON Helper Functions
 /// Shared helper function to extract coordinate from a Point geometry feature
 /// GeoJSON coordinates format: [longitude, latitude]
@@ -535,7 +585,7 @@ struct MapLibreMapViewWrapper: View {
     MapboxMapView(
         geoJSONData: .constant(nil),
         geoJSONUpdateTrigger: .constant(UUID()),
-        targetCameraLocation: .constant(nil)
+        targetLocation: .constant(nil)
     )
         .environmentObject(LocationManager())
     // MapView()

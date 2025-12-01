@@ -42,7 +42,7 @@ struct TestMainView: View {
     @State private var autocompleteResults: [MKLocalSearchCompletion] = []
     @State private var searchCompleterDelegate: SearchCompleterDelegate?
     @State private var shouldSearchAround: Bool = false
-    @State private var targetCameraLocation: CLLocation?
+    @State private var targetLocation: TargetLocation?
     
     // Sheet snap point control - universal binding for bidirectional control
     @State private var sheetSnapPoint: TestInfoSheet.SnapPoint = .partial
@@ -77,7 +77,7 @@ struct TestMainView: View {
             MapboxMapView(
                 geoJSONData: $geoJSONData,
                 geoJSONUpdateTrigger: $geoJSONUpdateTrigger,
-                targetCameraLocation: $targetCameraLocation
+                targetLocation: $targetLocation
             )
                 .ignoresSafeArea(.container)
                 .ignoresSafeArea(.keyboard)
@@ -1293,9 +1293,10 @@ extension TestMainView {
             // Save lookup location to UserDefaults
             locationManager.saveLookupLocation(location)
             
-            // Update target camera location to trigger map camera update
+            // Update target location to trigger map camera update and show marker
+            let placeName = lookupDict["place"] as? String
             await MainActor.run {
-                targetCameraLocation = location
+                targetLocation = TargetLocation(location: location, name: placeName)
             }
         } catch {
             #if DEBUG

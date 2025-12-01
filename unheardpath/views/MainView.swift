@@ -52,7 +52,7 @@ struct MainView: View {
       MapboxMapView(
         geoJSONData: $geoJSONData,
         geoJSONUpdateTrigger: $geoJSONUpdateTrigger,
-        targetCameraLocation: .constant(nil)
+        targetLocation: .constant(nil)
       )
         .ignoresSafeArea(.all)
       
