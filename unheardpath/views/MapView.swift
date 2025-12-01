@@ -351,125 +351,43 @@ struct MapboxMapView: View {
         }
     }
     
-    /// Adds nearby points from GeoJSON data source
-    /// - Parameter geoJSON: Dictionary containing GeoJSON FeatureCollection with features
-    func showNearby(geoJSON: [String: Any]) {
-        guard let data = geoJSON["data"] as? [String: Any] else {
-            #if DEBUG
-            print("❌ Invalid GeoJSON structure: missing 'data' key")
-            print("   Available keys: \(geoJSON.keys.joined(separator: ", "))")
-            #endif
-            return
-        }
-        
-        guard let features = data["features"] as? [[String: Any]] else {
-            #if DEBUG
-            print("❌ Invalid GeoJSON structure: missing 'data.features'")
-            print("   Data keys: \(data.keys.joined(separator: ", "))")
-            #endif
-            return
-        }
-        
-        #if DEBUG
-        print("✅ Found \(features.count) features in GeoJSON")
-        #endif
-        
-        // Add GeoJSON as a source to the map
-        addGeoJSONSource(geoJSONData: data)
-    }
-    
-    /// Add GeoJSON source and layer to the map
-    private func addGeoJSONSource(geoJSONData: [String: Any]) {
-        guard let mapProxy = mapProxy else {
-            #if DEBUG
-            print("⚠️ Map proxy not available yet")
-            #endif
-            return
-        }
-        
-        Task {
-            do {
-                // Convert GeoJSON dictionary to JSON string
-                let jsonData = try JSONSerialization.data(withJSONObject: geoJSONData)
-                guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-                    #if DEBUG
-                    print("❌ Failed to convert GeoJSON to string")
-                    #endif
-                    return
-                }
-                
-                // Create GeoJSON source with data
-                let sourceId = "nearby-places-source"
-                var source = MapboxMaps.GeoJSONSource(id: sourceId)
-                source.data = .string(jsonString)
-                
-                // Add or update source
-                guard let map = mapProxy.map else {
-                    #if DEBUG
-                    print("⚠️ Map not available")
-                    #endif
-                    return
-                }
-                
-                try await map.addSource(source)
-                
-                // Create circle layer for points
-                let layerId = "nearby-places-layer"
-                var circleLayer = MapboxMaps.CircleLayer(id: layerId, source: sourceId)
-                circleLayer.circleColor = .constant(StyleColor(.blue))
-                circleLayer.circleRadius = .constant(8)
-                circleLayer.circleStrokeWidth = .constant(2)
-                circleLayer.circleStrokeColor = .constant(StyleColor(.white))
-                
-                // Remove existing layer if it exists, then add new one
-                try? await map.removeLayer(withId: layerId)
-                try await map.addLayer(circleLayer)
-                
-                #if DEBUG
-                print("✅ Added GeoJSON source and layer to map")
-                #endif
-            } catch {
-                #if DEBUG
-                print("❌ Failed to add GeoJSON source: \(error)")
-                #endif
-            }
-        }
-    }
-    
-    /// Shows GeoJSON data on the map using declarative MapContent API
-    /// Follows Mapbox best practices for declarative map styling
-    /// - Parameter featureCollection: Dictionary containing GeoJSON FeatureCollection (the "data" field from JSON)
-    /// - Returns: A MapContent component that can be added directly to the Map closure
     fileprivate func showGeoJSON(featureCollection: [String: Any]) -> GeoJSONMapContent {
         return GeoJSONMapContent(featureCollection: featureCollection)
     }
-    
 }
 
 // MARK: - Custom Annotation View
 /// Custom SwiftUI view for GeoJSON feature annotations
 /// Used with MapViewAnnotation to display feature information on the map
 fileprivate struct PlaceView: View {
-    let title: String
-    let shortDescription: String?
+    let properties: [String: Any]?
+    
+    /// Extracts title from properties, checking both "title" and "name" fields
+    private var title: String? {
+        guard let properties = properties else { return nil }
+        return properties["title"] as? String ?? properties["name"] as? String
+    }
     
     var body: some View {
         VStack(spacing: 4) {
             // Pin icon
-            Image(systemName: "mappin")
-                .font(.system(size: Spacing.current.spaceL))
-                .foregroundColor(.blue)
+            Image(systemName: "smallcircle.filled.circle")
+                .font(.system(size: Spacing.current.spaceXs))
+                .foregroundColor(Color("AccentColor"))
+                .shadow(radius: Spacing.current.space3xs)
             
-            // Title text
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.black)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .cornerRadius(8)
-                .shadow(radius: 2)
+            // Title text (only show if title exists)
+            if let title = title {
+                Text(title)
+                    .bodyText(size: .articleMinus1)
+                    .foregroundColor(Color("onBkgTextColor10"))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.vertical,Spacing.current.space3xs)
+                    .padding(.horizontal,Spacing.current.space2xs)
+                    .background(Color("AppBkgColor").cornerRadius(Spacing.current.spaceXs))
+                    .shadow(radius: Spacing.current.space3xs)
+            }
         }
     }
 }
@@ -506,12 +424,37 @@ fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
         guard let geometry = feature["geometry"] as? [String: Any],
               let type = geometry["type"] as? String,
               type == "Point",
-              let coordinates = geometry["coordinates"] as? [Double],
-              coordinates.count >= 2 else {
+              let coordinatesArray = geometry["coordinates"] as? [Any],
+              coordinatesArray.count >= 2 else {
             return nil
         }
+        
+        // Convert coordinates from Any (could be NSNumber, Double, Int, etc.) to Double
+        let longitude: Double?
+        let latitude: Double?
+        
+        if let lon = coordinatesArray[0] as? Double {
+            longitude = lon
+        } else if let lonNum = coordinatesArray[0] as? NSNumber {
+            longitude = lonNum.doubleValue
+        } else {
+            longitude = nil
+        }
+        
+        if let lat = coordinatesArray[1] as? Double {
+            latitude = lat
+        } else if let latNum = coordinatesArray[1] as? NSNumber {
+            latitude = latNum.doubleValue
+        } else {
+            latitude = nil
+        }
+        
+        guard let lon = longitude, let lat = latitude else {
+            return nil
+        }
+        
         // GeoJSON coordinates are [longitude, latitude]
-        return CLLocationCoordinate2D(latitude: coordinates[1], longitude: coordinates[0])
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
     
     /// Extract properties from a feature
@@ -528,34 +471,17 @@ fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
         MapboxMaps.GeoJSONSource(id: sourceId)
             .data(.string(jsonString))
         
-        // Create circle layer (must use property assignment as method chaining may not be available)
-        // Note: Creating as let after configuration
-        let configuredLayer: MapboxMaps.CircleLayer = {
-            var layer = MapboxMaps.CircleLayer(id: layerId, source: sourceId)
-            layer.circleColor = .constant(StyleColor(.blue))
-            layer.circleRadius = .constant(8)
-            layer.circleStrokeWidth = .constant(2)
-            layer.circleStrokeColor = .constant(StyleColor(.white))
-            return layer
-        }()
-        configuredLayer
-        
         // Add MapViewAnnotation for each Point feature using ForEvery
         // Following Mapbox documentation pattern: https://docs.mapbox.com/ios/maps/api/11.2.0/documentation/mapboxmaps/forevery
         MapboxMaps.ForEvery(Array(features.enumerated()), id: \.offset) { index, feature in
             if let coordinate = coordinate(from: feature),
-               let properties = properties(from: feature),
-               let title = properties["title"] as? String ?? properties["name"] as? String {
-                let shortDescription = properties["extract"] as? String
-                
+               let properties = properties(from: feature) {
                 MapboxMaps.MapViewAnnotation(coordinate: coordinate) {
-                    PlaceView(
-                        title: title,
-                        shortDescription: shortDescription
-                    )
+                    PlaceView(properties: properties)
                 }
-                .allowOverlap(false)
-                .priority(0)
+                .allowOverlap(true)
+                // .priority(0)
+                // .priority(Int(distanceFromUser / 100))
             }
         }
     }
