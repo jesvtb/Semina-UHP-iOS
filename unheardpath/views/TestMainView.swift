@@ -1275,7 +1275,7 @@ extension TestMainView {
             
             // Construct lookup place dictionary and update lookupLocationDetails
             let placemark = mapItem.placemark
-            let lookupDict = locationManager.constructLookupPlaceDict(
+            let lookupDict = locationManager.constructLookupLocation(
                 location: location,
                 placemark: placemark,
                 mapItemName: mapItem.name

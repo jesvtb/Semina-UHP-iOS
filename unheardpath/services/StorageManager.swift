@@ -192,58 +192,6 @@ enum StorageManager {
         _ = _initialize // Trigger initialization
         // TODO: Implementation placeholder - to be updated later
     }
-    
-    // MARK: - Location Data Methods
-    // Adapted from LocationManager.saveLocation() pattern
-    // Similar to how you'd structure data persistence in Python or React
-    
-    /// Save location data (adapted from LocationManager pattern)
-    /// Automatically chooses UserDefaults for small data
-    /// - Parameters:
-    ///   - latitude: Location latitude
-    ///   - longitude: Location longitude
-    ///   - timestamp: Location timestamp (defaults to current time)
-    // func saveLocation(latitude: Double, longitude: Double, timestamp: TimeInterval? = nil) {
-    //     // Use UserDefaults for small location data (like LocationManager does)
-    //     let timestampValue = timestamp ?? Date().timeIntervalSince1970
-        
-    //     saveToUserDefaults(latitude, forKey: "LocationManager.lastLocation.latitude")
-    //     saveToUserDefaults(longitude, forKey: "LocationManager.lastLocation.longitude")
-    //     saveToUserDefaults(timestampValue, forKey: "LocationManager.lastLocation.timestamp")
-        
-    //     #if DEBUG
-    //     print("💾 Saved Latest Device Location to UserDefaults: \(latitude), \(longitude)")
-    //     #endif
-    // }
-    
-    // /// Load saved location data (adapted from LocationManager pattern)
-    // /// - Returns: Tuple of (latitude, longitude, timestamp) or nil if not found
-    // func loadLocation() -> (latitude: Double, longitude: Double, timestamp: TimeInterval)? {
-    //     guard let latitude = loadFromUserDefaults(forKey: "LocationManager.lastLocation.latitude", as: Double.self),
-    //           let longitude = loadFromUserDefaults(forKey: "LocationManager.lastLocation.longitude", as: Double.self),
-    //           let timestamp = loadFromUserDefaults(forKey: "LocationManager.lastLocation.timestamp", as: TimeInterval.self) else {
-    //         #if DEBUG
-    //         print("ℹ️ No saved location found in UserDefaults")
-    //         #endif
-    //         return nil
-    //     }
-        
-    //     // Validate coordinates are not zero
-    //     guard latitude != 0.0 || longitude != 0.0 else {
-    //         #if DEBUG
-    //         print("ℹ️ Saved location coordinates are zero, ignoring")
-    //         #endif
-    //         return nil
-    //     }
-        
-    //     #if DEBUG
-    //     print("📂 Loaded UserDefaults Last Device Coordinates: \(latitude), \(longitude)")
-    //     print("   Saved at: \(Date(timeIntervalSince1970: timestamp))")
-    //     #endif
-        
-    //     return (latitude: latitude, longitude: longitude, timestamp: timestamp)
-    // }
-    
     // MARK: - Cache Management
     // For managing cached data that might be large
     

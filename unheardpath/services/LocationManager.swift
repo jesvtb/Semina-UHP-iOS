@@ -46,6 +46,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let lastLookupLatKey = "LastLookupCoord.latitude"
     private let lastLookupLonKey = "LastLookupCoord.longitude"
     private let lastLookupCoordTimestamp = "LastLookupCoord.timestamp"
+    private let lastDeviceLocationKey = "LastDeviceLocation"
+    private let lastLookupLocationKey = "LastLookupLocation"
     
     // Cache configuration for places/geojson data
     private let placesCacheExpirationHours: TimeInterval = 24 * 60 * 60 // 24 hours in seconds
@@ -59,8 +61,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         authorizationStatus = locationManager.authorizationStatus
         isLocationPermissionGranted = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
         
-        // Load last saved location immediately
-        loadLastSavedLocation()
+        // Load last saved locations immediately
+        loadLastSavedDeviceLocation()
+        loadLastSavedLookupLocation()
         
         // Observe app lifecycle to adapt tracking strategy
         setupAppLifecycleObservers()
@@ -259,9 +262,37 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     // MARK: - Location Persistence
     
+    /// Converts a dictionary to JSON string for storage
+    /// - Parameter dict: Dictionary to convert
+    /// - Returns: JSON string representation, or nil if conversion fails
+    private func dictionaryToJSONString(_ dict: [String: Any]) -> String? {
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: dict, options: []),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            #if DEBUG
+            print("⚠️ Failed to convert dictionary to JSON string")
+            #endif
+            return nil
+        }
+        return jsonString
+    }
+    
+    /// Converts a JSON string back to dictionary
+    /// - Parameter jsonString: JSON string to parse
+    /// - Returns: Dictionary representation, or nil if parsing fails
+    private func jsonStringToDictionary(_ jsonString: String) -> [String: Any]? {
+        guard let jsonData = jsonString.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any] else {
+            #if DEBUG
+            print("⚠️ Failed to parse JSON string to dictionary")
+            #endif
+            return nil
+        }
+        return dict
+    }
+    
     /// Saves the current location to UserDefaults for persistence across app launches
     /// Uses StorageManager for consistent UserDefaults management
-    private func saveLocation(_ location: CLLocation) {
+    private func saveDeviceLocation(_ location: CLLocation) {
         StorageManager.saveToUserDefaults(location.coordinate.latitude, forKey: lastDeviceLatKey)
         StorageManager.saveToUserDefaults(location.coordinate.longitude, forKey: lastDeviceLonKey)
         StorageManager.saveToUserDefaults(location.timestamp.timeIntervalSince1970, forKey: lastDeviceCoordTimestamp)
@@ -289,7 +320,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Loads the last saved location from UserDefaults
     /// This allows the app to start with the user's last known location
     /// Uses StorageManager for consistent UserDefaults management
-    private func loadLastSavedLocation() {
+    private func loadLastSavedDeviceLocation() {
         guard StorageManager.existsInUserDefaults(forKey: lastDeviceLatKey),
               StorageManager.existsInUserDefaults(forKey: lastDeviceLonKey) else {
             #if DEBUG
@@ -336,8 +367,81 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Set as current location immediately
         deviceLocation = savedLocation
         
+        // Load location details from LastDeviceLocation key
+        if let locationDetailsString = StorageManager.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self),
+           let locationDetailsDict = jsonStringToDictionary(locationDetailsString) {
+            locationDetails = locationDetailsDict
+            #if DEBUG
+            print("📂 Loaded LastDeviceLocation details from UserDefaults")
+            #endif
+        }
+        
         #if DEBUG
         print("📂 Loaded UserDefaults Last Device Coordinates: \(latitude), \(longitude)")
+        #endif
+    }
+    
+    /// Loads the last saved lookup location from UserDefaults
+    /// This allows the app to start with the user's last known lookup location
+    /// Uses StorageManager for consistent UserDefaults management
+    private func loadLastSavedLookupLocation() {
+        guard StorageManager.existsInUserDefaults(forKey: lastLookupLatKey),
+              StorageManager.existsInUserDefaults(forKey: lastLookupLonKey) else {
+            #if DEBUG
+            print("ℹ️ No saved lookup location found in UserDefaults")
+            #endif
+            return
+        }
+        
+        guard let latitudeValue = StorageManager.loadFromUserDefaults(forKey: lastLookupLatKey, as: Double.self),
+              let longitudeValue = StorageManager.loadFromUserDefaults(forKey: lastLookupLonKey, as: Double.self),
+              let timestampValue = StorageManager.loadFromUserDefaults(forKey: lastLookupCoordTimestamp, as: TimeInterval.self) else {
+            #if DEBUG
+            print("ℹ️ Failed to load saved lookup location from UserDefaults")
+            #endif
+            return
+        }
+        
+        let latitude: CLLocationDegrees = latitudeValue
+        let longitude: CLLocationDegrees = longitudeValue
+        let timestamp = timestampValue
+        
+        // Validate coordinates are not zero (which would indicate no saved location)
+        guard latitude != 0.0 || longitude != 0.0 else {
+            #if DEBUG
+            print("ℹ️ Saved lookup location coordinates are zero, ignoring")
+            #endif
+            return
+        }
+        
+        // Create CLLocation from saved coordinates
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let savedTimestamp = Date(timeIntervalSince1970: timestamp)
+        
+        // Create a CLLocation with saved coordinates
+        // Use a default accuracy since we don't save that
+        let savedLocation = CLLocation(
+            coordinate: coordinate,
+            altitude: 0,
+            horizontalAccuracy: kCLLocationAccuracyHundredMeters,
+            verticalAccuracy: -1,
+            timestamp: savedTimestamp
+        )
+        
+        // Set as current lookup location immediately
+        lookupLocation = savedLocation
+        
+        // Load location details from LastLookupLocation key
+        if let lookupLocationDetailsString = StorageManager.loadFromUserDefaults(forKey: lastLookupLocationKey, as: String.self),
+           let lookupLocationDetailsDict = jsonStringToDictionary(lookupLocationDetailsString) {
+            lookupLocationDetails = lookupLocationDetailsDict
+            #if DEBUG
+            print("📂 Loaded LastLookupLocation details from UserDefaults")
+            #endif
+        }
+        
+        #if DEBUG
+        print("📂 Loaded UserDefaults Last Lookup Coordinates: \(latitude), \(longitude)")
         #endif
     }
     
@@ -575,15 +679,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     ///   - location: The CLLocation with coordinates
     ///   - placemark: Optional CLPlacemark with address information
     /// - Returns: Dictionary with location and geocoding data
-    private func constructLocationDict(location: CLLocation, placemark: CLPlacemark?) -> [String: Any] {
+    private func constructDeviceLocation(location: CLLocation, placemark: CLPlacemark?) -> [String: Any] {
         var dict: [String: Any] = [:]
         
-        // Required fields
+        // Core location data (always present)
         dict["latitude"] = location.coordinate.latitude
         dict["longitude"] = location.coordinate.longitude
         dict["accuracy"] = location.horizontalAccuracy
-        
-        // Location type
         dict["location_type"] = "device"
         
         // Local time (timestamp localized, not UTC)
@@ -594,7 +696,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // If placemark found, include address elements
         if let placemark = placemark {
-            // Name
+            // Place information
             if let name = placemark.name {
                 dict["place"] = name
             }
@@ -629,22 +731,18 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 dict["location"] = locationParts.joined(separator: ", ")
             }
             
-            // Postal code
-            if let postalCode = placemark.postalCode {
-                dict["postal_code"] = postalCode
-            }
-            
-            // Country code
+            // Country information
             if let countryCode = placemark.isoCountryCode {
                 dict["country_code"] = countryCode
             }
-            
-            // Country name
             if let country = placemark.country {
                 dict["country"] = country
             }
             
-            // Inland water and ocean
+            // Additional information
+            if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
+                dict["areas_of_interest"] = areasOfInterest
+            }
             if let inlandWater = placemark.inlandWater {
                 dict["inwater"] = true
                 dict["water_name"] = inlandWater
@@ -653,20 +751,15 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 dict["water_name"] = ocean
             }
             
-            // Areas of interest
-            if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
-                dict["areas_of_interest"] = areasOfInterest
-            }
-            
-            // Region
+            // Region information
             if let region = placemark.region as? CLCircularRegion {
-                dict["region_lon"] = region.center.longitude
                 dict["region_lat"] = region.center.latitude
+                dict["region_lon"] = region.center.longitude
                 dict["region_radius"] = region.radius
             }
         }
         
-        // Construct full address string
+        // Construct full address string (at the end)
         var addressParts: [String] = []
         if let street = dict["street"] as? String {
             addressParts.append(street)
@@ -674,14 +767,19 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if let location = dict["location"] as? String {
             addressParts.append(location)
         }
-        if let postalCode = dict["postal_code"] as? String {
-            addressParts.append(postalCode)
-        }
         if let country = dict["country"] as? String {
             addressParts.append(country)
         }
         if !addressParts.isEmpty {
             dict["full_address"] = addressParts.joined(separator: ", ")
+        }
+        
+        // Save the final dict as JSON string to UserDefaults
+        if let jsonString = dictionaryToJSONString(dict) {
+            StorageManager.saveToUserDefaults(jsonString, forKey: lastDeviceLocationKey)
+            #if DEBUG
+            print("💾 Saved LastDeviceLocation to UserDefaults")
+            #endif
         }
         
         return dict
@@ -693,15 +791,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     ///   - placemark: CLPlacemark with address information from MKLocalSearch
     ///   - mapItemName: Optional name from MKMapItem
     /// - Returns: Dictionary with location and address data
-    func constructLookupPlaceDict(location: CLLocation, placemark: CLPlacemark, mapItemName: String?) -> [String: Any] {
+    func constructLookupLocation(location: CLLocation, placemark: CLPlacemark, mapItemName: String?) -> [String: Any] {
         var dict: [String: Any] = [:]
         
-        // Required fields
+        // Core location data (always present)
         dict["latitude"] = location.coordinate.latitude
         dict["longitude"] = location.coordinate.longitude
         dict["accuracy"] = location.horizontalAccuracy
-        
-        // Location type
         dict["location_type"] = "lookup"
         
         // Local time (timestamp localized, not UTC)
@@ -710,7 +806,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         formatter.timeZone = TimeZone.current
         dict["local_time"] = formatter.string(from: location.timestamp)
         
-        // Name from mapItem or placemark
+        // Place information
         if let name = mapItemName {
             dict["place"] = name
         } else if let name = placemark.name {
@@ -747,22 +843,18 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             dict["location"] = locationParts.joined(separator: ", ")
         }
         
-        // Postal code
-        if let postalCode = placemark.postalCode {
-            dict["postal_code"] = postalCode
-        }
-        
-        // Country code
+        // Country information
         if let countryCode = placemark.isoCountryCode {
             dict["country_code"] = countryCode
         }
-        
-        // Country name
         if let country = placemark.country {
             dict["country"] = country
         }
         
-        // Inland water and ocean
+        // Additional information
+        if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
+            dict["areas_of_interest"] = areasOfInterest
+        }
         if let inlandWater = placemark.inlandWater {
             dict["inwater"] = true
             dict["water_name"] = inlandWater
@@ -771,19 +863,14 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             dict["water_name"] = ocean
         }
         
-        // Areas of interest
-        if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
-            dict["areas_of_interest"] = areasOfInterest
-        }
-        
-        // Region
+        // Region information
         if let region = placemark.region as? CLCircularRegion {
-            dict["region_lon"] = region.center.longitude
             dict["region_lat"] = region.center.latitude
+            dict["region_lon"] = region.center.longitude
             dict["region_radius"] = region.radius
         }
         
-        // Construct full address string
+        // Construct full address string (at the end)
         var addressParts: [String] = []
         if let street = dict["street"] as? String {
             addressParts.append(street)
@@ -791,14 +878,19 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if let location = dict["location"] as? String {
             addressParts.append(location)
         }
-        if let postalCode = dict["postal_code"] as? String {
-            addressParts.append(postalCode)
-        }
         if let country = dict["country"] as? String {
             addressParts.append(country)
         }
         if !addressParts.isEmpty {
             dict["full_address"] = addressParts.joined(separator: ", ")
+        }
+        
+        // Save the final dict as JSON string to UserDefaults
+        if let jsonString = dictionaryToJSONString(dict) {
+            StorageManager.saveToUserDefaults(jsonString, forKey: lastLookupLocationKey)
+            #if DEBUG
+            print("💾 Saved LastLookupLocation to UserDefaults")
+            #endif
         }
         
         return dict
@@ -859,7 +951,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 print(String(repeating: "=", count: 80) + "\n")
                 #endif
                 // Still return dict with location data even if geocoding fails
-                let dict = self.constructLocationDict(location: location, placemark: nil)
+                let dict = self.constructDeviceLocation(location: location, placemark: nil)
                 // Update locationDetails even on error (with location data only)
                 self.locationDetails = dict
                 #if DEBUG
@@ -957,7 +1049,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             #endif
             
             // Construct and return the dictionary
-            let dict = self.constructLocationDict(location: location, placemark: placemark)
+            let dict = self.constructDeviceLocation(location: location, placemark: placemark)
             
             // Update locationDetails
             self.locationDetails = dict
@@ -990,7 +1082,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("📍 Location updated (\(updateType)): \(location.coordinate.latitude), \(location.coordinate.longitude) (accuracy: ±\(Int(accuracy))m)")
 
         // Save location to UserDefaults for persistence
-        saveLocation(location)
+        saveDeviceLocation(location)
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
