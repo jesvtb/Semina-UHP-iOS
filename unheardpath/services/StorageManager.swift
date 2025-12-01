@@ -48,33 +48,56 @@ class StorageManager {
         FileManager.default.temporaryDirectory
     }
     
+    // MARK: - Key Prefix Helper
+    // Automatically prefixes all keys with "UHP." for better organization
+    
+    /// Prefixes a key with "UHP." if it doesn't already have the prefix
+    /// - Parameter key: The key to prefix
+    /// - Returns: The prefixed key
+    private func prefixedKey(_ key: String) -> String {
+        if key.hasPrefix("UHP.") {
+            return key
+        }
+        return "UHP.\(key)"
+    }
+    
     // MARK: - UserDefaults Helper
     // For small data (< 100 KB) - similar to localStorage in React or a config file in Python
     
     /// Save small data to UserDefaults (like localStorage.setItem in React)
+    /// Automatically prefixes key with "UHP."
     /// - Parameters:
     ///   - value: The value to save (must be PropertyList compatible)
-    ///   - key: The key to store under
+    ///   - key: The key to store under (will be prefixed with "UHP.")
     func saveToUserDefaults<T>(_ value: T, forKey key: String) {
-        UserDefaults.standard.set(value, forKey: key)
+        let prefixed = prefixedKey(key)
+        UserDefaults.standard.set(value, forKey: prefixed)
         UserDefaults.standard.synchronize()
     }
     
     /// Load data from UserDefaults (like localStorage.getItem in React)
-    /// - Parameter key: The key to retrieve
+    /// Automatically prefixes key with "UHP."
+    /// - Parameter key: The key to retrieve (will be prefixed with "UHP.")
     /// - Returns: The stored value, or nil if not found
     func loadFromUserDefaults<T>(forKey key: String, as type: T.Type) -> T? {
-        return UserDefaults.standard.object(forKey: key) as? T
+        let prefixed = prefixedKey(key)
+        return UserDefaults.standard.object(forKey: prefixed) as? T
     }
     
     /// Check if key exists in UserDefaults
+    /// Automatically prefixes key with "UHP."
+    /// - Parameter key: The key to check (will be prefixed with "UHP.")
     func existsInUserDefaults(forKey key: String) -> Bool {
-        return UserDefaults.standard.object(forKey: key) != nil
+        let prefixed = prefixedKey(key)
+        return UserDefaults.standard.object(forKey: prefixed) != nil
     }
     
     /// Remove data from UserDefaults
+    /// Automatically prefixes key with "UHP."
+    /// - Parameter key: The key to remove (will be prefixed with "UHP.")
     func removeFromUserDefaults(forKey key: String) {
-        UserDefaults.standard.removeObject(forKey: key)
+        let prefixed = prefixedKey(key)
+        UserDefaults.standard.removeObject(forKey: prefixed)
         UserDefaults.standard.synchronize()
     }
     
@@ -89,23 +112,8 @@ class StorageManager {
     /// - Returns: URL of saved file
     /// - Throws: Error if save fails
     func saveToDocuments(data: Data, filename: String, subdirectory: String? = nil) throws -> URL {
-        var fileURL = documentsURL
-        
-        // Create subdirectory if specified (like os.path.join in Python)
-        if let subdir = subdirectory {
-            fileURL = fileURL.appendingPathComponent(subdir)
-            try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: true)
-        }
-        
-        fileURL = fileURL.appendingPathComponent(filename)
-        
-        // Remove existing file if it exists
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            try FileManager.default.removeItem(at: fileURL)
-        }
-        
-        try data.write(to: fileURL)
-        return fileURL
+        // TODO: Implementation placeholder - to be updated later
+        throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "saveToDocuments not yet implemented"])
     }
     
     /// Save data to file in Caches directory
@@ -116,21 +124,8 @@ class StorageManager {
     /// - Returns: URL of saved file
     /// - Throws: Error if save fails
     func saveToCaches(data: Data, filename: String, subdirectory: String? = nil) throws -> URL {
-        var fileURL = cachesURL
-        
-        if let subdir = subdirectory {
-            fileURL = fileURL.appendingPathComponent(subdir)
-            try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: true)
-        }
-        
-        fileURL = fileURL.appendingPathComponent(filename)
-        
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            try FileManager.default.removeItem(at: fileURL)
-        }
-        
-        try data.write(to: fileURL)
-        return fileURL
+        // TODO: Implementation placeholder - to be updated later
+        throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "saveToCaches not yet implemented"])
     }
     
     /// Load data from file in Documents directory
@@ -140,14 +135,8 @@ class StorageManager {
     /// - Returns: The file data
     /// - Throws: Error if file doesn't exist or can't be read
     func loadFromDocuments(filename: String, subdirectory: String? = nil) throws -> Data {
-        var fileURL = documentsURL
-        
-        if let subdir = subdirectory {
-            fileURL = fileURL.appendingPathComponent(subdir)
-        }
-        
-        fileURL = fileURL.appendingPathComponent(filename)
-        return try Data(contentsOf: fileURL)
+        // TODO: Implementation placeholder - to be updated later
+        throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "loadFromDocuments not yet implemented"])
     }
     
     /// Load data from file in Caches directory
@@ -157,62 +146,30 @@ class StorageManager {
     /// - Returns: The file data
     /// - Throws: Error if file doesn't exist or can't be read
     func loadFromCaches(filename: String, subdirectory: String? = nil) throws -> Data {
-        var fileURL = cachesURL
-        
-        if let subdir = subdirectory {
-            fileURL = fileURL.appendingPathComponent(subdir)
-        }
-        
-        fileURL = fileURL.appendingPathComponent(filename)
-        return try Data(contentsOf: fileURL)
+        // TODO: Implementation placeholder - to be updated later
+        throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "loadFromCaches not yet implemented"])
     }
     
     /// Check if file exists in Documents directory
     func existsInDocuments(filename: String, subdirectory: String? = nil) -> Bool {
-        var fileURL = documentsURL
-        
-        if let subdir = subdirectory {
-            fileURL = fileURL.appendingPathComponent(subdir)
-        }
-        
-        fileURL = fileURL.appendingPathComponent(filename)
-        return FileManager.default.fileExists(atPath: fileURL.path)
+        // TODO: Implementation placeholder - to be updated later
+        return false
     }
     
     /// Check if file exists in Caches directory
     func existsInCaches(filename: String, subdirectory: String? = nil) -> Bool {
-        var fileURL = cachesURL
-        
-        if let subdir = subdirectory {
-            fileURL = fileURL.appendingPathComponent(subdir)
-        }
-        
-        fileURL = fileURL.appendingPathComponent(filename)
-        return FileManager.default.fileExists(atPath: fileURL.path)
+        // TODO: Implementation placeholder - to be updated later
+        return false
     }
     
     /// Delete file from Documents directory
     func deleteFromDocuments(filename: String, subdirectory: String? = nil) throws {
-        var fileURL = documentsURL
-        
-        if let subdir = subdirectory {
-            fileURL = fileURL.appendingPathComponent(subdir)
-        }
-        
-        fileURL = fileURL.appendingPathComponent(filename)
-        try FileManager.default.removeItem(at: fileURL)
+        // TODO: Implementation placeholder - to be updated later
     }
     
     /// Delete file from Caches directory
     func deleteFromCaches(filename: String, subdirectory: String? = nil) throws {
-        var fileURL = cachesURL
-        
-        if let subdir = subdirectory {
-            fileURL = fileURL.appendingPathComponent(subdir)
-        }
-        
-        fileURL = fileURL.appendingPathComponent(filename)
-        try FileManager.default.removeItem(at: fileURL)
+        // TODO: Implementation placeholder - to be updated later
     }
     
     // MARK: - Location Data Methods
@@ -225,177 +182,83 @@ class StorageManager {
     ///   - latitude: Location latitude
     ///   - longitude: Location longitude
     ///   - timestamp: Location timestamp (defaults to current time)
-    func saveLocation(latitude: Double, longitude: Double, timestamp: TimeInterval? = nil) {
-        // Use UserDefaults for small location data (like LocationManager does)
-        let timestampValue = timestamp ?? Date().timeIntervalSince1970
+    // func saveLocation(latitude: Double, longitude: Double, timestamp: TimeInterval? = nil) {
+    //     // Use UserDefaults for small location data (like LocationManager does)
+    //     let timestampValue = timestamp ?? Date().timeIntervalSince1970
         
-        saveToUserDefaults(latitude, forKey: "LocationManager.lastLocation.latitude")
-        saveToUserDefaults(longitude, forKey: "LocationManager.lastLocation.longitude")
-        saveToUserDefaults(timestampValue, forKey: "LocationManager.lastLocation.timestamp")
+    //     saveToUserDefaults(latitude, forKey: "LocationManager.lastLocation.latitude")
+    //     saveToUserDefaults(longitude, forKey: "LocationManager.lastLocation.longitude")
+    //     saveToUserDefaults(timestampValue, forKey: "LocationManager.lastLocation.timestamp")
         
-        #if DEBUG
-        print("💾 Saved Latest Device Location to UserDefaults: \(latitude), \(longitude)")
-        #endif
-    }
+    //     #if DEBUG
+    //     print("💾 Saved Latest Device Location to UserDefaults: \(latitude), \(longitude)")
+    //     #endif
+    // }
     
-    /// Load saved location data (adapted from LocationManager pattern)
-    /// - Returns: Tuple of (latitude, longitude, timestamp) or nil if not found
-    func loadLocation() -> (latitude: Double, longitude: Double, timestamp: TimeInterval)? {
-        guard let latitude = loadFromUserDefaults(forKey: "LocationManager.lastLocation.latitude", as: Double.self),
-              let longitude = loadFromUserDefaults(forKey: "LocationManager.lastLocation.longitude", as: Double.self),
-              let timestamp = loadFromUserDefaults(forKey: "LocationManager.lastLocation.timestamp", as: TimeInterval.self) else {
-            #if DEBUG
-            print("ℹ️ No saved location found in UserDefaults")
-            #endif
-            return nil
-        }
+    // /// Load saved location data (adapted from LocationManager pattern)
+    // /// - Returns: Tuple of (latitude, longitude, timestamp) or nil if not found
+    // func loadLocation() -> (latitude: Double, longitude: Double, timestamp: TimeInterval)? {
+    //     guard let latitude = loadFromUserDefaults(forKey: "LocationManager.lastLocation.latitude", as: Double.self),
+    //           let longitude = loadFromUserDefaults(forKey: "LocationManager.lastLocation.longitude", as: Double.self),
+    //           let timestamp = loadFromUserDefaults(forKey: "LocationManager.lastLocation.timestamp", as: TimeInterval.self) else {
+    //         #if DEBUG
+    //         print("ℹ️ No saved location found in UserDefaults")
+    //         #endif
+    //         return nil
+    //     }
         
-        // Validate coordinates are not zero
-        guard latitude != 0.0 || longitude != 0.0 else {
-            #if DEBUG
-            print("ℹ️ Saved location coordinates are zero, ignoring")
-            #endif
-            return nil
-        }
+    //     // Validate coordinates are not zero
+    //     guard latitude != 0.0 || longitude != 0.0 else {
+    //         #if DEBUG
+    //         print("ℹ️ Saved location coordinates are zero, ignoring")
+    //         #endif
+    //         return nil
+    //     }
         
-        #if DEBUG
-        print("📂 Loaded UserDefaults Last Device Coordinates: \(latitude), \(longitude)")
-        print("   Saved at: \(Date(timeIntervalSince1970: timestamp))")
-        #endif
+    //     #if DEBUG
+    //     print("📂 Loaded UserDefaults Last Device Coordinates: \(latitude), \(longitude)")
+    //     print("   Saved at: \(Date(timeIntervalSince1970: timestamp))")
+    //     #endif
         
-        return (latitude: latitude, longitude: longitude, timestamp: timestamp)
-    }
+    //     return (latitude: latitude, longitude: longitude, timestamp: timestamp)
+    // }
     
     // MARK: - Cache Management
     // For managing cached data that might be large
     
     /// Save cache data - automatically chooses storage method based on size
+    /// Automatically prefixes key with "UHP."
     /// - Parameters:
     ///   - data: The data to cache (can be Data, Dictionary, Array, etc.)
-    ///   - key: Cache key
+    ///   - key: Cache key (will be prefixed with "UHP.")
     ///   - maxUserDefaultsSize: Maximum size in bytes to use UserDefaults (default: 100 KB)
     ///   - subdirectory: Optional subdirectory for file storage
     /// - Returns: URL if saved as file, nil if saved to UserDefaults
     /// - Throws: Error if save fails
     @discardableResult
     func saveCache<T>(_ data: T, forKey key: String, maxUserDefaultsSize: Int = 100 * 1024, subdirectory: String? = nil) throws -> URL? {
-        // Convert data to Data for size checking
-        let dataToStore: Data
-        
-        if let dataValue = data as? Data {
-            dataToStore = dataValue
-        } else if let encodable = data as? Encodable {
-            // If it's Encodable (like Dictionary, Array), encode to JSON
-            let encoder = JSONEncoder()
-            dataToStore = try encoder.encode(encodable)
-        } else {
-            // Fallback: try to serialize as PropertyList
-            dataToStore = try PropertyListSerialization.data(fromPropertyList: data, format: .binary, options: 0)
-        }
-        
-        // Choose storage method based on size
-        if dataToStore.count < maxUserDefaultsSize {
-            // Small data: use UserDefaults (like LocationManager cache methods)
-            if let dict = data as? [String: Any] {
-                saveToUserDefaults(dict, forKey: key)
-            } else if let array = data as? [[String: Any]] {
-                saveToUserDefaults(array, forKey: key)
-            } else {
-                // For other types, try to save as Data
-                saveToUserDefaults(dataToStore, forKey: key)
-            }
-            #if DEBUG
-            print("💾 Cached to UserDefaults: \(key) (\(dataToStore.count) bytes)")
-            #endif
-            return nil
-        } else {
-            // Large data: use file storage
-            let filename = "\(key).cache"
-            let url = try saveToCaches(data: dataToStore, filename: filename, subdirectory: subdirectory)
-            #if DEBUG
-            print("💾 Cached to file: \(key) (\(dataToStore.count) bytes) -> \(url.path)")
-            #endif
-            return url
-        }
+        // TODO: Implementation placeholder - to be updated later
+        throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "saveCache not yet implemented"])
     }
     
     /// Load cache data - automatically detects storage method
+    /// Automatically prefixes key with "UHP."
     /// - Parameters:
-    ///   - key: Cache key
+    ///   - key: Cache key (will be prefixed with "UHP.")
     ///   - type: Expected type (Data, Dictionary, Array, etc.)
     ///   - subdirectory: Optional subdirectory for file storage
     /// - Returns: Cached data or nil if not found
     /// - Throws: Error if load fails
     func loadCache<T>(forKey key: String, as type: T.Type, subdirectory: String? = nil) throws -> T? {
-        // Try UserDefaults first
-        if existsInUserDefaults(forKey: key) {
-            if let value = loadFromUserDefaults(forKey: key, as: T.self) {
-                #if DEBUG
-                print("✅ Cache hit from UserDefaults: \(key)")
-                #endif
-                return value
-            }
-        }
-        
-        // Try file storage
-        let filename = "\(key).cache"
-        if existsInCaches(filename: filename, subdirectory: subdirectory) {
-            let data = try loadFromCaches(filename: filename, subdirectory: subdirectory)
-            
-            // Decode based on expected type
-            if T.self == Data.self {
-                return data as? T
-            } else if T.self == [String: Any].self || T.self == [[String: Any]].self {
-                // Try PropertyList first
-                if let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? T {
-                    #if DEBUG
-                    print("✅ Cache hit from file (PropertyList): \(key)")
-                    #endif
-                    return plist
-                }
-                // Try JSON
-                if let json = try? JSONSerialization.jsonObject(with: data) as? T {
-                    #if DEBUG
-                    print("✅ Cache hit from file (JSON): \(key)")
-                    #endif
-                    return json
-                }
-            }
-            
-            // Try JSONDecoder for Decodable types (if T conforms to Decodable)
-            // Note: This requires T to be Decodable, which is checked at compile time
-            if let decodableType = T.self as? any Decodable.Type {
-                let decoder = JSONDecoder()
-                if let decoded = try? decoder.decode(decodableType, from: data) as? T {
-                    #if DEBUG
-                    print("✅ Cache hit from file (Decodable): \(key)")
-                    #endif
-                    return decoded
-                }
-            }
-            
-            // Fallback: return as Data
-            return data as? T
-        }
-        
-        #if DEBUG
-        print("💾 Cache miss: \(key)")
-        #endif
-        return nil
+        // TODO: Implementation placeholder - to be updated later
+        throw NSError(domain: "StorageManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "loadCache not yet implemented"])
     }
     
     /// Remove cache entry (from both UserDefaults and file storage)
+    /// Automatically prefixes key with "UHP."
+    /// - Parameter key: Cache key (will be prefixed with "UHP.")
     func removeCache(forKey key: String, subdirectory: String? = nil) {
-        // Remove from UserDefaults
-        removeFromUserDefaults(forKey: key)
-        
-        // Remove from file storage
-        let filename = "\(key).cache"
-        try? deleteFromCaches(filename: filename, subdirectory: subdirectory)
-        
-        #if DEBUG
-        print("🗑️ Removed cache: \(key)")
-        #endif
+        // TODO: Implementation placeholder - to be updated later
     }
     
     // MARK: - File Size Utilities

@@ -123,61 +123,6 @@ struct MapboxMapView: View {
                 // The declarative MapContent API will automatically update when featureCollection changes
             }
             
-            // Popup overlay
-            if showPopup, let feature = selectedFeature,
-               let properties = feature["properties"] as? [String: Any] {
-                VStack {
-                    Spacer()
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            if let idx = properties["idx"] as? Int {
-                                Text("Index: \(idx)")
-                                    .font(.headline)
-                            }
-                            Spacer()
-                            Button(action: {
-                                showPopup = false
-                                selectedFeature = nil
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(Color("onBkgTextColor30"))
-                            }
-                        }
-                        
-                        if let extract = properties["extract"] as? String {
-                            Text(extract)
-                                .font(.body)
-                                .lineLimit(5)
-                        }
-                        
-                        if let imgURL = properties["img_url"] as? String,
-                           let imageURL = URL(string: imgURL) {
-                            AsyncImage(url: imageURL) { phase in
-                                switch phase {
-                                case .empty:
-                                    ProgressView()
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(maxHeight: 200)
-                                case .failure:
-                                    EmptyView()
-                                @unknown default:
-                                    EmptyView()
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color("onBkgTextColor10"))
-                    .cornerRadius(12)
-                    .shadow(radius: 10)
-                    .padding(.horizontal)
-                    .padding(.bottom, 50)
-                }
-                .transition(.move(edge: .bottom))
-            }
         }
         .navigationBarHidden(true)
     }
