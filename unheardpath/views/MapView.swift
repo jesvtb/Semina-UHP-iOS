@@ -132,10 +132,10 @@ struct MapboxMapView: View {
         if let location = locationManager.currentLocation {
             // Use saved location with offset south for camera center
             let offsetCenter = offsetCameraSouth(of: location)
-            return .camera(center: offsetCenter, zoom: 14, bearing: 0, pitch: 0)
+            return .camera(center: offsetCenter, zoom: 14, bearing: 0, pitch: 60)
         } else {
             // Fallback: Use a wide viewport if no saved location exists (first time app launch)
-            return .camera(center: CLLocationCoordinate2D(latitude: 0, longitude: 0), zoom: 2, bearing: 0, pitch: 0)
+            return .camera(center: CLLocationCoordinate2D(latitude: 0, longitude: 0), zoom: 2, bearing: 0, pitch: 60)
         }
     }
     
@@ -323,7 +323,7 @@ struct MapboxMapView: View {
                 center: offsetCenter,
                 zoom: 14,
                 bearing: 0,
-                pitch: 0
+                pitch: 60
             )
             
             // Use the map's camera API to update the viewport
@@ -362,19 +362,49 @@ struct MapboxMapView: View {
 fileprivate struct PlaceView: View {
     let properties: [String: Any]?
     
+    /// Frame size for the circular image
+    private let imageFrameSize: CGFloat = Spacing.current.spaceM
+    
     /// Extracts title from properties, checking both "title" and "name" fields
     private var title: String? {
         guard let properties = properties else { return nil }
         return properties["title"] as? String ?? properties["name"] as? String
     }
     
+    /// Extracts image URL from properties
+    private var imageURL: URL? {
+        guard let properties = properties,
+              let imgURL = properties["img_url"] as? String,
+              let url = URL(string: imgURL) else {
+            return nil
+        }
+        return url
+    }
+    
     var body: some View {
         VStack(spacing: 4) {
-            // Pin icon
-            Image(systemName: "smallcircle.filled.circle")
-                .font(.system(size: Spacing.current.spaceXs))
-                .foregroundColor(Color("AccentColor"))
-                .shadow(radius: Spacing.current.space3xs)
+            // Image in circular clip (only show if img_url exists)
+            if let imageURL = imageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .frame(width: imageFrameSize, height: imageFrameSize)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: imageFrameSize, height: imageFrameSize)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color("AppBkgColor"), lineWidth: 2))
+                            .shadow(radius: Spacing.current.space3xs)
+                    case .failure:
+                        EmptyView()
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
             
             // Title text (only show if title exists)
             if let title = title {
@@ -388,6 +418,12 @@ fileprivate struct PlaceView: View {
                     .background(Color("AppBkgColor").cornerRadius(Spacing.current.spaceXs))
                     .shadow(radius: Spacing.current.space3xs)
             }
+            // Pin icon
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: Spacing.current.spaceXs))
+                .foregroundColor(Color("AppBkgColor"))
+                .shadow(radius: Spacing.current.space3xs)
+            
         }
     }
 }
@@ -590,7 +626,7 @@ struct MapViewGeoJSONPreview: View {
             center: CLLocationCoordinate2D(latitude: 22.55, longitude: 114.11), // Shenzhen coordinates
             zoom: 12,
             bearing: 0,
-            pitch: 0
+            pitch: 60
         )) {
             // Add GeoJSON content if available using showGeoJSON function
             if let featureCollection = featureCollection {
