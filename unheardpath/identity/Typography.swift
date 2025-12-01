@@ -171,7 +171,7 @@ struct HeadingStyle: ViewModifier {
     func body(content: Content) -> some View {
         let fontSize = size.scaledSize(from: baseSize)
         return content
-            .font(Font.custom(FontFamily.serifRegular, size: fontSize))
+            .font(Font.custom(FontFamily.sansSemibold, size: fontSize))
     }
 }
 

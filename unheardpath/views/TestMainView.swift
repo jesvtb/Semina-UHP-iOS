@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 
 // MARK: - Input Tab Selection
 enum InputTabSelection: Int, CaseIterable {
@@ -35,6 +36,12 @@ struct TestMainView: View {
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
     @FocusState private var isTextFieldFocused: Bool
+    
+    // Autocomplete state for map tab
+    @State private var searchCompleter = MKLocalSearchCompleter()
+    @State private var autocompleteResults: [MKLocalSearchCompletion] = []
+    @State private var searchCompleterDelegate: SearchCompleterDelegate?
+    @State private var shouldSearchAround: Bool = true
     
     // Sheet snap point control - universal binding for bidirectional control
     @State private var sheetSnapPoint: TestInfoSheet.SnapPoint = .partial
@@ -117,6 +124,13 @@ struct TestMainView: View {
                 .opacity(shouldHideTabBar ? 0 : 1)
                 .allowsHitTesting(!shouldHideTabBar)
             }
+            
+            // Show autocomplete results in map tab
+            if selectedTab == .map && !autocompleteResults.isEmpty && !inputLocation.isEmpty {
+                autocompleteResultsView
+                    .opacity(shouldHideTabBar ? 0 : 1)
+                    .allowsHitTesting(!shouldHideTabBar)
+            }
         }
         // Input bar pinned to bottom; moves with keyboard
         .safeAreaInset(edge: .bottom) {
@@ -149,6 +163,31 @@ struct TestMainView: View {
                     await loadLocationIfSignificant()
                 }
             }
+            // Update search completer region when location changes (if shouldSearchAround is true)
+            if selectedTab == .map && shouldSearchAround {
+                setupSearchCompleter()
+            }
+        }
+        .onChange(of: inputLocation) { newValue in
+            // Update autocomplete when typing in map tab
+            if selectedTab == .map {
+                updateAutocomplete(query: newValue)
+            }
+        }
+        .onChange(of: selectedTab) { newTab in
+            // Clear autocomplete results when switching away from map tab
+            if newTab != .map {
+                autocompleteResults = []
+            } else {
+                // Initialize search completer when entering map tab
+                setupSearchCompleter()
+            }
+        }
+        .onChange(of: shouldSearchAround) { _ in
+            // Reconfigure search completer when shouldSearchAround changes
+            if selectedTab == .map {
+                setupSearchCompleter()
+            }
         }
         .task { @MainActor in
             // Set preview values if provided (for preview purposes)
@@ -167,6 +206,11 @@ struct TestMainView: View {
             }
             if let previewCurrentNotification = previewCurrentNotification {
                 currentNotification = previewCurrentNotification
+            }
+            
+            // Initialize search completer if starting in map tab
+            if selectedTab == .map {
+                setupSearchCompleter()
             }
             
             // Initial load: If location is already available, call immediately (first time)
@@ -323,6 +367,63 @@ extension TestMainView {
         }
         .padding(.horizontal, Spacing.current.space2xs)
         .background(Color("AppBkgColor"))
+    }
+    
+    private var autocompleteResultsView: some View {
+        let displayedResults = Array(autocompleteResults.prefix(5))
+        let lastIndex = displayedResults.count - 1
+        
+        return VStack {
+            Spacer()
+            VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
+                ForEach(Array(displayedResults.enumerated()), id: \.offset) { index, result in
+                    let isMostRelevant = index == lastIndex
+                    
+                    Button(action: {
+                        // Handle selection - could geocode and update map
+                        inputLocation = result.title
+                        autocompleteResults = []
+                        isTextFieldFocused = false
+                    }) {
+                        HStack(alignment: .top, spacing: Spacing.current.spaceXs) {
+                            Image(systemName: "mappin.circle.fill")
+                                .bodyText(size: .article1)
+                                .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
+                                .padding(.top, 2) // Align icon with first line of text
+                            
+                            VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
+                                Text(result.title)
+                                    .heading(size: .article0)
+                                    .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                if !result.subtitle.isEmpty {
+                                    Text(result.subtitle)
+                                        .bodyText(size: .articleMinus1)
+                                        .foregroundColor(isMostRelevant ? Color("onBkgTextColor20") : Color("onBkgTextColor20").opacity(0.5))
+                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal, Spacing.current.spaceXs)
+                        .padding(.vertical, Spacing.current.space2xs)
+                        // .background(Color("onBkgTextColor30"))
+                        .cornerRadius(Spacing.current.spaceS)
+                    }
+                }
+            }
+            .padding(.top, Spacing.current.spaceXs)
+            .padding(.horizontal, Spacing.current.spaceXs)
+            .background(Color("AppBkgColor"))
+            // .padding(.bottom, bottomSafeAreaInsetHeight + Spacing.current.spaceXs)
+        }
+        // .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 5)
+        // .background(Color.clear)
+        // .background(Color("AppBkgColor"))
     }
     
     private var chatInputBar: some View {
@@ -977,6 +1078,79 @@ struct TestScrollOffsetPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+// MARK: - Autocomplete Management
+extension TestMainView {
+    /// Sets up the MKLocalSearchCompleter with delegate
+    /// When shouldSearchAround is true: prioritizes results near the user's location
+    /// When shouldSearchAround is false: searches globally without location bias
+    private func setupSearchCompleter() {
+        let delegate = SearchCompleterDelegate { results in
+            Task { @MainActor in
+                // Reverse order so most relevant appears at bottom
+                autocompleteResults = Array(results.prefix(5).reversed())
+            }
+        }
+        searchCompleterDelegate = delegate
+        searchCompleter.delegate = delegate
+        searchCompleter.resultTypes = [.address, .pointOfInterest, .query]
+        
+        // Set region based on shouldSearchAround flag
+        if shouldSearchAround {
+            // Prioritize nearby results - use user's location if available
+            if let latitude = locationManager.latitude,
+               let longitude = locationManager.longitude {
+                let userLocation = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                // Set a moderate region around user location (50km radius)
+                searchCompleter.region = MKCoordinateRegion(
+                    center: userLocation,
+                    latitudinalMeters: 50_000,
+                    longitudinalMeters: 50_000
+                )
+            }
+            // If location not available, region defaults to device location prioritization
+        } else {
+            // Global search - set a very large region to minimize location bias
+            // Using a region centered at equator/prime meridian with very large span
+            let globalCenter = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+            searchCompleter.region = MKCoordinateRegion(
+                center: globalCenter,
+                latitudinalMeters: 200_000_000, // ~20,000 km (covers entire Earth)
+                longitudinalMeters: 200_000_000
+            )
+        }
+    }
+    
+    /// Updates autocomplete query
+    private func updateAutocomplete(query: String) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedQuery.isEmpty {
+            autocompleteResults = []
+        } else {
+            searchCompleter.queryFragment = trimmedQuery
+        }
+    }
+}
+
+// MARK: - Search Completer Delegate
+class SearchCompleterDelegate: NSObject, MKLocalSearchCompleterDelegate {
+    private let onResultsUpdate: ([MKLocalSearchCompletion]) -> Void
+    
+    init(onResultsUpdate: @escaping ([MKLocalSearchCompletion]) -> Void) {
+        self.onResultsUpdate = onResultsUpdate
+    }
+    
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        onResultsUpdate(completer.results)
+    }
+    
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        #if DEBUG
+        print("❌ MKLocalSearchCompleter error: \(error.localizedDescription)")
+        #endif
+        onResultsUpdate([])
     }
 }
 
