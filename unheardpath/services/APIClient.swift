@@ -284,7 +284,7 @@ class APIClient: ObservableObject {
             if headers.count > maxToShow {
                 headersString += ", ... (\(headers.count - maxToShow) more)"
             }
-            print("📋 Headers: [\(headersString)]")
+            // print("📋 Headers: [\(headersString)]")
         }
         if !jsonDict.isEmpty {
             print("📦 JSON Body: \(jsonDict)")
@@ -329,13 +329,13 @@ class APIClient: ObservableObject {
                 let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
                 let errorMessage = extractErrorMessage(from: data, statusCode: statusCode)
                 #if DEBUG
-                print("❌ API Error: \(errorMessage)")
+                print("❌ API Error from \(url): \(errorMessage)")
                 #endif
                 throw APIError(message: errorMessage, code: statusCode)
             }
             
             #if DEBUG
-            print("📊 Response Status: \(httpResponse.statusCode)")
+            print("📊 Response Status from \(url): \(httpResponse.statusCode)")
             #endif
             
             // Parse response with JSONDecoder (like screenshot pattern)
@@ -345,20 +345,20 @@ class APIClient: ObservableObject {
             // For now, return as generic JSON object to maintain compatibility
             let responseData = try JSONSerialization.jsonObject(with: data)
             #if DEBUG
-            print("✅ API Response: \(responseData)")
+            print("📞 API Response from \(url): \(responseData)")
             #endif
             
             return responseData
             
         } catch let apiError as APIError {
             #if DEBUG
-            print("❌ API Error: \(apiError.message)")
+            print("❌ API Error from \(url): \(apiError.message)")
             #endif
             throw apiError
         } catch {
             let errorMessage = "Failed to call API at \(url): \(error.localizedDescription)"
             #if DEBUG
-            print("❌ Network Error: \(errorMessage)")
+            print("❌ Network Error from \(url): \(errorMessage)")
             #endif
             throw APIError(message: errorMessage, code: nil)
         }

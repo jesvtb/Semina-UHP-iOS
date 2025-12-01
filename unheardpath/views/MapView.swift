@@ -198,8 +198,9 @@ struct MapboxMapView: View {
     }
     
     private func setupMapboxLocation(proxy: MapboxMaps.MapProxy) {
-        print("🔧 Setting up Mapbox location with shared LocationManager...")
-        
+        #if DEBUG
+        print("🌍 Setting up Mapbox location with shared LocationManager...")
+        #endif
         // Note: Location permission is already handled by the shared LocationManager
         // in unheardpathApp.swift, so we don't need to request it again here.
         // This avoids duplicate permission requests.
@@ -330,12 +331,7 @@ struct MapboxMapView: View {
             
             #if DEBUG
             print("✅ Camera fitted to \(coordinates.count) GeoJSON feature coordinates using SDK method")
-            if let center = cameraOptions.center {
-                print("   Center: \(center.latitude), \(center.longitude)")
-            }
-            if let zoom = cameraOptions.zoom {
-                print("   Zoom: \(zoom)")
-            }
+           
             #endif
         }
     }
