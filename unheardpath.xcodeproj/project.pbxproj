@@ -232,11 +232,9 @@
 			mainGroup = C1CD228B2E6FE5D50057E60C;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				C1037AB02E7126210014D793 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 				C1037AB32E71279A0014D793 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */,
 				C1037AB72E7185550014D793 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				C1DF00482EC88B15009C463E /* XCRemoteSwiftPackageReference "posthog-ios" */,
-				C176B2472ED5F0F600EEFB72 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			productRefGroup = C1CD228B2E6FE5D50057E60C;
 			projectDirPath = "";
@@ -342,7 +340,6 @@
 				INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = "$(SUPABASE_PUBLISHABLE_KEY)";
 				INFOPLIST_KEY_UHP_GATEWAY_HOST_DEBUG = "$(UHP_GATEWAY_HOST_DEBUG)";
 				INFOPLIST_KEY_UHP_GATEWAY_HOST_RELEASE = "$(UHP_GATEWAY_HOST_RELEASE)";
-				INFOPLIST_KEY_USE_PROD_URL = "$(USE_PROD_URL)";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -353,6 +350,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_USE_PROD_URL = "$(USE_PROD_URL)";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
@@ -398,7 +396,6 @@
 				INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = "$(SUPABASE_PUBLISHABLE_KEY)";
 				INFOPLIST_KEY_UHP_GATEWAY_HOST_DEBUG = "$(UHP_GATEWAY_HOST_DEBUG)";
 				INFOPLIST_KEY_UHP_GATEWAY_HOST_RELEASE = "$(UHP_GATEWAY_HOST_RELEASE)";
-				INFOPLIST_KEY_USE_PROD_URL = "$(USE_PROD_URL)";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -409,6 +406,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_USE_PROD_URL = "$(USE_PROD_URL)";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
