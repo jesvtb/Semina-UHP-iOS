@@ -104,6 +104,7 @@ iOSInjectionProject/
 
 # Configuration files with secrets
 Config.plist
+Config.xcconfig
 !Config.Debug.xcconfig   # Safe to commit
 !Config.Release.xcconfig
 # *.xcconfig
