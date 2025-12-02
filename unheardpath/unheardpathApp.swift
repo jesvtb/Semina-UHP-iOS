@@ -20,6 +20,15 @@ struct unheardpathApp: App {
     @StateObject private var locationManager = LocationManager()
     
     init() {
+        // Print configuration at app startup (visible in device logs)
+        print("🚀 unheardpath App Starting")
+        print("📱 Build Configuration Check:")
+        #if DEBUG
+        print("   Configuration: DEBUG (Development)")
+        #else
+        print("   Configuration: RELEASE (Production)")
+        #endif
+        
         setupMapboxToken()
         setupPostHog()
     }
@@ -70,74 +79,33 @@ struct unheardpathApp: App {
     }
     
     /// Sets up PostHog analytics using values from Info.plist (injected via xcconfig files)
-    /// Both Config.Dev.xcconfig and Config.Release.xcconfig provide required values
-    /// which get injected into Info.plist via INFOPLIST_KEY_* build settings
+    /// PostHog is enabled only in RELEASE builds, disabled in DEBUG builds
     private func setupPostHog() {
-        // Read IS_POSTHOG_TRACKING_ENABLED from Info.plist (required - fail loudly only if key is missing)
-        // Info.plist boolean values are read as NSNumber, so we handle both Bool and Int
-        guard let trackingValue = Bundle.main.infoDictionary?["IS_POSTHOG_TRACKING_ENABLED"] else {
-            fatalError("""
-            ❌ IS_POSTHOG_TRACKING_ENABLED not found in Info.plist!
-            
-            Check:
-            1. Config.Debug.xcconfig or Config.Release.xcconfig is set in Xcode Build Settings
-            2. INFOPLIST_KEY_IS_POSTHOG_TRACKING_ENABLED is set in Build Settings
-            3. IS_POSTHOG_TRACKING_ENABLED is defined in the appropriate .xcconfig file
-            4. Clean build folder (Cmd+Shift+K) and rebuild
-            """)
-        }
-        
-        // Convert to boolean value - use the value if key exists
-        let isPosthogTracking: Bool
-        if let boolValue = trackingValue as? Bool {
-            isPosthogTracking = boolValue
-        } else if let numberValue = trackingValue as? NSNumber {
-            isPosthogTracking = numberValue.boolValue
-        } else {
-            // If invalid type, default to false (disable tracking) rather than crashing
-            #if DEBUG
-            print("⚠️ IS_POSTHOG_TRACKING_ENABLED has unexpected type in Info.plist, defaulting to false")
-            #endif
-            isPosthogTracking = false
-        }
-        
-        // If tracking is disabled, skip setup
-        guard isPosthogTracking else {
-            #if DEBUG
-            print("📊 PostHog tracking disabled via Info.plist")
-            #endif
-            return
-        }
-        
-        // Read POSTHOG_API_KEY and POSTHOG_HOST from Info.plist
-        // These are always in Config.xcconfig (base config), so they should always be present
+        #if DEBUG
+        // PostHog tracking disabled for development builds
+        print("📊 PostHog tracking disabled (DEBUG build)")
+        return
+        #else
+
         guard let apiKey = Bundle.main.infoDictionary?["POSTHOG_API_KEY"] as? String,
               !apiKey.isEmpty,
               let host = Bundle.main.infoDictionary?["POSTHOG_HOST"] as? String,
               !host.isEmpty else {
-            // If keys are missing, skip PostHog setup (they should always be in Config.xcconfig)
-            #if DEBUG
             print("⚠️ POSTHOG_API_KEY or POSTHOG_HOST missing/invalid in Info.plist, skipping PostHog setup")
-            #endif
             return
         }
         
-        // Add https:// protocol prefix to host (xcconfig contains host only)
-        let hostWithProtocol = host.hasPrefix("https://") || host.hasPrefix("http://") ? host : "https://\(host)"
+        let hostWithProtocol = "https://\(host)"
         
-        #if DEBUG
-        print("📊 PostHog configured from Info.plist")
-        #endif
+        print("📊 PostHog configured (RELEASE build)")
         
-        // Configure PostHog SDK
         let config = PostHogConfig(apiKey: apiKey, host: hostWithProtocol)
         PostHogSDK.shared.setup(config)
         
-        // Immediately identify user if session exists to prevent events from being associated with random UUID
-        // This runs asynchronously but as early as possible after PostHog setup
         Task {
             await identifyUserIfSessionExists()
         }
+        #endif
     }
     
     /// Identifies user with PostHog immediately if a Supabase session exists

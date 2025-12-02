@@ -93,24 +93,6 @@ class UHPGateway: ObservableObject {
     private let defaultHeaders: [String: String]
     
     init() {
-        // Read USE_PROD_URL from Info.plist to determine which gateway host to use
-        // Both UHP_GATEWAY_HOST_DEBUG and UHP_GATEWAY_HOST_RELEASE are available in all builds
-        // Code chooses which one based on USE_PROD_URL flag
-        guard let useProdURL = Bundle.main.infoDictionary?["USE_PROD_URL"] as? Bool else {
-            fatalError("""
-            ❌ USE_PROD_URL not found in Info.plist!
-            
-            This means the xcconfig file is not being loaded or injected properly.
-            
-            Check:
-            1. Config.Debug.xcconfig or Config.Release.xcconfig is set in Xcode Build Settings
-            2. INFOPLIST_KEY_USE_PROD_URL is set in Build Settings
-            3. USE_PROD_URL is defined in the appropriate .xcconfig file
-            
-            Do NOT default to production API - this would hide configuration issues.
-            """)
-        }
-        
         // Read both gateway hosts (both are available in all builds via Config.xcconfig)
         guard let debugHost = Bundle.main.infoDictionary?["UHP_GATEWAY_HOST_DEBUG"] as? String,
               !debugHost.isEmpty,
@@ -127,14 +109,14 @@ class UHPGateway: ObservableObject {
             """)
         }
         
-        // Choose host and protocol based on USE_PROD_URL flag
-        if useProdURL {
-            // Use production host with https://
-            self.baseURL = "https://\(releaseHost)"
-        } else {
-            // Use debug host with http://
+        // Choose host and protocol based on build configuration using compiler flags
+        #if DEBUG
+            // Use debug host with http:// for development
             self.baseURL = "http://\(debugHost)"
-        }
+        #else
+            // Use production host with https:// for release builds
+            self.baseURL = "https://\(releaseHost)"
+        #endif
         
         self.apiClient = APIClient()
         
