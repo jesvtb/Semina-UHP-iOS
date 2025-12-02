@@ -109,3 +109,7 @@ Config.xcconfig
 !Config.Release.xcconfig
 # *.xcconfig
 *.p8
+
+# Provisioning profiles (should not be committed)
+*.mobileprovision
+secrets/
