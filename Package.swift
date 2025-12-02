@@ -7,8 +7,6 @@ let package = Package(
         .iOS(.v15)
     ],
     dependencies: [
-        // MapLibre Native for iOS
-        .package(url: "https://github.com/maplibre/maplibre-gl-native-distribution", from: "6.18.1"),
         // Mapbox Maps SDK
         .package(url: "https://github.com/mapbox/mapbox-maps-ios", from: "11.14.4"),
         // Supabase Swift client
@@ -32,7 +30,6 @@ let package = Package(
         .target(
             name: "unheardpath",
             dependencies: [
-                .product(name: "MapLibre", package: "maplibre-gl-native-distribution"),
                 .product(name: "MapboxMaps", package: "mapbox-maps-ios"),
                 .product(name: "Supabase", package: "supabase-swift"),
                 .product(name: "SwiftASN1", package: "swift-asn1"),

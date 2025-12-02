@@ -2,8 +2,6 @@ import SwiftUI
 import MapKit
 import MapboxMaps
 import CoreLocation
-import MapLibre
-import OSLog
 import OSLog
 
 
@@ -529,52 +527,6 @@ class LocationManagerDelegate: NSObject, CLLocationManagerDelegate {
         @unknown default:
             print("❓ Unknown location permission status: \(status.rawValue)")
         }
-    }
-}
-
-struct MapLibreMapView: UIViewRepresentable {
-    // Optional: Allow passing a custom style URL
-    let styleURL: String?
-    
-    // Default initializer with no custom style
-    init(styleURL: String? = nil) {
-        self.styleURL = styleURL
-    }
-    
-    func makeUIView(context _: Context) -> MLNMapView {
-        let mapView = MLNMapView()
-        
-        // Set custom style if provided, otherwise use local basemap_style.json
-        if let styleURL = styleURL {
-            mapView.styleURL = URL(string: styleURL)
-        } else {
-            // Load local basemap_style.json from app bundle
-            if let localStyleURL = Bundle.main.url(forResource: "basemap_style", withExtension: "json") {
-                mapView.styleURL = localStyleURL
-                print("✅ Loaded local basemap_style.json from bundle")
-            } else {
-                print("❌ Could not find basemap_style.json in app bundle")
-            }
-        }
-        
-        mapView.setCenter(CLLocationCoordinate2D(latitude: 41.0136, longitude: 28.955), zoomLevel: 2, animated: false)
-        return mapView
-    }
-
-    func updateUIView(_: MLNMapView, context _: Context) {}
-}
-
-// SwiftUI wrapper to apply modifiers like .ignoresSafeArea()
-struct MapLibreMapViewWrapper: View {
-    let styleURL: String?
-    
-    init(styleURL: String? = nil) {
-        self.styleURL = styleURL
-    }
-    
-    var body: some View {
-        MapLibreMapView(styleURL: styleURL)
-            .ignoresSafeArea()
     }
 }
 
