@@ -88,53 +88,54 @@ struct AnyCodable: Codable {
 }
 
 class UHPGateway: ObservableObject {
-    // Private instance of APIClient configured for internal gateway
     private let apiClient: APIClient
-    
-    // Pre-configured settings
     private let baseURL: String
     private let defaultHeaders: [String: String]
     
-    init(
-        baseURL: String = "http://192.168.50.171:1031",  // Your FastAPI gateway
-    ) {
-        self.baseURL = baseURL
+    init() {
+        // Read baseURL from Info.plist (injected via xcconfig files)
+        // Both Config.Dev.xcconfig and Config.Release.xcconfig provide UHP_GATEWAY_BASE_URL
+        // which gets injected into Info.plist via INFOPLIST_KEY_UHPGatewayBaseURL
+        guard let plistBaseURL = Bundle.main.infoDictionary?["UHPGatewayBaseURL"] as? String,
+              !plistBaseURL.isEmpty else {
+            // Fail loudly - xcconfig/Info.plist injection is not working
+            // This prevents silently using production API when config is missing
+            fatalError("""
+            ❌ UHPGatewayBaseURL not found in Info.plist!
+            
+            """)
+        }
+        
+        self.baseURL = plistBaseURL
+        
         self.apiClient = APIClient()
         
-        // Set default headers (e.g., content type)
-        // Note: Auth token is added dynamically in request() method since it's async
         self.defaultHeaders = [
             "Content-Type": "application/json"
         ]
     }
     
-    /// Builds headers with access token included
-    /// Always retrieves auth token from Supabase for internal gateway requests
-    private func buildHeaders() async throws -> [String: String] {
-        var headers = defaultHeaders
+    private func addAuthToHeaders() async throws -> [String: String] {
         
-        // Always include auth token from Supabase
         let accessToken = try await supabase.auth.session.accessToken
+
+        var headers = defaultHeaders
         headers["Authorization"] = "Bearer \(accessToken)"
         
         return headers
     }
     
-    // Simplified request method that automatically adds baseURL and headers
+    // Add auth token to headers and combine endpoint with baseURL, baseURL + "v1/..."
     func request(
-        endpoint: String,  // Just the endpoint path, not full URL
+        endpoint: String,
         method: String = "POST",
         params: [String: String] = [:],
         jsonDict: [String: Any] = [:]
     ) async throws -> Any {
-        // Combine baseURL with endpoint
+
         let fullURL = "\(baseURL)\(endpoint)"
+        let headers = try await addAuthToHeaders()
         
-        // Build headers with auth token (always included)
-        let headers = try await buildHeaders()
-        
-        // Use the wrapped APIClient
-        // Headers already include auth token from buildHeaders()
         return try await apiClient.asyncCallAPI(
             url: fullURL,
             method: method,
@@ -150,8 +151,10 @@ class UHPGateway: ObservableObject {
         params: [String: String] = [:],
         jsonDict: [String: Any] = [:]
     ) async throws -> AsyncThrowingStream<SSEEvent, Error> {
+        
         let fullURL = "\(baseURL)\(endpoint)"
-        let headers = try await buildHeaders()
+        let headers = try await addAuthToHeaders()
+        
         return apiClient.streamAPI(
             url: fullURL,
             method: method,

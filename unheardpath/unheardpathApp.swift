@@ -69,21 +69,61 @@ struct unheardpathApp: App {
         }
     }
     
-    /// Sets up PostHog analytics using values from Info.plist (injected via Config.xcconfig)
-    /// Similar to Supabase setup - reads configuration from Bundle.main.infoDictionary
-    /// REQUIRES: PostHogAPIKey and PostHogHost must be in Info.plist (injected from Config.xcconfig)
-    /// This runs in all modes including preview - Info.plist values must be available
+    /// Sets up PostHog analytics using values from Info.plist (injected via xcconfig files)
+    /// Both Config.Dev.xcconfig and Config.Release.xcconfig provide required values
+    /// which get injected into Info.plist via INFOPLIST_KEY_* build settings
     private func setupPostHog() {
+        // Read IsPosthogTracking from Info.plist (required - fail loudly only if key is missing)
+        // Info.plist boolean values are read as NSNumber, so we handle both Bool and Int
+        guard let trackingValue = Bundle.main.infoDictionary?["IsPosthogTracking"] else {
+            fatalError("""
+            ❌ IsPosthogTracking not found in Info.plist!
+            
+            Check:
+            1. Config.Dev.xcconfig or Config.Release.xcconfig is set in Xcode Build Settings
+            2. INFOPLIST_KEY_IsPosthogTracking is set in Build Settings
+            3. IS_POSTHOG_TRACKING_ENABLED is defined in the appropriate .xcconfig file
+            """)
+        }
+        
+        // Convert to boolean value - use the value if key exists
+        let isPosthogTracking: Bool
+        if let boolValue = trackingValue as? Bool {
+            isPosthogTracking = boolValue
+        } else if let numberValue = trackingValue as? NSNumber {
+            isPosthogTracking = numberValue.boolValue
+        } else {
+            // If invalid type, default to false (disable tracking) rather than crashing
+            #if DEBUG
+            print("⚠️ IsPosthogTracking has unexpected type in Info.plist, defaulting to false")
+            #endif
+            isPosthogTracking = false
+        }
+        
+        // If tracking is disabled, skip setup
+        guard isPosthogTracking else {
+            #if DEBUG
+            print("📊 PostHog tracking disabled via Info.plist")
+            #endif
+            return
+        }
+        
+        // Read PostHogAPIKey and PostHogHost from Info.plist
+        // These are always in Config.xcconfig (base config), so they should always be present
         guard let apiKey = Bundle.main.infoDictionary?["PostHogAPIKey"] as? String,
               !apiKey.isEmpty,
               let host = Bundle.main.infoDictionary?["PostHogHost"] as? String,
               !host.isEmpty,
               host.hasPrefix("https://") || host.hasPrefix("http://") else {
+            // If keys are missing, skip PostHog setup (they should always be in Config.xcconfig)
+            #if DEBUG
+            print("⚠️ PostHogAPIKey or PostHogHost missing/invalid in Info.plist, skipping PostHog setup")
+            #endif
             return
         }
         
         #if DEBUG
-        print("📊 PostHog token set from Info.plist")
+        print("📊 PostHog configured from Info.plist")
         #endif
         
         // Configure PostHog SDK

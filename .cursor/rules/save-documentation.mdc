@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+When creating markdown files as documentation, always write it in the 03_apps/iosapp/guides directory.
