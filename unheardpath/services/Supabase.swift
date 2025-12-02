@@ -17,17 +17,18 @@ let supabase: SupabaseClient = {
   // Read Supabase URL from Info.plist (injected from Config.xcconfig)
   // If missing, use invalid placeholder that will cause operations to fail gracefully
   let urlString: String
-  if let infoPlistUrl = Bundle.main.infoDictionary?["SupabaseProjectUrl"] as? String,
+  if let infoPlistUrl = Bundle.main.infoDictionary?["SUPABASE_PROJECT_URL"] as? String,
      !infoPlistUrl.isEmpty {
-    urlString = infoPlistUrl
+    // Add https:// protocol prefix (xcconfig contains host only)
+    urlString = infoPlistUrl.hasPrefix("https://") || infoPlistUrl.hasPrefix("http://") ? infoPlistUrl : "https://\(infoPlistUrl)"
   } else {
     let availableKeys = Bundle.main.infoDictionary?.keys.sorted().joined(separator: ", ") ?? "none"
     print("""
-    ❌ SupabaseProjectUrl must be set in Info.plist (via Config.xcconfig)
+    ❌ SUPABASE_PROJECT_URL must be set in Info.plist (via Config.xcconfig)
     
     Make sure:
     1. Config.xcconfig has SUPABASE_PROJECT_URL set
-    2. project.pbxproj has INFOPLIST_KEY_SupabaseProjectUrl = "$(SUPABASE_PROJECT_URL)" in build settings
+    2. project.pbxproj has INFOPLIST_KEY_SUPABASE_PROJECT_URL = "$(SUPABASE_PROJECT_URL)" in build settings
     3. Clean build folder (Cmd+Shift+K) and rebuild
     
     The key should be injected automatically from Config.xcconfig during build.
@@ -64,11 +65,11 @@ let supabase: SupabaseClient = {
   // Read Supabase API key from Info.plist (injected from Config.xcconfig)
   // If missing, use invalid placeholder that will cause operations to fail gracefully
   let key: String
-  if let infoPlistKey = Bundle.main.infoDictionary?["SupabasePublishableKey"] as? String,
+  if let infoPlistKey = Bundle.main.infoDictionary?["SUPABASE_PUBLISHABLE_KEY"] as? String,
      !infoPlistKey.isEmpty {
     key = infoPlistKey
   } else {
-    print("❌ SupabasePublishableKey NOT set in Info.plist (via Config.xcconfig)")
+    print("❌ SUPABASE_PUBLISHABLE_KEY NOT set in Info.plist (via Config.xcconfig)")
   
     // Use invalid placeholder - operations will fail but app won't crash
     key = "invalid_key_missing_from_info_plist"
@@ -126,20 +127,25 @@ let supabase: SupabaseClient = {
 
 // MARK: - Verification
 func verifySupabaseConfiguration() -> (isValid: Bool, url: String?, keyPrefix: String?, error: String?) {
-  guard let urlString = Bundle.main.infoDictionary?["SupabaseProjectUrl"] as? String,
+  guard let urlString = Bundle.main.infoDictionary?["SUPABASE_PROJECT_URL"] as? String,
         !urlString.isEmpty else {
-    return (false, nil, nil, "SupabaseProjectUrl is missing or empty in Info.plist")
+    return (false, nil, nil, "SUPABASE_PROJECT_URL is missing or empty in Info.plist")
   }
   
-  guard let key = Bundle.main.infoDictionary?["SupabasePublishableKey"] as? String,
+  guard let key = Bundle.main.infoDictionary?["SUPABASE_PUBLISHABLE_KEY"] as? String,
         !key.isEmpty else {
-    return (false, urlString, nil, "SupabasePublishableKey is missing or empty in Info.plist")
+    // Add https:// prefix for validation (xcconfig contains host only)
+    let urlWithProtocol = urlString.hasPrefix("https://") || urlString.hasPrefix("http://") ? urlString : "https://\(urlString)"
+    return (false, urlWithProtocol, nil, "SUPABASE_PUBLISHABLE_KEY is missing or empty in Info.plist")
   }
   
-  guard URL(string: urlString) != nil else {
-    return (false, urlString, String(key.prefix(10)), "SupabaseProjectUrl is not a valid URL")
+  // Add https:// protocol prefix (xcconfig contains host only)
+  let urlWithProtocol = urlString.hasPrefix("https://") || urlString.hasPrefix("http://") ? urlString : "https://\(urlString)"
+  
+  guard URL(string: urlWithProtocol) != nil else {
+    return (false, urlWithProtocol, String(key.prefix(10)), "SUPABASE_PROJECT_URL is not a valid URL")
   }
   
-  return (true, urlString, String(key.prefix(10)), nil)
+  return (true, urlWithProtocol, String(key.prefix(10)), nil)
 }
 

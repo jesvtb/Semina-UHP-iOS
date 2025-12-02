@@ -93,20 +93,48 @@ class UHPGateway: ObservableObject {
     private let defaultHeaders: [String: String]
     
     init() {
-        // Read baseURL from Info.plist (injected via xcconfig files)
-        // Both Config.Dev.xcconfig and Config.Release.xcconfig provide UHP_GATEWAY_BASE_URL
-        // which gets injected into Info.plist via INFOPLIST_KEY_UHPGatewayBaseURL
-        guard let plistBaseURL = Bundle.main.infoDictionary?["UHPGatewayBaseURL"] as? String,
-              !plistBaseURL.isEmpty else {
-            // Fail loudly - xcconfig/Info.plist injection is not working
-            // This prevents silently using production API when config is missing
+        // Read USE_PROD_URL from Info.plist to determine which gateway host to use
+        // Both UHP_GATEWAY_HOST_DEBUG and UHP_GATEWAY_HOST_RELEASE are available in all builds
+        // Code chooses which one based on USE_PROD_URL flag
+        guard let useProdURL = Bundle.main.infoDictionary?["USE_PROD_URL"] as? Bool else {
             fatalError("""
-            ❌ UHPGatewayBaseURL not found in Info.plist!
+            ❌ USE_PROD_URL not found in Info.plist!
             
+            This means the xcconfig file is not being loaded or injected properly.
+            
+            Check:
+            1. Config.Debug.xcconfig or Config.Release.xcconfig is set in Xcode Build Settings
+            2. INFOPLIST_KEY_USE_PROD_URL is set in Build Settings
+            3. USE_PROD_URL is defined in the appropriate .xcconfig file
+            
+            Do NOT default to production API - this would hide configuration issues.
             """)
         }
         
-        self.baseURL = plistBaseURL
+        // Read both gateway hosts (both are available in all builds via Config.xcconfig)
+        guard let debugHost = Bundle.main.infoDictionary?["UHP_GATEWAY_HOST_DEBUG"] as? String,
+              !debugHost.isEmpty,
+              let releaseHost = Bundle.main.infoDictionary?["UHP_GATEWAY_HOST_RELEASE"] as? String,
+              !releaseHost.isEmpty else {
+            fatalError("""
+            ❌ Gateway hosts not found in Info.plist!
+            
+            Both UHP_GATEWAY_HOST_DEBUG and UHP_GATEWAY_HOST_RELEASE must be available.
+            
+            Check:
+            1. Config.xcconfig has both UHP_GATEWAY_HOST_DEBUG and UHP_GATEWAY_HOST_RELEASE defined
+            2. INFOPLIST_KEY_UHP_GATEWAY_HOST_DEBUG and INFOPLIST_KEY_UHP_GATEWAY_HOST_RELEASE are set in Build Settings
+            """)
+        }
+        
+        // Choose host and protocol based on USE_PROD_URL flag
+        if useProdURL {
+            // Use production host with https://
+            self.baseURL = "https://\(releaseHost)"
+        } else {
+            // Use debug host with http://
+            self.baseURL = "http://\(debugHost)"
+        }
         
         self.apiClient = APIClient()
         
@@ -660,3 +688,4 @@ extension APIClient {
         return try decoder.decode(type, from: jsonData)
     }
 }
+

@@ -1,0 +1,17 @@
+//
+//  Config.Debug.xcconfig
+//  unheardpath
+//
+//  Created by Jessica Luo on 2025-12-02.
+//
+
+// Configuration settings file format documentation can be found at:
+// https://developer.apple.com/documentation/xcode/adding-a-build-configuration-file-to-your-project
+
+#include "Config.xcconfig"
+
+// PostHog tracking disabled for local development
+IS_POSTHOG_TRACKING_ENABLED = NO
+
+// Use local dev gateway (not production)
+USE_PROD_URL = NO

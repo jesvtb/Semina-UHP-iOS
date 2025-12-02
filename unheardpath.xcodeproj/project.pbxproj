@@ -53,7 +53,9 @@
 		C1037A842E7126030014D793 /* unheardpath.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = unheardpath.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1037A852E7126030014D793 /* unheardpathTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1037A862E7126030014D793 /* unheardpathUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		C1DF00502EC88B15009C463F /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		C1F7EF972EDEB6BD00A0E271 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.Debug.xcconfig; sourceTree = "<group>"; };
+		C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.Release.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -117,8 +119,10 @@
 		C1CD228B2E6FE5D50057E60C = {
 			isa = PBXGroup;
 			children = (
+				C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */,
+				C1F7EF972EDEB6BD00A0E271 /* Config.xcconfig */,
+				C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */,
 				C1037A842E7126030014D793 /* unheardpath.app */,
-				C1DF00502EC88B15009C463F /* Config.xcconfig */,
 				C1037A852E7126030014D793 /* unheardpathTests.xctest */,
 				C1037A862E7126030014D793 /* unheardpathUITests.xctest */,
 				C1C87F5C2ED157DA00A46F12 /* Frameworks */,
@@ -202,7 +206,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1640;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 2610;
 				TargetAttributes = {
 					C1CD22932E6FE5D50057E60C = {
 						CreatedOnToolsVersion = 16.4;
@@ -309,7 +313,7 @@
 /* Begin XCBuildConfiguration section */
 		C1CD22B92E6FE5D60057E60C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = C1DF00502EC88B15009C463F /* Config.xcconfig */;
+			baseConfigurationReference = C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -323,6 +327,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = unheardpath/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
+				INFOPLIST_KEY_IS_POSTHOG_TRACKING_ENABLED = "$(IS_POSTHOG_TRACKING_ENABLED)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_MBXAccessToken = "$(MAPBOX_ACCESS_TOKEN)";
 				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
@@ -331,10 +336,13 @@
 				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
-				INFOPLIST_KEY_PostHogAPIKey = "$(POSTHOG_API_KEY)";
-				INFOPLIST_KEY_PostHogHost = "$(POSTHOG_HOST)";
-				INFOPLIST_KEY_SupabaseProjectUrl = "$(SUPABASE_PROJECT_URL)";
-				INFOPLIST_KEY_SupabasePublishableKey = "$(SUPABASE_PUBLISHABLE_KEY)";
+				INFOPLIST_KEY_POSTHOG_API_KEY = "$(POSTHOG_API_KEY)";
+				INFOPLIST_KEY_POSTHOG_HOST = "$(POSTHOG_HOST)";
+				INFOPLIST_KEY_SUPABASE_PROJECT_URL = "$(SUPABASE_PROJECT_URL)";
+				INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = "$(SUPABASE_PUBLISHABLE_KEY)";
+				INFOPLIST_KEY_UHP_GATEWAY_HOST_DEBUG = "$(UHP_GATEWAY_HOST_DEBUG)";
+				INFOPLIST_KEY_UHP_GATEWAY_HOST_RELEASE = "$(UHP_GATEWAY_HOST_RELEASE)";
+				INFOPLIST_KEY_USE_PROD_URL = "$(USE_PROD_URL)";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -361,7 +369,7 @@
 		};
 		C1CD22BA2E6FE5D60057E60C /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = C1DF00502EC88B15009C463F /* Config.xcconfig */;
+			baseConfigurationReference = C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -375,6 +383,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = unheardpath/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
+				INFOPLIST_KEY_IS_POSTHOG_TRACKING_ENABLED = "$(IS_POSTHOG_TRACKING_ENABLED)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_MBXAccessToken = "$(MAPBOX_ACCESS_TOKEN)";
 				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
@@ -383,10 +392,13 @@
 				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
-				INFOPLIST_KEY_PostHogAPIKey = "$(POSTHOG_API_KEY)";
-				INFOPLIST_KEY_PostHogHost = "$(POSTHOG_HOST)";
-				INFOPLIST_KEY_SupabaseProjectUrl = "$(SUPABASE_PROJECT_URL)";
-				INFOPLIST_KEY_SupabasePublishableKey = "$(SUPABASE_PUBLISHABLE_KEY)";
+				INFOPLIST_KEY_POSTHOG_API_KEY = "$(POSTHOG_API_KEY)";
+				INFOPLIST_KEY_POSTHOG_HOST = "$(POSTHOG_HOST)";
+				INFOPLIST_KEY_SUPABASE_PROJECT_URL = "$(SUPABASE_PROJECT_URL)";
+				INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = "$(SUPABASE_PUBLISHABLE_KEY)";
+				INFOPLIST_KEY_UHP_GATEWAY_HOST_DEBUG = "$(UHP_GATEWAY_HOST_DEBUG)";
+				INFOPLIST_KEY_UHP_GATEWAY_HOST_RELEASE = "$(UHP_GATEWAY_HOST_RELEASE)";
+				INFOPLIST_KEY_USE_PROD_URL = "$(USE_PROD_URL)";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -413,6 +425,7 @@
 		};
 		C1CD22BB2E6FE5D60057E60C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -477,6 +490,7 @@
 		};
 		C1CD22BC2E6FE5D60057E60C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -533,6 +547,7 @@
 		};
 		C1CD22BE2E6FE5D60057E60C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -556,6 +571,7 @@
 		};
 		C1CD22BF2E6FE5D60057E60C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -579,6 +595,7 @@
 		};
 		C1CD22C12E6FE5D60057E60C /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -601,6 +618,7 @@
 		};
 		C1CD22C22E6FE5D60057E60C /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -631,7 +649,7 @@
 				C1CD22BC2E6FE5D60057E60C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		C1CD22B82E6FE5D60057E60C /* Build configuration list for PBXNativeTarget "unheardpath" */ = {
 			isa = XCConfigurationList;
@@ -640,7 +658,7 @@
 				C1CD22BA2E6FE5D60057E60C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		C1CD22BD2E6FE5D60057E60C /* Build configuration list for PBXNativeTarget "unheardpathTests" */ = {
 			isa = XCConfigurationList;
@@ -649,7 +667,7 @@
 				C1CD22BF2E6FE5D60057E60C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		C1CD22C02E6FE5D60057E60C /* Build configuration list for PBXNativeTarget "unheardpathUITests" */ = {
 			isa = XCConfigurationList;
@@ -658,7 +676,7 @@
 				C1CD22C22E6FE5D60057E60C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 

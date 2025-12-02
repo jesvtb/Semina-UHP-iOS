@@ -354,7 +354,7 @@ struct AuthView: View {
           print("🍎 Apple Sign-In: Starting Supabase authentication...")
           print("   ID Token length: \(idTokenString.count)")
           print("   Nonce provided: \(currentNonce != nil ? "Yes" : "No")")
-          if let supabaseURL = Bundle.main.infoDictionary?["SupabaseProjectUrl"] as? String {
+          if let supabaseURL = Bundle.main.infoDictionary?["SUPABASE_PROJECT_URL"] as? String {
             print("   Supabase URL: \(supabaseURL)")
           }
           #endif
