@@ -27,6 +27,7 @@ struct ContentView: View {
 }
 
   
+#if DEBUG
 #Preview("Unauthenticated") {
   ContentView()
     .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: false))
@@ -50,3 +51,4 @@ struct ContentView: View {
     .environmentObject(UHPGateway())
     .environmentObject(LocationManager())
 }
+#endif

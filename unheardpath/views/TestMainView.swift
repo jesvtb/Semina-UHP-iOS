@@ -1933,6 +1933,7 @@ struct DebugInfoView: View {
     }
 }
 
+#if DEBUG
 #Preview("Map Tab with last user message") {
     TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
         .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
@@ -1948,5 +1949,6 @@ struct DebugInfoView: View {
         .environmentObject(UHPGateway())
         .environmentObject(LocationManager())
 }
+#endif
 
 

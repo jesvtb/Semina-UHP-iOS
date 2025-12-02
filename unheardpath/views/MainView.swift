@@ -1108,9 +1108,11 @@ struct MultiLineTextField: UIViewRepresentable {
 
 
 
+#if DEBUG
 #Preview {
   MainView()
     .environmentObject(UHPGateway())
     .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
     .environmentObject(LocationManager())
 }
+#endif
