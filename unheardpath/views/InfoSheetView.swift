@@ -96,22 +96,34 @@ struct InfoSheet: View {
                         
                         // Minimal test content
                         VStack(alignment: .leading) {
-                        // Text("Journey Content")
-                            // .heading(size: .article2)
-                        
-                        DisplayText("Journey Content", scale: .article2,  color: Color("onBkgTextColor20"))
-                            .padding(.top, sheetSnapPoint == .full ? Spacing.current.spaceXl : Spacing.current.spaceXs)
-                            .padding(.bottom, Spacing.current.spaceM)
+                            // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
+                            if sheetSnapPoint != .full {
+                                DisplayText("Journey Content", scale: .article2, color: Color("onBkgTextColor20"))
+                                    .padding(.top, Spacing.current.spaceXs)
+                            }
                             
-                        
-                        ForEach(0..<20, id: \.self) { index in
-                            Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
-                                .bodyParagraph(color: Color("onBkgTextColor30"))
-                        }
+                            ForEach(0..<20, id: \.self) { index in
+                                Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
+                                    .bodyParagraph(color: Color("onBkgTextColor30"))
+                            }
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, Spacing.current.spaceS)
                         .padding(.bottom, 100)
+                    }
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    // Sticky header bar - only visible when at full snap point
+                    if sheetSnapPoint == .full {
+                        VStack(spacing: 0) {
+                            DisplayText("Journey Content", scale: .article2, color: Color("onBkgTextColor20"))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, Spacing.current.spaceS)
+                                .padding(.top, Spacing.current.spaceM)
+                                .padding(.bottom, Spacing.current.spaceXs)
+                                .background(Color("AppBkgColor"))
+                                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
+                        }
                     }
                 }
                 .coordinateSpace(name: "scroll")
