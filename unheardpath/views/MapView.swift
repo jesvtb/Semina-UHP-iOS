@@ -32,8 +32,6 @@ struct MapboxMapView: View {
     @Binding var geoJSONUpdateTrigger: UUID
     @Binding var targetLocation: TargetLocation?
     @State private var mapProxy: MapboxMaps.MapProxy?
-    @State private var selectedFeature: [String: Any]?
-    @State private var showPopup: Bool = false
     @State private var defaultPitch: Double = 60
     
     /// Offset distance in degrees to move camera south of user location
