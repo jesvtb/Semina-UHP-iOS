@@ -142,7 +142,7 @@ struct TestMainView: View {
             VStack(spacing: 0) {
                 chatInputBar
                 if !isTextFieldFocused {
-                    tabSelectorView
+                    TabsBarView(selectedTab: $selectedTab, tabs: tabs)
                 }
             }
             .background(.ultraThinMaterial)
@@ -235,7 +235,7 @@ extension TestMainView {
         UIScreen.main.bounds.height + 1
     }
     
-    /// Calculates the exact height of the bottom safe area inset (chatInputBar + tabSelectorView)
+    /// Calculates the exact height of the bottom safe area inset (chatInputBar + TabsBarView)
     private var bottomSafeAreaInsetHeight: CGFloat {
         // chatInputBar components:
         // - HStack vertical padding: 8 top + 8 bottom = 16 points
@@ -243,7 +243,7 @@ extension TestMainView {
         // - TextField content height (single line, system font ~17pt): ~20 points
         let chatInputBarHeight: CGFloat = 16 + 20 + 20 // 56 points minimum
         
-        // tabSelectorView:
+        // TabsBarView:
         // - Uses tabBarHeight constant = 49 points
         let tabSelectorHeight: CGFloat = 49
         
@@ -256,7 +256,7 @@ extension TestMainView {
 extension TestMainView {
     private func liveUpdateStack(message: ChatMessage, currentNotificationBinding: Binding<NotificationData?>, isExpanded: Binding<Bool>, onDismiss: @escaping () -> Void) -> some View {
         // Helper to check if text would exceed 3 lines
-        let estimatedLineCount = estimateLineCount(for: message.text, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
+        let estimatedLineCount = Typography.estimateLineCount(for: message.text, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
         let shouldShowExpandButton = estimatedLineCount > 5
         let bkgColor = message.isUser ? Color("AccentColor") : Color("onBkgTextColor30")
         
@@ -339,40 +339,6 @@ extension TestMainView {
         .background(Color.clear)
     }
     
-    /// Estimates the number of lines needed to display text
-    private func estimateLineCount(for text: String, font: UIFont, maxWidth: CGFloat) -> Int {
-        let attributes = [NSAttributedString.Key.font: font]
-        let attributedString = NSAttributedString(string: text, attributes: attributes)
-        let textSize = attributedString.boundingRect(
-            with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            context: nil
-        )
-        let lineHeight = font.lineHeight
-        let estimatedLines = Int(ceil(textSize.height / lineHeight))
-        return estimatedLines
-    }
-    
-    private var tabSelectorView: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(PreviewTabSelection.allCases.enumerated()), id: \.element) { index, tabCase in
-                let tab = tabs[index]
-                TabBarButton(
-                    selectedIcon: tab.selectedIcon,
-                    unselectedIcon: tab.unselectedIcon,
-                    label: tab.name,
-                    isSelected: selectedTab == tabCase,
-                    action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedTab = tabCase
-                        }
-                    }
-                )
-            }
-        }
-        .padding(.horizontal, Spacing.current.space2xs)
-        .background(Color("AppBkgColor"))
-    }
     
     private var autocompleteResultsView: some View {
         let displayedResults = Array(autocompleteResults.prefix(5))

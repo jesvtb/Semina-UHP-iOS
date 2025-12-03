@@ -28,3 +28,30 @@ struct TabBarButton: View {
     }
   }
 }
+
+// MARK: - Tab Selector View Component
+struct TabsBarView: View {
+  @Binding var selectedTab: PreviewTabSelection
+  let tabs: [(name: String, selectedIcon: String, unselectedIcon: String)]
+  
+  var body: some View {
+    HStack(spacing: 0) {
+      ForEach(Array(PreviewTabSelection.allCases.enumerated()), id: \.element) { index, tabCase in
+        let tab = tabs[index]
+        TabBarButton(
+          selectedIcon: tab.selectedIcon,
+          unselectedIcon: tab.unselectedIcon,
+          label: tab.name,
+          isSelected: selectedTab == tabCase,
+          action: {
+            withAnimation(.easeInOut(duration: 0.2)) {
+              selectedTab = tabCase
+            }
+          }
+        )
+      }
+    }
+    .padding(.horizontal, Spacing.current.space2xs)
+    .background(Color("AppBkgColor"))
+  }
+}

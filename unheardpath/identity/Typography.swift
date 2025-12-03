@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreGraphics
+import UIKit
 
 // MARK: - Typography System
 // Matches brand typography from brand.scss
@@ -391,4 +392,35 @@ private struct DisplayTextLabel: UIViewRepresentable {
     }
 }
 
-
+// MARK: - Typography Namespace
+/// Namespace for typography-related utilities and functions
+struct Typography {
+    /// Estimates the number of lines needed to display text with a given font and maximum width
+    /// 
+    /// - Parameters:
+    ///   - text: The text string to measure
+    ///   - font: The UIFont to use for measurement
+    ///   - maxWidth: The maximum width available for the text
+    /// - Returns: The estimated number of lines needed to display the text
+    /// 
+    /// Example usage:
+    /// ```swift
+    /// let lineCount = Typography.estimateLineCount(
+    ///     for: message.text,
+    ///     font: UIFont.systemFont(ofSize: 15),
+    ///     maxWidth: UIScreen.main.bounds.width - 80
+    /// )
+    /// ```
+    static func estimateLineCount(for text: String, font: UIFont, maxWidth: CGFloat) -> Int {
+        let attributes = [NSAttributedString.Key.font: font]
+        let attributedString = NSAttributedString(string: text, attributes: attributes)
+        let textSize = attributedString.boundingRect(
+            with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+        let lineHeight = font.lineHeight
+        let estimatedLines = Int(ceil(textSize.height / lineHeight))
+        return estimatedLines
+    }
+}
