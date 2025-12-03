@@ -39,14 +39,8 @@ struct ChatDetailView: View {
     // MARK: - Scroll Handlers
     private func handleInitialScroll(proxy: ScrollViewProxy) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            if let lastMessage = messages.last {
-                withAnimation {
-                    proxy.scrollTo("bottom-spacer", anchor: .bottom)
-                }
-            } else {
-                withAnimation {
-                    proxy.scrollTo("bottom-spacer", anchor: .bottom)
-                }
+            withAnimation {
+                proxy.scrollTo("bottom-spacer", anchor: .bottom)
             }
         }
     }
@@ -55,20 +49,17 @@ struct ChatDetailView: View {
         guard !messages.isEmpty else { return }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 50_000_000)
-            if let lastMessage = messages.last {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                }
+            withAnimation {
+                proxy.scrollTo("bottom-spacer", anchor: .bottom)
             }
         }
     }
     
     private func handleLastMessageTextChange(proxy: ScrollViewProxy) {
-        guard let lastMessage = messages.last else { return }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 50_000_000)
-            withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo("bottom-spacer", anchor: .bottom)
+            withAnimation {
+                proxy.scrollTo("bottom-anchor", anchor: .bottom)
             }
         }
     }

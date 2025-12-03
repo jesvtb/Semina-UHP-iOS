@@ -2,7 +2,7 @@ import SwiftUI
 import MapKit
 
 // MARK: - Input Tab Selection
-enum InputTabSelection: Int, CaseIterable {
+enum PreviewTabSelection: Int, CaseIterable {
     case journey = 0
     case map = 1
     case chat = 2
@@ -14,7 +14,7 @@ struct TestMainView: View {
     @EnvironmentObject var locationManager: LocationManager
     
     // Preview values for preview purposes
-    private let previewTab: InputTabSelection?
+    private let previewTab: PreviewTabSelection?
     private let previewMessages: [ChatMessage]?
     private let previewGeoJSONData: [String: Any]?
     private let previewLastMessage: ChatMessage?
@@ -23,7 +23,7 @@ struct TestMainView: View {
     @State private var messages: [ChatMessage] = []
     @State private var draftMessage: String = ""
     @State private var inputLocation: String = ""
-    @State private var selectedTab: InputTabSelection = .journey
+    @State private var selectedTab: PreviewTabSelection = .journey
     @State private var geoJSONData: [String: Any]?
     @State private var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
@@ -54,7 +54,7 @@ struct TestMainView: View {
     ]
     
     init(
-        previewTab: InputTabSelection? = nil,
+        previewTab: PreviewTabSelection? = nil,
         previewMessages: [ChatMessage]? = nil,
         previewGeoJSONData: [String: Any]? = nil,
         previewLastMessage: ChatMessage? = nil,
@@ -355,7 +355,7 @@ extension TestMainView {
     
     private var tabSelectorView: some View {
         HStack(spacing: 0) {
-            ForEach(Array(InputTabSelection.allCases.enumerated()), id: \.element) { index, tabCase in
+            ForEach(Array(PreviewTabSelection.allCases.enumerated()), id: \.element) { index, tabCase in
                 let tab = tabs[index]
                 TabBarButton(
                     selectedIcon: tab.selectedIcon,
@@ -680,7 +680,7 @@ extension TestMainView {
 
 // MARK: - Test Info Sheet (Minimal version for testing)
 struct TestInfoSheet: View {
-    @Binding var selectedTab: InputTabSelection
+    @Binding var selectedTab: PreviewTabSelection
     @Binding var shouldHideTabBar: Bool
     let sheetFullHeight: CGFloat
     let bottomSafeAreaInsetHeight: CGFloat
@@ -832,7 +832,16 @@ struct TestInfoSheet: View {
         .frame(height: fullHeight)
         .background(
             Color("AppBkgColor")
-                .cornerRadius(Spacing.current.spaceM, corners: [.topLeft, .topRight])
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        cornerRadii: .init(
+                            topLeading: Spacing.current.spaceM,
+                            bottomLeading: 0,
+                            bottomTrailing: 0,
+                            topTrailing: Spacing.current.spaceM
+                        )
+                    )
+                )
                 .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
         )
         .offset(y: offsetForSnapPoint(sheetSnapPoint) + dragOffset)
@@ -1875,63 +1884,6 @@ struct ProgressNotificationBanner: View {
     }
 }
 
-// MARK: - Debug Info View
-struct DebugInfoView: View {
-    let scrollOffset: CGFloat
-    let isScrollAtTop: Bool
-    let currentSnapPoint: TestInfoSheet.SnapPoint
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Scroll position indicator
-            HStack {
-                Text("Scroll Offset:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(String(format: "%.2f", scrollOffset))
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(scrollOffset >= 0 && scrollOffset <= 0.5 ? .green : .red)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(.systemGray6).opacity(0.95))
-            .cornerRadius(8)
-            
-            // At-top indicator
-            HStack {
-                Circle()
-                    .fill(isScrollAtTop ? Color.green : Color.red)
-                    .frame(width: 8, height: 8)
-                Text(isScrollAtTop ? "Content is AT TOP" : "Content is SCROLLED")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(isScrollAtTop ? .green : .red)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(.systemGray6).opacity(0.95))
-            .cornerRadius(8)
-            
-            // Snap point indicator
-            HStack {
-                Text("Snap Point:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text("\(currentSnapPoint == .collapsed ? "Collapsed" : currentSnapPoint == .partial ? "Partial" : "Full")")
-                    .font(.caption)
-                    .fontWeight(.bold)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(.systemGray6).opacity(0.95))
-            .cornerRadius(8)
-        }
-        .padding(.top, 60) // Position below drag handle
-        .padding(.leading, 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
 
 #if DEBUG
 #Preview("Map Tab with last user message") {

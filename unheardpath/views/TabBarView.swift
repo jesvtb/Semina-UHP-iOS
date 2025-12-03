@@ -1,48 +1,5 @@
 import SwiftUI
 
-// MARK: - Custom Tab Bar Component
-struct CustomTabBar: View {
-  @Binding var selectedTab: TabSelection
-  
-  var body: some View {
-    HStack(spacing: 0) {
-      TabBarButton(
-        selectedIcon: "signpost.right.and.left.fill",
-        unselectedIcon: "signpost.right.and.left",
-        label: "Journey",
-        isSelected: selectedTab == .journey,
-        action: { selectedTab = .journey }
-      )
-      
-      TabBarButton(
-        selectedIcon: "map.fill",
-        unselectedIcon: "map",
-        label: "Map",
-        isSelected: selectedTab == .map,
-        action: { selectedTab = .map }
-      )
-      
-      TabBarButton(
-        selectedIcon: "questionmark.bubble.fill",
-        unselectedIcon: "questionmark.bubble",
-        label: "Ask",
-        isSelected: selectedTab == .chat,
-        action: { selectedTab = .chat }
-      )
-      
-      TabBarButton(
-        selectedIcon: "person.fill",
-        unselectedIcon: "person",
-        label: "You",
-        isSelected: selectedTab == .profile,
-        action: { selectedTab = .profile }
-      )
-    }
-    .frame(height: tabBarHeight)
-    .background(Color("AppBkgColor"))
-  }
-}
-
 
 // MARK: - Tab Bar Button Component
 struct TabBarButton: View {
