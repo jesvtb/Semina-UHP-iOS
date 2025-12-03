@@ -59,7 +59,7 @@ struct ChatDetailView: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 50_000_000)
             withAnimation {
-                proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                proxy.scrollTo("bottom-spacer", anchor: .bottom)
             }
         }
     }
