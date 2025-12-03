@@ -38,14 +38,12 @@ struct TestMainView: View {
     @FocusState private var isTextFieldFocused: Bool
     
     // Autocomplete state for map tab
-    @State private var searchCompleter = MKLocalSearchCompleter()
-    @State private var autocompleteResults: [MKLocalSearchCompletion] = []
-    @State private var searchCompleterDelegate: SearchCompleterDelegate?
+    @StateObject private var addressSearchManager = AddressSearchManager()
     @State private var shouldSearchAround: Bool = false
     @State private var targetLocation: TargetLocation?
     
     // Sheet snap point control - universal binding for bidirectional control
-    @State private var sheetSnapPoint: TestInfoSheet.SnapPoint = .partial
+    @State private var sheetSnapPoint: SnapPoint = .partial
     private let tabs: [(name: String, selectedIcon: String, unselectedIcon: String)] = [
         ("Journey", "signpost.right.and.left.fill", "signpost.right.and.left"),
         ("Locate", "mappin.circle.fill", "mappin.and.ellipse"),
@@ -101,7 +99,7 @@ struct TestMainView: View {
             // Journey bottom sheet - positioned absolutely to avoid affecting layout
             if selectedTab == .journey {
                 GeometryReader { geometry in
-                    TestInfoSheet(
+                    InfoSheet(
                         selectedTab: $selectedTab,
                         shouldHideTabBar: $shouldHideTabBar,
                         sheetFullHeight: sheetFullHeight,
@@ -131,8 +129,8 @@ struct TestMainView: View {
             }
             
             // Show autocomplete results in map tab
-            if selectedTab == .map && !autocompleteResults.isEmpty && !inputLocation.isEmpty {
-                autocompleteResultsView
+            if selectedTab == .map && !addressSearchManager.results.isEmpty && !inputLocation.isEmpty {
+                AddrSearchResultsList
                     .opacity(shouldHideTabBar ? 0 : 1)
                     .allowsHitTesting(!shouldHideTabBar)
             }
@@ -182,7 +180,7 @@ struct TestMainView: View {
         .onChange(of: selectedTab) { newTab in
             // Clear autocomplete results when switching away from map tab
             if newTab != .map {
-                autocompleteResults = []
+                addressSearchManager.clearResults()
             } else {
                 // Initialize search completer when entering map tab
                 setupSearchCompleter()
@@ -340,66 +338,37 @@ extension TestMainView {
     }
     
     
-    private var autocompleteResultsView: some View {
-        let displayedResults = Array(autocompleteResults.prefix(5))
-        let lastIndex = displayedResults.count - 1
+    private var AddrSearchResultsList: some View {
+        let searchResults = addressSearchManager.results
+        let lastIndex = searchResults.count - 1
         
         return VStack {
             Spacer()
             VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
-                ForEach(Array(displayedResults.enumerated()), id: \.offset) { index, result in
+                ForEach(Array(searchResults.enumerated()), id: \.offset) { index, result in
                     let isMostRelevant = index == lastIndex
                     
-                    Button(action: {
-                        // Handle selection - geocode and update map
-                        inputLocation = result.title
-                        autocompleteResults = []
-                        isTextFieldFocused = false
-                        
-                        // Geocode the selected location and fly to it
-                        Task {
-                            await geocodeAndFlyToLocation(completion: result)
-                        }
-                    }) {
-                        HStack(alignment: .top, spacing: Spacing.current.spaceXs) {
-                            Image(systemName: "mappin.circle.fill")
-                                .bodyText(size: .article1)
-                                .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
-                                .padding(.top, 2) // Align icon with first line of text
+                    AddrSearchResultItem(
+                        result: result,
+                        isMostRelevant: isMostRelevant,
+                        onSelect: { selectedResult in
+                            // Handle selection - geocode and update map
+                            inputLocation = selectedResult.title
+                            addressSearchManager.clearResults()
+                            isTextFieldFocused = false
                             
-                            VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
-                                Text(result.title)
-                                    .heading(size: .article0)
-                                    .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                
-                                if !result.subtitle.isEmpty {
-                                    Text(result.subtitle)
-                                        .bodyText(size: .articleMinus1)
-                                        .foregroundColor(isMostRelevant ? Color("onBkgTextColor20") : Color("onBkgTextColor20").opacity(0.5))
-                                        .multilineTextAlignment(.leading)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
+                            // Geocode the selected location and fly to it
+                            Task {
+                                await geocodeAndFlyToLocation(completion: selectedResult)
                             }
-                            
-                            Spacer()
                         }
-                        .padding(.horizontal, Spacing.current.spaceXs)
-                        .padding(.vertical, Spacing.current.space2xs)
-                        // .background(Color("onBkgTextColor30"))
-                        .cornerRadius(Spacing.current.spaceS)
-                    }
+                    )
                 }
             }
             .padding(.top, Spacing.current.spaceXs)
             .padding(.horizontal, Spacing.current.spaceXs)
             .background(Color("AppBkgColor"))
-            // .padding(.bottom, bottomSafeAreaInsetHeight + Spacing.current.spaceXs)
         }
-        // .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 5)
-        // .background(Color.clear)
-        // .background(Color("AppBkgColor"))
     }
     
     private var chatInputBar: some View {
@@ -644,287 +613,13 @@ extension TestMainView {
     }
 }
 
-// MARK: - Test Info Sheet (Minimal version for testing)
-struct TestInfoSheet: View {
-    @Binding var selectedTab: PreviewTabSelection
-    @Binding var shouldHideTabBar: Bool
-    let sheetFullHeight: CGFloat
-    let bottomSafeAreaInsetHeight: CGFloat
-    @Binding var sheetSnapPoint: SnapPoint
-    
-    // Snap points - visible heights
-    private var fullHeight: CGFloat {
-        sheetFullHeight
-    }
-    
-    @State private var dragOffset: CGFloat = 0
-    @State private var scrollViewContentOffset: CGFloat = 0
-    
-    // Offset adjustment for sheet positioning (bottom safe area + optional padding)
-    private var positionOffsetAdjustment: CGFloat {
-        bottomSafeAreaInsetHeight + 45 // 105 (safe area) + 41 (padding) = 146
-    }
-    
-    // Threshold for hiding tab bar (scrolled down by this amount)
-    // Negative values mean scrolled down (content moved up)
-    private let hideTabBarThreshold: CGFloat = -20
-    
-    enum SnapPoint {
-        case collapsed
-        case partial
-        case full
-        
-        func height(fullHeight: CGFloat) -> CGFloat {
-            switch self {
-            case .collapsed: return 200
-            case .partial: return 400
-            case .full: return fullHeight
-            }
-        }
-    }
-    
-    /// Calculates the vertical offset for a given snap point
-    private func offsetForSnapPoint(_ snapPoint: SnapPoint) -> CGFloat {
-        return fullHeight - snapPoint.height(fullHeight: fullHeight) + positionOffsetAdjustment
-    }
-    
-    /// Updates scroll offset directly from GeometryReader
-    private func updateScrollOffset(_ offset: CGFloat) {
-        // Only update if value actually changed to avoid infinite loops
-        if abs(scrollViewContentOffset - offset) > 0.01 {
-            scrollViewContentOffset = offset
-            
-            // Hide tab bar when scrolled down significantly
-            let isScrolledDown = offset < hideTabBarThreshold
-            let shouldHide = sheetSnapPoint == .full && isScrolledDown
-            
-            withAnimation(.easeInOut(duration: 0.2)) {
-                shouldHideTabBar = shouldHide
-            }
-        }
-    }
-    
-    /// Checks if scroll content is exactly at the top edge
-    /// Uses the offset directly from GeometryReader
-    private var isScrollAtTop: Bool {
-        // Content is at top when offset is exactly 0 (or within 0.5 points for floating point precision)
-        // Negative values mean content has been scrolled down
-        // Positive values > 0.5 also mean content is not at top (might be bouncing or overscrolled)
-        // let isAtTop = scrollViewContentOffset >= 0 && scrollViewContentOffset <= 0.5
-        let isAtTop = scrollViewContentOffset >= 0 
-        #if DEBUG
-        if sheetSnapPoint == .full && abs(scrollViewContentOffset) > 0.1 {
-            print("🔍 isScrollAtTop check: offset=\(String(format: "%.2f", scrollViewContentOffset)), isAtTop=\(isAtTop)")
-        }
-        #endif
-        return isAtTop
-    }
-    
-    var body: some View {
-        ZStack(alignment: .top) {
-            VStack(spacing: 0) {
-                // Drag handle
-                RoundedRectangle(cornerRadius: Spacing.current.space3xs)
-                    .fill(Color.secondary.opacity(0.3))
-                    .frame(width: 40, height: 5)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-                
-                // Content
-                ScrollView {
-                    VStack(spacing: 0) {
-                        // Scroll offset tracker with visual top edge marker
-                        // This must be at the very top of the scroll content
-                        ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: sheetSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
-                        
-                        // Minimal test content
-                        VStack(alignment: .leading) {
-                        // Text("Journey Content")
-                            // .heading(size: .article2)
-                        
-                        DisplayText("Journey Content", scale: .article2,  color: Color("onBkgTextColor20"))
-                            .padding(.top, sheetSnapPoint == .full ? Spacing.current.spaceXl : Spacing.current.spaceXs)
-                            .padding(.bottom, Spacing.current.spaceM)
-                            
-                        
-                        ForEach(0..<20, id: \.self) { index in
-                            Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
-                                .bodyParagraph(color: Color("onBkgTextColor30"))
-                        }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, Spacing.current.spaceS)
-                        .padding(.bottom, 100)
-                    }
-                }
-                .coordinateSpace(name: "scroll")
-                .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
-                .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        // Only allow drag to collapse when at full AND scroll is exactly at top
-                        if sheetSnapPoint == .full && value.translation.height > 0 {
-                            guard isScrollAtTop else {
-                                dragOffset = 0
-                                return
-                            }
-                            dragOffset = value.translation.height
-                        }
-                    }
-                    .onEnded { value in
-                        // Handle swipe from .full to .collapsed (only if scroll is at top)
-                        if sheetSnapPoint == .full && value.translation.height > 0 {
-                            guard isScrollAtTop else {
-                                dragOffset = 0
-                                return
-                            }
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                sheetSnapPoint = .collapsed
-                                dragOffset = 0
-                            }
-                        }
-                    }
-                )
-            }
-            
-            // Debug/Helper Visual Elements - Fixed position, unaffected by scrolling
-            // DebugInfoView(
-            //     scrollOffset: scrollViewContentOffset,
-            //     isScrollAtTop: isScrollAtTop,
-            //     currentSnapPoint: sheetSnapPoint
-            // )
-        }
-        .frame(width: UIScreen.main.bounds.width)
-        .frame(height: fullHeight)
-        .background(
-            Color("AppBkgColor")
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        cornerRadii: .init(
-                            topLeading: Spacing.current.spaceM,
-                            bottomLeading: 0,
-                            bottomTrailing: 0,
-                            topTrailing: Spacing.current.spaceM
-                        )
-                    )
-                )
-                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
-        )
-        .offset(y: offsetForSnapPoint(sheetSnapPoint) + dragOffset)
-        .opacity(selectedTab == .journey ? 1 : 0)
-        .ignoresSafeArea(edges: .bottom) // Extend to bottom of screen
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    if sheetSnapPoint == .full {
-                        // Don't handle upward drags when at full - let content scroll
-                        if value.translation.height <= 0 {
-                            return
-                        }
-                        // CRITICAL: Only allow downward drag if scroll content is exactly at top
-                        // If not at top, completely block any drag behavior
-                        guard isScrollAtTop else {
-                            #if DEBUG
-                            print("🚫 Collapse blocked - scroll offset: \(scrollViewContentOffset), isAtTop: \(isScrollAtTop)")
-                            #endif
-                            // Reset any existing drag offset and prevent further drag
-                            dragOffset = 0
-                            return
-                        }
-                        // Only set drag offset if we're at top
-                        dragOffset = value.translation.height
-                    } else {
-                        // Not at full - handle all drags
-                        dragOffset = value.translation.height
-                    }
-                }
-                .onEnded { value in
-                    // Handle swipe from .full to .collapsed (only if scroll is at top)
-                    if sheetSnapPoint == .full && value.translation.height > 0 {
-                        guard isScrollAtTop else {
-                            dragOffset = 0
-                            return
-                        }
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            sheetSnapPoint = .collapsed
-                            dragOffset = 0
-                        }
-                        return
-                    }
-                    
-                    // Handle all other swipes
-                    let newSnapPoint = determineSnapPoint(
-                        dragDistance: value.translation.height
-                    )
-                    
-                    // Only update if snap point changed
-                    if newSnapPoint != sheetSnapPoint {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            sheetSnapPoint = newSnapPoint
-                            dragOffset = 0
-                        }
-                    } else {
-                        dragOffset = 0
-                    }
-                }
-        )
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.2)) {
-                sheetSnapPoint = .partial
-            }
-        }
-        .onChange(of: selectedTab) { newTab in
-            if newTab == .journey {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    sheetSnapPoint = .partial
-                }
-            } else {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    sheetSnapPoint = .collapsed
-                }
-                // Reset tab bar visibility when leaving journey tab
-                shouldHideTabBar = false
-            }
-        }
-        .onChange(of: sheetSnapPoint) { newSnapPoint in
-            // Show tab bar when not at full snap point
-            if newSnapPoint != .full {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    shouldHideTabBar = false
-                }
-            }
-        }
-    }
-    
-    private func determineSnapPoint(dragDistance: CGFloat) -> SnapPoint {
-        // Swipe down (positive dragDistance)
-        if dragDistance > 0 {
-            switch sheetSnapPoint {
-            case .partial: return .collapsed
-            case .full: return .collapsed  // Only if scroll is at top (checked in caller)
-            case .collapsed: return .collapsed
-            }
-        }
-        
-        // Swipe up (negative dragDistance)
-        if dragDistance < 0 {
-            switch sheetSnapPoint {
-            case .partial: return .full
-            case .collapsed: return .partial
-            case .full: return .full
-            }
-        }
-        
-        // No drag: stay at current
-        return sheetSnapPoint
-    }
-}
+
 
 // MARK: - Scroll Offset Tracker
 struct ScrollOffsetTracker: View {
     @Binding var offset: CGFloat
     @Binding var shouldHideTabBar: Bool
-    let currentSnapPoint: TestInfoSheet.SnapPoint
+    let currentSnapPoint: SnapPoint
     let hideTabBarThreshold: CGFloat
     
     // Track previous offset to detect scroll direction
@@ -1076,20 +771,10 @@ struct TestScrollOffsetPreferenceKey: PreferenceKey {
 
 // MARK: - Autocomplete Management
 extension TestMainView {
-    /// Sets up the MKLocalSearchCompleter with delegate
+    /// Sets up the address search manager
     /// When shouldSearchAround is true: prioritizes results near the user's location
     /// When shouldSearchAround is false: searches globally without location bias
     private func setupSearchCompleter() {
-        let delegate = SearchCompleterDelegate { results in
-            Task { @MainActor in
-                // Reverse order so most relevant appears at bottom
-                autocompleteResults = Array(results.prefix(5).reversed())
-            }
-        }
-        searchCompleterDelegate = delegate
-        searchCompleter.delegate = delegate
-        searchCompleter.resultTypes = [.address, .pointOfInterest, .query]
-        
         // Set region based on shouldSearchAround flag
         if shouldSearchAround {
             // Prioritize nearby results - use user's location if available
@@ -1097,33 +782,18 @@ extension TestMainView {
                let longitude = locationManager.longitude {
                 let userLocation = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
                 // Set a moderate region around user location (50km radius)
-                searchCompleter.region = MKCoordinateRegion(
-                    center: userLocation,
-                    latitudinalMeters: 50_000,
-                    longitudinalMeters: 50_000
-                )
+                addressSearchManager.configureRegionSearch(center: userLocation, meters: 50_000)
             }
             // If location not available, region defaults to device location prioritization
         } else {
             // Global search - set a very large region to minimize location bias
-            // Using a region centered at equator/prime meridian with very large span
-            let globalCenter = CLLocationCoordinate2D(latitude: 0, longitude: 0)
-            searchCompleter.region = MKCoordinateRegion(
-                center: globalCenter,
-                latitudinalMeters: 200_000_000, // ~20,000 km (covers entire Earth)
-                longitudinalMeters: 200_000_000
-            )
+            addressSearchManager.configureGlobalSearch()
         }
     }
     
     /// Updates autocomplete query
     private func updateAutocomplete(query: String) {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedQuery.isEmpty {
-            autocompleteResults = []
-        } else {
-            searchCompleter.queryFragment = trimmedQuery
-        }
+        addressSearchManager.updateQuery(query)
     }
     
     /// Geocodes a selected autocomplete result and flies to that location on the map
@@ -1273,7 +943,7 @@ extension TestMainView {
             await MainActor.run {
                 targetLocation = TargetLocation(location: location, name: placeName)
                 // Clear autocomplete results and input location after flying to the location
-                autocompleteResults = []
+                addressSearchManager.clearResults()
                 inputLocation = ""
                 isTextFieldFocused = false
             }
@@ -1285,25 +955,6 @@ extension TestMainView {
     }
 }
 
-// MARK: - Search Completer Delegate
-class SearchCompleterDelegate: NSObject, MKLocalSearchCompleterDelegate {
-    private let onResultsUpdate: ([MKLocalSearchCompletion]) -> Void
-    
-    init(onResultsUpdate: @escaping ([MKLocalSearchCompletion]) -> Void) {
-        self.onResultsUpdate = onResultsUpdate
-    }
-    
-    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        onResultsUpdate(completer.results)
-    }
-    
-    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        #if DEBUG
-        print("❌ MKLocalSearchCompleter error: \(error.localizedDescription)")
-        #endif
-        onResultsUpdate([])
-    }
-}
 
 // MARK: - Location Management
 extension TestMainView {
