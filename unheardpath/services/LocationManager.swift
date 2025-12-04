@@ -688,11 +688,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         dict["accuracy"] = location.horizontalAccuracy
         dict["location_type"] = "device"
         
-        // Local time (timestamp localized, not UTC)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
-        formatter.timeZone = TimeZone.current
-        dict["local_time"] = formatter.string(from: location.timestamp)
+        // Include device timezone (user's current device timezone when function executes)
+        dict["timezone"] = TimeZone.current.identifier
         
         // If placemark found, include address elements
         if let placemark = placemark {
@@ -800,11 +797,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         dict["accuracy"] = location.horizontalAccuracy
         dict["location_type"] = "lookup"
         
-        // Local time (timestamp localized, not UTC)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
-        formatter.timeZone = TimeZone.current
-        dict["local_time"] = formatter.string(from: location.timestamp)
+        // Include device timezone (user's current device timezone when function executes)
+        dict["timezone"] = TimeZone.current.identifier
         
         // Place information
         if let name = mapItemName {

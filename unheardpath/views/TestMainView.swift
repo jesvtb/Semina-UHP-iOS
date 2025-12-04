@@ -482,24 +482,17 @@ extension TestMainView {
                 "message": trimmedMessage
             ]
             
-            // Add device date, time, and day of week (separated)
+            // Add UTC time in ISO 8601 format
             let now = Date()
-            let dateFormatter = DateFormatter()
-            dateFormatter.timeZone = TimeZone.current
+            let utcFormatter = ISO8601DateFormatter()
+            utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
+            utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            jsonDict["utc_time"] = utcFormatter.string(from: now)
             
-            // Date format: yyyy-MM-dd
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            jsonDict["current_date"] = dateFormatter.string(from: now)
+            // Include device timezone identifier (user's current device timezone)
+            jsonDict["timezone"] = TimeZone.current.identifier
             
-            // Time format: HH:mm:ss
-            dateFormatter.dateFormat = "HH:mm:ss"
-            jsonDict["current_time"] = dateFormatter.string(from: now)
-            
-            // Day of week format: Full day name (Monday, Tuesday, etc.)
-            dateFormatter.dateFormat = "EEEE"
-            jsonDict["current_weekday"] = dateFormatter.string(from: now)
-            
-            // Add device language
+            // Add device language (ISO 639-1 alpha-2 format, compatible with Pydantic's Language type)
             let languageCode: String
             if #available(iOS 16.0, *) {
                 languageCode = Locale.current.language.languageCode?.identifier ?? "en"
