@@ -14,6 +14,7 @@ struct unheardpathApp: App {
     // @StateObject is like React's useState for class instances
     // Creates AuthManager once and checks session during initialization
     // This is similar to creating a Context Provider in React
+    @StateObject private var userManager = UserManager()
     @StateObject private var authManager = AuthManager()
     @StateObject private var apiClient = APIClient()
     @StateObject private var uhpGateway = UHPGateway()
@@ -40,7 +41,12 @@ struct unheardpathApp: App {
                 .environmentObject(apiClient) // Pass shared API service to all views
                 .environmentObject(locationManager) // Pass location manager to all views
                 .environmentObject(uhpGateway) // Pass UHP Gateway to all views
+                .environmentObject(userManager) // Pass user manager to all views
                 .withScaledSpacing() // Inject scaled spacing values into environment
+                .onAppear {
+                    // Set UserManager reference in AuthManager after both are created
+                    authManager.setUserManager(userManager)
+                }
                 .onOpenURL { url in
                     Task {
                         do {
@@ -117,6 +123,12 @@ struct unheardpathApp: App {
             // Identify user regardless of session expiration - same user, just needs token refresh
             let userID = session.user.id.uuidString
             PostHogSDK.shared.identify(userID)
+            
+            // Set global user in UserManager
+            await MainActor.run {
+                userManager.setUser(uuid: userID)
+            }
+            
             #if DEBUG
             print("✅ PostHog identified user immediately: \(userID)")
             if session.isExpired {

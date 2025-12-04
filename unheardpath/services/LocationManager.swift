@@ -691,6 +691,14 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Include device timezone (user's current device timezone when function executes)
         dict["timezone"] = TimeZone.current.identifier
         
+        // Capture function execution time (when this function runs, not location timestamp)
+        let now = Date()
+        let utcFormatter = ISO8601DateFormatter()
+        utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
+        utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        dict["action_utc"] = utcFormatter.string(from: now)
+        dict["action_timezone"] = TimeZone.current.identifier
+        
         // If placemark found, include address elements
         if let placemark = placemark {
             // Place information
@@ -799,6 +807,14 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // Include device timezone (user's current device timezone when function executes)
         dict["timezone"] = TimeZone.current.identifier
+        
+        // Capture function execution time (when this function runs, not location timestamp)
+        let now = Date()
+        let utcFormatter = ISO8601DateFormatter()
+        utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
+        utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        dict["action_utc"] = utcFormatter.string(from: now)
+        dict["action_timezone"] = TimeZone.current.identifier
         
         // Place information
         if let name = mapItemName {

@@ -19,6 +19,14 @@ class AuthManager: ObservableObject {
     @Published var isLoading = true // Track loading state
     @Published var userID = ""
     
+    // Reference to UserManager for setting global user
+    private weak var userManager: UserManager?
+    
+    /// Sets the UserManager reference (called after both objects are created)
+    func setUserManager(_ userManager: UserManager) {
+        self.userManager = userManager
+    }
+    
     // Similar to React useEffect - runs once when object is created
     init() {
         // Start checking for session immediately (async task in init)
@@ -61,6 +69,10 @@ class AuthManager: ObservableObject {
         do {
             let session = try await supabase.auth.session
             userID = session.user.id.uuidString
+            
+            // Set global user in UserManager
+            userManager?.setUser(uuid: userID)
+            
             // print("🔍 Initial session: \(session)")
             // Check if session is expired (required when using emitLocalSessionAsInitialSession: true)
             if session.isExpired {
@@ -130,6 +142,10 @@ class AuthManager: ObservableObject {
                     // Same user ID should be used for PostHog regardless of expiration
                     let userID = session.user.id.uuidString
                     PostHogSDK.shared.identify(userID)
+                    
+                    // Set global user in UserManager
+                    userManager?.setUser(uuid: userID)
+                    
                     #if DEBUG
                     print("✅ PostHog identified user on auth state change: \(userID)")
                     #endif
@@ -142,6 +158,8 @@ class AuthManager: ObservableObject {
                     }
                 } else {
                     isAuthenticated = false
+                    // Clear user when session is lost
+                    userManager?.clearUser()
                     // Reset PostHog when user signs out
                     if state.event == .signedOut {
                         PostHogSDK.shared.reset()

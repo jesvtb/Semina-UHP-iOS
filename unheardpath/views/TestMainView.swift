@@ -12,6 +12,7 @@ enum PreviewTabSelection: Int, CaseIterable {
 struct TestMainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var locationManager: LocationManager
+    @EnvironmentObject var userManager: UserManager
     
     // Preview values for preview purposes
     private let previewTab: PreviewTabSelection?
@@ -487,10 +488,10 @@ extension TestMainView {
             let utcFormatter = ISO8601DateFormatter()
             utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
             utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            jsonDict["utc_time"] = utcFormatter.string(from: now)
+            jsonDict["msg_utc"] = utcFormatter.string(from: now)
             
             // Include device timezone identifier (user's current device timezone)
-            jsonDict["timezone"] = TimeZone.current.identifier
+            jsonDict["msg_timezone"] = TimeZone.current.identifier
             
             // Add device language (ISO 639-1 alpha-2 format, compatible with Pydantic's Language type)
             let languageCode: String
@@ -500,6 +501,11 @@ extension TestMainView {
                 languageCode = Locale.current.languageCode ?? "en"
             }
             jsonDict["device_lang"] = languageCode
+            
+            // Add user UUID if available
+            if let user = userManager.currentUser {
+                jsonDict["user_uuid"] = user.uuid
+            }
             
             // Add location details from LocationManager
             // Use empty string if location details are not available

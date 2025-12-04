@@ -43,3 +43,40 @@ enum TabSelection: Int {
   case profile = 3
 }
 
+
+// MARK: - User Model
+struct User: Identifiable {
+  let id: UUID
+  let uuid: String  // Supabase user UUID as string
+  
+  init(id: UUID = UUID(), uuid: String) {
+    self.id = id
+    self.uuid = uuid
+  }
+}
+
+
+// MARK: - User Manager
+/// Manages global user state for the app
+/// Similar to React Context - provides global user access
+@MainActor
+class UserManager: ObservableObject {
+  @Published var currentUser: User?
+  
+  /// Updates the current user
+  func setUser(uuid: String) {
+    currentUser = User(uuid: uuid)
+    #if DEBUG
+    print("✅ UserManager: Set current user with UUID: \(uuid)")
+    #endif
+  }
+  
+  /// Clears the current user
+  func clearUser() {
+    currentUser = nil
+    #if DEBUG
+    print("🔄 UserManager: Cleared current user")
+    #endif
+  }
+}
+
