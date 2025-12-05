@@ -12,6 +12,7 @@ import UIKit
 
 // struct LocationDetails
 
+@MainActor  // Ensure all state mutations stay on the main actor to avoid data races with Swift 6 strict concurrency
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private let geocoder = CLGeocoder()
@@ -23,8 +24,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // Geocoding state
     @Published var isGeocoding: Bool = false
     @Published var geocodingError: Error?
-    @Published var locationDetails: [String: Any]?
-    @Published var lookupLocationDetails: [String: Any]?
+    @Published var locationDetails: [String: JSONValue]?
+    @Published var lookupLocationDetails: [String: JSONValue]?
     
     // Tracking mode state
     private var isTrackingActive = false
@@ -51,6 +52,19 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     // Cache configuration for places/geojson data
     private let placesCacheExpirationHours: TimeInterval = 24 * 60 * 60 // 24 hours in seconds
+    
+    // Geofencing management
+    private var monitoredGeofences: [String: CLCircularRegion] = [:]  // Track all geofences by identifier
+    
+    // Device POIs geofencing
+    private var devicePOIsRefreshRegion: CLCircularRegion?
+    private var devicePOIsRefreshRadius: CLLocationDistance = 2000.0  // Default radius, will be updated from backend response
+    @Published var shouldRefreshDevicePOIs: Bool = false
+    
+    // UserDefaults keys for geofence persistence
+    private let devicePOIsGeofenceLatKey = "DevicePOIsGeofence.latitude"
+    private let devicePOIsGeofenceLonKey = "DevicePOIsGeofence.longitude"
+    private let devicePOIsGeofenceRadiusKey = "DevicePOIsGeofence.radius"
     
     override init() {
         super.init()
@@ -127,11 +141,15 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if #available(iOS 14.0, *) {
             if locationManager.accuracyAuthorization == .reducedAccuracy {
                 locationManager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "NSLocationTemporaryUsageDescription") { [weak self] error in
-                    if let error = error {
-                        print("❌ Failed to request precise location: \(error.localizedDescription)")
-                    } else {
-                        print("✅ Precise location permission granted")
-                        self?.startLocationUpdates()
+                    guard let self else { return }
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        if let error = error {
+                            print("❌ Failed to request precise location: \(error.localizedDescription)")
+                        } else {
+                            print("✅ Precise location permission granted")
+                            self.startLocationUpdates()
+                        }
                     }
                 }
             } else {
@@ -228,6 +246,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             isUsingSignificantChanges = false
             print("⏸️ Stopped significant location changes")
         }
+        
+        // Also stop all geofence monitoring
+        stopAllGeofences()
+        devicePOIsRefreshRegion = nil
     }
     
     /// Enables high accuracy mode (e.g., for navigation)
@@ -261,34 +283,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     // MARK: - Location Persistence
-    
-    /// Converts a dictionary to JSON string for storage
-    /// - Parameter dict: Dictionary to convert
-    /// - Returns: JSON string representation, or nil if conversion fails
-    private func dictionaryToJSONString(_ dict: [String: Any]) -> String? {
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: dict, options: []),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            #if DEBUG
-            print("⚠️ Failed to convert dictionary to JSON string")
-            #endif
-            return nil
-        }
-        return jsonString
-    }
-    
-    /// Converts a JSON string back to dictionary
-    /// - Parameter jsonString: JSON string to parse
-    /// - Returns: Dictionary representation, or nil if parsing fails
-    private func jsonStringToDictionary(_ jsonString: String) -> [String: Any]? {
-        guard let jsonData = jsonString.data(using: .utf8),
-              let dict = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any] else {
-            #if DEBUG
-            print("⚠️ Failed to parse JSON string to dictionary")
-            #endif
-            return nil
-        }
-        return dict
-    }
     
     /// Saves the current location to UserDefaults for persistence across app launches
     /// Uses StorageManager for consistent UserDefaults management
@@ -369,7 +363,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // Load location details from LastDeviceLocation key
         if let locationDetailsString = StorageManager.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self),
-           let locationDetailsDict = jsonStringToDictionary(locationDetailsString) {
+           let locationDetailsDict = JSONValue.decodeFromString(locationDetailsString) {
             locationDetails = locationDetailsDict
             #if DEBUG
             print("📂 Loaded LastDeviceLocation details from UserDefaults")
@@ -379,6 +373,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         #if DEBUG
         print("📂 Loaded UserDefaults Last Device Coordinates: \(latitude), \(longitude)")
         #endif
+        
+        // Note: Geofence will be restored after checking cache/loading data
+        // This prevents premature geofence setup that blocks initial data load
     }
     
     /// Loads the last saved lookup location from UserDefaults
@@ -433,7 +430,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // Load location details from LastLookupLocation key
         if let lookupLocationDetailsString = StorageManager.loadFromUserDefaults(forKey: lastLookupLocationKey, as: String.self),
-           let lookupLocationDetailsDict = jsonStringToDictionary(lookupLocationDetailsString) {
+           let lookupLocationDetailsDict = JSONValue.decodeFromString(lookupLocationDetailsString) {
             lookupLocationDetails = lookupLocationDetailsDict
             #if DEBUG
             print("📂 Loaded LastLookupLocation details from UserDefaults")
@@ -457,6 +454,222 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         return deviceLocation?.coordinate.longitude
     }
     
+    // MARK: - Geofencing Management
+    
+    /// Sets up a single geofence region for monitoring
+    /// - Parameters:
+    ///   - identifier: Unique identifier for this geofence
+    ///   - centerLat: Latitude of the geofence center
+    ///   - centerLon: Longitude of the geofence center
+    ///   - radius: Radius in meters (default: 100m minimum per iOS requirements)
+    ///   - notifyOnEntry: Whether to notify on entry (default: false)
+    ///   - notifyOnExit: Whether to notify on exit (default: true)
+    func setupGeofence(
+        identifier: String,
+        centerLat: CLLocationDegrees,
+        centerLon: CLLocationDegrees,
+        radius: CLLocationDistance = 100.0,
+        notifyOnEntry: Bool = false,
+        notifyOnExit: Bool = true
+    ) {
+        // Check if region monitoring is available
+        guard CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else {
+            #if DEBUG
+            print("⚠️ Region monitoring not available for circular regions")
+            #endif
+            return
+        }
+        
+        // Check authorization status - require "Always" for background monitoring
+        guard authorizationStatus == .authorizedAlways else {
+            #if DEBUG
+            print("⚠️ Geofencing requires 'Always' authorization for background monitoring")
+            #endif
+            return
+        }
+        
+        // Remove existing region with same identifier if present
+        if let existingRegion = monitoredGeofences[identifier] {
+            locationManager.stopMonitoring(for: existingRegion)
+            monitoredGeofences.removeValue(forKey: identifier)
+            #if DEBUG
+            print("📍 Removed existing geofence with identifier: \(identifier)")
+            #endif
+        }
+        
+        // Create circular region
+        let center = CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon)
+        let region = CLCircularRegion(
+            center: center,
+            radius: max(radius, 100.0),  // iOS minimum is 100m
+            identifier: identifier
+        )
+        
+        // Configure notification preferences
+        region.notifyOnEntry = notifyOnEntry
+        region.notifyOnExit = notifyOnExit
+        
+        // Start monitoring
+        locationManager.startMonitoring(for: region)
+        monitoredGeofences[identifier] = region
+        
+        #if DEBUG
+        print("📍 Set up geofence: identifier=\(identifier), center=[\(centerLat), \(centerLon)], radius=\(max(radius, 100.0))m, entry=\(notifyOnEntry), exit=\(notifyOnExit)")
+        #endif
+    }
+    
+    /// Stops monitoring a specific geofence by identifier
+    /// - Parameter identifier: The identifier of the geofence to stop monitoring
+    func stopGeofence(identifier: String) {
+        if let region = monitoredGeofences[identifier] {
+            locationManager.stopMonitoring(for: region)
+            monitoredGeofences.removeValue(forKey: identifier)
+            #if DEBUG
+            print("📍 Stopped geofence monitoring: \(identifier)")
+            #endif
+        }
+    }
+    
+    /// Stops monitoring all geofences
+    func stopAllGeofences() {
+        for (identifier, region) in monitoredGeofences {
+            locationManager.stopMonitoring(for: region)
+            #if DEBUG
+            print("📍 Stopped geofence: \(identifier)")
+            #endif
+        }
+        monitoredGeofences.removeAll()
+    }
+    
+    // MARK: - Device POIs Geofencing
+    
+    /// Sets up a geofence around the cached device POIs location
+    /// Only refreshes data when user exits this region
+    /// - Parameters:
+    ///   - centerLat: Latitude of geofence center
+    ///   - centerLon: Longitude of geofence center
+    ///   - radius: Radius in meters (defaults to devicePOIsRefreshRadius if not provided)
+    func setupDevicePOIsRefreshGeofence(centerLat: CLLocationDegrees, centerLon: CLLocationDegrees, radius: CLLocationDistance? = nil) {
+        let geofenceRadius = radius ?? devicePOIsRefreshRadius
+        
+        setupGeofence(
+            identifier: "DevicePOIsRefreshRegion",
+            centerLat: centerLat,
+            centerLon: centerLon,
+            radius: geofenceRadius,
+            notifyOnEntry: false,
+            notifyOnExit: true
+        )
+        
+        // Track device POIs region separately for easy access
+        devicePOIsRefreshRegion = monitoredGeofences["DevicePOIsRefreshRegion"]
+        
+        // Persist geofence info for app relaunch
+        saveDevicePOIsGeofence(centerLat: centerLat, centerLon: centerLon, radius: geofenceRadius)
+        
+        #if DEBUG
+        print("📍 Set up device POIs refresh geofence: center=[\(centerLat), \(centerLon)], radius=\(geofenceRadius)m")
+        #endif
+    }
+    
+    /// Saves device POIs geofence info to UserDefaults for persistence across app launches
+    private func saveDevicePOIsGeofence(centerLat: CLLocationDegrees, centerLon: CLLocationDegrees, radius: CLLocationDistance) {
+        StorageManager.saveToUserDefaults(centerLat, forKey: devicePOIsGeofenceLatKey)
+        StorageManager.saveToUserDefaults(centerLon, forKey: devicePOIsGeofenceLonKey)
+        StorageManager.saveToUserDefaults(radius, forKey: devicePOIsGeofenceRadiusKey)
+    }
+    
+    /// Restores device POIs geofence from UserDefaults if valid and authorization allows
+    /// Returns true if geofence was restored, false otherwise
+    func restoreDevicePOIsGeofenceIfValid() -> Bool {
+        guard authorizationStatus == .authorizedAlways else {
+            #if DEBUG
+            print("⚠️ Cannot restore geofence: authorization is not 'Always'")
+            #endif
+            return false
+        }
+        
+        guard StorageManager.existsInUserDefaults(forKey: devicePOIsGeofenceLatKey),
+              StorageManager.existsInUserDefaults(forKey: devicePOIsGeofenceLonKey),
+              StorageManager.existsInUserDefaults(forKey: devicePOIsGeofenceRadiusKey) else {
+            #if DEBUG
+            print("ℹ️ No saved geofence found in UserDefaults")
+            #endif
+            return false
+        }
+        
+        guard let savedLat = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceLatKey, as: Double.self),
+              let savedLon = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceLonKey, as: Double.self),
+              let savedRadius = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceRadiusKey, as: Double.self) else {
+            #if DEBUG
+            print("ℹ️ Failed to load saved geofence from UserDefaults")
+            #endif
+            return false
+        }
+        
+        // Validate coordinates are not zero
+        guard savedLat != 0.0 || savedLon != 0.0 else {
+            #if DEBUG
+            print("ℹ️ Saved geofence coordinates are zero, ignoring")
+            #endif
+            return false
+        }
+        
+        // Restore geofence
+        setupDevicePOIsRefreshGeofence(centerLat: savedLat, centerLon: savedLon, radius: savedRadius)
+        
+        #if DEBUG
+        print("✅ Restored device POIs geofence from UserDefaults: center=[\(savedLat), \(savedLon)], radius=\(savedRadius)m")
+        #endif
+        
+        return true
+    }
+    
+    /// Gets the saved geofence center coordinates from UserDefaults
+    /// Returns a tuple (latitude, longitude) if found, nil otherwise
+    func getSavedGeofenceCenter() -> (latitude: Double, longitude: Double)? {
+        guard let savedLat = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceLatKey, as: Double.self),
+              let savedLon = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceLonKey, as: Double.self) else {
+            return nil
+        }
+        
+        // Validate coordinates are not zero
+        guard savedLat != 0.0 || savedLon != 0.0 else {
+            return nil
+        }
+        
+        return (latitude: savedLat, longitude: savedLon)
+    }
+    
+    /// Stops monitoring the device POIs geofence
+    func stopDevicePOIsRefreshGeofence() {
+        stopGeofence(identifier: "DevicePOIsRefreshRegion")
+        devicePOIsRefreshRegion = nil
+        
+        // Clear persisted geofence info
+        StorageManager.removeFromUserDefaults(forKey: devicePOIsGeofenceLatKey)
+        StorageManager.removeFromUserDefaults(forKey: devicePOIsGeofenceLonKey)
+        StorageManager.removeFromUserDefaults(forKey: devicePOIsGeofenceRadiusKey)
+    }
+    
+    /// Checks if device POIs geofencing is available and active
+    var isDevicePOIsGeofencingActive: Bool {
+        return devicePOIsRefreshRegion != nil
+    }
+    
+    #if DEBUG
+    /// Returns device POIs geofence info for debug visualization
+    /// Returns nil if geofence is not set up
+    var devicePOIsGeofenceDebugInfo: (center: CLLocationCoordinate2D, radius: CLLocationDistance, isMonitoring: Bool)? {
+        guard let region = devicePOIsRefreshRegion else {
+            return nil
+        }
+        // Check if region is actively being monitored
+        let isMonitoring = monitoredGeofences["DevicePOIsRefreshRegion"] != nil && authorizationStatus == .authorizedAlways
+        return (center: region.center, radius: region.radius, isMonitoring: isMonitoring)
+    }
+    #endif
+    
     // MARK: - Places Cache Management
     
     /// Generate cache key from rounded coordinates (~100m precision)
@@ -468,11 +681,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     /// Retrieve cached location data (list of {idx, pageid} dictionaries)
     /// Returns nil if cache doesn't exist or is expired (24 hours)
-    func getCachedLocationData(userLat: Double, userLon: Double) -> [[String: Any]]? {
-        let defaults = UserDefaults.standard
+    /// Also returns the ETag if available
+    func getCachedLocationData(userLat: Double, userLon: Double) -> (features: [[String: Any]], etag: String?)? {
         let key = placesCacheKey(userLat: userLat, userLon: userLon)
         
-        guard let cacheDict = defaults.dictionary(forKey: key),
+        guard let cacheDict = StorageManager.loadFromUserDefaults(forKey: key, as: [String: Any].self),
               let features = cacheDict["features"] as? [[String: Any]],
               let timestamp = cacheDict["timestamp"] as? TimeInterval else {
             #if DEBUG
@@ -488,41 +701,47 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             print("⏰ Cache expired for location: \(userLat), \(userLon) (age: \(Int(cacheAge / 3600)) hours)")
             #endif
             // Clean up expired cache
-            defaults.removeObject(forKey: key)
+            StorageManager.removeFromUserDefaults(forKey: key)
             return nil
         }
         
+        // Extract ETag if available
+        let etag = cacheDict["etag"] as? String
+        
         #if DEBUG
-        print("✅ Cache hit for location: \(userLat), \(userLon)")
+        print("✅ Cache hit for location: \(userLat), \(userLon)\(etag != nil ? " (ETag: \(etag!))" : "")")
         #endif
-        return features
+        return (features: features, etag: etag)
     }
     
-    /// Save cached location data (list of {idx, pageid} dictionaries)
-    func saveCachedLocationData(userLat: Double, userLon: Double, features: [[String: Any]]) {
-        let defaults = UserDefaults.standard
+    /// Save cached location data (list of {idx, pageid} dictionaries) with optional ETag
+    func saveCachedLocationData(userLat: Double, userLon: Double, features: [[String: Any]], etag: String? = nil) {
         let key = placesCacheKey(userLat: userLat, userLon: userLon)
         
-        let cacheDict: [String: Any] = [
+        var cacheDict: [String: Any] = [
             "features": features,
             "timestamp": Date().timeIntervalSince1970
         ]
         
-        defaults.set(cacheDict, forKey: key)
-        defaults.synchronize()
+        // Store ETag if provided
+        if let etag = etag {
+            cacheDict["etag"] = etag
+        }
+        
+        StorageManager.saveToUserDefaults(cacheDict, forKey: key)
         
         #if DEBUG
-        print("💾 Cached location data for: \(userLat), \(userLon) with \(features.count) features")
+        print("💾 Cached location data for: \(userLat), \(userLon) with \(features.count) features\(etag != nil ? " (ETag: \(etag!))" : "")")
         #endif
     }
     
     /// Save individual feature by pageid
     func saveCachedFeature(pageid: Int, feature: [String: Any]) {
-        let defaults = UserDefaults.standard
         let key = "wiki_\(pageid)"
         
-        defaults.set(feature, forKey: key)
-        defaults.synchronize()
+        // Convert to JSONValue for storage (maintains backward compatibility by storing as Any)
+        // StorageManager will handle the conversion
+        StorageManager.saveToUserDefaults(feature, forKey: key)
         
         #if DEBUG
         print("💾 Cached feature for pageid: \(pageid)")
@@ -531,18 +750,20 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     /// Retrieve individual feature by pageid
     func getCachedFeature(pageid: Int) -> [String: Any]? {
-        let defaults = UserDefaults.standard
         let key = "wiki_\(pageid)"
         
-        return defaults.dictionary(forKey: key)
+        return StorageManager.loadFromUserDefaults(forKey: key, as: [String: Any].self)
     }
     
     /// Reconstruct GeoJSON FeatureCollection from cache
     /// Returns nil if cache is missing or any required features are missing
-    func reconstructGeoJSONFromCache(userLat: Double, userLon: Double) -> [String: Any]? {
-        guard let featuresList = getCachedLocationData(userLat: userLat, userLon: userLon) else {
+    /// Also returns the ETag if available
+    func reconstructGeoJSONFromCache(userLat: Double, userLon: Double) -> (geoJSON: [String: JSONValue], etag: String?)? {
+        guard let cacheResult = getCachedLocationData(userLat: userLat, userLon: userLon) else {
             return nil
         }
+        
+        let featuresList = cacheResult.features
         
         var reconstructedFeatures: [[String: Any]] = []
         
@@ -575,8 +796,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             reconstructedFeatures[i].removeValue(forKey: "_sortIdx")
         }
         
-        // Wrap in FeatureCollection format
-        let geoJSON: [String: Any] = [
+        // Wrap in FeatureCollection format and convert to JSONValue
+        let geoJSONDict: [String: Any] = [
             "event": "map",
             "data": [
                 "type": "FeatureCollection",
@@ -584,11 +805,18 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             ]
         ]
         
+        guard let geoJSON = JSONValue.dictionary(from: geoJSONDict) else {
+            #if DEBUG
+            print("❌ Failed to convert cached GeoJSON to JSONValue")
+            #endif
+            return nil
+        }
+        
         #if DEBUG
         print("✅ Reconstructed GeoJSON from cache with \(reconstructedFeatures.count) features")
         #endif
         
-        return geoJSON
+        return (geoJSON: geoJSON, etag: cacheResult.etag)
     }
     
     /// Returns both latitude and longitude as a tuple if available
@@ -604,7 +832,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     ///   - addressString: The address or location name to geocode (e.g., "New York, NY" or "1600 Amphitheatre Parkway, Mountain View, CA")
     ///   - completion: Completion handler with optional placemark and error
     /// - Returns: The first placemark if geocoding succeeds, nil otherwise
-    func geocodeAddress(_ addressString: String, completion: @escaping (CLPlacemark?, Error?) -> Void) {
+    func geocodeAddress(_ addressString: String, completion: @escaping @Sendable (CLPlacemark?, Error?) -> Void) {
         guard !addressString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             let error = NSError(domain: "LocationManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Address string cannot be empty"])
             completion(nil, error)
@@ -622,36 +850,40 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         #endif
         
         geocoder.geocodeAddressString(addressString) { [weak self] placemarks, error in
-            guard let self = self else { return }
+            guard let self else { return }
             
-            self.isGeocoding = false
-            
-            if let error = error {
-                self.geocodingError = error
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                
+                self.isGeocoding = false
+                
+                if let error = error {
+                    self.geocodingError = error
+                    #if DEBUG
+                    print("❌ Geocoding failed: \(error.localizedDescription)")
+                    #endif
+                    completion(nil, error)
+                    return
+                }
+                
+                guard let placemark = placemarks?.first else {
+                    let noResultsError = NSError(domain: "LocationManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No results found for address"])
+                    self.geocodingError = noResultsError
+                    #if DEBUG
+                    print("⚠️ No geocoding results found for: \(addressString)")
+                    #endif
+                    completion(nil, noResultsError)
+                    return
+                }
+                
                 #if DEBUG
-                print("❌ Geocoding failed: \(error.localizedDescription)")
+                if let location = placemark.location {
+                    print("✅ Geocoded '\(addressString)' to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                }
                 #endif
-                completion(nil, error)
-                return
+                
+                completion(placemark, nil)
             }
-            
-            guard let placemark = placemarks?.first else {
-                let noResultsError = NSError(domain: "LocationManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No results found for address"])
-                self.geocodingError = noResultsError
-                #if DEBUG
-                print("⚠️ No geocoding results found for: \(addressString)")
-                #endif
-                completion(nil, noResultsError)
-                return
-            }
-            
-            #if DEBUG
-            if let location = placemark.location {
-                print("✅ Geocoded '\(addressString)' to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-            }
-            #endif
-            
-            completion(placemark, nil)
         }
     }
     
@@ -679,17 +911,16 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     ///   - location: The CLLocation with coordinates
     ///   - placemark: Optional CLPlacemark with address information
     /// - Returns: Dictionary with location and geocoding data
-    private func constructDeviceLocation(location: CLLocation, placemark: CLPlacemark?) -> [String: Any] {
+    /// Note: All fields required by backend Location model must be present
+    private func constructDeviceLocation(location: CLLocation, placemark: CLPlacemark?) -> [String: JSONValue] {
         var dict: [String: Any] = [:]
         
-        // Core location data (always present)
+        // Core location data (always present) - REQUIRED by backend
         dict["latitude"] = location.coordinate.latitude
         dict["longitude"] = location.coordinate.longitude
-        dict["accuracy"] = location.horizontalAccuracy
         dict["location_type"] = "device"
         
         // Include device timezone (user's current device timezone when function executes)
-        dict["timezone"] = TimeZone.current.identifier
         
         // Capture function execution time (when this function runs, not location timestamp)
         let now = Date()
@@ -699,10 +930,17 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         dict["action_utc"] = utcFormatter.string(from: now)
         dict["action_timezone"] = TimeZone.current.identifier
         
+        // Required fields for backend Location model - ensure they're always present
+        // Initialize with empty strings, then populate if placemark is available
+        var placeName: String = ""
+        var countryCode: String = ""
+        var locationString: String = ""
+        
         // If placemark found, include address elements
         if let placemark = placemark {
-            // Place information
+            // Place information (required by backend)
             if let name = placemark.name {
+                placeName = name
                 dict["place"] = name
             }
             
@@ -718,7 +956,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 dict["street"] = streetParts.joined(separator: " ")
             }
             
-            // Combine sublocality, locality, subadministrative area, administrativeArea
+            // Combine sublocality, locality, subadministrative area, administrativeArea (required by backend)
             var locationParts: [String] = []
             if let subLocality = placemark.subLocality {
                 locationParts.append(subLocality)
@@ -732,13 +970,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             if let administrativeArea = placemark.administrativeArea {
                 locationParts.append(administrativeArea)
             }
-            if !locationParts.isEmpty {
-                dict["location"] = locationParts.joined(separator: ", ")
-            }
+            locationString = locationParts.joined(separator: ", ")
+            dict["location"] = locationString
             
-            // Country information
-            if let countryCode = placemark.isoCountryCode {
-                dict["country_code"] = countryCode
+            // Country information (required by backend)
+            if let isoCode = placemark.isoCountryCode {
+                countryCode = isoCode
+                dict["country_code"] = isoCode
             }
             if let country = placemark.country {
                 dict["country"] = country
@@ -764,6 +1002,21 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             }
         }
         
+        // Ensure all required fields for backend Location model are present
+        // If placemark was nil or missing fields, use empty strings
+        if dict["place"] == nil {
+            dict["place"] = placeName.isEmpty ? "" : placeName
+        }
+        if dict["country_code"] == nil {
+            dict["country_code"] = countryCode.isEmpty ? "" : countryCode
+        }
+        if dict["location"] == nil {
+            dict["location"] = locationString.isEmpty ? "" : locationString
+        }
+        
+        // Optional fields
+        dict["accuracy"] = location.horizontalAccuracy
+        
         // Construct full address string (at the end)
         var addressParts: [String] = []
         if let street = dict["street"] as? String {
@@ -779,15 +1032,23 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             dict["full_address"] = addressParts.joined(separator: ", ")
         }
         
+        // Convert dict to JSONValue
+        guard let jsonValue = JSONValue.dictionary(from: dict) else {
+            #if DEBUG
+            print("⚠️ Failed to convert location dict to JSONValue")
+            #endif
+            return [:]
+        }
+        
         // Save the final dict as JSON string to UserDefaults
-        if let jsonString = dictionaryToJSONString(dict) {
+        if let jsonString = JSONValue.encodeToString(jsonValue) {
             StorageManager.saveToUserDefaults(jsonString, forKey: lastDeviceLocationKey)
             #if DEBUG
             print("💾 Saved LastDeviceLocation to UserDefaults")
             #endif
         }
         
-        return dict
+        return jsonValue
     }
     
     /// Constructs a JSON dictionary from placemark data for lookup/search results
@@ -796,7 +1057,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     ///   - placemark: CLPlacemark with address information from MKLocalSearch
     ///   - mapItemName: Optional name from MKMapItem
     /// - Returns: Dictionary with location and address data
-    func constructLookupLocation(location: CLLocation, placemark: CLPlacemark, mapItemName: String?) -> [String: Any] {
+    func constructLookupLocation(location: CLLocation, placemark: CLPlacemark, mapItemName: String?) -> [String: JSONValue] {
         var dict: [String: Any] = [:]
         
         // Core location data (always present)
@@ -805,8 +1066,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         dict["accuracy"] = location.horizontalAccuracy
         dict["location_type"] = "lookup"
         
-        // Include device timezone (user's current device timezone when function executes)
-        dict["timezone"] = TimeZone.current.identifier
         
         // Capture function execution time (when this function runs, not location timestamp)
         let now = Date()
@@ -895,20 +1154,28 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             dict["full_address"] = addressParts.joined(separator: ", ")
         }
         
+        // Convert dict to JSONValue
+        guard let jsonValue = JSONValue.dictionary(from: dict) else {
+            #if DEBUG
+            print("⚠️ Failed to convert lookup location dict to JSONValue")
+            #endif
+            return [:]
+        }
+        
         // Save the final dict as JSON string to UserDefaults
-        if let jsonString = dictionaryToJSONString(dict) {
+        if let jsonString = JSONValue.encodeToString(jsonValue) {
             StorageManager.saveToUserDefaults(jsonString, forKey: lastLookupLocationKey)
             #if DEBUG
             print("💾 Saved LastLookupLocation to UserDefaults")
             #endif
         }
         
-        return dict
+        return jsonValue
     }
     
     /// Reverse geocodes the current user location and returns a JSON dictionary
     /// - Parameter completion: Completion handler with optional dictionary and error
-    func reverseGeocodeUserLocation(completion: @escaping ([String: Any]?, Error?) -> Void) {
+    func reverseGeocodeUserLocation(completion: @escaping @Sendable ([String: JSONValue]?, Error?) -> Void) {
         #if DEBUG
         print("🔍 reverseGeocodeUserLocation() called")
         print("   deviceLocation: \(deviceLocation != nil ? "available" : "nil")")
@@ -937,213 +1204,282 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         #endif
         
         geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
-            guard let self = self else { return }
+            guard let self else { return }
             
-            self.isGeocoding = false
-            
-            #if DEBUG
-            let latitude = location.coordinate.latitude
-            let longitude = location.coordinate.longitude
-            
-            print("\n" + String(repeating: "=", count: 80))
-            print("📍 REVERSE GEOCODING USER LOCATION")
-            print(String(repeating: "=", count: 80))
-            print("Coordinates: \(latitude), \(longitude)")
-            print("Accuracy: ±\(Int(location.horizontalAccuracy))m")
-            print("Timestamp: \(location.timestamp)")
-            print(String(repeating: "-", count: 80))
-            #endif
-            
-            if let error = error {
-                self.geocodingError = error
-                #if DEBUG
-                print("❌ Error: \(error.localizedDescription)")
-                print(String(repeating: "=", count: 80) + "\n")
-                #endif
-                // Still return dict with location data even if geocoding fails
-                let dict = self.constructDeviceLocation(location: location, placemark: nil)
-                // Update locationDetails even on error (with location data only)
-                self.locationDetails = dict
-                #if DEBUG
-                print("✅ Updated locationDetails in LocationManager (location only, no placemark)")
-                #endif
-                completion(dict, error)
-                return
-            }
-            
-            // Use first placemark if available
-            let placemark = placemarks?.first
-            
-            #if DEBUG
-            if let placemarks = placemarks, !placemarks.isEmpty {
-                print("✅ Found \(placemarks.count) placemark(s):\n")
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 
-                for (index, placemark) in placemarks.enumerated() {
-                    print(String(repeating: "-", count: 80))
-                    print("📍 PLACEMARK #\(index + 1)")
-                    print(String(repeating: "-", count: 80))
-                    
-                    // Location coordinates
-                    if let placemarkLocation = placemark.location {
-                        print("Coordinates: \(placemarkLocation.coordinate.latitude), \(placemarkLocation.coordinate.longitude)")
-                        print("Accuracy: ±\(Int(placemarkLocation.horizontalAccuracy))m")
-                    }
-                    
-                    // Address components
-                    print("\n📋 Address Components:")
-                    if let name = placemark.name {
-                        print("  • Name: \(name)")
-                    }
-                    if let thoroughfare = placemark.thoroughfare {
-                        print("  • Street: \(thoroughfare)")
-                    }
-                    if let subThoroughfare = placemark.subThoroughfare {
-                        print("  • Street Number: \(subThoroughfare)")
-                    }
-                    if let subLocality = placemark.subLocality {
-                        print("  • Sub-locality: \(subLocality)")
-                    }
-                    if let locality = placemark.locality {
-                        print("  • City/Locality: \(locality)")
-                    }
-                    if let subAdministrativeArea = placemark.subAdministrativeArea {
-                        print("  • Sub-administrative Area: \(subAdministrativeArea)")
-                    }
-                    if let administrativeArea = placemark.administrativeArea {
-                        print("  • State/Province: \(administrativeArea)")
-                    }
-                    if let postalCode = placemark.postalCode {
-                        print("  • Postal Code: \(postalCode)")
-                    }
-                    if let country = placemark.country {
-                        print("  • Country: \(country)")
-                    }
-                    if let countryCode = placemark.isoCountryCode {
-                        print("  • Country Code: \(countryCode)")
-                    }
-                    if let inlandWater = placemark.inlandWater {
-                        print("  • Inland Water: \(inlandWater)")
-                    }
-                    if let ocean = placemark.ocean {
-                        print("  • Ocean: \(ocean)")
-                    }
-                    if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
-                        print("  • Areas of Interest: \(areasOfInterest.joined(separator: ", "))")
-                    }
-                    
-                    // Region
-                    if let region = placemark.region {
-                        print("\n🌍 Region:")
-                        print("  • Identifier: \(region.identifier)")
-                        if let circularRegion = region as? CLCircularRegion {
-                            print("  • Center: \(circularRegion.center.latitude), \(circularRegion.center.longitude)")
-                            print("  • Radius: \(Int(circularRegion.radius))m")
+                self.isGeocoding = false
+                
+                #if DEBUG
+                let latitude = location.coordinate.latitude
+                let longitude = location.coordinate.longitude
+                
+                print("\n" + String(repeating: "=", count: 80))
+                print("📍 REVERSE GEOCODING USER LOCATION")
+                print(String(repeating: "=", count: 80))
+                print("Coordinates: \(latitude), \(longitude)")
+                print("Accuracy: ±\(Int(location.horizontalAccuracy))m")
+                print("Timestamp: \(location.timestamp)")
+                print(String(repeating: "-", count: 80))
+                #endif
+                
+                if let error = error {
+                    self.geocodingError = error
+                    #if DEBUG
+                    print("❌ Reverse Geocoding Error:")
+                    print("   Description: \(error.localizedDescription)")
+                    if let nsError = error as NSError? {
+                        print("   Domain: \(nsError.domain)")
+                        print("   Code: \(nsError.code)")
+                        print("   UserInfo: \(nsError.userInfo)")
+                        
+                        // Map CoreLocation error codes to human-readable descriptions
+                        if nsError.domain == "kCLErrorDomain" {
+                            switch nsError.code {
+                            case 0:
+                                print("   Error Type: kCLErrorLocationUnknown - Location could not be determined")
+                            case 1:
+                                print("   Error Type: kCLErrorDenied - Location services denied")
+                            case 2:
+                                print("   Error Type: kCLErrorNetwork - Network error or service unavailable")
+                            case 3:
+                                print("   Error Type: kCLErrorHeadingFailure - Heading could not be determined")
+                            case 4:
+                                print("   Error Type: kCLErrorRegionMonitoringDenied - Region monitoring denied")
+                            case 5:
+                                print("   Error Type: kCLErrorRegionMonitoringFailure - Region monitoring failed")
+                            case 6:
+                                print("   Error Type: kCLErrorRegionMonitoringSetupDelayed - Region monitoring setup delayed")
+                            case 7:
+                                print("   Error Type: kCLErrorRegionMonitoringResponseDelayed - Region monitoring response delayed")
+                            case 8:
+                                print("   Error Type: kCLErrorGeocodeFoundNoResult - Geocode found no result")
+                            case 9:
+                                print("   Error Type: kCLErrorGeocodeFoundPartialResult - Geocode found partial result")
+                            case 10:
+                                print("   Error Type: kCLErrorGeocodeCanceled - Geocode request canceled")
+                            default:
+                                print("   Error Type: Unknown CoreLocation error code")
+                            }
                         }
                     }
-                    
-                    // Timezone
-                    if let timeZone = placemark.timeZone {
-                        print("\n🕐 Timezone: \(timeZone.identifier)")
-                    }
-                    
-                    print()
+                    print(String(repeating: "=", count: 80) + "\n")
+                    #endif
+                    // Still return dict with location data even if geocoding fails
+                    let dict = self.constructDeviceLocation(location: location, placemark: nil)
+                    // Update locationDetails even on error (with location data only)
+                    self.locationDetails = dict
+                    #if DEBUG
+                    print("✅ Updated locationDetails in LocationManager (location only, no placemark)")
+                    #endif
+                    completion(dict, error)
+                    return
                 }
                 
-                print(String(repeating: "=", count: 80))
-                print("✅ Reverse geocoding complete")
-                print(String(repeating: "=", count: 80) + "\n")
-            } else {
-                print("⚠️ No placemarks found")
-                print(String(repeating: "=", count: 80) + "\n")
+                // Use first placemark if available
+                let placemark = placemarks?.first
+                
+                #if DEBUG
+                if let placemarks = placemarks, !placemarks.isEmpty {
+                    print("✅ Found \(placemarks.count) placemark(s):\n")
+                    
+                    for (index, placemark) in placemarks.enumerated() {
+                        print(String(repeating: "-", count: 80))
+                        print("📍 PLACEMARK #\(index + 1)")
+                        print(String(repeating: "-", count: 80))
+                        
+                        // Location coordinates
+                        if let placemarkLocation = placemark.location {
+                            print("Coordinates: \(placemarkLocation.coordinate.latitude), \(placemarkLocation.coordinate.longitude)")
+                            print("Accuracy: ±\(Int(placemarkLocation.horizontalAccuracy))m")
+                        }
+                        
+                        // Address components
+                        print("\n📋 Address Components:")
+                        if let name = placemark.name {
+                            print("  • Name: \(name)")
+                        }
+                        if let thoroughfare = placemark.thoroughfare {
+                            print("  • Street: \(thoroughfare)")
+                        }
+                        if let subThoroughfare = placemark.subThoroughfare {
+                            print("  • Street Number: \(subThoroughfare)")
+                        }
+                        if let subLocality = placemark.subLocality {
+                            print("  • Sub-locality: \(subLocality)")
+                        }
+                        if let locality = placemark.locality {
+                            print("  • City/Locality: \(locality)")
+                        }
+                        if let subAdministrativeArea = placemark.subAdministrativeArea {
+                            print("  • Sub-administrative Area: \(subAdministrativeArea)")
+                        }
+                        if let administrativeArea = placemark.administrativeArea {
+                            print("  • State/Province: \(administrativeArea)")
+                        }
+                        if let postalCode = placemark.postalCode {
+                            print("  • Postal Code: \(postalCode)")
+                        }
+                        if let country = placemark.country {
+                            print("  • Country: \(country)")
+                        }
+                        if let countryCode = placemark.isoCountryCode {
+                            print("  • Country Code: \(countryCode)")
+                        }
+                        if let inlandWater = placemark.inlandWater {
+                            print("  • Inland Water: \(inlandWater)")
+                        }
+                        if let ocean = placemark.ocean {
+                            print("  • Ocean: \(ocean)")
+                        }
+                        if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
+                            print("  • Areas of Interest: \(areasOfInterest.joined(separator: ", "))")
+                        }
+                        
+                        // Region
+                        if let region = placemark.region {
+                            print("\n🌍 Region:")
+                            print("  • Identifier: \(region.identifier)")
+                            if let circularRegion = region as? CLCircularRegion {
+                                print("  • Center: \(circularRegion.center.latitude), \(circularRegion.center.longitude)")
+                                print("  • Radius: \(Int(circularRegion.radius))m")
+                            }
+                        }
+                        
+                        // Timezone
+                        if let timeZone = placemark.timeZone {
+                            print("\n🕐 Timezone: \(timeZone.identifier)")
+                        }
+                        
+                        print()
+                    }
+                    
+                    print(String(repeating: "=", count: 80))
+                    print("✅ Reverse geocoding complete")
+                    print(String(repeating: "=", count: 80) + "\n")
+                } else {
+                    print("⚠️ No placemarks found")
+                    print(String(repeating: "=", count: 80) + "\n")
+                }
+                #endif
+                
+                // Construct and return the dictionary
+                let dict = self.constructDeviceLocation(location: location, placemark: placemark)
+                
+                // Update locationDetails
+                self.locationDetails = dict
+                
+                #if DEBUG
+                print("📦 Constructed location dict: \(dict)")
+                print("✅ Updated locationDetails in LocationManager")
+                if let locationString = dict["location"]?.stringValue {
+                  print("   Location string: \(locationString)")
+                }
+                if let countryName = dict["country_name"]?.stringValue {
+                  print("   Country name: \(countryName)")
+                }
+                #endif
+                
+                completion(dict, nil)
             }
-            #endif
-            
-            // Construct and return the dictionary
-            let dict = self.constructDeviceLocation(location: location, placemark: placemark)
-            
-            // Update locationDetails
-            self.locationDetails = dict
-            
-            #if DEBUG
-            print("📦 Constructed location dict: \(dict)")
-            print("✅ Updated locationDetails in LocationManager")
-            if let locationString = dict["location"] as? String {
-              print("   Location string: \(locationString)")
-            }
-            if let countryName = dict["country_name"] as? String {
-              print("   Country name: \(countryName)")
-            }
-            #endif
-            
-            completion(dict, nil)
         }
     }
     
     // MARK: - CLLocationManagerDelegate
     
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         
-        // Update current location
-        deviceLocation = location
-        // Log update with context
-        let updateType = isUsingSignificantChanges ? "significant change" : "continuous"
-        let accuracy = location.horizontalAccuracy
-        print("📍 Location updated (\(updateType)): \(location.coordinate.latitude), \(location.coordinate.longitude) (accuracy: ±\(Int(accuracy))m)")
-
-        // Save location to UserDefaults for persistence
-        saveDeviceLocation(location)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            
+            let updateType = self.isUsingSignificantChanges ? "significant change" : "continuous"
+            let accuracy = location.horizontalAccuracy
+            print("📍 Location updated (\(updateType)): \(location.coordinate.latitude), \(location.coordinate.longitude) (accuracy: ±\(Int(accuracy))m)")
+            
+            self.deviceLocation = location
+            self.saveDeviceLocation(location)
+        }
     }
     
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("❌ Location manager failed with error: \(error.localizedDescription)")
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in
+            print("❌ Location manager failed with error: \(error.localizedDescription)")
+        }
     }
     
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let newStatus = manager.authorizationStatus
-        let oldStatus = authorizationStatus
-        
-        // Only process if status actually changed (prevents duplicate processing)
-        guard newStatus != oldStatus else {
-            return
-        }
-        
-        // Update status
-        authorizationStatus = newStatus
-        isLocationPermissionGranted = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
-        
-        print("🔄 Location authorization changed to: \(authorizationStatus.rawValue)")
-        
-        // Check accuracy authorization for iOS 14+
-        if #available(iOS 14.0, *) {
-            let accuracyStatus = manager.accuracyAuthorization
-            if accuracyStatus == .reducedAccuracy {
-                print("⚠️ Location accuracy is reduced - requesting precise location")
-                requestPreciseLocationIfNeeded()
-            } else {
-                print("✅ Precise location authorized")
-            }
-        }
-        
-        switch authorizationStatus {
-        case .authorizedWhenInUse, .authorizedAlways:
-            print("✅ Location permission granted")
+        let accuracyStatus: CLAccuracyAuthorization? = {
             if #available(iOS 14.0, *) {
-                // Already handled above
-            } else {
-                requestPreciseLocationIfNeeded()
+                return manager.accuracyAuthorization
             }
-            // Start with adaptive strategy based on current app state
-            startLocationUpdates()
-        case .denied:
-            print("❌ Location permission denied by user")
-        case .restricted:
-            print("❌ Location permission restricted by system")
-        case .notDetermined:
-            print("⏳ Location permission not determined yet")
-        @unknown default:
-            print("❓ Unknown location permission status: \(authorizationStatus.rawValue)")
+            return nil
+        }()
+        
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let oldStatus = self.authorizationStatus
+            
+            guard newStatus != oldStatus else {
+                return
+            }
+            
+            self.authorizationStatus = newStatus
+            self.isLocationPermissionGranted = newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways
+            
+            print("🔄 Location authorization changed to: \(newStatus.rawValue)")
+            
+            if #available(iOS 14.0, *), let accuracyStatus {
+                if accuracyStatus == .reducedAccuracy {
+                    print("⚠️ Location accuracy is reduced - requesting precise location")
+                    self.requestPreciseLocationIfNeeded()
+                } else {
+                    print("✅ Precise location authorized")
+                }
+            }
+            
+            switch newStatus {
+            case .authorizedWhenInUse, .authorizedAlways:
+                print("✅ Location permission granted")
+                if #available(iOS 14.0, *) {
+                    // Already handled above
+                } else {
+                    self.requestPreciseLocationIfNeeded()
+                }
+                self.startLocationUpdates()
+            case .denied:
+                print("❌ Location permission denied by user")
+            case .restricted:
+                print("❌ Location permission restricted by system")
+            case .notDetermined:
+                print("⏳ Location permission not determined yet")
+            @unknown default:
+                print("❓ Unknown location permission status: \(newStatus.rawValue)")
+            }
         }
+    }
+    
+    nonisolated func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+        if region.identifier == "DevicePOIsRefreshRegion" {
+            #if DEBUG
+            print("🚪 User exited device POIs refresh region - triggering refresh")
+            #endif
+            
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.shouldRefreshDevicePOIs = true
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                self.shouldRefreshDevicePOIs = false
+            }
+        }
+    }
+    
+    nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        #if DEBUG
+        print("🚪 User entered geofence region: \(region.identifier)")
+        #endif
     }
     
     // MARK: - Debug Helpers
@@ -1159,11 +1495,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("Total keys in UserDefaults: \(dict.count)")
         print("---")
         
-        // Filter to only our app's keys
+        // Filter to only our app's keys (StorageManager adds "UHP." prefix)
         let appKeys = dict.keys.filter { key in
-            key.hasPrefix("LocationManager.") || 
-            key.hasPrefix("PlacesCache_") || 
-            key.hasPrefix("wiki_")
+            key.hasPrefix("UHP.")
         }
         
         print("App-specific keys: \(appKeys.count)")
@@ -1212,10 +1546,17 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Debug function to clear all cached location data
     func debugClearAllCache() {
         let defaults = UserDefaults.standard
+        // StorageManager adds "UHP." prefix, so we need to look for keys with that prefix
         let keys = defaults.dictionaryRepresentation().keys.filter { key in
-            key.hasPrefix("PlacesCache_") || key.hasPrefix("wiki_")
+            key.hasPrefix("UHP.") && (
+                key.contains("PlacesCache_") || key.contains("wiki_")
+            )
         }
-        keys.forEach { defaults.removeObject(forKey: $0) }
+        // Remove the "UHP." prefix when calling StorageManager.removeFromUserDefaults
+        keys.forEach { fullKey in
+            let keyWithoutPrefix = fullKey.hasPrefix("UHP.") ? String(fullKey.dropFirst(4)) : fullKey
+            StorageManager.removeFromUserDefaults(forKey: keyWithoutPrefix)
+        }
         print("🗑️ Cleared \(keys.count) cache entries")
     }
     #endif

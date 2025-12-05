@@ -82,3 +82,4 @@ After setup, verify:
 2. Build in Release mode → Check `IsPosthogTracking` should be `true` in Info.plist
 3. CI/CD builds use Release configuration automatically
 
+

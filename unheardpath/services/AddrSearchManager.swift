@@ -5,10 +5,11 @@ import Combine
 /// Manages address search autocomplete using MKLocalSearchCompleter
 /// Encapsulates the completer and delegate into a single ObservableObject
 /// for cleaner SwiftUI integration
+@MainActor
 class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
     @Published var results: [MKLocalSearchCompletion] = []
     
-    private let completer = MKLocalSearchCompleter()
+    nonisolated(unsafe) private let completer = MKLocalSearchCompleter()
     
     override init() {
         super.init()
@@ -21,9 +22,7 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
     func updateQuery(_ query: String) {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedQuery.isEmpty {
-            DispatchQueue.main.async {
-                self.results = []
-            }
+            results = []
         } else {
             completer.queryFragment = trimmedQuery
         }
@@ -53,25 +52,26 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
     
     /// Clears all search results
     func clearResults() {
-        DispatchQueue.main.async {
-            self.results = []
-        }
+        results = []
     }
     
     // MARK: - MKLocalSearchCompleterDelegate
     
-    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        DispatchQueue.main.async {
+    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        // Capture results before entering main actor context
+        // MKLocalSearchCompletion is not Sendable, so we use nonisolated(unsafe)
+        nonisolated(unsafe) let capturedResults = Array(completer.results.prefix(5).reversed())
+        Task { @MainActor in
             // Reverse order so most relevant appears at bottom
-            self.results = Array(completer.results.prefix(5).reversed())
+            self.results = capturedResults
         }
     }
     
-    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+    nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
         #if DEBUG
         print("❌ MKLocalSearchCompleter error: \(error.localizedDescription)")
         #endif
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.results = []
         }
     }

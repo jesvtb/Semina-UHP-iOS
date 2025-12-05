@@ -3,6 +3,7 @@ import MapKit
 import MapboxMaps
 import CoreLocation
 import OSLog
+import SafariServices
 
 
 
@@ -28,7 +29,7 @@ struct TargetLocation: Equatable {
 
 struct MapboxMapView: View {
     @EnvironmentObject var locationManager: LocationManager
-    @Binding var geoJSONData: [String: Any]?
+    @Binding var geoJSONData: [String: JSONValue]?
     @Binding var geoJSONUpdateTrigger: UUID
     @Binding var targetLocation: TargetLocation?
     @State private var mapProxy: MapboxMaps.MapProxy?
@@ -71,9 +72,10 @@ struct MapboxMapView: View {
     /// Extracts the FeatureCollection from geoJSONData
     /// geoJSONData format: {event: "map", data: {type: "FeatureCollection", features: [...]}}
     /// Returns the "data" field which contains the FeatureCollection
-    private var featureCollection: [String: Any]? {
+    private var featureCollection: [String: JSONValue]? {
         guard let geoJSON = geoJSONData,
-              let data = geoJSON["data"] as? [String: Any] else {
+              let dataValue = geoJSON["data"],
+              let data = dataValue.dictionaryValue else {
             return nil
         }
         return data
@@ -99,6 +101,17 @@ struct MapboxMapView: View {
                         }
                         .allowOverlap(true)
                     }
+                    
+                    #if DEBUG
+                    // Add geofence visualization for debugging
+                    if let geofenceInfo = locationManager.devicePOIsGeofenceDebugInfo {
+                        showGeofenceDebugCircle(
+                            center: geofenceInfo.center,
+                            radius: geofenceInfo.radius,
+                            isMonitoring: geofenceInfo.isMonitoring
+                        )
+                    }
+                    #endif
                 }
                 // .mapStyle(MapboxMaps.MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
                 .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
@@ -224,17 +237,24 @@ struct MapboxMapView: View {
     
     /// Extracts all coordinates from GeoJSON features
     /// Supports Point geometry types
-    private func extractCoordinates(from featureCollection: [String: Any]) -> [CLLocationCoordinate2D] {
-        guard let features = featureCollection["features"] as? [[String: Any]] else {
+    private func extractCoordinates(from featureCollection: [String: JSONValue]) -> [CLLocationCoordinate2D] {
+        guard let featuresValue = featureCollection["features"],
+              case .array(let featuresArray) = featuresValue else {
             return []
         }
         
-        return features.compactMap { extractCoordinateFromFeature($0) }
+        // Convert JSONValue features to [String: Any] for existing helper function
+        let featuresAsAny = featuresArray.compactMap { featureValue -> [String: Any]? in
+            guard case .dictionary(let dict) = featureValue else { return nil }
+            return dict.mapValues { $0.asAny }
+        }
+        
+        return featuresAsAny.compactMap { extractCoordinateFromFeature($0) }
     }
     
     /// Fits the camera to show all GeoJSON features' coordinates
     /// Uses Mapbox SDK's camera(for:...) method following the recommended workflow
-    private func fitCameraToGeoJSON(proxy: MapboxMaps.MapProxy, featureCollection: [String: Any]) {
+    private func fitCameraToGeoJSON(proxy: MapboxMaps.MapProxy, featureCollection: [String: JSONValue]) {
         let coordinates = extractCoordinates(from: featureCollection)
         
         guard !coordinates.isEmpty else {
@@ -283,33 +303,210 @@ struct MapboxMapView: View {
         }
     }
     
-    fileprivate func showGeoJSON(featureCollection: [String: Any]) -> GeoJSONMapContent {
+    fileprivate func showGeoJSON(featureCollection: [String: JSONValue]) -> GeoJSONMapContent {
         return GeoJSONMapContent(featureCollection: featureCollection)
     }
+    
+    #if DEBUG
+    /// Creates a GeoJSON circle feature for geofence debug visualization
+    /// Uses approximate method to create a circle polygon from center and radius
+    fileprivate func showGeofenceDebugCircle(
+        center: CLLocationCoordinate2D,
+        radius: CLLocationDistance,
+        isMonitoring: Bool
+    ) -> GeofenceDebugCircleContent {
+        return GeofenceDebugCircleContent(
+            center: center,
+            radius: radius,
+            isMonitoring: isMonitoring
+        )
+    }
+    #endif
 }
+
+#if DEBUG
+// MARK: - Geofence Debug Circle MapContent
+/// MapContent component for displaying geofence debug circle on map
+fileprivate struct GeofenceDebugCircleContent: MapboxMaps.MapContent {
+    let center: CLLocationCoordinate2D
+    let radius: CLLocationDistance
+    let isMonitoring: Bool
+    
+    private let sourceId = "geofence-debug-source"
+    private let fillLayerId = "geofence-debug-fill-layer"
+    private let lineLayerId = "geofence-debug-line-layer"
+    
+    /// Creates points for a circle polygon approximation
+    private func createCirclePoints(numPoints: Int) -> [CLLocationCoordinate2D] {
+        var points: [CLLocationCoordinate2D] = []
+        let earthRadius: Double = 6371000.0 // Earth radius in meters
+        
+        for i in 0..<numPoints {
+            let angle = Double(i) * 2.0 * .pi / Double(numPoints)
+            
+            // Convert radius from meters to degrees (approximate)
+            let radiusLat = radius / earthRadius * (180.0 / .pi)
+            let radiusLon = radius / (earthRadius * cos(center.latitude * .pi / 180.0)) * (180.0 / .pi)
+            
+            let lat = center.latitude + radiusLat * cos(angle)
+            let lon = center.longitude + radiusLon * sin(angle)
+            
+            points.append(CLLocationCoordinate2D(latitude: lat, longitude: lon))
+        }
+        
+        return points
+    }
+    
+    /// Creates GeoJSON string for the circle polygon
+    private var geofenceGeoJSON: String {
+        let circlePoints = createCirclePoints(numPoints: 64)
+        let coordinates = circlePoints.map { [$0.longitude, $0.latitude] } + [[circlePoints[0].longitude, circlePoints[0].latitude]]
+        
+        let polygonCoordinates: [[[Double]]] = [coordinates]
+        
+        let geofenceFeature: [String: Any] = [
+            "type": "Feature",
+            "geometry": [
+                "type": "Polygon",
+                "coordinates": polygonCoordinates
+            ],
+            "properties": [
+                "isMonitoring": isMonitoring
+            ]
+        ]
+        
+        let featureCollection: [String: Any] = [
+            "type": "FeatureCollection",
+            "features": [geofenceFeature]
+        ]
+        
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: featureCollection, options: []),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            return "{\"type\":\"FeatureCollection\",\"features\":[]}"
+        }
+        
+        return jsonString
+    }
+    
+    var body: some MapboxMaps.MapContent {
+        // Create GeoJSON source
+        MapboxMaps.GeoJSONSource(id: sourceId)
+            .data(.string(geofenceGeoJSON))
+        
+        // Add fill layer
+        let fillColorValue: StyleColor = isMonitoring ? StyleColor(.black) : StyleColor(.yellow)
+        MapboxMaps.FillLayer(id: fillLayerId, source: sourceId)
+            .fillColor(fillColorValue)
+            .fillOpacity(0.1)
+            .fillOutlineColor(fillColorValue)
+        
+        // Add line layer for outline
+        MapboxMaps.LineLayer(id: lineLayerId, source: sourceId)
+            .lineColor(fillColorValue)
+            .lineWidth(2)
+            .lineOpacity(0.8)
+    }
+}
+#endif
 
 // MARK: - Custom Annotation View
 /// Custom SwiftUI view for GeoJSON feature annotations
 /// Used with MapViewAnnotation to display feature information on the map
 fileprivate struct PlaceView: View {
-    let properties: [String: Any]?
+    let properties: [String: JSONValue]?
+    @State private var showWebPage: Bool = false
     
     /// Frame size for the circular image
-    private let imageFrameSize: CGFloat = Spacing.current.spaceM
+    private let imageFrameSize: CGFloat = Spacing.current.spaceL
     
-    /// Extracts title from properties, checking both "title" and "name" fields
+    /// Extracts Wikipedia URL from properties
+    private var wikipediaURL: URL? {
+        guard let properties = properties,
+              let wikipediaValue = properties["wikipedia"],
+              let wikipedia = wikipediaValue.dictionaryValue,
+              let urlValue = wikipedia["url"],
+              let urlString = urlValue.stringValue,
+              let url = URL(string: urlString) else {
+            return nil
+        }
+        return url
+    }
+    
+    /// Handles tap action on the place annotation
+    private func handleTap() {
+        if wikipediaURL != nil {
+            showWebPage = true
+        }
+    }
+    
+    /// Extracts title from properties, prioritizing names field with device_lang, local_lang, global_lang
+    /// Falls back to "title" or "name" fields if names is not available
     private var title: String? {
         guard let properties = properties else { return nil }
-        return properties["title"] as? String ?? properties["name"] as? String
+        
+        // First, try to get title from names field with priority: device_lang > local_lang > global_lang
+        if let namesValue = properties["names"],
+           let names = namesValue.dictionaryValue {
+            if let deviceLangValue = names["device_lang"],
+               let deviceLang = deviceLangValue.stringValue,
+               !deviceLang.isEmpty {
+                return deviceLang
+            }
+            if let localLangValue = names["local_lang"],
+               let localLang = localLangValue.stringValue,
+               !localLang.isEmpty {
+                return localLang
+            }
+            if let globalLangValue = names["global_lang"],
+               let globalLang = globalLangValue.stringValue,
+               !globalLang.isEmpty {
+                return globalLang
+            }
+        }
+        
+        // Fall back to title or name fields if names is not available or empty
+        if let titleValue = properties["title"],
+           let title = titleValue.stringValue {
+            return title
+        }
+        if let nameValue = properties["name"],
+           let name = nameValue.stringValue {
+            return name
+        }
+        return nil
     }
     
     /// Extracts image URL from properties
+    /// img_url is a direct child of properties
+    /// Handles URLs with special characters (e.g., parentheses in Wikipedia URLs)
     private var imageURL: URL? {
         guard let properties = properties,
-              let imgURL = properties["img_url"] as? String,
-              let url = URL(string: imgURL) else {
+              let imgURLValue = properties["img_url"],
+              let imgURL = imgURLValue.stringValue else {
             return nil
         }
+        
+        // Trim whitespace
+        let trimmedURL = imgURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Create URL - URL(string:) handles properly formatted URLs including those with parentheses
+        // Wikipedia URLs like "https://en.wikipedia.org/wiki/Special:FilePath/Hagia_Sophia_(228968325).jpeg" work as-is
+        guard let url = URL(string: trimmedURL) else {
+            #if DEBUG
+            print("⚠️ Failed to create URL from img_url: \(trimmedURL)")
+            #endif
+            return nil
+        }
+        
+        // Ensure it's an HTTP/HTTPS URL
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            #if DEBUG
+            print("⚠️ img_url is not an HTTP/HTTPS URL: \(trimmedURL)")
+            #endif
+            return nil
+        }
+        
         return url
     }
     
@@ -329,8 +526,11 @@ fileprivate struct PlaceView: View {
                             .frame(width: imageFrameSize, height: imageFrameSize)
                             .clipShape(Circle())
                             .overlay(Circle().stroke(Color("AppBkgColor"), lineWidth: 2))
-                .shadow(radius: Spacing.current.space3xs)
+                            .shadow(radius: Spacing.current.space3xs)
                     case .failure:
+                        #if DEBUG
+                        let _ = print("⚠️ Failed to load image from URL: \(imageURL.absoluteString)")
+                        #endif
                         EmptyView()
                     @unknown default:
                         EmptyView()
@@ -356,6 +556,15 @@ fileprivate struct PlaceView: View {
                 .foregroundColor(Color("AppBkgColor"))
                 .shadow(radius: Spacing.current.space3xs)
             
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            handleTap()
+        }
+        .sheet(isPresented: $showWebPage) {
+            if let url = wikipediaURL {
+                SafariView(url: url)
+            }
         }
     }
 }
@@ -435,11 +644,13 @@ fileprivate func extractCoordinateFromFeature(_ feature: [String: Any]) -> CLLoc
 /// Follows Mapbox best practices for declarative map styling
 fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
     /// The FeatureCollection data to render
-    let featureCollection: [String: Any]
+    let featureCollection: [String: JSONValue]
     
     /// Computed property to get JSON string from FeatureCollection
     private var jsonString: String {
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: featureCollection),
+        // Convert JSONValue back to Any for JSONSerialization
+        let featureCollectionAsAny = featureCollection.mapValues { $0.asAny }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: featureCollectionAsAny),
               let jsonString = String(data: jsonData, encoding: .utf8) else {
             #if DEBUG
             print("❌ Failed to convert FeatureCollection to JSON string")
@@ -450,21 +661,32 @@ fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
     }
     
     /// Extract features from FeatureCollection
-    private var features: [[String: Any]] {
-        guard let features = featureCollection["features"] as? [[String: Any]] else {
+    private var features: [[String: JSONValue]] {
+        guard let featuresValue = featureCollection["features"],
+              case .array(let featuresArray) = featuresValue else {
             return []
         }
-        return features
+        // Convert array of JSONValue to array of [String: JSONValue]
+        return featuresArray.compactMap { featureValue in
+            guard case .dictionary(let dict) = featureValue else { return nil }
+            return dict
+        }
     }
     
     /// Extract coordinate from a Point geometry feature
-    private func coordinate(from feature: [String: Any]) -> CLLocationCoordinate2D? {
-        return extractCoordinateFromFeature(feature)
+    private func coordinate(from feature: [String: JSONValue]) -> CLLocationCoordinate2D? {
+        // Convert JSONValue feature to [String: Any] for existing helper function
+        let featureAsAny = feature.mapValues { $0.asAny }
+        return extractCoordinateFromFeature(featureAsAny)
     }
     
     /// Extract properties from a feature
-    private func properties(from feature: [String: Any]) -> [String: Any]? {
-        return feature["properties"] as? [String: Any]
+    private func properties(from feature: [String: JSONValue]) -> [String: JSONValue]? {
+        guard let propertiesValue = feature["properties"],
+              case .dictionary(let propertiesDict) = propertiesValue else {
+            return nil
+        }
+        return propertiesDict
     }
     
     /// The body is called only when component's properties are changed
@@ -477,12 +699,16 @@ fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
         
         // Add MapViewAnnotation for each Point feature using ForEvery
         // Following Mapbox documentation pattern: https://docs.mapbox.com/ios/maps/api/11.2.0/documentation/mapboxmaps/forevery
+        // Only display features that have an "idx" key in their properties
         MapboxMaps.ForEvery(Array(features.enumerated()), id: \.offset) { index, feature in
             if let coordinate = coordinate(from: feature),
-               let properties = properties(from: feature) {
+               let properties = properties(from: feature),
+               properties["idx"] != nil {
                 MapboxMaps.MapViewAnnotation(coordinate: coordinate) {
-                    PlaceView(properties: properties)
-                }
+    MainActor.assumeIsolated {
+        PlaceView(properties: properties)  // ✅ @State works fine
+    }
+}
                 .allowOverlap(true)
                 // .priority(0)
                 // .priority(Int(distanceFromUser / 100))
@@ -545,11 +771,11 @@ class LocationManagerDelegate: NSObject, CLLocationManagerDelegate {
 // MARK: - GeoJSON Preview
 /// Preview view that demonstrates loading and rendering GeoJSON using the declarative MapContent API
 struct MapViewGeoJSONPreview: View {
-    @State private var featureCollection: [String: Any]?
+    @State private var featureCollection: [String: JSONValue]?
     
     var body: some View {
         MapboxMaps.Map(initialViewport: .camera(
-            center: CLLocationCoordinate2D(latitude: 22.55, longitude: 114.11), // Shenzhen coordinates
+            center: CLLocationCoordinate2D(latitude: 41.0053851, longitude: 28.9768247), // Blue Mosque coordinates
             zoom: 12,
             bearing: 0,
             pitch: 60
@@ -589,8 +815,9 @@ struct MapViewGeoJSONPreview: View {
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             
             // Extract the "data" field which contains the FeatureCollection
-            if let dataField = json?["data"] as? [String: Any] {
-                featureCollection = dataField
+            if let dataField = json?["data"] as? [String: Any],
+               let converted = JSONValue.dictionary(from: dataField) {
+                featureCollection = converted
                 #if DEBUG
                 if let features = dataField["features"] as? [[String: Any]] {
                     print("✅ Loaded GeoJSON preview with \(features.count) features")

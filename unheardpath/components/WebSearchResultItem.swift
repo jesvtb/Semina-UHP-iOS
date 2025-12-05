@@ -90,11 +90,10 @@ enum BookmarkManager {
         // Add new bookmark
         bookmarks.append(bookmarkedResult)
         
-        // Save to UserDefaults
-        if let encoded = try? JSONEncoder().encode(bookmarks) {
-            if let jsonArray = try? JSONSerialization.jsonObject(with: encoded) as? [[String: Any]] {
-                StorageManager.saveToUserDefaults(jsonArray, forKey: bookmarksKey)
-            }
+        // Save to UserDefaults - direct encoding to string
+        if let jsonData = try? JSONEncoder().encode(bookmarks),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            StorageManager.saveToUserDefaults(jsonString, forKey: bookmarksKey)
         }
     }
     
@@ -103,25 +102,18 @@ enum BookmarkManager {
         var bookmarks = loadAllBookmarks()
         bookmarks.removeAll { $0.id == resultId }
         
-        // Save updated list
-        if let encoded = try? JSONEncoder().encode(bookmarks) {
-            if let jsonArray = try? JSONSerialization.jsonObject(with: encoded) as? [[String: Any]] {
-                StorageManager.saveToUserDefaults(jsonArray, forKey: bookmarksKey)
-            }
+        // Save updated list - direct encoding to string
+        if let jsonData = try? JSONEncoder().encode(bookmarks),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            StorageManager.saveToUserDefaults(jsonString, forKey: bookmarksKey)
         }
     }
     
     /// Load all bookmarks from cache
     static func loadAllBookmarks() -> [BookmarkedWebSearchResult] {
-        guard let jsonArray = StorageManager.loadFromUserDefaults(forKey: bookmarksKey, as: [[String: Any]].self) else {
-            return []
-        }
-        
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: jsonArray) else {
-            return []
-        }
-        
-        guard let bookmarks = try? JSONDecoder().decode([BookmarkedWebSearchResult].self, from: jsonData) else {
+        guard let jsonString = StorageManager.loadFromUserDefaults(forKey: bookmarksKey, as: String.self),
+              let jsonData = jsonString.data(using: .utf8),
+              let bookmarks = try? JSONDecoder().decode([BookmarkedWebSearchResult].self, from: jsonData) else {
             return []
         }
         

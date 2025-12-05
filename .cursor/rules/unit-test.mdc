@@ -1,0 +1,7 @@
+All Unit Tests should be able to run on:
+
+Github Actions Runner latest MacOS version: 15.7.2
+Github Actions Runner latest Xcode version: 16.4
+
+Always prioritize using Swift Testing. If you need to use XCTest or any other testing framework, ask for confirmation and provide the reasoning.
+

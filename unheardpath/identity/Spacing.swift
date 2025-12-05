@@ -44,9 +44,10 @@ private let spacingScaleConfig: [String: (min: CGFloat, base: CGFloat, vwFactor:
 /// iPhone screen width handling with simple caching
 private struct DeviceSizeConstants {
     /// Cached screen width (iPhone screen widths are limited, so simple cache is sufficient)
-    private static var _cachedScreenWidth: CGFloat?
+    @MainActor private static var _cachedScreenWidth: CGFloat?
     
     /// Get current iPhone screen width in points (cached for performance)
+    @MainActor
     static var currentScreenWidth: CGFloat {
         if let cached = _cachedScreenWidth {
             return cached
@@ -57,6 +58,7 @@ private struct DeviceSizeConstants {
     }
     
     /// Invalidate cache (call on orientation change)
+    @MainActor
     static func invalidateCache() {
         _cachedScreenWidth = nil
     }
@@ -123,11 +125,12 @@ struct SpacingValues {
     }
     
     /// Cached spacing values (iPhone has limited screen sizes, so simple cache is sufficient)
-    private static var _cachedValues: SpacingValues?
-    private static var _cachedScreenWidth: CGFloat?
+    nonisolated(unsafe) private static var _cachedValues: SpacingValues?
+    nonisolated(unsafe) private static var _cachedScreenWidth: CGFloat?
     
     /// Creates scaled spacing values for current iPhone (with caching)
     /// Usage: SpacingValues.scaled()
+    @MainActor
     static func scaled() -> SpacingValues {
         let screenWidth = DeviceSizeConstants.currentScreenWidth
         
@@ -145,6 +148,7 @@ struct SpacingValues {
     }
     
     /// Invalidate cache (call on orientation change)
+    @MainActor
     static func invalidateCache() {
         _cachedValues = nil
         _cachedScreenWidth = nil
@@ -154,7 +158,17 @@ struct SpacingValues {
 
 // MARK: - Environment Key for Spacing
 private struct SpacingKey: EnvironmentKey {
-    static let defaultValue: SpacingValues = SpacingValues.scaled()
+    nonisolated(unsafe) static var defaultValue: SpacingValues = SpacingValues(
+        space3xs: 4,
+        space2xs: 9,
+        spaceXs: 13,
+        spaceS: 18,
+        spaceM: 27,
+        spaceL: 36,
+        spaceXl: 53,
+        space2xl: 71,
+        space3xl: 107
+    )
 }
 
 extension EnvironmentValues {
@@ -209,6 +223,7 @@ extension View {
 /// ```
 @propertyWrapper
 struct ScaledSpacing: DynamicProperty {
+    @MainActor
     var wrappedValue: SpacingValues {
         SpacingValues.scaled()
     }
@@ -234,6 +249,7 @@ struct ScaledSpacing: DynamicProperty {
 struct Spacing {
     /// Get current scaled spacing values
     /// Automatically scales based on device screen size
+    @MainActor
     static var current: SpacingValues {
         SpacingValues.scaled()
     }

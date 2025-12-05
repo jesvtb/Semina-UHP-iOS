@@ -18,7 +18,7 @@ struct ContentView: View {
           ProgressView("Checking authentication...")
       } else if authManager.isAuthenticated {
         // MainView()
-        TestMainView()
+         TestMainView()
       } else {
         AuthView()
       }
@@ -27,28 +27,28 @@ struct ContentView: View {
 }
 
   
-#if DEBUG
-#Preview("Unauthenticated") {
-  ContentView()
-    .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: false))
-    .environmentObject(APIClient())
-    .environmentObject(UHPGateway())
-    .environmentObject(LocationManager())
-}
+ #if DEBUG
+ #Preview("Unauthenticated") {
+   ContentView()
+     .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: false))
+     .environmentObject(APIClient())
+     .environmentObject(UHPGateway())
+     .environmentObject(LocationManager())
+ }
 
-#Preview("Authenticated") {
-  ContentView()
-    .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
-    .environmentObject(APIClient())
-    .environmentObject(UHPGateway())
-    .environmentObject(LocationManager())
-}
+ #Preview("Authenticated") {
+   ContentView()
+     .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
+     .environmentObject(APIClient())
+     .environmentObject(UHPGateway())
+     .environmentObject(LocationManager())
+ }
 
-#Preview("Loading") {
-  ContentView()
-    .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: true))
-    .environmentObject(APIClient())
-    .environmentObject(UHPGateway())
-    .environmentObject(LocationManager())
-}
-#endif
+ #Preview("Loading") {
+   ContentView()
+     .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: true))
+     .environmentObject(APIClient())
+     .environmentObject(UHPGateway())
+     .environmentObject(LocationManager())
+ }
+ #endif
