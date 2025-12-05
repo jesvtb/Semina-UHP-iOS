@@ -127,6 +127,53 @@ struct UHPResponse: Sendable {
         return envelope["result"]
     }
     
+    /// Extract event type from result if it's in SSE format (has "event" field)
+    /// Returns the event string (e.g., "map", "update", etc.)
+    var event: String? {
+        guard case .dictionary(let resultDict) = result,
+              case .string(let eventString) = resultDict["event"] else {
+            return nil
+        }
+        return eventString
+    }
+    
+    /// Extract data/content from result if it's in SSE format (has "data" field)
+    /// Returns the data JSONValue (typically a FeatureCollection or other data structure)
+    var content: JSONValue? {
+        guard case .dictionary(let resultDict) = result,
+              let dataValue = resultDict["data"] else {
+            return nil
+        }
+        return dataValue
+    }
+    
+    /// Pretty print the content field (data from SSE format)
+    func printContent() {
+        guard let content = content else {
+            print("⚠️ No content to print")
+            return
+        }
+        
+        let jsonObject: Any
+        
+        switch content {
+        case .dictionary(let dict):
+            jsonObject = dict.mapValues { $0.asAny }
+        case .array(let array):
+            jsonObject = array.map { $0.asAny }
+        default:
+            jsonObject = content.asAny
+        }
+        
+        // Pretty print using JSONSerialization
+        if let jsonData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            print("📄 Content JSON:\n\(jsonString)")
+        } else {
+            print("⚠️ Failed to pretty print content")
+        }
+    }
+    
     /// Maps result to [String: Any] and pretty prints it
     /// Uses response.result and mapValues to convert JSONValue to Any for JSONSerialization
     func printPretty() {

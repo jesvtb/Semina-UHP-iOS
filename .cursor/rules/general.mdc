@@ -3,3 +3,5 @@ alwaysApply: true
 ---
 
 All new code should be written in Swift. Adhere to Swift 6.0 language features and syntax. Refer to https://docs.swift.org/swift-book/documentation/the-swift-programming-language/revisionhistory/ for latest changes if your code couldn't build and found error that could be caused by the latest changes.
+
+Never use float to hold longitude and latitude. Always use CLLocationDegrees as the type for longitude and latitude.
