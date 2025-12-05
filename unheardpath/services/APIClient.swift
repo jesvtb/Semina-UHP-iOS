@@ -479,7 +479,6 @@ class APIClient: ObservableObject {
             }
             #endif
             
-            // Parse response with JSONDecoder (like screenshot pattern)
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             
