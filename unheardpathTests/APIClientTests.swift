@@ -34,18 +34,37 @@ struct APIClientTests {
         let url = "http://192.168.50.171:1031/v1/test/connection"
         let method = "GET"
         
-        let response = try await client.asyncCallAPI(url: url, method: method)
+        let responseData = try await client.asyncCallAPI(url: url, method: method)
         
-        // Extract and pretty-print response data
-        guard let resultDict = response as? [String: Any],
-              let data = resultDict["data"],
-              let jsonData = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
+        // Parse Data to JSON and pretty-print
+        guard let jsonObject = try? JSONSerialization.jsonObject(with: responseData),
+              let jsonData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
               let jsonString = String(data: jsonData, encoding: .utf8) else {
             return
         }
         
         print("📄 Pretty JSON:\n\(jsonString)")
+    
+    }
 
+    @Test @MainActor func testUHPGatewayRequest() async throws {
+        let gateway = UHPGateway()
+        
+        // Call the test connection endpoint
+        let response = try await gateway.request(
+            endpoint: "/v1/test/connection",
+            method: "GET"
+        )
+        
+        response.printPretty()
+        
+        // Verify response structure
+        #expect(response.isSuccess == true, "Response should have success status")
+        
+    }
+    
+    enum TestError: Error {
+        case missingResult
     }
 
 }

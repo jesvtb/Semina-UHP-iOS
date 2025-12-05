@@ -26,7 +26,7 @@ struct ContentView: View {
   }
 }
 
-  
+
  #if DEBUG
  #Preview("Unauthenticated") {
    ContentView()

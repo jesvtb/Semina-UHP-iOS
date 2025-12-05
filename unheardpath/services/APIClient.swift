@@ -87,6 +87,79 @@ struct AnyCodable: Codable {
     }
 }
 
+// MARK: - UHP Gateway Error Types
+enum UHPError: Error, Sendable {
+    case invalidResponseFormat
+    case missingField(String)
+    case decodingError(Error)
+    case backendError(String)
+}
+
+// MARK: - UHP Gateway Response
+struct UHPResponse: Sendable {
+    let data: Data
+    
+    private let envelope: [String: JSONValue]
+    
+    init(data: Data) throws {
+        self.data = data
+        
+        // Parse Data to JSONValue
+        guard let jsonObject = try? JSONSerialization.jsonObject(with: data),
+              let jsonValue = JSONValue(from: jsonObject),
+              case .dictionary(let dict) = jsonValue else {
+            throw UHPError.invalidResponseFormat
+        }
+        
+        self.envelope = dict
+    }
+    
+    /// Checks if the response status is "success"
+    var isSuccess: Bool {
+        guard case .string(let status) = envelope["status"] else {
+            return false
+        }
+        return status == "success"
+    }
+    
+    /// Raw result field (can be dictionary, array, or primitive)
+    var result: JSONValue? {
+        return envelope["result"]
+    }
+    
+    /// Maps result to [String: Any] and pretty prints it
+    /// Uses response.result and mapValues to convert JSONValue to Any for JSONSerialization
+    func printPretty() {
+        guard let result = result else {
+            print("⚠️ No result to print")
+            return
+        }
+        
+        let jsonObject: Any
+        
+        switch result {
+        case .dictionary(let dict):
+            // Convert [String: JSONValue] to [String: Any] using mapValues
+            // mapValues transforms each value while keeping the same keys
+            jsonObject = dict.mapValues { $0.asAny }
+        case .array(let array):
+            // Convert [JSONValue] to [Any] using map
+            jsonObject = array.map { $0.asAny }
+        default:
+            // For primitives, use the raw value
+            jsonObject = result.asAny
+        }
+        
+        // Pretty print using JSONSerialization
+        if let jsonData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            print("📄 Pretty JSON:\n\(jsonString)")
+        } else {
+            print("⚠️ Failed to pretty print result")
+        }
+    }
+}
+
 @MainActor
 class UHPGateway: ObservableObject {
     private let apiClient: APIClient
@@ -126,9 +199,13 @@ class UHPGateway: ObservableObject {
         ]
     }
     
-    nonisolated private func addAuthToHeaders() async throws -> [String: String] {
+    nonisolated private func addAuthHeader() async throws -> [String: String] {
         
+        #if DEBUG
+        let accessToken = "1234567890"
+        #else
         let accessToken = try await supabase.auth.session.accessToken
+        #endif
 
         var headers = defaultHeaders
         headers["Authorization"] = "Bearer \(accessToken)"
@@ -144,23 +221,41 @@ class UHPGateway: ObservableObject {
         params: [String: String] = [:],
         jsonDict: [String: JSONValue] = [:],
         customHeaders: [String: String] = [:]
-    ) async throws -> Any {
+    ) async throws -> UHPResponse {
 
         let fullURL = "\(baseURL)\(endpoint)"
-        var headers = try await self.addAuthToHeaders()
+        var headers = try await self.addAuthHeader()
         
         // Merge custom headers (custom headers override default headers)
         for (key, value) in customHeaders {
             headers[key] = value
         }
         
-        return try await apiClient.asyncCallAPI(
+        let data = try await apiClient.asyncCallAPI(
             url: fullURL,
             method: method,
             headers: headers,
             params: params,
             jsonDict: jsonDict
         )
+        
+        // Parse Data to UHPResponse
+        let uhpResponse = try UHPResponse(data: data)
+        
+        // Validate envelope format - check if status is success
+        guard uhpResponse.isSuccess else {
+            // Extract error message from envelope if available
+            // Access the raw JSON to check for error field
+            if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorDict = jsonObject["error"] as? [String: Any],
+               let message = errorDict["message"] as? String {
+                throw UHPError.backendError(message)
+            } else {
+                throw UHPError.backendError("Backend returned error status")
+            }
+        }
+        
+        return uhpResponse
     }
 
     nonisolated func stream(
@@ -171,7 +266,7 @@ class UHPGateway: ObservableObject {
     ) async throws -> AsyncThrowingStream<SSEEvent, Error> {
         
         let fullURL = "\(baseURL)\(endpoint)"
-        let headers = try await addAuthToHeaders()
+        let headers = try await addAuthHeader()
         
         return apiClient.streamAPI(
             url: fullURL,
@@ -444,7 +539,7 @@ class APIClient: ObservableObject {
         jsonDict: [String: JSONValue] = [:],
         timeout: Bool = false,
         filesDict: [String: Data] = [:]
-    ) async throws -> Any {
+    ) async throws -> Data {
         // Build the request (like preparing a request object in Python httpx)
         let request = try buildRequest(
             url: url,
@@ -460,7 +555,7 @@ class APIClient: ObservableObject {
         do {
             let (data, response) = try await session.data(for: request)
             
-            // Validate response (like screenshot pattern)
+            // Validate response - only accept status code 200
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
                 let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -473,32 +568,10 @@ class APIClient: ObservableObject {
             
             #if DEBUG
             print("📊 Response Status from \(url): \(httpResponse.statusCode)")
-            // Log ETag if present
-            if let etag = httpResponse.value(forHTTPHeaderField: "ETag") {
-                print("📋 Response ETag: \(etag)")
-            }
             #endif
             
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            
-            // For now, return as generic JSON object to maintain compatibility
-            let responseData = try JSONSerialization.jsonObject(with: data)
-            #if DEBUG
-            print("📞 API Response from \(url): \(responseData)")
-            #endif
-            
-            // Return response data with headers for ETag extraction
-            // Wrap in dictionary to include headers
-            var result: [String: Any] = ["data": responseData]
-            if let etag = httpResponse.value(forHTTPHeaderField: "ETag") {
-                result["etag"] = etag
-            }
-            if httpResponse.statusCode == 304 {
-                result["notModified"] = true
-            }
-            
-            return result
+            // Return raw data directly
+            return data
             
         } catch let apiError as APIError {
             #if DEBUG
@@ -513,7 +586,6 @@ class APIClient: ObservableObject {
             throw APIError(message: errorMessage, code: nil)
         }
     }
-    
     
     // MARK: - Error Message Extraction (mirrors Python _extract_error_message)
     nonisolated private static func extractErrorMessage(from data: Data, statusCode: Int) -> String {
