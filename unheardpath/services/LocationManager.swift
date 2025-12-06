@@ -160,6 +160,27 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     // MARK: - Location Tracking Methods
     
+    /// Requests a one-time location update with 100m accuracy
+    /// This is more battery-efficient than continuous updates for initial location
+    /// The location will be delivered via didUpdateLocations delegate method
+    func requestOneTimeLocation() {
+        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
+            #if DEBUG
+            print("⚠️ Cannot request one-time location - permission not granted")
+            #endif
+            return
+        }
+        
+        // Set desired accuracy to 100m for the one-time request
+        locationManager.desiredAccuracy = activeAccuracy  // kCLLocationAccuracyHundredMeters
+        
+        #if DEBUG
+        print("📍 Requesting one-time location with 100m accuracy")
+        #endif
+        
+        locationManager.requestLocation()
+    }
+    
     /// Starts location updates with adaptive strategy based on app state
     private func startLocationUpdates() {
         guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {

@@ -51,26 +51,12 @@ private class TestMainViewTestHelper {
     }
     
     func refreshPOIList(from location: CLLocationCoordinate2D?) async throws {
-        // Replicate the logic from TestMainView.refreshPOIList
-        // This allows us to test the API call without SwiftUI view constraints
-        var jsonDict: [String: JSONValue] = [:]
-        if let user = userManager.currentUser {
-            jsonDict["device_lang"] = .string(user.device_lang)
-        } else {
-            jsonDict["device_lang"] = .string("en")
-        }
-        if let location = location {
-            jsonDict["lat"] = .double(location.latitude)
-            jsonDict["lon"] = .double(location.longitude)
-        }
-        jsonDict["range_type"] = .string("city")
-        
-        let response = try await gateway.request(
-            endpoint: "/v1/pois",
-            method: "POST",
-            jsonDict: jsonDict
+        // Use the standalone refreshPOIList function
+        let response = try await unheardpath.refreshPOIList(
+            from: location,
+            gateway: gateway,
+            userManager: userManager
         )
-        response.printContent()
         // Verify response structure
         #expect(response.isSuccess == true, "API call should succeed")
         #expect(response.event == "map", "Response event should be 'map'")

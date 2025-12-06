@@ -165,6 +165,55 @@ struct GeoJSON: Sendable, Codable {
         return features.count
     }
     
+    // MARK: - Coordinate Extraction
+    
+    /// Extracts all coordinates from GeoJSON features
+    /// Supports Point geometry types
+    /// - Returns: Array of coordinates from all Point features
+    func extractCoordinates() -> [CLLocationCoordinate2D] {
+        return features.compactMap { feature -> CLLocationCoordinate2D? in
+            guard let geometry = feature["geometry"],
+                  case .dictionary(let geometryDict) = geometry,
+                  let type = geometryDict["type"],
+                  case .string(let typeString) = type,
+                  typeString == "Point",
+                  let coordinates = geometryDict["coordinates"],
+                  case .array(let coordinatesArray) = coordinates,
+                  coordinatesArray.count >= 2 else {
+                return nil
+            }
+            
+            // Extract longitude and latitude from coordinates array
+            // GeoJSON format: [longitude, latitude]
+            let longitude: CLLocationDegrees?
+            let latitude: CLLocationDegrees?
+            
+            switch coordinatesArray[0] {
+            case .double(let value):
+                longitude = value
+            case .int(let value):
+                longitude = CLLocationDegrees(value)
+            default:
+                longitude = nil
+            }
+            
+            switch coordinatesArray[1] {
+            case .double(let value):
+                latitude = value
+            case .int(let value):
+                latitude = CLLocationDegrees(value)
+            default:
+                latitude = nil
+            }
+            
+            guard let lon = longitude, let lat = latitude else {
+                return nil
+            }
+            
+            return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        }
+    }
+    
     // MARK: - Feature Extraction
     
     /// Extracts features from a GeoJSON response dictionary

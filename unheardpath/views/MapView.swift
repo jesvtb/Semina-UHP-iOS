@@ -29,7 +29,7 @@ struct TargetLocation: Equatable {
 
 struct MapboxMapView: View {
     @EnvironmentObject var locationManager: LocationManager
-    @Binding var geoJSONData: [String: JSONValue]?
+    @Binding var poisGeoJSON: GeoJSON
     @Binding var geoJSONUpdateTrigger: UUID
     @Binding var targetLocation: TargetLocation?
     @State private var mapProxy: MapboxMaps.MapProxy?
@@ -69,17 +69,6 @@ struct MapboxMapView: View {
         }
     }
     
-    /// Extracts the FeatureCollection from geoJSONData
-    /// geoJSONData format: {event: "map", data: {type: "FeatureCollection", features: [...]}}
-    /// Returns the "data" field which contains the FeatureCollection
-    private var featureCollection: [String: JSONValue]? {
-        guard let geoJSON = geoJSONData,
-              let dataValue = geoJSON["data"],
-              let data = dataValue.dictionaryValue else {
-            return nil
-        }
-        return data
-    }
     
     var body: some View {
         ZStack {
@@ -89,10 +78,8 @@ struct MapboxMapView: View {
                     MapboxMaps.Puck2D(bearing: MapboxMaps.PuckBearing.heading)
                     
                     // Add GeoJSON content using declarative MapContent API
-                    // Extract FeatureCollection from geoJSONData and display it
-                    if let featureCollection = featureCollection {
-                        showGeoJSON(featureCollection: featureCollection)
-                    }
+                    // Use poisGeoJSON directly
+                    showGeoJSON(geoJSON: poisGeoJSON)
                     
                     // Add lookup location marker when autocomplete selection is made
                     if let targetLocation = targetLocation {
@@ -136,9 +123,7 @@ struct MapboxMapView: View {
                 }
                 .onChange(of: geoJSONUpdateTrigger) { _ in
                     // When GeoJSON data updates, fit camera to show all features
-                    if let featureCollection = featureCollection {
-                        fitCameraToGeoJSON(proxy: proxy, featureCollection: featureCollection)
-                    }
+                    fitCameraToGeoJSON(proxy: proxy, geoJSON: poisGeoJSON)
                 }
                 .onChange(of: targetLocation) { newTargetLocation in
                     // When target location is set (from autocomplete selection), fly to it and show marker
@@ -149,7 +134,7 @@ struct MapboxMapView: View {
                     }
                 }
                 // Note: geoJSONUpdateTrigger is still used to trigger re-rendering when data changes
-                // The declarative MapContent API will automatically update when featureCollection changes
+                // The declarative MapContent API will automatically update when poisGeoJSON changes
             }
             
         }
@@ -235,27 +220,10 @@ struct MapboxMapView: View {
         }
     }
     
-    /// Extracts all coordinates from GeoJSON features
-    /// Supports Point geometry types
-    private func extractCoordinates(from featureCollection: [String: JSONValue]) -> [CLLocationCoordinate2D] {
-        guard let featuresValue = featureCollection["features"],
-              case .array(let featuresArray) = featuresValue else {
-            return []
-        }
-        
-        // Convert JSONValue features to [String: Any] for existing helper function
-        let featuresAsAny = featuresArray.compactMap { featureValue -> [String: Any]? in
-            guard case .dictionary(let dict) = featureValue else { return nil }
-            return dict.mapValues { $0.asAny }
-        }
-        
-        return featuresAsAny.compactMap { extractCoordinateFromFeature($0) }
-    }
-    
     /// Fits the camera to show all GeoJSON features' coordinates
     /// Uses Mapbox SDK's camera(for:...) method following the recommended workflow
-    private func fitCameraToGeoJSON(proxy: MapboxMaps.MapProxy, featureCollection: [String: JSONValue]) {
-        let coordinates = extractCoordinates(from: featureCollection)
+    private func fitCameraToGeoJSON(proxy: MapboxMaps.MapProxy, geoJSON: GeoJSON) {
+        let coordinates = geoJSON.extractCoordinates()
         
         guard !coordinates.isEmpty else {
             #if DEBUG
@@ -303,8 +271,8 @@ struct MapboxMapView: View {
         }
     }
     
-    fileprivate func showGeoJSON(featureCollection: [String: JSONValue]) -> GeoJSONMapContent {
-        return GeoJSONMapContent(featureCollection: featureCollection)
+    fileprivate func showGeoJSON(geoJSON: GeoJSON) -> GeoJSONMapContent {
+        return GeoJSONMapContent(geoJSON: geoJSON)
     }
     
     #if DEBUG
@@ -643,34 +611,17 @@ fileprivate func extractCoordinateFromFeature(_ feature: [String: Any]) -> CLLoc
 /// A custom MapContent component that renders GeoJSON data on the map
 /// Follows Mapbox best practices for declarative map styling
 fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
-    /// The FeatureCollection data to render
-    let featureCollection: [String: JSONValue]
+    /// The GeoJSON struct to render
+    let geoJSON: GeoJSON
     
-    /// Computed property to get JSON string from FeatureCollection
+    /// Use GeoJSON's toMapboxString() method directly
     private var jsonString: String {
-        // Convert JSONValue back to Any for JSONSerialization
-        let featureCollectionAsAny = featureCollection.mapValues { $0.asAny }
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: featureCollectionAsAny),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            #if DEBUG
-            print("❌ Failed to convert FeatureCollection to JSON string")
-            #endif
-            return "{\"type\":\"FeatureCollection\",\"features\":[]}"
-        }
-        return jsonString
+        return geoJSON.toMapboxString()
     }
     
-    /// Extract features from FeatureCollection
+    /// Use GeoJSON's features property directly (no conversion needed)
     private var features: [[String: JSONValue]] {
-        guard let featuresValue = featureCollection["features"],
-              case .array(let featuresArray) = featuresValue else {
-            return []
-        }
-        // Convert array of JSONValue to array of [String: JSONValue]
-        return featuresArray.compactMap { featureValue in
-            guard case .dictionary(let dict) = featureValue else { return nil }
-            return dict
-        }
+        return geoJSON.features
     }
     
     /// Extract coordinate from a Point geometry feature
@@ -759,7 +710,7 @@ class LocationManagerDelegate: NSObject, CLLocationManagerDelegate {
 #Preview {
 //    MapboxDirectionsView()
     MapboxMapView(
-        geoJSONData: .constant(nil),
+        poisGeoJSON: .constant(GeoJSON()),
         geoJSONUpdateTrigger: .constant(UUID()),
         targetLocation: .constant(nil)
     )
@@ -771,7 +722,7 @@ class LocationManagerDelegate: NSObject, CLLocationManagerDelegate {
 // MARK: - GeoJSON Preview
 /// Preview view that demonstrates loading and rendering GeoJSON using the declarative MapContent API
 struct MapViewGeoJSONPreview: View {
-    @State private var featureCollection: [String: JSONValue]?
+    @State private var geoJSON = GeoJSON()
     
     var body: some View {
         MapboxMaps.Map(initialViewport: .camera(
@@ -780,10 +731,8 @@ struct MapViewGeoJSONPreview: View {
             bearing: 0,
             pitch: 60
         )) {
-            // Add GeoJSON content if available using showGeoJSON function
-            if let featureCollection = featureCollection {
-                GeoJSONMapContent(featureCollection: featureCollection)
-            }
+            // Add GeoJSON content if available
+            GeoJSONMapContent(geoJSON: geoJSON)
         }
         .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
         .ignoresSafeArea()
@@ -816,16 +765,21 @@ struct MapViewGeoJSONPreview: View {
             
             // Extract the "data" field which contains the FeatureCollection
             if let dataField = json?["data"] as? [String: Any],
-               let converted = JSONValue.dictionary(from: dataField) {
-                featureCollection = converted
-                #if DEBUG
-                if let features = dataField["features"] as? [[String: Any]] {
-                    print("✅ Loaded GeoJSON preview with \(features.count) features")
+               let features = dataField["features"] as? [[String: Any]] {
+                // Convert features to [[String: JSONValue]]
+                let featuresJSONValue = try features.map { featureDict -> [String: JSONValue] in
+                    guard let jsonValueDict = JSONValue.dictionary(from: featureDict) else {
+                        throw NSError(domain: "GeoJSONPreview", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert feature to JSONValue"])
+                    }
+                    return jsonValueDict
                 }
+                geoJSON.setFeatures(featuresJSONValue)
+                #if DEBUG
+                print("✅ Loaded GeoJSON preview with \(featuresJSONValue.count) features")
                 #endif
             } else {
                 #if DEBUG
-                print("❌ Invalid JSON structure: missing 'data' field")
+                print("❌ Invalid JSON structure: missing 'data' field or 'features' array")
                 #endif
             }
         } catch {

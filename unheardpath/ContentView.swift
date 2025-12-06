@@ -34,6 +34,7 @@ struct ContentView: View {
      .environmentObject(APIClient())
      .environmentObject(UHPGateway())
      .environmentObject(LocationManager())
+     .environmentObject(UserManager())
  }
 
  #Preview("Authenticated") {
@@ -42,6 +43,7 @@ struct ContentView: View {
      .environmentObject(APIClient())
      .environmentObject(UHPGateway())
      .environmentObject(LocationManager())
+     .environmentObject(UserManager())
  }
 
  #Preview("Loading") {
@@ -50,5 +52,6 @@ struct ContentView: View {
      .environmentObject(APIClient())
      .environmentObject(UHPGateway())
      .environmentObject(LocationManager())
+     .environmentObject(UserManager())
  }
  #endif

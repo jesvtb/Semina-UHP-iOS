@@ -1,6 +1,34 @@
 import SwiftUI
 import MapKit
 
+// MARK: - Standalone refreshPOIList Function
+@MainActor
+func refreshPOIList(
+    from location: CLLocationCoordinate2D?,
+    gateway: UHPGateway,
+    userManager: UserManager
+) async throws -> UHPResponse {
+    var jsonDict: [String: JSONValue] = [:]
+    if let user = userManager.currentUser {
+        jsonDict["device_lang"] = .string(user.device_lang)
+    } else {
+        jsonDict["device_lang"] = .string("en")
+    }
+    if let location = location {
+        jsonDict["lat"] = .double(location.latitude)
+        jsonDict["lon"] = .double(location.longitude)
+    }
+    jsonDict["range_type"] = .string("city")
+    
+    let response = try await gateway.request(
+        endpoint: "/v1/pois",
+        method: "POST",
+        jsonDict: jsonDict
+    )
+    response.printContent()
+    return response
+}
+
 // MARK: - Input Tab Selection
 enum PreviewTabSelection: Int, CaseIterable {
     case journey = 0
@@ -37,6 +65,7 @@ struct TestMainView: View {
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
     @State private var poisGeoJSON = GeoJSON()
+    @State private var hasReceivedFirstGPSUpdate = false
     @FocusState private var isTextFieldFocused: Bool
     
     // Autocomplete state for map tab
@@ -80,7 +109,7 @@ struct TestMainView: View {
             //     .ignoresSafeArea(.keyboard)
 
             MapboxMapView(
-                geoJSONData: $geoJSONData,
+                poisGeoJSON: $poisGeoJSON,
                 geoJSONUpdateTrigger: $geoJSONUpdateTrigger,
                 targetLocation: $targetLocation
             )
@@ -170,19 +199,38 @@ struct TestMainView: View {
                 isTextFieldFocused = false
             }
         }
+        .onChange(of: locationManager.isLocationPermissionGranted) { isGranted in
+            // Request one-time location when permission is granted
+            if isGranted && !hasReceivedFirstGPSUpdate {
+                locationManager.requestOneTimeLocation()
+            }
+        }
         .onChange(of: locationManager.deviceLocation) { newLocation in
             // Update search completer region when location changes (if shouldSearchAround is true)
             if selectedTab == .map && shouldSearchAround {
                 setupSearchCompleter()
             }
-        }
-        .onReceive(locationManager.$shouldRefreshDevicePOIs) { shouldRefresh in
-            if shouldRefresh {
+            
+            // Call refreshPOIList only once when one-time location request completes
+            // This handles the response from requestOneTimeLocation() (not continuous tracking)
+            if let location = newLocation,
+               !hasReceivedFirstGPSUpdate,
+               location.horizontalAccuracy > 0,  // Positive accuracy means it's a real GPS reading
+               location.horizontalAccuracy <= 100,  // Within 100m accuracy
+               abs(location.timestamp.timeIntervalSinceNow) < 10 {  // Location is recent (within 10 seconds), not cached
+                hasReceivedFirstGPSUpdate = true
                 Task {
-                    await loadLocationFromGeofenceExit()
+                    await refreshPOIListOnOneTimeLocation(location: location)
                 }
             }
         }
+        // .onReceive(locationManager.$shouldRefreshDevicePOIs) { shouldRefresh in
+        //     if shouldRefresh {
+        //         Task {
+        //             await loadLocationFromGeofenceExit()
+        //         }
+        //     }
+        // }
         .onChange(of: inputLocation) { newValue in
             // Update autocomplete when typing in map tab
             if selectedTab == .map {
@@ -236,6 +284,12 @@ struct TestMainView: View {
                 setupSearchCompleter()
             }
             
+            // Request one-time location update for initial POI list refresh
+            // This is more battery-efficient than continuous updates
+            if locationManager.isLocationPermissionGranted {
+                locationManager.requestOneTimeLocation()
+            }
+            
             // Initial load: Check if geofence exists and is valid
             // If geofence is restored and valid, don't fetch data until user exits region
             // Use a small delay to avoid race condition with location initialization
@@ -268,7 +322,7 @@ struct TestMainView: View {
                 }
             } else if locationManager.deviceLocation != nil {
                 // No valid geofence, load data from cache or API
-                await loadLocationFromGeofenceExit()
+                // await loadLocationFromGeofenceExit()
             }
         }
     }
@@ -474,39 +528,6 @@ extension TestMainView {
     }
 }
 
-extension TestMainView {
-
-    @MainActor
-    func refreshPOIList(from location: CLLocationCoordinate2D?) async throws -> UHPResponse {
-        var jsonDict: [String: JSONValue] = [:]
-        if let user = userManager.currentUser {
-            jsonDict["device_lang"] = .string(user.device_lang)
-        } else {
-            jsonDict["device_lang"] = .string("en")
-        }
-        if let location = location {
-            jsonDict["lat"] = .double(location.latitude)
-            jsonDict["lon"] = .double(location.longitude)
-        }
-        jsonDict["range_type"] = .string("city")
-        
-        let response = try await uhpGateway.request(
-            endpoint: "/v1/pois",
-            method: "POST",
-            jsonDict: jsonDict
-        )
-        response.printContent()
-        if response.event == "map" {
-            guard let geojsonDict = response.content else {
-                return response
-            }
-            let features = try GeoJSON.extractFeatures(from: geojsonDict.asAny)
-            poisGeoJSON.setFeatures(features)
-        }
-        return response
-    }
-
-}
 
 // MARK: - TestMainView: Actions
 extension TestMainView {
@@ -1032,325 +1053,125 @@ extension TestMainView {
 
 // MARK: - Location Management
 extension TestMainView {
-    /// Loads location data when geofence exit is detected
-    /// This is the single source of truth for when to fetch data from backend
+    /// Refreshes POI list when one-time location request completes
+    /// Only called once when requestOneTimeLocation() returns a location with 100m or better accuracy
     @MainActor
-    private func loadLocationFromGeofenceExit() async {
-        // Prevent concurrent API calls
-        guard !isLoadingLocation else {
-            #if DEBUG
-            print("⏸️ API call already in progress, skipping duplicate request")
-            #endif
-            return
-        }
-        
-        // Only proceed if location is actually available
-        guard locationManager.latitude != nil,
-              locationManager.longitude != nil else {
-            #if DEBUG
-            print("⚠️ Location not available yet, skipping API call")
-            #endif
-            return
-        }
-        
-        // Reverse geocode user location and get JSON dict
+    private func refreshPOIListOnOneTimeLocation(location: CLLocation) async {
         #if DEBUG
-        print("📍 Geofence exit detected - reverse geocoding location for data refresh")
+        print("📍 One-time location request completed with 100m accuracy - calling refreshPOIList")
+        print("   Location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        print("   Accuracy: ±\(Int(location.horizontalAccuracy))m")
         #endif
         
-        // reverseGeocodeUserLocation now returns [String: JSONValue] directly
-        let jsonDict = await withCheckedContinuation { (continuation: CheckedContinuation<[String: JSONValue]?, Never>) in
-            locationManager.reverseGeocodeUserLocation { dict, error in
-                if let error = error {
-                    #if DEBUG
-                    print("⚠️ Reverse geocoding error: \(error.localizedDescription), using location only")
-                    #endif
-                    // Even if geocoding fails, dict should still have location data
-                    continuation.resume(returning: dict)
-                } else {
-                    continuation.resume(returning: dict)
-                }
-            }
-        }
-        
-        guard let jsonDict = jsonDict else {
-            #if DEBUG
-            print("❌ Failed to get location dict from reverse geocoding")
-            #endif
-            return
-        }
-        
-        // Load location data (will check cache, then API if needed)
-        await loadLocation(jsonDict: jsonDict)
-    }
-
-    // private func refreshPOIs() async {
-    //     guard let latitude 
-    // }
-    @MainActor
-    private func loadLocation(jsonDict: [String: JSONValue]) async {
-        isLoadingLocation = true
-        defer { isLoadingLocation = false }
-        
-        // Extract latitude and longitude from jsonDict
-        guard let latValue = jsonDict["latitude"],
-              let lonValue = jsonDict["longitude"] else {
-            #if DEBUG
-            print("⚠️ Missing latitude or longitude in location dict")
-            #endif
-            return
-        }
-        
-        // Extract numeric values from JSONValue
-        let userLat: CLLocationDegrees
-        let userLon: CLLocationDegrees
-        
-        switch latValue {
-        case .double(let value):
-            userLat = value
-        case .int(let value):
-            userLat = CLLocationDegrees(value)
-        default:
-            #if DEBUG
-            print("⚠️ Invalid latitude type in location dict")
-            #endif
-            return
-        }
-        
-        switch lonValue {
-        case .double(let value):
-            userLon = value
-        case .int(let value):
-            userLon = CLLocationDegrees(value)
-        default:
-            #if DEBUG
-            print("⚠️ Invalid longitude type in location dict")
-            #endif
-            return
-        }
-        
-        // Check cache first
-        if let cacheResult = locationManager.reconstructGeoJSONFromCache(userLat: userLat, userLon: userLon) {
-            #if DEBUG
-            print("✅ Using cached GeoJSON data")
-            #endif
-            // Update geoJSONData to trigger map update
-            await MainActor.run {
-                geoJSONData = cacheResult.geoJSON
-                geoJSONUpdateTrigger = UUID()
-            }
-            // Update last sent location
-            lastSentLocation = (latitude: userLat, longitude: userLon)
-            
-            // Set up geofence only if not already active (cache hit means we're in a new location area)
-            // Note: We'll use default radius here, pois_radius will be set from API response
-            if !locationManager.isDevicePOIsGeofencingActive {
-                locationManager.setupDevicePOIsRefreshGeofence(centerLat: userLat, centerLon: userLon)
-                #if DEBUG
-                print("📍 Set up device POIs refresh geofence after cache hit")
-                #endif
-            } else {
-                #if DEBUG
-                print("📍 Geofence already active, skipping setup after cache hit")
-                #endif
-            }
-            
-            return
-        }
-        
-        // Cache miss - make API call
         do {
-            #if DEBUG
-            print("📍 Sending location to API: \(userLat), \(userLon)")
-            let jsonDictAsAnyForDebug = jsonDict.mapValues { $0.asAny }
-            print("📦 Full location dict: \(jsonDictAsAnyForDebug)")
-            #endif
-            
-            // Build request payload: send location dict directly (user_id comes from auth headers)
-            
-            // Get ETag from cache if available
-            var customHeaders: [String: String] = [:]
-            if let cacheResult = locationManager.getCachedLocationData(userLat: userLat, userLon: userLon),
-               let etag = cacheResult.etag {
-                customHeaders["If-None-Match"] = etag
-                #if DEBUG
-                print("📋 Sending If-None-Match header: \(etag)")
-                #endif
-            }
-            
- 
-
-            let response = try await uhpGateway.request(
-                endpoint: "/v1/signed-in-home",
-                method: "POST",
-                jsonDict: jsonDict,
-                customHeaders: customHeaders
+            let response = try await refreshPOIList(
+                from: location.coordinate,
+                gateway: uhpGateway,
+                userManager: userManager
             )
-            // Handle response wrapper (may contain etag and notModified)
-            var actualResponse: Any = response
-            var responseETag: String? = nil
             
-            if let responseWrapper = response as? [String: Any] {
-                // Check if this is a 304 Not Modified response
-                if let notModified = responseWrapper["notModified"] as? Bool, notModified {
-                    #if DEBUG
-                    print("✅ Received 304 Not Modified - using cached data")
-                    #endif
-                    // Use cached data
-                    if let cacheResult = locationManager.reconstructGeoJSONFromCache(userLat: userLat, userLon: userLon) {
-                        await MainActor.run {
-                            geoJSONData = cacheResult.geoJSON
-                            geoJSONUpdateTrigger = UUID()
-                        }
-                        // Geofence should already be set up, but ensure it exists
-                        if !locationManager.isDevicePOIsGeofencingActive {
-                            locationManager.setupDevicePOIsRefreshGeofence(centerLat: userLat, centerLon: userLon)
-                        }
-                    }
-                    return
-                }
-                
-                // Extract actual response data and ETag
-                actualResponse = responseWrapper["data"] ?? response
-                responseETag = responseWrapper["etag"] as? String
-            }
-            
-            // Update last sent location after successful API call
-            lastSentLocation = (latitude: userLat, longitude: userLon)
-            
-            // Parse response: extract data field containing GeoJSON FeatureCollection
-            // Response format options:
-            // 1. {result: {event: "map", data: {type: "FeatureCollection", features: [...]}}, status: "success", ...}
-            // 2. {result: {data: {features: [...]}}, status: "success", ...}
-            guard let responseDict = actualResponse as? [String: Any],
-                  let result = responseDict["result"] as? [String: Any] else {
+            guard response.event == "map", let geojsonDict = response.content else {
                 #if DEBUG
-                if let responseDict = response as? [String: Any] {
-                    print("⚠️ Invalid response format. Available keys: \(responseDict.keys.joined(separator: ", "))")
-                } else {
-                    print("⚠️ Invalid response format. Response is not a dictionary.")
-                }
-                #endif
-                return
-            }
-
-            
-            // Extract event (optional, defaults to "map" if not present)
-            let event = (result["event"] as? String) ?? "map"
-            
-            // Extract data - can be directly in result or nested
-            let data: [String: Any]
-            if let dataField = result["data"] as? [String: Any] {
-                data = dataField
-                print("dataField: \(dataField)")
-            } else {
-                // If no "data" field, use result itself as data
-                data = result
-            }
-            
-            // Extract features from data
-            guard let features = data["features"] as? [[String: Any]] else {
-                #if DEBUG
-                print("⚠️ Invalid response format. Missing 'features' array.")
-                print("   Response keys: \(responseDict.keys.joined(separator: ", "))")
-                print("   Result keys: \(result.keys.joined(separator: ", "))")
-                print("   Data keys: \(data.keys.joined(separator: ", "))")
+                print("⚠️ Response event is not 'map' or content is nil")
+                print("   Event: \(response.event ?? "nil")")
+                print("   Content: \(response.content != nil ? "exists" : "nil")")
                 #endif
                 return
             }
             
-            // Process features: extract idx and pageid, save to cache
-            var featuresList: [[String: Any]] = []
-            for feature in features {
-                guard let properties = feature["properties"] as? [String: Any],
-                      let idx = properties["idx"] as? Int,
-                      let pageid = properties["pageid"] as? Int else {
-                    continue
-                }
-                
-                // Add to features list for location cache
-                featuresList.append([
-                    "idx": idx,
-                    "pageid": pageid
-                ])
-                
-                // Save individual feature to cache
-                locationManager.saveCachedFeature(pageid: pageid, feature: feature)
-            }
-            
-            // Extract pois_radius from response if available
-            // Check in result.data or result level
-            var poisRadius: CLLocationDistance? = nil
-            if let poisRadiusValue = result["pois_radius"] as? Double {
-                poisRadius = poisRadiusValue
-            } else if let poisRadiusValue = data["pois_radius"] as? Double {
-                poisRadius = poisRadiusValue
-            }
-            
-            #if DEBUG
-            if let radius = poisRadius {
-                print("📍 Received pois_radius from backend: \(radius)m")
-            } else {
-                print("⚠️ No pois_radius in response, using default")
-            }
-            #endif
-            
-            // Save location cache with list of {idx, pageid} and ETag
-            locationManager.saveCachedLocationData(userLat: userLat, userLon: userLon, features: featuresList, etag: responseETag)
-            
-            // Update geoJSONData to trigger map update
-            // Format: {event: "map", data: {type: "FeatureCollection", features: [...]}}
-            // Ensure data has the proper FeatureCollection structure
-            var featureCollectionData = data
-            if featureCollectionData["type"] == nil {
-                featureCollectionData["type"] = "FeatureCollection"
-            }
-            
-            // Convert to JSONValue for Swift 6 Sendable compliance
-            let geoJSONResponseDict: [String: Any] = [
-                "event": event,
-                "data": featureCollectionData
-            ]
-            guard let geoJSONResponse = JSONValue.dictionary(from: geoJSONResponseDict) else {
+            // response.content is the features array directly
+            // Extract features from the JSONValue array
+            guard case .array(let featuresArray) = geojsonDict else {
                 #if DEBUG
-                print("❌ Failed to convert GeoJSON response to JSONValue")
+                print("⚠️ Response content is not a features array")
                 #endif
                 return
             }
             
-            await MainActor.run {
-                geoJSONData = geoJSONResponse
-                geoJSONUpdateTrigger = UUID()
+            let features = featuresArray.compactMap { featureValue -> [String: JSONValue]? in
+                guard case .dictionary(let featureDict) = featureValue else {
+                    return nil
+                }
+                return featureDict
             }
             
-            #if DEBUG
-            print("✅ GeoJSON data loaded and cached with \(featuresList.count) features\(responseETag != nil ? " (ETag: \(responseETag!))" : "")")
-            #endif
-            
-            // Set up geofence around loaded device POIs location using pois_radius from backend
-            locationManager.setupDevicePOIsRefreshGeofence(centerLat: userLat, centerLon: userLon, radius: poisRadius)
-            #if DEBUG
-            if let radius = poisRadius {
-                print("📍 Set up device POIs refresh geofence after API response with radius: \(radius)m")
-            } else {
-                print("📍 Set up device POIs refresh geofence after API response with default radius")
+            guard !features.isEmpty else {
+                #if DEBUG
+                print("⚠️ No valid features extracted from response")
+                #endif
+                return
             }
-            #endif
             
-        } catch let apiError as APIError {
+            poisGeoJSON.setFeatures(features)
+            geoJSONUpdateTrigger = UUID()  // Trigger map update
+            
             #if DEBUG
-            print("❌ API Error: \(apiError.message)")
-            if let code = apiError.code {
-                print("   Status Code: \(code)")
-            }
+            print("✅ refreshPOIList completed - updated poisGeoJSON with \(features.count) features")
             #endif
         } catch {
             #if DEBUG
-            print("❌ Failed to load location: \(error.localizedDescription)")
-            print("   Error type: \(type(of: error))")
+            print("❌ Failed to refresh POI list on GPS update: \(error.localizedDescription)")
+            if let geoJSONError = error as? GeoJSON.GeoJSONError {
+                print("   Error type: GeoJSONError")
+                print("   Error details: \(geoJSONError)")
+            }
+            print("   Full error: \(error)")
             #endif
         }
     }
+    
+    /// Loads location data when geofence exit is detected
+    /// This is the single source of truth for when to fetch data from backend
+    // @MainActor
+    // private func loadLocationFromGeofenceExit() async {
+    //     // Prevent concurrent API calls
+    //     guard !isLoadingLocation else {
+    //         #if DEBUG
+    //         print("⏸️ API call already in progress, skipping duplicate request")
+    //         #endif
+    //         return
+    //     }
+        
+    //     // Only proceed if location is actually available
+    //     guard locationManager.latitude != nil,
+    //           locationManager.longitude != nil else {
+    //         #if DEBUG
+    //         print("⚠️ Location not available yet, skipping API call")
+    //         #endif
+    //         return
+    //     }
+        
+    //     // Reverse geocode user location and get JSON dict
+    //     #if DEBUG
+    //     print("📍 Geofence exit detected - reverse geocoding location for data refresh")
+    //     #endif
+        
+    //     // reverseGeocodeUserLocation now returns [String: JSONValue] directly
+    //     let jsonDict = await withCheckedContinuation { (continuation: CheckedContinuation<[String: JSONValue]?, Never>) in
+    //         locationManager.reverseGeocodeUserLocation { dict, error in
+    //             if let error = error {
+    //                 #if DEBUG
+    //                 print("⚠️ Reverse geocoding error: \(error.localizedDescription), using location only")
+    //                 #endif
+    //                 // Even if geocoding fails, dict should still have location data
+    //                 continuation.resume(returning: dict)
+    //             } else {
+    //                 continuation.resume(returning: dict)
+    //             }
+    //         }
+    //     }
+        
+    //     guard let jsonDict = jsonDict else {
+    //         #if DEBUG
+    //         print("❌ Failed to get location dict from reverse geocoding")
+    //         #endif
+    //         return
+    //     }
+        
+    //     // Load location data (will check cache, then API if needed)
+    //     await loadLocation(jsonDict: jsonDict)
+    // }
+
 }
 
 // MARK: - Chat SSE Workflows
@@ -1883,6 +1704,7 @@ struct ProgressNotificationBanner: View {
         .environmentObject(APIClient())
         .environmentObject(UHPGateway())
         .environmentObject(LocationManager())
+        .environmentObject(UserManager())
 }
 
 #Preview("Journey Tab with last assistant message") {
@@ -1891,6 +1713,7 @@ struct ProgressNotificationBanner: View {
         .environmentObject(APIClient())
         .environmentObject(UHPGateway())
         .environmentObject(LocationManager())
+        .environmentObject(UserManager())
 }
 #endif
 
