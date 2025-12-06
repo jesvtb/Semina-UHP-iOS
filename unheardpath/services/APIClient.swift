@@ -219,23 +219,13 @@ class UHPGateway: ObservableObject {
               !debugHost.isEmpty,
               let releaseHost = Bundle.main.infoDictionary?["UHP_GATEWAY_HOST_RELEASE"] as? String,
               !releaseHost.isEmpty else {
-            fatalError("""
-            ❌ Gateway hosts not found in Info.plist!
-            
-            Both UHP_GATEWAY_HOST_DEBUG and UHP_GATEWAY_HOST_RELEASE must be available.
-            
-            Check:
-            1. Config.xcconfig has both UHP_GATEWAY_HOST_DEBUG and UHP_GATEWAY_HOST_RELEASE defined
-            2. INFOPLIST_KEY_UHP_GATEWAY_HOST_DEBUG and INFOPLIST_KEY_UHP_GATEWAY_HOST_RELEASE are set in Build Settings
-            """)
+            fatalError("❌ Gateway hosts not found in Info.plist!")
         }
         
         // Choose host and protocol based on build configuration using compiler flags
         #if DEBUG
-            // Use debug host with http:// for development
             self.baseURL = "http://\(debugHost)"
         #else
-            // Use production host with https:// for release builds
             self.baseURL = "https://\(releaseHost)"
         #endif
         
