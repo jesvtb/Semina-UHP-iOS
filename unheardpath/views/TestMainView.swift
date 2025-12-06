@@ -53,7 +53,6 @@ struct TestMainView: View {
     @State private var draftMessage: String = ""
     @State private var inputLocation: String = ""
     @State private var selectedTab: PreviewTabSelection = .journey
-    @State private var geoJSONData: [String: JSONValue]?
     @State private var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
     @State private var lastMessage: ChatMessage?
@@ -266,10 +265,15 @@ struct TestMainView: View {
                 messages = previewMessages
             }
             if let previewGeoJSONData = previewGeoJSONData {
-                // Convert preview data to JSONValue
-                if let converted = JSONValue.dictionary(from: previewGeoJSONData) {
-                    geoJSONData = converted
+                // Extract features from preview data and set to poisGeoJSON
+                do {
+                    let features = try GeoJSON.extractFeatures(from: previewGeoJSONData)
+                    poisGeoJSON.setFeatures(features)
                     geoJSONUpdateTrigger = UUID()
+                } catch {
+                    #if DEBUG
+                    print("⚠️ Failed to extract features from preview GeoJSON data: \(error)")
+                    #endif
                 }
             }
             if let previewLastMessage = previewLastMessage {
@@ -302,22 +306,12 @@ struct TestMainView: View {
                 #if DEBUG
                 print("✅ Geofence restored from UserDefaults, skipping initial data load")
                 #endif
-                // Reconstruct GeoJSON from cache using saved geofence center coordinates
+                // Geofence should already be set up, but ensure it exists
                 if let geofenceCenter = locationManager.getSavedGeofenceCenter() {
                     let userLat = geofenceCenter.latitude
                     let userLon = geofenceCenter.longitude
-                    if let cacheResult = locationManager.reconstructGeoJSONFromCache(userLat: userLat, userLon: userLon) {
-                        await MainActor.run {
-                            geoJSONData = cacheResult.geoJSON
-                            geoJSONUpdateTrigger = UUID()
-                        }
-                        // Geofence should already be set up, but ensure it exists
-                        if !locationManager.isDevicePOIsGeofencingActive {
-                            locationManager.setupDevicePOIsRefreshGeofence(centerLat: userLat, centerLon: userLon)
-                        }
-                        #if DEBUG
-                        print("✅ Loaded cached GeoJSON for restored geofence location")
-                        #endif
+                    if !locationManager.isDevicePOIsGeofencingActive {
+                        locationManager.setupDevicePOIsRefreshGeofence(centerLat: userLat, centerLon: userLon)
                     }
                 }
             } else if locationManager.deviceLocation != nil {

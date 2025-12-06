@@ -30,9 +30,10 @@ struct MainViewTests {
         
         // Call refreshPOIList through the helper
         let response = try await helper.refreshPOIList(from: hagiaSophiaLocation)
-        // response.printContent()
         // Verify the function completed successfully
-        #expect(Bool(true), "refreshPOIList completed successfully for Hagia Sophia location")
+        #expect(response.isSuccess == true, "refreshPOIList completed successfully for Hagia Sophia location")
+        #expect(response.event == "map", "Response event should be 'map'")
+        #expect(response.content != nil, "Response should have content")
     }
 }
 
@@ -50,7 +51,7 @@ private class TestMainViewTestHelper {
         self.locationManager = locationManager
     }
     
-    func refreshPOIList(from location: CLLocationCoordinate2D?) async throws {
+    func refreshPOIList(from location: CLLocationCoordinate2D?) async throws -> UHPResponse {
         // Use the standalone refreshPOIList function
         let response = try await unheardpath.refreshPOIList(
             from: location,
@@ -61,6 +62,7 @@ private class TestMainViewTestHelper {
         #expect(response.isSuccess == true, "API call should succeed")
         #expect(response.event == "map", "Response event should be 'map'")
         #expect(response.content != nil, "Response should have content")
+        return response
     }
 }
 
