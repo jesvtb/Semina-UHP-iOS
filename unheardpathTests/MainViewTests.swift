@@ -29,15 +29,15 @@ struct MainViewTests {
         )
         
         // Call refreshPOIList through the helper
-        try await helper.refreshPOIList(from: hagiaSophiaLocation)
-        
+        let response = try await helper.refreshPOIList(from: hagiaSophiaLocation)
+        // response.printContent()
         // Verify the function completed successfully
         #expect(Bool(true), "refreshPOIList completed successfully for Hagia Sophia location")
     }
 }
 
 // MARK: - Test Helper Class
-/// Helper class to test TestMainView methods without SwiftUI view constraints
+// / Helper class to test TestMainView methods without SwiftUI view constraints
 @MainActor
 private class TestMainViewTestHelper {
     let gateway: UHPGateway
@@ -70,7 +70,7 @@ private class TestMainViewTestHelper {
             method: "POST",
             jsonDict: jsonDict
         )
-        
+        response.printContent()
         // Verify response structure
         #expect(response.isSuccess == true, "API call should succeed")
         #expect(response.event == "map", "Response event should be 'map'")

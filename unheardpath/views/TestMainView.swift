@@ -477,7 +477,7 @@ extension TestMainView {
 extension TestMainView {
 
     @MainActor
-    func refreshPOIList(from location: CLLocationCoordinate2D?) async throws {
+    func refreshPOIList(from location: CLLocationCoordinate2D?) async throws -> UHPResponse {
         var jsonDict: [String: JSONValue] = [:]
         if let user = userManager.currentUser {
             jsonDict["device_lang"] = .string(user.device_lang)
@@ -495,13 +495,15 @@ extension TestMainView {
             method: "POST",
             jsonDict: jsonDict
         )
+        response.printContent()
         if response.event == "map" {
             guard let geojsonDict = response.content else {
-                return
+                return response
             }
             let features = try GeoJSON.extractFeatures(from: geojsonDict.asAny)
             poisGeoJSON.setFeatures(features)
         }
+        return response
     }
 
 }
