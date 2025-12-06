@@ -36,6 +36,7 @@ struct TestMainView: View {
     // Location-related state
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
+    @State private var poisGeoJSON = GeoJSON()
     @FocusState private var isTextFieldFocused: Bool
     
     // Autocomplete state for map tab
@@ -473,6 +474,38 @@ extension TestMainView {
     }
 }
 
+extension TestMainView {
+
+    @MainActor
+    func refreshPOIList(from location: CLLocationCoordinate2D?) async throws {
+        var jsonDict: [String: JSONValue] = [:]
+        if let user = userManager.currentUser {
+            jsonDict["device_lang"] = .string(user.device_lang)
+        } else {
+            jsonDict["device_lang"] = .string("en")
+        }
+        if let location = location {
+            jsonDict["lat"] = .double(location.latitude)
+            jsonDict["lon"] = .double(location.longitude)
+        }
+        jsonDict["range_type"] = .string("city")
+        
+        let response = try await uhpGateway.request(
+            endpoint: "/v1/pois",
+            method: "POST",
+            jsonDict: jsonDict
+        )
+        if response.event == "map" {
+            guard let geojsonDict = response.content else {
+                return
+            }
+            let features = try GeoJSON.extractFeatures(from: geojsonDict.asAny)
+            poisGeoJSON.setFeatures(features)
+        }
+    }
+
+}
+
 // MARK: - TestMainView: Actions
 extension TestMainView {
     private func sendMessage() {
@@ -539,18 +572,9 @@ extension TestMainView {
             // Include device timezone identifier (user's current device timezone)
             jsonDict["msg_timezone"] = .string(TimeZone.current.identifier)
             
-            // Add device language (ISO 639-1 alpha-2 format, compatible with Pydantic's Language type)
-            let languageCode: String
-            if #available(iOS 16.0, *) {
-                languageCode = Locale.current.language.languageCode?.identifier ?? "en"
-            } else {
-                languageCode = Locale.current.languageCode ?? "en"
-            }
-            jsonDict["device_lang"] = .string(languageCode)
-            
             // Add user UUID if available
             if let user = userManager.currentUser {
-                jsonDict["user_uuid"] = .string(user.uuid)
+                jsonDict["device_lang"] = .string(user.device_lang)
             }
             
             // Add location details from LocationManager

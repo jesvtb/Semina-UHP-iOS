@@ -93,7 +93,7 @@ struct APIClientTests {
         // response.printPretty()
         // print("event: \(response.event)")
         // print("content: \(response.content)")
-        response.printContent()
+        // response.printContent()
         
         // Verify response structure
         #expect(response.isSuccess == true, "Response should have success status")

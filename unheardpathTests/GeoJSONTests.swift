@@ -31,20 +31,6 @@ struct GeoJSONTests {
         return json
     }
     
-    /// Extracts features from the loaded JSON
-    private func extractFeatures(from json: [String: Any]) throws -> [[String: JSONValue]] {
-        guard let data = json["data"] as? [String: Any],
-              let features = data["features"] as? [[String: Any]] else {
-            throw TestError.invalidJSON
-        }
-        
-        return try features.map { featureDict in
-            guard let jsonValueDict = JSONValue.dictionary(from: featureDict) else {
-                throw TestError.invalidJSON
-            }
-            return jsonValueDict
-        }
-    }
     
     /// Extracts coordinates from a feature
     private func extractCoordinates(from feature: [String: JSONValue]) -> (lon: CLLocationDegrees, lat: CLLocationDegrees)? {
@@ -102,7 +88,7 @@ struct GeoJSONTests {
     @Test func testSetFeaturesRoundsCoordinates() throws {
         // Load mock JSON
         let json = try loadMockJSON()
-        let features = try extractFeatures(from: json)
+        let features = try GeoJSON.extractFeatures(from: json)
         
         // Create GeoJSON and set features
         var geoJSON = GeoJSON()
@@ -134,7 +120,7 @@ struct GeoJSONTests {
     @Test func testSetFeaturesWithHighPrecisionCoordinates() throws {
         // Load mock JSON
         let json = try loadMockJSON()
-        let features = try extractFeatures(from: json)
+        let features = try GeoJSON.extractFeatures(from: json)
         
         // Find a feature with high precision coordinates (like Hagia Sophia)
         // From the file: coordinates: [28.98000557733333, 41.00841894019655]
@@ -195,7 +181,7 @@ struct GeoJSONTests {
     @Test func testSetFeaturesPreservesFeatureCount() throws {
         // Load mock JSON
         let json = try loadMockJSON()
-        let features = try extractFeatures(from: json)
+        let features = try GeoJSON.extractFeatures(from: json)
         
         // Create GeoJSON and set features
         var geoJSON = GeoJSON()
@@ -210,7 +196,7 @@ struct GeoJSONTests {
     @Test func testSetFeatureRoundsCoordinates() throws {
         // Load mock JSON
         let json = try loadMockJSON()
-        let features = try extractFeatures(from: json)
+        let features = try GeoJSON.extractFeatures(from: json)
         
         // Use first feature
         guard let firstFeature = features.first else {
@@ -246,7 +232,7 @@ struct GeoJSONTests {
     @Test func testSetFeatureWithHighPrecisionCoordinates() throws {
         // Load mock JSON
         let json = try loadMockJSON()
-        let features = try extractFeatures(from: json)
+        let features = try GeoJSON.extractFeatures(from: json)
         
         // Find a feature with high precision coordinates
         // Example: Basilica Cistern with coordinates [28.977850189999998, 41.00822923019654]
@@ -294,7 +280,7 @@ struct GeoJSONTests {
     @Test func testSetFeatureAppendsToEnd() throws {
         // Load mock JSON
         let json = try loadMockJSON()
-        let features = try extractFeatures(from: json)
+        let features = try GeoJSON.extractFeatures(from: json)
         
         guard features.count >= 2 else {
             throw TestError.missingTestData
@@ -317,7 +303,7 @@ struct GeoJSONTests {
     @Test func testSetFeatureAtSpecificIndex() throws {
         // Load mock JSON
         let json = try loadMockJSON()
-        let features = try extractFeatures(from: json)
+        let features = try GeoJSON.extractFeatures(from: json)
         
         guard features.count >= 2 else {
             throw TestError.missingTestData
@@ -349,7 +335,7 @@ struct GeoJSONTests {
     @Test func testSetFeatureWithAlreadyRoundedCoordinates() throws {
         // Load mock JSON
         let json = try loadMockJSON()
-        let features = try extractFeatures(from: json)
+        let features = try GeoJSON.extractFeatures(from: json)
         
         // Find a feature with already 4-decimal coordinates (like Armenian Patriarchate: 28.9612, 41.0045)
         let roundedFeature = features.first { feature in

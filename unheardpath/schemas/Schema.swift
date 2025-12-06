@@ -204,12 +204,18 @@ enum TabSelection: Int {
 
 // MARK: - User Model
 struct User: Identifiable {
-  let id: UUID
-  let uuid: String  // Supabase user UUID as string
+  let id: UUID?
+  let device_lang: String
   
-  init(id: UUID = UUID(), uuid: String) {
-    self.id = id
-    self.uuid = uuid
+  init(isAnonymous: Bool? = false, user_id: UUID? = nil, device_lang: String) {
+    if isAnonymous == false {
+      self.id = UUID()
+    } else if let user_id = user_id {
+      self.id = user_id
+    } else {
+      self.id = nil
+    }
+    self.device_lang = device_lang
   }
 }
 
@@ -223,7 +229,14 @@ class UserManager: ObservableObject {
   
   /// Updates the current user
   func setUser(uuid: String) {
-    currentUser = User(uuid: uuid)
+    var device_lang = "en"
+    if #available(iOS 16.0, *) {
+        device_lang = Locale.current.language.languageCode?.identifier ?? device_lang
+    } else {
+        device_lang = Locale.current.languageCode ?? device_lang
+    }
+    let userUUID = UUID(uuidString: uuid)
+    currentUser = User(isAnonymous: false, user_id: userUUID, device_lang: device_lang)
     #if DEBUG
     print("✅ UserManager: Set current user with UUID: \(uuid)")
     #endif

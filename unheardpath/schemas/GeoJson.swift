@@ -9,6 +9,7 @@ struct GeoJSON: Sendable, Codable {
     var type: String {
         return "FeatureCollection"
     }
+    private var shouldUpdateMap: Bool = false
     
     /// Array of GeoJSON features
     private(set) var features: [[String: JSONValue]]
@@ -85,6 +86,7 @@ struct GeoJSON: Sendable, Codable {
     /// - Parameter features: Array of feature dictionaries to set
     mutating func setFeatures(_ features: [[String: JSONValue]]) {
         self.features = features.map { Self.roundCoordinatesInFeature($0) }
+        shouldUpdateMap = true
     }
     
     /// Add or update a single feature at the specified index
@@ -96,7 +98,7 @@ struct GeoJSON: Sendable, Codable {
     @discardableResult
     mutating func setFeature(_ feature: [String: JSONValue], at index: Int? = nil) -> Int? {
         let roundedFeature = Self.roundCoordinatesInFeature(feature)
-        
+        shouldUpdateMap = true
         if let index = index {
             guard index >= 0 && index <= features.count else {
                 return nil
@@ -111,6 +113,7 @@ struct GeoJSON: Sendable, Codable {
             features.append(roundedFeature)
             return features.count - 1
         }
+        
     }
     
     /// Update a feature at the specified index
@@ -125,6 +128,7 @@ struct GeoJSON: Sendable, Codable {
             return false
         }
         features[index] = Self.roundCoordinatesInFeature(feature)
+        shouldUpdateMap = true
         return true
     }
     
@@ -136,12 +140,14 @@ struct GeoJSON: Sendable, Codable {
         guard index >= 0 && index < features.count else {
             return nil
         }
+        shouldUpdateMap = true
         return features.remove(at: index)
     }
     
     /// Remove all features
     mutating func removeAllFeatures() {
         features.removeAll()
+        shouldUpdateMap = true
     }
     
     /// Get a feature at the specified index
@@ -157,6 +163,47 @@ struct GeoJSON: Sendable, Codable {
     /// Get the number of features
     var featureCount: Int {
         return features.count
+    }
+    
+    // MARK: - Feature Extraction
+    
+    /// Extracts features from a GeoJSON response dictionary
+    /// Handles different response structures (direct features, nested in data, nested in result.data)
+    /// - Parameter jsonDict: The JSON dictionary containing features
+    /// - Returns: Array of feature dictionaries as JSONValue
+    /// - Throws: Error if JSON structure is invalid
+    static func extractFeatures(from jsonDict: Any) throws -> [[String: JSONValue]] {
+        guard let dict = jsonDict as? [String: Any] else {
+            throw GeoJSONError.invalidJSON
+        }
+        
+        // Handle different response structures
+        var features: [[String: Any]]
+        
+        // Check if features are directly in the dict
+        if let directFeatures = dict["features"] as? [[String: Any]] {
+            features = directFeatures
+        } else if let data = dict["data"] as? [String: Any],
+                  let dataFeatures = data["features"] as? [[String: Any]] {
+            features = dataFeatures
+        } else if let result = dict["result"] as? [String: Any],
+                  let resultData = result["data"] as? [String: Any],
+                  let resultFeatures = resultData["features"] as? [[String: Any]] {
+            features = resultFeatures
+        } else {
+            throw GeoJSONError.invalidJSON
+        }
+        
+        return try features.map { featureDict in
+            guard let jsonValueDict = JSONValue.dictionary(from: featureDict) else {
+                throw GeoJSONError.invalidJSON
+            }
+            return jsonValueDict
+        }
+    }
+    
+    enum GeoJSONError: Error {
+        case invalidJSON
     }
     
     // MARK: - Codable
