@@ -1,5 +1,5 @@
 import SwiftUI
-import MapKit
+@preconcurrency import MapKit
 
 // MARK: - Standalone refreshPOIList Function
 @MainActor
