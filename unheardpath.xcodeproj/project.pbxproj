@@ -50,6 +50,7 @@
 		C1037A842E7126030014D793 /* unheardpath.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = unheardpath.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1037A852E7126030014D793 /* unheardpathTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1037A862E7126030014D793 /* unheardpathUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C1BC73C12EE51E9C00E51567 /* unheardpath.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = unheardpath.xctestplan; sourceTree = "<group>"; };
 		C1F7EF972EDEB6BD00A0E271 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.Debug.xcconfig; sourceTree = "<group>"; };
 		C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.Release.xcconfig; sourceTree = "<group>"; };
@@ -113,6 +114,7 @@
 		C1CD228B2E6FE5D50057E60C = {
 			isa = PBXGroup;
 			children = (
+				C1BC73C12EE51E9C00E51567 /* unheardpath.xctestplan */,
 				C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */,
 				C1F7EF972EDEB6BD00A0E271 /* Config.xcconfig */,
 				C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */,

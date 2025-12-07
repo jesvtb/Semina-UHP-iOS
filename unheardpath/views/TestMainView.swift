@@ -933,7 +933,7 @@ extension TestMainView {
         let search = MKLocalSearch(request: request)
         
         do {
-            let response = try await search.start()
+            let response = try await search.start() 
             
             #if DEBUG
             print("\n" + String(repeating: "=", count: 80))
