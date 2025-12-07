@@ -251,11 +251,11 @@ struct TestMainView: View {
                 setupSearchCompleter()
             }
         }
+        #if DEBUG
         .sheet(isPresented: $showCacheDebugSheet) {
-            #if DEBUG
             cacheDebugSheet
-            #endif
         }
+        #endif
         .task { @MainActor in
             // Set preview values if provided (for preview purposes)
             if let previewTab = previewTab {
@@ -887,6 +887,7 @@ extension TestMainView {
     
     /// Geocodes a selected autocomplete result and flies to that location on the map
     /// Uses MKLocalSearch to get coordinates from MKLocalSearchCompletion
+    @MainActor
     private func geocodeAndFlyToLocation(completion: MKLocalSearchCompletion) async {
         #if DEBUG
         print("\n" + String(repeating: "=", count: 80))
