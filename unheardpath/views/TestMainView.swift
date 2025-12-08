@@ -71,6 +71,7 @@ struct TestMainView: View {
     @StateObject private var addressSearchManager = AddressSearchManager()
     @State private var shouldSearchAround: Bool = false
     @State private var targetLocation: TargetLocation?
+    @State private var selectedLocation: CLLocation?
     
     // Debug cache overlay state
     #if DEBUG
@@ -110,7 +111,8 @@ struct TestMainView: View {
             MapboxMapView(
                 poisGeoJSON: $poisGeoJSON,
                 geoJSONUpdateTrigger: $geoJSONUpdateTrigger,
-                targetLocation: $targetLocation
+                targetLocation: $targetLocation,
+                selectedLocation: $selectedLocation
             )
                 .ignoresSafeArea(.container)
                 .ignoresSafeArea(.keyboard)

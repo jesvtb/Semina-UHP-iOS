@@ -8,7 +8,8 @@ import Foundation
     MapboxMapView(
         poisGeoJSON: .constant(GeoJSON()),
         geoJSONUpdateTrigger: .constant(UUID()),
-        targetLocation: .constant(nil)
+        targetLocation: .constant(nil),
+        selectedLocation: .constant(nil)
     )
         .environmentObject(LocationManager())
     // MapView()

@@ -29,8 +29,10 @@ struct MapboxMapView: View {
     @Binding var poisGeoJSON: GeoJSON
     @Binding var geoJSONUpdateTrigger: UUID
     @Binding var targetLocation: TargetLocation?
+    @Binding var selectedLocation: CLLocation?
     @State private var mapProxy: MapboxMaps.MapProxy?
     @State private var defaultPitch: Double = 60
+    @State private var longPressLocation: CGPoint?
     
     /// Offset distance in degrees to move camera south of user location
     /// This creates space for UI elements (like bottom sheets) above the user's location
@@ -86,6 +88,15 @@ struct MapboxMapView: View {
                         .allowOverlap(true)
                     }
                     
+                    // Add marker for manually selected location (long press)
+                    if let selectedLocation = selectedLocation {
+                        let manualTargetLocation = TargetLocation(location: selectedLocation, name: nil)
+                        MapboxMaps.MapViewAnnotation(coordinate: selectedLocation.coordinate) {
+                            LookupLocation(targetLocation: manualTargetLocation)
+                        }
+                        .allowOverlap(true)
+                    }
+                    
                     #if DEBUG
                     // Add geofence visualization for debugging
                     if let geofenceInfo = locationManager.devicePOIsGeofenceDebugInfo {
@@ -130,6 +141,35 @@ struct MapboxMapView: View {
                         // The marker will persist until a new targetLocation is set (replacing the old one)
                     }
                 }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            // Track the initial touch location for long press
+                            if longPressLocation == nil {
+                                longPressLocation = value.startLocation
+                            }
+                        }
+                        .onEnded { _ in
+                            // Reset on end (unless long press is active)
+                            // Delay reset to allow long press to complete
+                            Task {
+                                try? await Task.sleep(nanoseconds: 600_000_000) // 0.6 seconds
+                                await MainActor.run {
+                                    longPressLocation = nil
+                                }
+                            }
+                        }
+                )
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.5)
+                        .onEnded { _ in
+                            // When long press completes, use the tracked location
+                            if let location = longPressLocation, let proxy = mapProxy {
+                                handleLongPressSelection(at: location, proxy: proxy)
+                                longPressLocation = nil
+                            }
+                        }
+                )
                 // Note: geoJSONUpdateTrigger is still used to trigger re-rendering when data changes
                 // The declarative MapContent API will automatically update when poisGeoJSON changes
             }
@@ -274,6 +314,46 @@ struct MapboxMapView: View {
             print("✅ Camera fitted to \(coordinates.count) GeoJSON feature coordinates with south offset applied")
            
             #endif
+        }
+    }
+    
+    /// Handles long press selection on the map
+    /// Converts screen coordinates to geographic coordinates and creates a CLLocation
+    private func handleLongPressSelection(at point: CGPoint, proxy: MapboxMaps.MapProxy) {
+        guard let mapboxMap = proxy.map else {
+            #if DEBUG
+            print("⚠️ MapboxMap not available for coordinate conversion")
+            #endif
+            return
+        }
+        
+        // Convert screen point to geographic coordinate
+        // Note: coordinate(for:) returns a non-optional CLLocationCoordinate2D
+        let coordinate = mapboxMap.coordinate(for: point)
+        
+        // Create CLLocation from coordinate
+        // Use default values for altitude and accuracy since manual selection doesn't have this data
+        let location = CLLocation(
+            coordinate: coordinate,
+            altitude: 0.0,
+            horizontalAccuracy: kCLLocationAccuracyHundredMeters,
+            verticalAccuracy: kCLLocationAccuracyHundredMeters,
+            timestamp: Date()
+        )
+        
+        #if DEBUG
+        print("📍 Manual location selected: \(coordinate.latitude), \(coordinate.longitude)")
+        #endif
+        
+        // First, set the marker to show immediate visual feedback
+        Task { @MainActor in
+            selectedLocation = location
+            
+            // Then, after a brief delay, move the camera to the selected location
+            // This creates a more user-friendly flow: marker appears first, then camera moves
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds delay
+            // Move camera to selected location with south offset (same as initial viewport)
+            updateMapCamera(proxy: proxy, location: location, isDeviceLocation: true)
         }
     }
 }
