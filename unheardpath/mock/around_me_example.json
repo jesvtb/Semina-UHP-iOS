@@ -1,2138 +1,610 @@
 {
-    "event": "map",
-    "data": {
-        "type": "FeatureCollection",
-        "features": [
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 61151439,
-                "title": "Argyropolis (Thrace)",
-                "url": "https://en.wikipedia.org/?curid=61151439",
-                "extract": "Argyropolis (Greek: Αργυρούπολις) or Bytharion (Βυθαρίον) was a town of ancient Thrace, inhabited during Byzantine times. \nIts site is located near Tophane in European Turkey."
-              },
-              "names": {
-                "device_lang": "Argyropolis (Thrace)"
-              },
-              "wiki_categories": [
-                "Ancient Thrace geography stubs",
-                "Former populated places in Turkey",
-                "History of Istanbul Province",
-                "Istanbul Province geography stubs",
-                "Populated places in ancient Thrace",
-                "Populated places of the Byzantine Empire"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/",
-              "short_description": "Town of ancient Thrace"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.980152,
-                41.026411,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 1752275,
-                "title": "Armenian Patriarchate of Constantinople",
-                "url": "https://en.wikipedia.org/?curid=1752275",
-                "extract": "The Armenian Patriarchate of Constantinople (Turkish: İstanbul Ermeni Patrikhanesi; Western Armenian: Պատրիարքութիւն Հայոց Կոստանդնուպոլսոյ, Badriark'ut'iun Hayots' Gosdantnubolsoy) is an autonomous see of the Armenian Apostolic Church. The seat of the Armenian Patriarch of Constantinople (French: Patriarche de Constantinople, Turkish: Konstantinopolis Ermeni Patriği), also known as Armenian Patriarch of Istanbul, is the Surp Asdvadzadzin Patriarchal Church (Holy Mother of God Patriarchal Church) in the Kumkapı neighborhood of Istanbul.\nThe patriarchate is one of the smallest of the Oriental Orthodox Churches but one that has exerted a very significant political role and today still exercises a spiritual authority. The Armenian Patriarchate of Constantinople recognizes the primacy of the Catholicos of All Armenians, in the spiritual and administrative headquarters of the Armenian Church, the Etchmiadzin, Armenia, in matters that pertain to the worldwide Armenian Apostolic Church. In local matters, the patriarchal see is autonomous."
-              },
-              "names": {
-                "device_lang": "Armenian Patriarchate of Constantinople"
-              },
-              "wiki_categories": [
-                "Armenian Patriarchate of Constantinople"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Armenian_Patriarch_of_Constantinople_-_P1040052.JPG",
-              "short_description": "Autonomous See"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.9612,
-                41.0045,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Alemdar Mahallesi",
-              "geoapify_categories": [
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Yerebatan Sarnıcı",
-                "device_lang": "Basilica Cistern (Exit)",
-                "global_lang": "Basilica Cistern (Exit)"
-              },
-              "entity_website": "http://yerebatansarnici.com/",
-              "wikipedia": {
-                "ref": "tr:Yerebatan Sarnıcı",
-                "pageid": 1365761,
-                "extract": "The Basilica Cistern, or Cisterna Basilica (Greek: Βασιλική Κινστέρνα, Turkish: Yerebatan Sarnıcı or Yerebatan Sarayı, \"Subterranean Cistern\" or \"Subterranean Palace\"), is the largest of several hundred ancient cisterns that lie beneath the city of Istanbul, Turkey. The cistern, located 150 metres (490 ft) southwest of the Hagia Sophia on the historical peninsula of Sarayburnu, was built in the 6th century during the reign of Byzantine emperor Justinian I. Today it is kept with little water, for public access inside the space.\n\n",
-                "url": "https://en.wikipedia.org/?curid=1365761",
-                "title": "Basilica Cistern"
-              },
-              "history": "is a cistern",
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Cisterna_Basílica,_Estambul,_Turquía,_2024-09-28,_DD_58-60_HDR.jpg",
-              "wiki_categories": [
-                "6th-century establishments in the Byzantine Empire",
-                "6th-century religious buildings and structures",
-                "Byzantine secular architecture",
-                "Cisterns in Istanbul",
-                "Cultural depictions of Medusa",
-                "Fatih",
-                "Hagia Sophia",
-                "Justinian I",
-                "Reservoirs in Turkey",
-                "Roman cisterns",
-                "Tourist attractions in Istanbul"
-              ],
-              "idx": 5
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.977850189999998,
-                41.00822923019654,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 1843722,
-                "title": "Bayezid II Mosque, Istanbul",
-                "url": "https://en.wikipedia.org/?curid=1843722",
-                "extract": "The Bayezid II Mosque (Turkish: Beyazıt Camii, Bayezid Camii) is an early 16th-century Ottoman imperial mosque located in Beyazıt Square in Istanbul, Turkey, near the ruins of the Forum of Theodosius of ancient Constantinople."
-              },
-              "names": {
-                "device_lang": "Bayezid II Mosque, Istanbul"
-              },
-              "wiki_categories": [
-                "16th-century madrasas",
-                "Fatih",
-                "Madrasas in Turkey",
-                "Mimar Hayruddin buildings",
-                "Mosques completed in the 1500s",
-                "Ottoman mosques in Istanbul",
-                "Religious buildings and structures completed in 1506",
-                "Sunni mosques in Turkey"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/BeyazıtCami1.jpg",
-              "short_description": "Mosque in Istanbul, Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.96527778,
-                41.01027778,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Sultan Ahmet Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.place_of_worship",
-                "building.tourism",
-                "religion",
-                "religion.place_of_worship",
-                "religion.place_of_worship.islam",
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights",
-                "tourism.sights.place_of_worship",
-                "tourism.sights.place_of_worship.mosque"
-              ],
-              "names": {
-                "local_lang": "Sultanahmet Camii",
-                "device_lang": "Blue Mosque",
-                "global_lang": "Blue Mosque"
-              },
-              "entity_website": "https://www.geziyerler.com/sultan-ahmet-camii",
-              "wikipedia": {
-                "ref": "en:Sultan Ahmed Mosque",
-                "pageid": 343727,
-                "extract": "The Blue Mosque, officially the Sultan Ahmed Mosque (Turkish: Sultanahmet Camii), is an Ottoman-era historical imperial mosque located in Istanbul, Turkey. It was constructed between 1609 and 1617 during the rule of Ahmed I. It attracts a large number of tourists and is one of the most iconic and popular monuments of Ottoman architecture. \nThe mosque has a classical Ottoman layout with a central dome surrounded by four semi-domes over the prayer hall. It is fronted by a large courtyard and flanked by six minarets. On the inside, it is decorated with thousands of Iznik tiles and painted floral motifs in predominantly blue colours, which give the mosque its popular name. The mosque's külliye (religious complex) includes Ahmed's tomb, a madrasa, and several other buildings in various states of preservation.\nThe mosque was built next to the former Hippodrome and stands across from the Hagia Sophia, another popular tourist site. The Blue Mosque was included in the UNESCO World Heritage Site list in 1985 under the name of \"Historic Areas of Istanbul\".",
-                "url": "https://en.wikipedia.org/?curid=343727",
-                "title": "Blue Mosque, Istanbul"
-              },
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Istanbul_(34223582516)_(cropped).jpg",
-              "history": "is a mosque from ottoman",
-              "religion": "muslim",
-              "wiki_categories": [
-                "1616 establishments in the Ottoman Empire",
-                "17th-century mosques in the Ottoman Empire",
-                "Fatih",
-                "Historic sites in Turkey",
-                "Landmarks in Turkey",
-                "Mosques completed in the 1610s",
-                "Ottoman mosques in Istanbul",
-                "Religious buildings and structures completed in 1616",
-                "World Heritage Sites in Turkey"
-              ],
-              "idx": 2
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.976839033853004,
-                41.00538470019637,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 3719,
-                "title": "Byzantium",
-                "url": "https://en.wikipedia.org/?curid=3719",
-                "extract": "Byzantium () or Byzantion (Ancient Greek: Βυζάντιον; Modern Greek: Βυζάντιο) was an ancient Greek city in classical antiquity that became known as Constantinople in late antiquity and Istanbul in modern times. The Greek name Byzantion and its Latinization Byzantium continued to be used as a name of Constantinople sporadically and to varying degrees during the thousand-year existence of the Eastern Roman Empire, which also became known by the former name of the city as the Byzantine Empire. Byzantium was colonized by Greeks from Megara in the 7th century BCE and remained primarily Greek-speaking until its conquest by the Ottoman Empire in 1453 CE.\n\n"
-              },
-              "names": {
-                "device_lang": "Byzantium"
-              },
-              "wiki_categories": [
-                "660s BC",
-                "Achaemenid ports",
-                "Ancient Byzantium",
-                "Ancient Greek archaeological sites in Turkey",
-                "Greek city-states",
-                "Megarian colonies in Thrace",
-                "Members of the Delian League",
-                "Populated places established in the 7th century BC"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Locator_map_Byzantion.PNG",
-              "short_description": "Ancient Greek city, forerunner of Constantinople"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.98472222,
-                41.01527778,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 5646,
-                "title": "Constantinople",
-                "url": "https://en.wikipedia.org/?curid=5646",
-                "extract": "Constantinople (see other names) was a historical city located on the Bosporus, which served as the capital of the Roman (including its eastern continuation), Latin, and Ottoman empires between its consecration in 330 and the formal abolition of the Ottoman sultanate in 1922. Initially, as New Rome, Constantinople was founded in 324 during the reign of Constantine the Great on the site of the existing settlement of Byzantium and in 330 became the capital of the Roman Empire. Following the collapse of the Western Roman Empire in the late 5th century, Constantinople remained the capital of the  Eastern Roman Empire (also known as the Byzantine Empire; 330–1204 and 1261–1453), the Latin Empire (1204–1261), and the Ottoman Empire (1453–1922). In the aftermath of the Turkish War of Independence, the Turkish capital moved to Ankara. The city was officially renamed Istanbul on 28 March 1930. As of October 2025, it is the most populous city in Europe, with a population of more than 16 million residents, straddling the Bosporus Strait and lying in both Europe and Asia, and is the financial center of Turkey.\nIn 324, following the reunification of the Eastern and Western Roman Empires, the ancient city of Byzantium was selected to serve as the new capital of the Roman Empire, and the city was renamed Nova Roma, or 'New Rome', by Emperor Constantine the Great. On 11 May 330, it was renamed Constantinople and dedicated to Constantine. Shortly afterward, in 474 AD, the Great Fire of Constantinople erupted and consequently devastated the region. Constantinople is generally considered to be the center and the \"cradle of Orthodox Christian civilization.\" From the mid-5th century to the early 13th century, Constantinople was the largest and wealthiest city in Europe. The city became famous for its architectural masterpieces, such as Hagia Sophia, the cathedral of the Eastern Orthodox Church, which served as the seat of the Ecumenical Patriarchate; the sacred Imperial Palace, where the emperors lived; the Hippodrome; the Golden Gate of the Land Walls; and opulent aristocratic palaces. The University of Constantinople was founded in the 5th century and contained artistic and literary treasures before it was sacked in 1204 and 1453, including its vast Imperial Library. which contained more than 100,000 volumes. The city was the home of the Ecumenical Patriarch of Constantinople and guardian of Christendom's holiest relics, such as the Crown of Thorns and the True Cross.\n\nConstantinople was famous for its massive and complex fortifications, which ranked among the most sophisticated defensive architecture of antiquity. The Theodosian Walls consisted of a double wall lying about 2 kilometres (1.2 mi) to the west of the first wall and a moat with palisades in front. Constantinople's location between the Golden Horn and the Sea of Marmara reduced the land area that required defensive walls. The city was constructed intentionally to rival Rome, and it was claimed that several elevations within its walls matched Rome's seven hills. The impenetrable defenses enclosed magnificent palaces, domes, and towers, the result of the prosperity Constantinople achieved as the gateway between two continents (Europe and Asia) and two seas (the Mediterranean and the Black Sea). Although besieged on numerous occasions by various armies, the defenses of Constantinople proved impenetrable for nearly nine hundred years.\nIn 1204, however, the armies of the Fourth Crusade took and devastated the city, and for six decades its inhabitants resided under Latin occupation in a dwindling and depopulated city. In 1261, the Byzantine Emperor Michael VIII Palaiologos liberated the city, and after the restoration under the Palaiologos dynasty, it enjoyed a partial recovery. With the advent of the Ottoman Empire in 1299, the Byzantine Empire began to lose territories, and the city began to lose population. By the early 15th century, the Byzantine Empire was reduced to just Constantinople and its environs, along with the territories of the despotate of Morea, in Peloponnese, Greece, making it an enclave inside the Ottoman Empire. The city was finally besieged and conquered by the Ottoman Empire in 1453, remaining under its control until the early 20th century, after which it was renamed Istanbul under the Empire's successor state, the Republic of Turkey.\n\n"
-              },
-              "names": {
-                "device_lang": "Constantinople"
-              },
-              "wiki_categories": [
-                "1930 disestablishments in Turkey",
-                "320s establishments in the Roman Empire",
-                "330 establishments",
-                "Archaeological sites in the Marmara region",
-                "Capitals of former nations",
-                "Capitals of the Ottoman Empire",
-                "Constantine the Great",
-                "Constantinople",
-                "History of Istanbul",
-                "Holy cities",
-                "Populated places along the Silk Road",
-                "Populated places disestablished in 1930",
-                "Populated places established in the 4th century",
-                "Populated places of the Byzantine Empire",
-                "Roman towns and cities in Turkey",
-                "Thrace"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Byzantine_Constantinople-en.png",
-              "short_description": "Capital of the Eastern Roman and Ottoman empires"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.98,
-                41.0125,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 233633,
-                "title": "Eurovision Song Contest 2004",
-                "url": "https://en.wikipedia.org/?curid=233633",
-                "extract": "The Eurovision Song Contest 2004 was the 49th edition of the Eurovision Song Contest. It consisted —for the first time— of a semi-final on 12 May and a final on 15 May 2004, held at the Abdi İpekçi Arena in Istanbul, Turkey, and presented by Korhan Abay and Meltem Cumbul. It was organised by the European Broadcasting Union (EBU) and host broadcaster Turkish Radio and Television Corporation (TRT), who staged the event after winning the 2003 contest for Turkey with the song \"Everyway That I Can\" by Sertab Erener. It was also the first time since the 1998 contest in Birmingham that it was not hosted in the host country's capital city.\nBroadcasters from thirty-six countries participated in the contest, beating the record of twenty-six in the previous edition. Albania, Andorra, Belarus, and Serbia and Montenegro took part for the first time this year. The old relegation system was replaced with a semi-final format. This was done in order to accommodate the increasing number of countries who wished to participate. The new format allowed all countries to participate every year, rather than being forced to sit out per the relegation rules, which had been the standard since 1994. Because of this, Denmark, Finland, Lithuania, Macedonia, Monaco, and Switzerland all returned to the contest, Monaco not having competed since 1979.\nThe winner was Ukraine with the song \"Wild Dances\", performed by Ruslana who wrote it with her husband Oleksandr Ksenofontov. This was Ukraine's first victory in the contest, only one year after the country made its debut in 2003. Serbia and Montenegro, Greece, Turkey, and Cyprus rounded out the top five, with Greece and Cyprus both equalling its previous best results. Meanwhile, Ireland finished in 22nd place, giving the nation its worst placement up to that point. Due to the expansion of the contest, this year was the first time in which a non-winning entry scored over 200 points. Prior to this contest, only the winning entries for Ireland in 1994 and the United Kingdom in 1997 had passed this mark. In this contest, the top 3 songs all got over 200 points. An official CD was released and, for the first time, the entire contest was released on DVD which included the semi-final and the final."
-              },
-              "names": {
-                "device_lang": "Eurovision Song Contest 2004"
-              },
-              "wiki_categories": [
-                "2000s in Istanbul",
-                "2004 in Turkey",
-                "2004 song contests",
-                "Eurovision Song Contest 2004",
-                "Eurovision Song Contest by year",
-                "May 2004 in Europe",
-                "Music festivals in Turkey",
-                "Music in Istanbul",
-                "Organized events in Istanbul"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Eurovision_Song_Contest_2004.svg",
-              "short_description": "International song competition"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97611111,
-                41.01222222,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 762516,
-                "title": "Galata",
-                "url": "https://en.wikipedia.org/?curid=762516",
-                "extract": "Galata is the former name of the Karaköy neighbourhood in Istanbul, which is located at the northern shore of the Golden Horn. The district is connected to the historic Fatih district by several bridges that cross the Golden Horn, most notably the Galata Bridge. The medieval citadel of Galata was a colony of the Republic of Genoa between 1273 and 1453. The famous Galata Tower was built by the Genoese in 1348 at the northernmost and highest point of the citadel. Galata is now a quarter within the district of Beyoğlu in Istanbul.\n\n"
-              },
-              "names": {
-                "device_lang": "Galata"
-              },
-              "wiki_categories": [
-                "Beyoğlu",
-                "Genoese colonies",
-                "Golden Horn",
-                "Jewish communities in Turkey",
-                "Quarters and suburbs of Constantinople"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Istanbul_asv2020-02_img47_Galata_Tower.jpg",
-              "short_description": "Former neighbourhood opposite Constantinople, in modern-day Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97361111,
-                41.02277778,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Beyazıt Mahallesi",
-              "geoapify_categories": [
-                "commercial.marketplace",
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights",
-                "wheelchair",
-                "wheelchair.yes"
-              ],
-              "names": {
-                "local_lang": "Kapalı Çarşı",
-                "device_lang": "Grand Bazaar",
-                "global_lang": "Grand Bazaar"
-              },
-              "wikipedia": {
-                "ref": "tr:Kapalıçarşı",
-                "pageid": 345328,
-                "extract": "The Grand Bazaar (Turkish: Kapalıçarşı, meaning ‘Covered Market’; also Büyük Çarşı, meaning ‘Grand Market’) in Istanbul is one of the largest and oldest covered markets in the world, with 61 covered streets and over 4,000 shops on a total area of 30,700 m2, attracting between 250,000 and 400,000 visitors daily. In 2014, it was listed No.1 among the world's most-visited tourist attractions with 91,250,000 annual visitors. The Grand Bazaar at Istanbul is often regarded as one of the first shopping malls of the world.\n\n",
-                "url": "https://en.wikipedia.org/?curid=345328",
-                "title": "Grand Bazaar, Istanbul"
-              },
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Istanbul_asv2021-11_img41_Grand_Bazaar.jpg",
-              "wiki_categories": [
-                "Bazaars in Turkey",
-                "Buildings and structures completed in 1461",
-                "Buildings and structures completed in 1731",
-                "Commercial buildings completed in the 15th century",
-                "Fatih",
-                "Shopping malls in Istanbul",
-                "Tourist attractions in Istanbul"
-              ],
-              "idx": 4
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.96797786432614,
-                41.010767305196694,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 3952996,
-                "title": "Great Palace of Constantinople",
-                "url": "https://en.wikipedia.org/?curid=3952996",
-                "extract": "The Great Palace of Constantinople (Greek: Μέγα Παλάτιον, Méga Palátion; Latin: Palatium Magnum), also known as the Sacred Palace (Greek: Ἱερὸν Παλάτιον, Hieròn Palátion; Latin: Sacrum Palatium), was the large imperial Byzantine palace complex located in the south-eastern end of the peninsula today making up the Fatih district of Istanbul (formerly Constantinople), in modern Turkey. It served as the main imperial residence of the Eastern Roman emperors until 1081 and was the centre of imperial administration for over 690 years. Only a few remnants and fragments of its foundations have survived into the present day."
-              },
-              "names": {
-                "device_lang": "Great Palace of Constantinople"
-              },
-              "wiki_categories": [
-                "330 establishments",
-                "Christian buildings and structures in the Roman Empire",
-                "Demolished buildings and structures in Istanbul",
-                "Great Palace of Constantinople",
-                "Houses completed in the 4th century",
-                "Palaces in Istanbul"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/A_view_from_The_Sphendone_of_the_Hippodrome.jpg",
-              "short_description": "Byzantine imperial palace complex"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97722222,
-                41.00583333,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.place_of_worship",
-                "building.tourism",
-                "entertainment",
-                "entertainment.museum",
-                "tourism",
-                "tourism.sights",
-                "tourism.sights.place_of_worship.church"
-              ],
-              "names": {
-                "local_lang": "Aya İrini Kilisesi",
-                "device_lang": "Hagia Irene",
-                "global_lang": "Hagia Irene"
-              },
-              "entity_website": "https://muze.gen.tr/",
-              "wikipedia": {
-                "ref": "tr:Aya İrini",
-                "pageid": 2969846,
-                "extract": "Hagia Irene (Greek: Αγία Ειρήνη) or Hagia Eirene (Medieval Greek: Ἁγία Εἰρήνη Ancient Greek pronunciation: [aˈʝia iˈrini], \"Holy Peace\", Turkish: Aya İrini), sometimes known also as Saint Irene, is a former Eastern Orthodox church located in the outer courtyard of Topkapı Palace in Istanbul. It is the oldest known church structure in the city and one of only two Byzantine churches still standing in Istanbul today that were never converted into mosques, alongside the Church of Saint Mary of the Mongols, as it was used as an arsenal for storing weapons until the 19th century. The Hagia Irene now operates as a museum and concert hall.",
-                "url": "https://en.wikipedia.org/?curid=2969846",
-                "title": "Hagia Irene"
-              },
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Hagia_Irene,_Istanbul_(52112279404)_(cropped).jpg",
-              "history": " dating from 740",
-              "wiki_categories": [
-                "4th-century churches",
-                "540s establishments",
-                "540s in the Byzantine Empire",
-                "548",
-                "6th-century churches",
-                "6th-century establishments in the Byzantine Empire",
-                "Byzantine church buildings in Istanbul",
-                "Church buildings with domes",
-                "Churches and monasteries of Constantinople",
-                "Constantine the Great and Christianity",
-                "Fatih",
-                "Former churches in Turkey",
-                "Justinian I",
-                "Music venues in Istanbul",
-                "Topkapı Palace"
-              ],
-              "idx": 3
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.981087132947124,
-                41.00973348519661,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.place_of_worship",
-                "building.tourism",
-                "heritage",
-                "heritage.unesco",
-                "religion",
-                "religion.place_of_worship",
-                "religion.place_of_worship.islam",
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights",
-                "tourism.sights.place_of_worship",
-                "tourism.sights.place_of_worship.church",
-                "tourism.sights.place_of_worship.mosque",
-                "wheelchair",
-                "wheelchair.yes"
-              ],
-              "names": {
-                "local_lang": "Ayasofya-i Kebir Câmi-i Şerifi",
-                "device_lang": "Hagia Sophia (Holy Wisdom)",
-                "global_lang": "Hagia Sophia (Holy Wisdom)"
-              },
-              "entity_website": "https://muze.gen.tr/muze-detay/ayasofya",
-              "wikipedia": {
-                "ref": "tr:Ayasofya",
-                "pageid": 42764,
-                "extract": "Hagia Sophia, officially the Hagia Sophia Grand Mosque, is a mosque serving as a major cultural and historical site in Istanbul, Turkey. It was formerly a church (360–1453) and a museum (1935–2020). The last of three church buildings to be successively erected on the site by the Eastern Roman Empire, it was completed in AD 537, becoming the world's largest interior space and among the first to employ a fully pendentive dome. It is considered the epitome of Byzantine architecture and is said to have \"changed the history of architecture\". From its dedication in 360 until 1453 Hagia Sophia served as the cathedral of Constantinople in the Byzantine liturgical tradition, except for the period 1204–1261 when the Latin Crusaders installed their own hierarchy. After the fall of Constantinople in 1453, it served as a mosque, having its minarets added soon after. The site became a museum in 1935, and was redesignated as a mosque in 2020.\nThe current structure was built by the Byzantine emperor Justinian I as the Christian cathedral of Constantinople between 532–537 and was designed by the Greek geometers Isidore of Miletus and Anthemius of Tralles. It was formally called the Temple of God's Holy Wisdom, (Greek: Ναὸς τῆς Ἁγίας τοῦ Θεοῦ Σοφίας, romanized: Naòs tês Hagías toû Theoû Sophías) the third church of the same name to occupy the site, as the prior one had been destroyed in the Nika riots. As the episcopal see of the ecumenical patriarch of Constantinople, it remained the world's largest cathedral for nearly a thousand years, until the Seville Cathedral was completed in 1520.\nHagia Sophia became the quintessential model for Eastern Orthodox church architecture, and its architectural style was emulated by Ottoman mosques a thousand years later. The Hagia Sophia served as an architectural inspiration for many other religious buildings including the Hagia Sophia in Thessaloniki, Panagia Ekatontapiliani, the Şehzade Mosque, the Süleymaniye Mosque, the Rüstem Pasha Mosque and the Kılıç Ali Pasha Complex.\nAs the religious and spiritual centre of the Eastern Orthodox Church for nearly one thousand years, the church was dedicated to Holy Wisdom. The church has been described as \"holding a unique position in the Christian world\", and as \"an architectural and cultural icon of Byzantine and Eastern Orthodox civilization\". It was where the excommunication of Patriarch Michael I Cerularius was officially delivered by Humbert of Silva Candida, the envoy of Pope Leo IX in 1054, an act considered the start of the East–West Schism. In 1204, it was converted during the Fourth Crusade into a Catholic cathedral under the Latin Empire, before being restored to the Eastern Orthodox Church upon the restoration of the Byzantine Empire in 1261. Enrico Dandolo, the doge of Venice who led the Fourth Crusade and the 1204 Sack of Constantinople, was buried in the church.\nAfter the fall of Constantinople to the Ottoman Empire in 1453, it was converted to a mosque by Mehmed the Conqueror and became the principal mosque of Istanbul until the 1616 construction of the Sultan Ahmed Mosque. The patriarchate moved to the Church of the Holy Apostles, which became the city's cathedral. The complex remained a mosque until 1931, when it was closed to the public for four years. It was re-opened in 1935 as a museum under the secular Republic of Turkey, and the building was Turkey's most visited tourist attraction as of 2019. In 2020, the Council of State annulled the 1934 decision to establish the museum, and the Hagia Sophia was reclassified as a mosque. The decision was highly controversial, sparking divided opinions and drawing condemnation from the Turkish opposition, UNESCO, the World Council of Churches and the International Association of Byzantine Studies, as well as numerous international leaders, while several Muslim leaders in Turkey and other countries welcomed its conversion.\n\n",
-                "url": "https://en.wikipedia.org/?curid=42764",
-                "title": "Hagia Sophia"
-              },
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Hagia_Sophia_(228968325).jpeg",
-              "history": "is a church from byzantine dating from 537",
-              "religion": "muslim",
-              "wiki_categories": [
-                "15th-century mosques in Turkey",
-                "537 establishments",
-                "6th-century churches",
-                "Buildings converted to Catholic church buildings",
-                "Byzantine church buildings in Istanbul",
-                "Church buildings converted to a different denomination",
-                "Church buildings with domes",
-                "Churches and monasteries of Constantinople",
-                "Churches in Istanbul",
-                "Constantius II",
-                "Eastern Orthodox church buildings in Turkey",
-                "Eastern Orthodox pilgrimage sites",
-                "Fatih",
-                "Former cathedrals in Turkey",
-                "Greece–Turkey relations",
-                "Greek Orthodox cathedrals in Europe",
-                "Hagia Sophia",
-                "Historic Civil Engineering Landmarks",
-                "Historic sites in Turkey",
-                "Justinian I",
-                "Mosque buildings with domes in Turkey",
-                "Mosques converted from Byzantine churches",
-                "Mosques converted from churches in Istanbul",
-                "Mosques converted from churches in Turkey",
-                "Mosques in Istanbul",
-                "Religion in Constantinople",
-                "Theodosius II",
-                "World Heritage Sites in Turkey"
-              ],
-              "idx": 1
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.98000557733333,
-                41.00841894019655,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 338651,
-                "title": "Hippodrome of Constantinople",
-                "url": "https://en.wikipedia.org/?curid=338651",
-                "extract": "The Hippodrome of Constantinople (Greek: Ἱππόδρομος τῆς Κωνσταντινουπόλεως, romanized: Hippódromos tēs Kōnstantinoupóleōs; Latin: Circus Maximus Constantinopolitanus; Turkish: Hipodrom) was a circus that was the sporting and social centre of Constantinople, capital of the Byzantine Empire. Today it is a square in Istanbul, Turkey, known as Sultanahmet Square (Turkish: Sultanahmet Meydanı). \nThe word hippodrome comes from the Greek hippos (ἵππος), horse, and dromos (δρόμος), path or way. For this reason, it is sometimes also called Atmeydanı (\"Horse Square\") in Turkish. Horse racing and chariot racing were popular pastimes in the ancient world and hippodromes were common features of Greek cities in the Hellenistic, Roman, and Byzantine eras."
-              },
-              "names": {
-                "device_lang": "Hippodrome of Constantinople"
-              },
-              "wiki_categories": [
-                "Buildings and structures completed in the 3rd century",
-                "Buildings and structures completed in the 4th century",
-                "Byzantine architecture in Istanbul",
-                "Byzantine secular architecture",
-                "Fatih",
-                "Hippodrome of Constantinople",
-                "Horse racing venues in Turkey",
-                "Landmarks in Turkey"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Sultanahmet_Square,_Obelisk_of_Theodosius,_Istanbul_(52121868925).jpg",
-              "short_description": "Historic public square in Istanbul, Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97583333,
-                41.00638889,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 699393,
-                "title": "Istanbul University",
-                "url": "https://en.wikipedia.org/?curid=699393",
-                "extract": "Istanbul University, also known as University of Istanbul (Turkish: İstanbul Üniversitesi), is a public research university located in Istanbul, Turkey. Founded by Mehmed II on May 30, 1453, a day after the conquest of Constantinople by the Turks, it was reformed as the first Ottoman higher education institution influenced by European approaches. The successor institution, which has been operating under its current name since 1933, is the first university in modern Turkey. \nThe university has 58,809 undergraduate, graduate, and doctoral students studying in 112 academic units, including faculties, institutes, colleges, and vocational schools at 9 campuses. The main campus is adjacent to Beyazıt Square in Fatih, the capital district of the province, on the European side of the city.\nIstanbul University alumni include Nobel Prize in Chemistry winner Aziz Sancar and Nobel Prize in Literature winner Orhan Pamuk, as well as President of Turkey Abdullah Gül, six Prime Ministers of Turkey, Grand Mufti for Bosnia and Herzegovina Mehmed Džemaludin Čaušević, including Suat Hayri Ürgüplü, Sadi Irmak, Nihat Erim, Refik Saydam, Naim Talu, and Yıldırım Akbulut. The alumni also include the longest-serving President of Israel Yitzhak Ben-Zvi, as well as David Ben-Gurion and Moshe Sharett, who both served as Prime Ministers of Israel."
-              },
-              "names": {
-                "device_lang": "Istanbul University"
-              },
-              "wiki_categories": [
-                "1450s establishments in the Ottoman Empire",
-                "1453 establishments in Europe",
-                "1874 establishments in the Ottoman Empire",
-                "1933 establishments in Turkey",
-                "Avcılar, Istanbul",
-                "Coimbra Group",
-                "Educational institutions established in the 15th century",
-                "Fatih",
-                "Istanbul University",
-                "Mehmed II",
-                "Ottoman architecture in Istanbul",
-                "Universities and colleges established in 1933"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/İstanbul_Üniversitesi_Logo.svg",
-              "short_description": "Public university in Istanbul, Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.963875,
-                41.01303611,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 49075585,
-                "title": "January 2016 Istanbul bombing",
-                "url": "https://en.wikipedia.org/?curid=49075585",
-                "extract": "On 12 January 2016, a suicide attack in Istanbul's historic Sultanahmet district killed 13 people, all foreigners, and injured 14 others. The attack occurred at 10:20 local time, near the Blue Mosque and the Hagia Sophia, an area popular among tourists. The attacker was Nabil Fadli (Arabic: نبيل فضلي), a Syrian member of the Islamic State."
-              },
-              "names": {
-                "device_lang": "January 2016 Istanbul bombing"
-              },
-              "wiki_categories": [
-                "2010s crimes in Istanbul",
-                "2016 in Istanbul",
-                "2016 murders in Turkey",
-                "21st-century mass murder in Turkey",
-                "Attacks on tourists in Turkey",
-                "Censorship in Turkey",
-                "Fatih",
-                "German people murdered abroad",
-                "Germany–Turkey relations",
-                "ISIL terrorist incidents in Turkey",
-                "Islamic terrorist incidents in 2016",
-                "January 2016 crimes in Asia",
-                "January 2016 crimes in Europe",
-                "January 2016 in Turkey",
-                "Mass murder in 2016",
-                "Mass murder in Istanbul",
-                "Suicide bombings in 2016",
-                "Suicide bombings in Istanbul",
-                "Terrorist incidents in Turkey in 2016"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Sultanahmet_Square_(Hippodrome),_Istanbul.jpg",
-              "short_description": "ISIL suicide bombing in Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97539722,
-                41.0059,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 9421721,
-                "title": "Laleli Mosque",
-                "url": "https://en.wikipedia.org/?curid=9421721",
-                "extract": "The Laleli Mosque (Turkish: Laleli Camii, lit. 'Tulip Mosque') is an 18th-century Ottoman imperial mosque located in Laleli, Fatih, Istanbul, Turkey."
-              },
-              "names": {
-                "device_lang": "Laleli Mosque"
-              },
-              "wiki_categories": [
-                "18th-century mosques in Turkey",
-                "Baroque mosques of the Ottoman Empire",
-                "Fatih",
-                "Mosque buildings with domes in Turkey",
-                "Mosque buildings with minarets in Turkey",
-                "Mosques completed in the 1780s",
-                "Ottoman mosques in Istanbul",
-                "Religious buildings and structures completed in 1783"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Istanbul_asv2020-02_img06_Laleli_Mosque.jpg",
-              "short_description": "Mosque in Laleli, Fatih, Istanbul, Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.95666667,
-                41.01,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 8365407,
-                "title": "Little Hagia Sophia",
-                "url": "https://en.wikipedia.org/?curid=8365407",
-                "extract": "The Little Hagia Sophia mosque (Turkish: Küçük Ayasofya Camii), formerly the Church of Saints Sergius and Bacchus (Ancient Greek: Ἐκκλησία τῶν Ἁγίων Σεργίου καὶ Βάκχου ἐν τοῖς Ὁρμίσδου, romanized: Ekklēsía tôn Hagíōn Sergíou kaì Bákchou en toîs Hormísdou), is a former Greek Orthodox church dedicated to Saints Sergius and Bacchus in Constantinople (modern Istanbul), built between 532 and 536, and converted into a mosque during the Ottoman Empire.\nThis Byzantine building with a central dome plan was erected in the sixth century by Justinian; despite its Turkish name, it likely was not a model for Hagia Sophia (\"Holy Wisdom\"), with which its construction was contemporary, but it is nonetheless one of the most important early Byzantine buildings in Istanbul. It was recognized at the time by Procopius as an adornment to the entire city, and a modern historian of the East Roman Empire has written that the church \"by the originality of its architecture and the sumptuousness of its carved decoration, ranks in Constantinople second only to St Sophia itself\"."
-              },
-              "names": {
-                "device_lang": "Little Hagia Sophia"
-              },
-              "wiki_categories": [
-                "16th-century mosques in the Ottoman Empire",
-                "530s establishments",
-                "6th-century churches",
-                "6th-century establishments in the Byzantine Empire",
-                "Byzantine church buildings in Istanbul",
-                "Church buildings with domes",
-                "Churches and monasteries of Constantinople",
-                "Fatih",
-                "Historic sites in Turkey",
-                "Justinian I",
-                "Mosque buildings with domes in Turkey",
-                "Mosque buildings with minarets in Turkey",
-                "Mosques converted from Byzantine churches",
-                "Mosques converted from churches in Istanbul",
-                "World Heritage Sites in Turkey"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Sergius_and_Bacchus.jpg",
-              "short_description": "Mosque (originally church) in Istanbul"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97194444,
-                41.00277778,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 8318386,
-                "title": "Marmara region",
-                "url": "https://en.wikipedia.org/?curid=8318386",
-                "extract": "The Marmara region (Turkish: Marmara Bölgesi) is a geographical region of Turkey.\nLocated in East Thrace, it is bordered by Greece and the Aegean Sea to the west, Bulgaria and the Black Sea to the north, the Black Sea Region to the east, and the Aegean Region to the south. At the center of the region is the Sea of Marmara, which gives the region its name. The largest city in the region is Istanbul. Other big cities are Bursa, İzmit, Balıkesir, Tekirdağ, Çanakkale and Edirne.\nAmong the seven geographical regions, the Marmara region has the second-smallest area, yet the largest population; it is the most densely populated region in the country."
-              },
-              "names": {
-                "device_lang": "Marmara region"
-              },
-              "wiki_categories": [
-                "Marmara region",
-                "Regions of Turkey"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Bosphorus_Bridge_(235499411).jpeg",
-              "short_description": "Region in Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                29,
-                41,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 5166814,
-                "title": "New Mosque, Istanbul",
-                "url": "https://en.wikipedia.org/?curid=5166814",
-                "extract": "The New Mosque (Turkish: Yeni Cami, pronounced [jeni dʒami], originally named the Valide Sultan Mosque, Turkish: Valide Sultan Camii) and later New Valide Sultan Mosque (Turkish: Yeni Valide Sultan Camii) after its partial reconstruction and completion between 1660 and 1665, is an Ottoman imperial mosque located in the Eminönü quarter of Istanbul, Turkey. It is situated on the Golden Horn, at the southern end of the Galata Bridge, and is a notable Istanbul landmark marking the crossing from the old historic core of the city to the Beyoğlu (Pera) district. The mosque is a notable example of the Sultanate of Women period in Ottoman Empire."
-              },
-              "names": {
-                "device_lang": "New Mosque, Istanbul"
-              },
-              "wiki_categories": [
-                "1663 establishments in the Ottoman Empire",
-                "17th-century mosques in the Ottoman Empire",
-                "Fatih",
-                "Golden Horn",
-                "Mosques completed in the 1660s",
-                "Ottoman mosques in Istanbul",
-                "Religious buildings and structures completed in 1663"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/New_Mosque_in_2025_(54504109092)_(cropped).jpg",
-              "short_description": "Mosque in Eminönü, Istanbul, Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97147222,
-                41.01701389,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Molla Fenari Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.place_of_worship",
-                "building.tourism",
-                "religion",
-                "religion.place_of_worship",
-                "religion.place_of_worship.islam",
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights",
-                "tourism.sights.place_of_worship",
-                "tourism.sights.place_of_worship.mosque"
-              ],
-              "names": {
-                "local_lang": "Nuruosmaniye Camisi",
-                "device_lang": "Nuruosmaniye Mosque",
-                "global_lang": "Nuruosmaniye Mosque"
-              },
-              "wikipedia": {
-                "ref": "en:Nuruosmaniye Mosque",
-                "pageid": 22702810,
-                "extract": "",
-                "url": "https://en.wikipedia.org/?curid=22702810",
-                "title": "Nuruosmaniye Mosque"
-              },
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Nuruosmaniye_Camii.jpg",
-              "religion": "muslim",
-              "wiki_categories": [
-                "Baroque mosques of the Ottoman Empire",
-                "Fatih",
-                "Mosques completed in the 1750s",
-                "Ottoman mosques in Istanbul",
-                "Religious buildings and structures completed in 1755",
-                "World Heritage Tentative List for Turkey"
-              ],
-              "idx": 6
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.970464163841086,
-                41.01028660019665,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Binbirdirek Mahallesi",
-              "geoapify_categories": [
-                "man_made",
-                "tourism",
-                "tourism.sights",
-                "tourism.sights.memorial",
-                "tourism.sights.memorial.monument"
-              ],
-              "names": {
-                "local_lang": "Theodosius Dikilitaşı",
-                "device_lang": "Obelisk of Theodosius",
-                "global_lang": "Obelisk of Theodosius"
-              },
-              "wikipedia": {
-                "ref": "tr:Dikilitaş (Sultanahmet)",
-                "pageid": 18890896,
-                "extract": "",
-                "url": "https://en.wikipedia.org/?curid=18890896",
-                "title": "Obelisk of Theodosius"
-              },
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Obelisk_of_Theodosius_I.jpg",
-              "history": "is a monument dating from 390",
-              "wiki_categories": [
-                "15th-century BC steles",
-                "4th-century Roman sculptures",
-                "Ancient Egyptian obelisks",
-                "Byzantine Greek inscriptions",
-                "Fatih",
-                "Hippodrome of Constantinople",
-                "Latin inscriptions",
-                "Obelisks in Istanbul",
-                "Relocated Egyptian obelisks",
-                "Theodosius I",
-                "Thutmose III",
-                "Victory monuments"
-              ],
-              "idx": 7
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.975398654445264,
-                41.005913775196404,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 61151467,
-                "title": "Ostreodes",
-                "url": "https://en.wikipedia.org/?curid=61151467",
-                "extract": ""
-              },
-              "names": {
-                "device_lang": "Ostreodes"
-              },
-              "wiki_categories": [
-                "Ancient Thrace geography stubs",
-                "Former populated places in Turkey",
-                "History of Istanbul Province",
-                "Istanbul Province geography stubs",
-                "Populated places in ancient Thrace",
-                "Roman towns and cities in Turkey"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/",
-              "short_description": "Town of ancient Thrace"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.976566,
-                41.023812,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 7427650,
-                "title": "Siege of Constantinople (674–678)",
-                "url": "https://en.wikipedia.org/?curid=7427650",
-                "extract": ""
-              },
-              "names": {
-                "device_lang": "Siege of Constantinople (674–678)"
-              },
-              "wiki_categories": [
-                "Sieges of Constantinople",
-                "710s in the Umayyad Caliphate",
-                "717",
-                "710s in the Byzantine Empire",
-                "718",
-                "Leo III the Isaurian",
-                "Naval battles involving the Umayyad Caliphate",
-                "678",
-                "670s in the Byzantine Empire",
-                "Incidents of cannibalism",
-                "Sieges involving the Byzantine Empire",
-                "Cannibalism in Europe",
-                "Abu Ayyub al-Ansari",
-                "Sieges involving the First Bulgarian Empire",
-                "Sieges of the Arab–Byzantine wars",
-                "710s conflicts",
-                "674",
-                "670s conflicts",
-                "Amphibious operations",
-                "Naval battles involving the Byzantine Empire",
-                "Sieges involving the Umayyad Caliphate"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Constantinople_area_map.svg",
-              "short_description": "Major conflict of the Arab–Byzantine wars",
-              "idx": 8
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.9755,
-                41.01235,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 226898,
-                "title": "Sublime Porte",
-                "url": "https://en.wikipedia.org/?curid=226898",
-                "extract": ""
-              },
-              "names": {
-                "device_lang": "Sublime Porte"
-              },
-              "wiki_categories": [
-                "1910s fires in Europe",
-                "1911 fires",
-                "Gates",
-                "Government of the Ottoman Empire",
-                "History of Istanbul",
-                "Metonymy"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Istanbul_asv2020-02_img37_Governors_Office.jpg",
-              "short_description": "Synecdoche for the central government of the Ottoman Empire"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97805556,
-                41.01111111,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 61151498,
-                "title": "Sykai",
-                "url": "https://en.wikipedia.org/?curid=61151498",
-                "extract": ""
-              },
-              "names": {
-                "device_lang": "Sykai"
-              },
-              "wiki_categories": [
-                "Ancient Thrace geography stubs",
-                "Byzantine Empire geography stubs",
-                "Former populated places in Turkey",
-                "History of Istanbul Province",
-                "Istanbul Province geography stubs",
-                "Populated places in ancient Thrace",
-                "Populated places of the Byzantine Empire",
-                "Roman towns and cities in Turkey"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/",
-              "short_description": "Ancient suburb of Byzantium"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.972982,
-                41.023019,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 561852,
-                "title": "Süleymaniye Mosque",
-                "url": "https://en.wikipedia.org/?curid=561852",
-                "extract": ""
-              },
-              "names": {
-                "device_lang": "Süleymaniye Mosque"
-              },
-              "wiki_categories": [
-                "1558 establishments in the Ottoman Empire",
-                "16th-century madrasas",
-                "Constantinople",
-                "Fatih",
-                "Historic preservation in Turkey",
-                "Landmarks in Turkey",
-                "Madrasas in Turkey",
-                "Mimar Sinan buildings",
-                "Mosque buildings with domes in Turkey",
-                "Mosque buildings with minarets in Turkey",
-                "Mosques completed in the 1550s",
-                "Ottoman mosques in Istanbul",
-                "Religious buildings and structures completed in 1558",
-                "Suleiman the Magnificent"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/SüleymaniyeMosqueIstanbul_(cropped).jpg",
-              "short_description": "Mosque and religious complex in Istanbul, Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.96388889,
-                41.01611111,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights",
-                "tourism.sights.castle",
-                "wheelchair",
-                "wheelchair.limited"
-              ],
-              "names": {
-                "local_lang": "Topkapı Sarayı",
-                "device_lang": "Topkapı Palace",
-                "global_lang": "Topkapı Palace"
-              },
-              "entity_website": "https://muze.gen.tr/",
-              "wikipedia": {
-                "ref": "tr:Topkapı Sarayı",
-                "pageid": 252534,
-                "extract": "",
-                "url": "https://en.wikipedia.org/?curid=252534",
-                "title": "Topkapı Palace"
-              },
-              "history": "is a castle dating from 1545",
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Topkapı_-_01.jpg",
-              "wiki_categories": [
-                "Asian art museums",
-                "Baroque architecture in the Ottoman Empire",
-                "Buildings and structures in Istanbul",
-                "Fatih",
-                "Government of the Ottoman Empire",
-                "Historic house museums in Turkey",
-                "Houses completed in the 15th century",
-                "Landmarks in Turkey",
-                "Museums in Istanbul",
-                "Ottoman court",
-                "Ottoman palaces in Istanbul",
-                "Topkapı Palace",
-                "Tourism in Istanbul",
-                "World Heritage Sites in Turkey"
-              ],
-              "idx": 9
-            },
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                28.984032971181364,
-                41.012989750196795,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "wikipedia": {
-                "pageid": 8174199,
-                "title": "Turkish and Islamic Arts Museum",
-                "url": "https://en.wikipedia.org/?curid=8174199",
-                "extract": ""
-              },
-              "names": {
-                "device_lang": "Turkish and Islamic Arts Museum"
-              },
-              "wiki_categories": [
-                "Art museums and galleries in Istanbul",
-                "Decorative arts museums",
-                "Fatih",
-                "Houses completed in 1524",
-                "Islamic museums in Turkey",
-                "National museums in Turkey",
-                "Palaces in Istanbul"
-              ],
-              "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Turkish_and_Islamic_Museum_1432_(cropped).jpg",
-              "short_description": "Museum in Istanbul, Turkey"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97456111,
-                41.0063,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Beyoğlu",
-              "neighborhood": "Bereketzade",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.tourism",
-                "fee",
-                "man_made",
-                "man_made.tower",
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights",
-                "tourism.sights.tower"
-              ],
-              "names": {
-                "local_lang": "Galata Kulesi",
-                "device_lang": "Galata Tower",
-                "global_lang": "Galata Tower"
-              },
-              "entity_website": "https://muze.gen.tr/muze-detay/galatakulesi",
-              "wikipedia": {
-                "ref": "tr:Galata Kulesi"
-              },
-              "img_url": "41.025636375873965, 28.974171693853222",
-              "history": "is a tower dating from 1348",
-              "idx": 10
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.974213369331654,
-                41.025640600395,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.tourism",
-                "entertainment",
-                "entertainment.museum",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "İstanbul Arkeoloji Müzesi",
-                "device_lang": "Istanbul Archaeological Museum",
-                "global_lang": "Istanbul Archaeological Museum"
-              },
-              "entity_website": "https://muze.gen.tr/",
-              "wikipedia": {
-                "ref": "en:Istanbul Archaeology Museums"
-              },
-              "history": "is a building dating from 1891",
-              "idx": 11
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.981730071817047,
-                41.01164805039344,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Sultan Ahmet Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.commercial",
-                "building.tourism",
-                "commercial",
-                "commercial.shopping_mall",
-                "tourism",
-                "tourism.attraction"
-              ],
-              "entity_website": "www.mevlanabazaar.com"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.979763853018078,
-                41.00274005039245,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Binbirdirek Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.tourism",
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights",
-                "tourism.sights.memorial",
-                "tourism.sights.memorial.tomb"
-              ],
-              "names": {
-                "local_lang": "Sultan Ahmet Türbesi",
-                "device_lang": "Tomb of Sultan Ahmet",
-                "global_lang": "Tomb of Sultan Ahmet"
-              },
-              "entity_website": "https://www.voyageturquie.info/sultan-ahmet-turbesi-istanbul/",
-              "img_url": "https://photos.app.goo.gl/jTSEV3umZGftkyE67",
-              "history": "is a tomb"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.977026753254258,
-                41.00678360039291,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.tourism",
-                "leisure",
-                "leisure.spa",
-                "leisure.spa.public_bath",
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Haseki Hürrem Hamamı",
-                "device_lang": "Haseki Hürrem Hammam",
-                "global_lang": "Haseki Hürrem Hammam"
-              },
-              "entity_website": "http://www.ayasofyahamami.com",
-              "wikipedia": {
-                "ref": "tr:Haseki Hamamı"
-              },
-              "img_url": "https://photos.app.goo.gl/8qjWwcGjpgfxxs4T8",
-              "history": " dating from 1556",
-              "idx": 12
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97885914750954,
-                41.00694525039292,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.tourism",
-                "entertainment",
-                "entertainment.museum",
-                "fee",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Çinili Köşk",
-                "device_lang": "Tiled Kiosk",
-                "global_lang": "Tiled Kiosk"
-              },
-              "wikipedia": {
-                "ref": "tr:Çinili Köşk"
-              },
-              "history": "is a building dating from 1472",
-              "idx": 13
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.981238241504876,
-                41.012025000393486,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Molla Fenari Mahallesi",
-              "geoapify_categories": [
-                "leisure",
-                "leisure.spa",
-                "leisure.spa.public_bath",
-                "tourism",
-                "tourism.attraction"
-              ],
-              "names": {
-                "local_lang": "Çemberlitaş Hamamı",
-                "device_lang": "Çemberlitaş Hammam",
-                "global_lang": "Çemberlitaş Hammam"
-              },
-              "wikipedia": {
-                "ref": "tr:Çemberlitaş Hamamı"
-              },
-              "idx": 14
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.9716244,
-                41.008541600393094,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Saray Mutfakları",
-                "device_lang": "Palace Kitchens",
-                "global_lang": "Palace Kitchens"
-              },
-              "img_url": "https://photos.app.goo.gl/43MwGudh7V88D6aD7",
-              "history": "is a building dating from C15"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.98461887737309,
-                41.01174395039346,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Bâbüssaâde",
-                "device_lang": "Gate of Felicity",
-                "global_lang": "Gate of Felicity"
-              },
-              "wikipedia": {
-                "ref": "tr:Saadet Kapısı"
-              },
-              "img_url": "https://photos.app.goo.gl/ZLr34dgvY3DyPDJd9",
-              "history": "is a building dating from C15",
-              "idx": 15
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.984347465305575,
-                41.01262290039355,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "III. Ahmed Kütüphanesi",
-                "device_lang": "Library of Ahmed III",
-                "global_lang": "Library of Ahmed III"
-              },
-              "img_url": "https://photos.app.goo.gl/Ka2h3dP35ptDiSh66",
-              "history": "is a building"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.98456582079143,
-                41.013017850393595,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Bağdad Köşkü",
-                "device_lang": "Baghdad Kiosk",
-                "global_lang": "Baghdad Kiosk"
-              },
-              "wikipedia": {
-                "ref": "tr:Bağdat Köşkü"
-              },
-              "img_url": "https://photos.app.goo.gl/aG5DUzkuw2vUya9G9",
-              "history": "is a building",
-              "idx": 16
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.984540133399577,
-                41.01416025039373,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.tourism",
-                "tourism",
-                "tourism.attraction",
-                "tourism.attraction.fountain",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "III. Ahmet Çeşmesi",
-                "device_lang": "Sultan Ahmed III Fountain",
-                "global_lang": "Sultan Ahmed III Fountain"
-              },
-              "wikipedia": {
-                "ref": "tr:III. Ahmet Çeşmesi"
-              },
-              "img_url": "https://photos.app.goo.gl/L15JuNER96WaJQtm7",
-              "history": "is a fountain from ottoman dating from 1728",
-              "idx": 17
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.981261189787645,
-                41.00824865039307,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Dîvân-ı Hümâyûn",
-                "device_lang": "Imperial Council Hall",
-                "global_lang": "Imperial Council Hall"
-              },
-              "img_url": "https://photos.app.goo.gl/DtSy5pkr4btSTS2cA",
-              "history": "is a building"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.983516721393286,
-                41.012526300393546,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Arz Odası",
-                "device_lang": "Audience Chamber",
-                "global_lang": "Audience Chamber"
-              },
-              "wikipedia": {
-                "ref": "tr:Arz Odası"
-              },
-              "img_url": "https://photos.app.goo.gl/bfAad9QZJwhAYJM6A",
-              "history": "is a building dating from C15",
-              "idx": 18
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.984533163570305,
-                41.01277435039357,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Sultan Ahmet Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "img_url": "https://photos.app.goo.gl/K2ERRUufF69okzwK9",
-              "history": "is a building dating from 1610"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.977224057759184,
-                41.006526750392865,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights",
-                "tourism.sights.memorial",
-                "tourism.sights.memorial.tomb"
-              ],
-              "names": {
-                "local_lang": "Sultan III. Mehmet Türbesi",
-                "device_lang": "Mausoleum of Sultan III. Mehmed",
-                "global_lang": "Mausoleum of Sultan III. Mehmed"
-              },
-              "wikipedia": {
-                "ref": "tr:III. Mehmed Türbesi"
-              },
-              "img_url": "https://photos.app.goo.gl/y1DF3gbztMnjmpcF7",
-              "history": "is a tomb",
-              "idx": 19
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.979902905706904,
-                41.00778345039302,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Binbirdirek Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.tourism",
-                "man_made",
-                "tourism",
-                "tourism.attraction",
-                "tourism.attraction.fountain",
-                "tourism.sights",
-                "wheelchair",
-                "wheelchair.yes"
-              ],
-              "names": {
-                "local_lang": "Alman Çeşmesi",
-                "device_lang": "German Fountain",
-                "global_lang": "German Fountain"
-              },
-              "wikipedia": {
-                "ref": "tr:Alman Çeşmesi"
-              },
-              "img_url": "https://photos.app.goo.gl/9GbzYjsKVpVp7pg19",
-              "history": " dating from 1898",
-              "idx": 20
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.976675505788535,
-                41.00711625039293,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Mimar Hayrettin Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "building.place_of_worship",
-                "religion",
-                "religion.place_of_worship",
-                "religion.place_of_worship.islam",
-                "tourism",
-                "tourism.sights",
-                "tourism.sights.place_of_worship",
-                "tourism.sights.place_of_worship.mosque",
-                "wheelchair",
-                "wheelchair.yes"
-              ],
-              "names": {
-                "local_lang": "Gazi Atik Ali Paşa Camii"
-              },
-              "wikipedia": {
-                "ref": "tr:Gazi Atik Ali Paşa Camii"
-              },
-              "img_url": "https://photos.app.goo.gl/UPveavkd3umNi9tRA",
-              "history": "is a mosque",
-              "religion": "muslim",
-              "idx": 21
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.97054471180786,
-                41.00874165039312,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights",
-                "tourism.sights.city_gate"
-              ],
-              "names": {
-                "local_lang": "Bâb-ı Hümâyûn",
-                "device_lang": "Imperial Gate",
-                "global_lang": "Imperial Gate"
-              },
-              "img_url": "https://photos.app.goo.gl/HkSgYS22v2tfR1qT6",
-              "history": "is a city_gate dating from 1478"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.98146386518055,
-                41.00861445039311,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Bâbüsselâm",
-                "device_lang": "Gate of Salutation",
-                "global_lang": "Gate of Salutation"
-              },
-              "img_url": "https://photos.app.goo.gl/NrV1kv1vK6Qv12Cy7",
-              "history": "is a building dating from C15"
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.983235376154077,
-                41.01139765039342,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Binbirdirek Mahallesi",
-              "geoapify_categories": [
-                "tourism",
-                "tourism.attraction",
-                "tourism.sights",
-                "wheelchair",
-                "wheelchair.yes"
-              ],
-              "names": {
-                "local_lang": "Yılanlı Sütun",
-                "device_lang": "Serpent Column",
-                "global_lang": "Serpent Column"
-              },
-              "wikipedia": {
-                "ref": "tr:Yılanlı Sütun"
-              },
-              "img_url": "https://photos.app.goo.gl/R4tDh3hmHX7jht7u5",
-              "history": "is a column",
-              "idx": 22
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.9751101,
-                41.00566490039277,
-                null
-              ]
-            },
-            "id": null
-          },
-          {
-            "type": "Feature",
-            "bbox": null,
-            "properties": {
-              "country": "Turkey",
-              "country_code": "tr",
-              "state": "Marmara Region",
-              "city": "Istanbul",
-              "neighborhood": "Cankurtaran Mahallesi",
-              "geoapify_categories": [
-                "building",
-                "building.historic",
-                "tourism",
-                "tourism.sights"
-              ],
-              "names": {
-                "local_lang": "Revan Köşkü",
-                "device_lang": "Yerevan Kiosk",
-                "global_lang": "Yerevan Kiosk"
-              },
-              "wikipedia": {
-                "ref": "tr:Revan Köşkü"
-              },
-              "img_url": "https://photos.app.goo.gl/3pQECiL795ZaNTH4A",
-              "history": "is a building",
-              "idx": 23
-            },
-            "geometry": {
-              "type": "Point",
-              "bbox": null,
-              "coordinates": [
-                28.984608000974106,
-                41.01382620039368,
-                null
-              ]
-            },
-            "id": null
-          }
+  "event": "map",
+  "data": [
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 27287692,
+          "title": "Apple Infinite Loop campus",
+          "url": "https://en.wikipedia.org/?curid=27287692",
+          "extract": "The Apple Campus is the former corporate headquarters of Apple Inc. from 1993 until 2017, when it was largely replaced by Apple Park (a.k.a. Apple Campus 2). The campus is located at 1 Infinite Loop in Cupertino, California, and remains Apple office and lab space. Its design resembles that of a university, with the buildings arranged around green spaces.\n\n"
+        },
+        "names": {
+          "device_lang": "Apple Infinite Loop campus"
+        },
+        "wiki_categories": [
+          "1993 establishments in California",
+          "Apple Inc. buildings and structures",
+          "Buildings and structures in Santa Clara County, California",
+          "Corporate headquarters in Silicon Valley",
+          "Cupertino, California",
+          "High-tech architecture",
+          "Office buildings completed in 1993",
+          "Office buildings in California"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Apple_Infinite_Loop_Aerial.jpg",
+        "short_description": "Former corporate headquarters of Apple Inc. in California, United States"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.03118,
+          37.33182,
+          null
         ]
-      }
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 40780688,
+          "title": "Apple Park",
+          "url": "https://en.wikipedia.org/?curid=40780688",
+          "extract": "Apple Park, also known as Apple Campus 2, is the corporate headquarters of Apple Inc., located in Cupertino, California, United States. It was opened to employees in April 2017, while construction was still underway. It replaced Apple Campus as the company's corporate headquarters.\nThe main building's scale and circular groundscraper design, by Norman Foster, has earned the structure the media nickname \"the spaceship\". Located on a suburban site totaling 1.46 km2 (360 acres), it houses more than 12,000 employees in one central four-story circular building of approximately 0.26 km2 (64 acres). Apple co-founder Steve Jobs wanted the campus to look less like a business park and more like a nature refuge; 80 percent of the site consists of green space planted with drought-resistant trees and plants indigenous to the Cupertino area, and the center courtyard of the main building features an artificial pond.\n\n"
+        },
+        "names": {
+          "device_lang": "Apple Park"
+        },
+        "wiki_categories": [
+          "2017 establishments in California",
+          "Apple Inc. buildings and structures",
+          "Buildings and structures in Santa Clara County, California",
+          "Corporate headquarters in Silicon Valley",
+          "Cupertino, California",
+          "Foster and Partners buildings",
+          "High-tech architecture",
+          "Information technology company headquarters in the United States",
+          "Office buildings completed in 2017",
+          "Office buildings in California",
+          "Round buildings"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Aerial_view_of_Apple_Park_dllu.jpg",
+        "short_description": "Headquarters of Apple Inc. in Cupertino, California, US"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.009,
+          37.3349,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 46318869,
+          "title": "Apple University",
+          "url": "https://en.wikipedia.org/?curid=46318869",
+          "extract": "Apple University is a training facility of Apple Inc., located in Cupertino, California. This corporate university was designed to instruct personnel employed by Apple in the various aspects of Apple's technology and corporate culture."
+        },
+        "names": {
+          "device_lang": "Apple University"
+        },
+        "wiki_categories": [
+          "2008 establishments in California",
+          "Apple Inc. buildings and structures",
+          "Business education",
+          "Cupertino, California",
+          "Education in Santa Clara County, California",
+          "Universities and colleges established in 2008"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Apple_Headquarters_in_Cupertino.jpg",
+        "short_description": "Corporate university of Apple Inc. in California, United States"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.03118,
+          37.33182,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 1680476,
+          "title": "Cupertino High School",
+          "url": "https://en.wikipedia.org/?curid=1680476",
+          "extract": "Cupertino High School, colloquially referred to as \"Tino\", \"CHS\", is a four-year comprehensive public high school located near the Rancho Rinconada and Fairgrove neighborhoods of Cupertino, California, USA. The school serves mostly suburban residential and areas in eastern Cupertino, southern Santa Clara, and west San Jose.\nCupertino High School is part of the Fremont Union High School District along with Monta Vista High School, Lynbrook High School, Fremont High School, and Homestead High School. Two main feeder schools, Lawson Middle School and Hyde Middle School, are the closest middle schools. The school serves the areas of Sunnyvale, Santa Clara, San Jose and Cupertino.\nCupertino High is accredited by the Western Association of Schools and Colleges."
+        },
+        "names": {
+          "device_lang": "Cupertino High School"
+        },
+        "wiki_categories": [
+          "1958 establishments in California",
+          "Cupertino, California",
+          "Educational institutions established in 1958",
+          "Fremont Union High School District",
+          "High schools in Santa Clara County, California",
+          "Public high schools in California"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Cupertino_High_School_New_2014_Building.png",
+        "short_description": "Public high school in California, United States"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.0095,
+          37.321,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 25682554,
+          "title": "International Federation of Inventors' Associations",
+          "url": "https://en.wikipedia.org/?curid=25682554",
+          "extract": "The International Federation of Inventors' Associations (IFIA) is a non-profit, nongovernmental organization founded in London under the supervision of the United Nations, on July 11, 1968, by inventors of Denmark, Finland, Germany, Great Britain, Norway, Sweden and Switzerland."
+        },
+        "names": {
+          "device_lang": "International Federation of Inventors' Associations"
+        },
+        "wiki_categories": [
+          "International non-profit organizations",
+          "Inventors",
+          "Non-profit organizations based in Europe",
+          "Non-profit organizations based in the United States",
+          "Organizations established in 1968"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Ifia_logo.jpeg",
+        "short_description": "Non-governmental organization"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.03118,
+          37.33182,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 50392411,
+          "title": "Peterson High School",
+          "url": "https://en.wikipedia.org/?curid=50392411",
+          "extract": "Marian A. Peterson High School was a comprehensive, coeducational public high school in Sunnyvale, California that operated from 1965 to 1981. The school served students in grades nine through twelve in the Santa Clara Unified School District (SCUSD). Due to declining student enrollment, the school was repurposed as Marian A. Peterson Middle School in 1981 and its student body was absorbed by Adrian C. Wilcox High School."
+        },
+        "names": {
+          "device_lang": "Peterson High School"
+        },
+        "wiki_categories": [
+          "1965 establishments in California",
+          "1981 disestablishments in California",
+          "California school stubs",
+          "Educational institutions disestablished in 1981",
+          "Educational institutions established in 1965",
+          "High schools in Santa Clara County, California",
+          "Sunnyvale, California"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/",
+        "short_description": "Public high school in the United States"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.0086,
+          37.3492,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 23770061,
+          "title": "Rancho Quito",
+          "url": "https://en.wikipedia.org/?curid=23770061",
+          "extract": "Rancho Quito was a  13,310-acre (53.9 km2) Mexican land grant in present-day Santa Clara County, California given in 1841 by Governor Juan Alvarado to José Zenon Fernandez and José Noriega. The grant included present-day Saratoga, Campbell, and Cupertino. The eastern boundary was Arroyo San Tomas Aquino."
+        },
+        "names": {
+          "device_lang": "Rancho Quito"
+        },
+        "wiki_categories": [
+          "1841 establishments in Alta California",
+          "Campbell, California",
+          "Cupertino, California",
+          "Ranchos of Santa Clara County, California",
+          "Saratoga, California"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/José_Noriega_(Mayor_of_San_Jose).jpg",
+        "short_description": "Mexican land grant in California"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.02,
+          37.32,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 55129456,
+          "title": "Steve Jobs Theater",
+          "url": "https://en.wikipedia.org/?curid=55129456",
+          "extract": "The Steve Jobs Theater is an underground auditorium complex located at Apple Park in Cupertino, California. It is named after the co-founder and former CEO of Apple, Steve Jobs, and is situated atop a hill at one of the highest points in Apple Park. The auditorium is intended for Apple product launches and press meets and can seat 1,000 people."
+        },
+        "names": {
+          "device_lang": "Steve Jobs Theater"
+        },
+        "wiki_categories": [
+          "Apple Inc. buildings and structures",
+          "Auditoriums in the United States",
+          "Buildings and structures in Santa Clara County, California",
+          "Cupertino, California",
+          "Steve Jobs"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Steve_Jobs_Theater_-_external.jpg",
+        "short_description": "Complex located at Apple Park"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.0074,
+          37.3308,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "wikipedia": {
+          "pageid": 10266694,
+          "title": "Vallco Shopping Mall",
+          "url": "https://en.wikipedia.org/?curid=10266694",
+          "extract": "Vallco Shopping Mall (formerly called Cupertino Square and originally Vallco Fashion Park) is a mostly-demolished dead mall located in Cupertino, California, United States. Originally built as a two-story shopping mall in 1976 with a third-level movie theater added in 2007, it was anchored for most of its existence by Macy's, Sears, and J.C. Penney. As of August 2022, the mall is owned by Sand Hill Property Co. and is almost entirely vacant, with Cupertino Ice Center (formerly the Ice Capades Chalet), Bowlmor Lanes, and Benihana as the only remaining tenants, all in the section to the east of Wolfe Road. The larger western portion of the main mall structure was demolished in August 2019, followed by the demolition of the pedestrian overpass in March 2020. Plans for the site include a mixed-use development featuring office space, housing, and retail.\nA plan by Sand Hill to rebuild Vallco as a mixed-use development with retail, housing, and office space topped by a green roof park was canceled after Cupertino voters rejected Measure D on the November 2016 ballot.  After obtaining community input in the planning phase, the project ran into significant push-back from citizens who wanted to freeze the site as retail-only, citing concerns about traffic and schools.\nIn 2018, Sand Hill proposed a revised development plan under the auspices of SB 35, which was approved by Cupertino and includes 2,402 apartments, 1.8 million square feet of office space, and 400,000 square feet of retail. Of the apartments, half of them will be affordable with no government subsidies, which would quintuple Cupertino's affordable housing stock."
+        },
+        "names": {
+          "device_lang": "Vallco Shopping Mall"
+        },
+        "wiki_categories": [
+          "1976 establishments in California",
+          "Cupertino, California",
+          "Defunct shopping malls in the United States",
+          "Demolished buildings and structures in California",
+          "Shopping malls established in 1976",
+          "Shopping malls in Santa Clara County, California",
+          "Shopping malls in the San Francisco Bay Area",
+          "Tourist attractions in Silicon Valley"
+        ],
+        "img_url": "https://en.wikipedia.org/wiki/Special:FilePath/Cupertinosquare1.jpg",
+        "short_description": "Shopping mall in California, U.S."
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.0144,
+          37.3263,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "building",
+          "building.historic",
+          "tourism",
+          "tourism.sights"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.01188473666821,
+          37.337404149891555,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.attraction",
+          "tourism.attraction.artwork"
+        ],
+        "entity_website": "https://mirage.place/"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.00534160000001,
+          37.33344159989103,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.attraction",
+          "tourism.attraction.artwork"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.03204490000002,
+          37.32149939988946,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Sunnyvale",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.sights",
+          "tourism.sights.memorial"
+        ],
+        "history": "is a memorial"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.01316299999998,
+          37.35248839989353,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.attraction",
+          "tourism.attraction.artwork",
+          "wheelchair",
+          "wheelchair.yes"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.0318241,
+          37.32250289988961,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.sights",
+          "tourism.sights.memorial",
+          "tourism.sights.memorial.monument"
+        ],
+        "history": "is a monument"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.03194530000002,
+          37.324533199889856,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.attraction",
+          "tourism.attraction.artwork"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.024258,
+          37.322709899889624,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Sunnyvale",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.sights",
+          "tourism.sights.memorial"
+        ],
+        "history": "is a memorial"
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.01225209999998,
+          37.34897789989308,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.attraction",
+          "tourism.attraction.artwork"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.02911629999997,
+          37.31919139988916,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.attraction",
+          "tourism.attraction.artwork"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.01396829999997,
+          37.32533469988997,
+          null
+        ]
+      },
+      "id": null
+    },
+    {
+      "type": "Feature",
+      "bbox": null,
+      "properties": {
+        "country": "United States",
+        "country_code": "us",
+        "state": "California",
+        "city": "Cupertino",
+        "geoapify_categories": [
+          "tourism",
+          "tourism.attraction",
+          "tourism.attraction.artwork"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "bbox": null,
+        "coordinates": [
+          -122.01394089999998,
+          37.32323339988969,
+          null
+        ]
+      },
+      "id": null
+    }
+  ]
 }

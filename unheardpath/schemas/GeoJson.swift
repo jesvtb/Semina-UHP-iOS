@@ -298,4 +298,179 @@ struct GeoJSON: Sendable, Codable {
     }
 }
 
+// MARK: - PointFeature
+/// A type-safe representation of a GeoJSON Point feature
+/// Validates that the feature has Point geometry type and provides convenient access to properties
+struct PointFeature: Sendable {
+    /// The validated Point feature dictionary
+    private let feature: [String: JSONValue]
+    
+    /// Failable initializer that validates the feature is a Point geometry type
+    /// - Parameter feature: Feature dictionary to validate and wrap
+    /// - Returns: nil if the feature is not a Point geometry type
+    init?(from feature: [String: JSONValue]) {
+        // Validate that this is a Point geometry feature
+        guard let geometry = feature["geometry"],
+              case .dictionary(let geometryDict) = geometry,
+              let typeValue = geometryDict["type"],
+              case .string(let geometryType) = typeValue,
+              geometryType == "Point",
+              let coordinates = geometryDict["coordinates"],
+              case .array(let coordinatesArray) = coordinates,
+              coordinatesArray.count >= 2 else {
+            return nil
+        }
+        
+        self.feature = feature
+    }
+    
+    /// Extract coordinate from Point geometry
+    var coordinate: CLLocationCoordinate2D? {
+        guard let geometry = feature["geometry"],
+              case .dictionary(let geometryDict) = geometry,
+              let coordinates = geometryDict["coordinates"],
+              case .array(let coordinatesArray) = coordinates,
+              coordinatesArray.count >= 2 else {
+            return nil
+        }
+        
+        // Extract longitude and latitude from coordinates array
+        // GeoJSON format: [longitude, latitude]
+        let longitude: CLLocationDegrees?
+        let latitude: CLLocationDegrees?
+        
+        switch coordinatesArray[0] {
+        case .double(let value):
+            longitude = value
+        case .int(let value):
+            longitude = CLLocationDegrees(value)
+        default:
+            longitude = nil
+        }
+        
+        switch coordinatesArray[1] {
+        case .double(let value):
+            latitude = value
+        case .int(let value):
+            latitude = CLLocationDegrees(value)
+        default:
+            latitude = nil
+        }
+        
+        guard let lon = longitude, let lat = latitude else {
+            return nil
+        }
+        
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+    
+    /// Extract properties dictionary from the feature
+    var properties: [String: JSONValue]? {
+        guard let propertiesValue = feature["properties"],
+              case .dictionary(let propertiesDict) = propertiesValue else {
+            return nil
+        }
+        return propertiesDict
+    }
+    
+    /// Extract title with priority: names.device_lang > names.local_lang > names.global_lang > title > name
+    var title: String? {
+        guard let properties = properties else { return nil }
+        
+        // First, try to get title from names field with priority: device_lang > local_lang > global_lang
+        if let namesValue = properties["names"],
+           let names = namesValue.dictionaryValue {
+            if let deviceLangValue = names["device_lang"],
+               let deviceLang = deviceLangValue.stringValue,
+               !deviceLang.isEmpty {
+                return deviceLang
+            }
+            if let localLangValue = names["local_lang"],
+               let localLang = localLangValue.stringValue,
+               !localLang.isEmpty {
+                return localLang
+            }
+            if let globalLangValue = names["global_lang"],
+               let globalLang = globalLangValue.stringValue,
+               !globalLang.isEmpty {
+                return globalLang
+            }
+        }
+        
+        // Fall back to title or name fields if names is not available or empty
+        if let titleValue = properties["title"],
+           let title = titleValue.stringValue {
+            return title
+        }
+        if let nameValue = properties["name"],
+           let name = nameValue.stringValue {
+            return name
+        }
+        return nil
+    }
+    
+    /// Extract and validate image URL from properties
+    var imageURL: URL? {
+        guard let properties = properties,
+              let imgURLValue = properties["img_url"],
+              let imgURL = imgURLValue.stringValue else {
+            return nil
+        }
+        
+        // Trim whitespace
+        let trimmedURL = imgURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Create URL - URL(string:) handles properly formatted URLs including those with parentheses
+        guard let url = URL(string: trimmedURL) else {
+            #if DEBUG
+            print("⚠️ Failed to create URL from img_url: \(trimmedURL)")
+            #endif
+            return nil
+        }
+        
+        // Ensure it's an HTTP/HTTPS URL
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            #if DEBUG
+            print("⚠️ img_url is not an HTTP/HTTPS URL: \(trimmedURL)")
+            #endif
+            return nil
+        }
+        
+        return url
+    }
+    
+    /// Extract Wikipedia URL from properties
+    var wikipediaURL: URL? {
+        guard let properties = properties,
+              let wikipediaValue = properties["wikipedia"],
+              let wikipedia = wikipediaValue.dictionaryValue,
+              let urlValue = wikipedia["url"],
+              let urlString = urlValue.stringValue,
+              let url = URL(string: urlString) else {
+            return nil
+        }
+        return url
+    }
+    
+    /// Convert back to dictionary format
+    func toDictionary() -> [String: JSONValue] {
+        return feature
+    }
+    
+    /// Pretty print coordinate and title for debugging
+    func prettyPrint() {
+        let coordString: String
+        if let coord = coordinate {
+            coordString = "(\(coord.latitude), \(coord.longitude))"
+        } else {
+            coordString = "(no coordinate)"
+        }
+        
+        let titleString = title ?? "(no title)"
+        
+        print("📍 PointFeature: \(titleString) @ \(coordString)")
+    }
+}
+
 
