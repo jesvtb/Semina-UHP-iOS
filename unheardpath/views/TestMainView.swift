@@ -25,7 +25,7 @@ func refreshPOIList(
         method: "POST",
         jsonDict: jsonDict
     )
-    response.printContent()
+    // response.printContent()
     return response
 }
 

@@ -18,6 +18,7 @@ struct unheardpathApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var apiClient = APIClient()
     @StateObject private var uhpGateway = UHPGateway()
+    @StateObject private var geoapifyGateway = GeoapifyGateway()
     @StateObject private var locationManager = LocationManager()
     
     init() {
@@ -41,6 +42,7 @@ struct unheardpathApp: App {
                 .environmentObject(apiClient) // Pass shared API service to all views
                 .environmentObject(locationManager) // Pass location manager to all views
                 .environmentObject(uhpGateway) // Pass UHP Gateway to all views
+                .environmentObject(geoapifyGateway) // Pass Geoapify Gateway to all views
                 .environmentObject(userManager) // Pass user manager to all views
                 .withScaledSpacing() // Inject scaled spacing values into environment
                 .onAppear {
