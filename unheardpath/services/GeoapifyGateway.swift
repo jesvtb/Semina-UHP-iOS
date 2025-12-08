@@ -48,13 +48,14 @@ class GeoapifyGateway: ObservableObject {
         self.apiClient = APIClient()
     }
     
-    /// Searches for cities using Geoapify autocomplete API
+    /// Searches for cities, localities, states, and countries using Geoapify autocomplete API
+    /// Makes parallel requests for each type and merges the results
     /// - Parameters:
     ///   - query: The search query string
-    ///   - limit: Maximum number of results (default: 5)
+    ///   - limit: Maximum number of results per type (default: 5)
     ///   - countryCode: Optional ISO country code filter (e.g., "US", "GB")
-    /// - Returns: Raw Data response from the API
-    /// - Throws: GeoapifyError if request fails
+    /// - Returns: Raw Data response from the API with merged results
+    /// - Throws: GeoapifyError if all requests fail
     nonisolated func searchCities(
         query: String,
         limit: Int = 5,
@@ -65,52 +66,96 @@ class GeoapifyGateway: ObservableObject {
         let capturedBaseURL = await MainActor.run { baseURL }
         let capturedApiClient = await MainActor.run { apiClient }
         
-        // Build query parameters
-        var params: [String: String] = [
-            "text": query,
-            "type": "city",
-            "apiKey": capturedApiKey,
-            "limit": String(limit)
+        // Types to search for: city, locality, state, and country
+        let types = ["city", "locality", "state", "country"]
+        
+        // Make parallel requests for each type
+        async let results = withThrowingTaskGroup(of: (type: String, data: Data?).self) { group in
+            for type in types {
+                group.addTask {
+                    do {
+                        var params: [String: String] = [
+                            "text": query,
+                            "type": type,
+                            "apiKey": capturedApiKey,
+                            "limit": String(limit)
+                        ]
+                        
+                        // Add country code filter if provided
+                        if let countryCode = countryCode, !countryCode.isEmpty {
+                            params["filter"] = "countrycode:\(countryCode)"
+                        }
+                        
+                        // Build full URL
+                        guard var urlComponents = URLComponents(string: capturedBaseURL) else {
+                            return (type, nil)
+                        }
+                        
+                        urlComponents.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
+                        
+                        guard let fullURL = urlComponents.url?.absoluteString else {
+                            return (type, nil)
+                        }
+                        
+                        // Make API call
+                        let data = try await capturedApiClient.asyncCallAPI(
+                            url: fullURL,
+                            method: "GET",
+                            headers: nil,
+                            params: [:], // Params already in URL
+                            dataDict: [:],
+                            jsonDict: [:],
+                            timeout: false,
+                            filesDict: [:]
+                        )
+                        
+                        return (type, data)
+                    } catch {
+                        #if DEBUG
+                        print("⚠️ Geoapify search failed for type '\(type)': \(error.localizedDescription)")
+                        #endif
+                        return (type, nil)
+                    }
+                }
+            }
+            
+            // Collect all successful results
+            var allResults: [(type: String, data: Data?)] = []
+            for try await result in group {
+                allResults.append(result)
+            }
+            return allResults
+        }
+        
+        let typeResults = try await results
+        
+        // Merge all features from all types into a single response
+        var allFeatures: [[String: Any]] = []
+        for (_, data) in typeResults {
+            guard let data = data,
+                  let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let features = jsonObject["features"] as? [[String: Any]] else {
+                continue
+            }
+            allFeatures.append(contentsOf: features)
+        }
+        
+        // Create merged response
+        let mergedResponse: [String: Any] = [
+            "type": "FeatureCollection",
+            "features": allFeatures
         ]
         
-        // Add country code filter if provided
-        if let countryCode = countryCode, !countryCode.isEmpty {
-            params["filter"] = "countrycode:\(countryCode)"
+        // Convert to Data
+        guard let mergedData = try? JSONSerialization.data(withJSONObject: mergedResponse) else {
+            throw GeoapifyError.requestFailed("Failed to merge Geoapify responses")
         }
         
-        // Build full URL
-        guard var urlComponents = URLComponents(string: capturedBaseURL) else {
-            throw GeoapifyError.invalidURL
-        }
+        #if DEBUG
+        printGeoapifyResponse(data: mergedData)
+        #endif
         
-        urlComponents.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
-        
-        guard let fullURL = urlComponents.url?.absoluteString else {
-            throw GeoapifyError.invalidURL
-        }
-        
-        do {
-            // Make API call using APIClient
-            let data = try await capturedApiClient.asyncCallAPI(
-                url: fullURL,
-                method: "GET",
-                headers: nil,
-                params: [:], // Params already in URL
-                dataDict: [:],
-                jsonDict: [:],
-                timeout: false,
-                filesDict: [:]
-            )
-            
-            // Pretty print JSON response for debugging
-            printGeoapifyResponse(data: data)
-            
-            return data
-        } catch let apiError as APIError {
-            throw GeoapifyError.requestFailed(apiError.message)
-        } catch {
-            throw GeoapifyError.requestFailed("Failed to call Geoapify API: \(error.localizedDescription)")
-        }
+        return mergedData
     }
     
     /// Pretty prints the Geoapify API response JSON to console

@@ -1,10 +1,10 @@
 import SwiftUI
-import MapKit
+@preconcurrency import MapKit
 
 struct AddrSearchResultItem: View {
-    let result: MKLocalSearchCompletion
+    let result: AddressSearchResult
     let isMostRelevant: Bool
-    let onSelect: (MKLocalSearchCompletion) -> Void
+    let onSelect: (AddressSearchResult) -> Void
     
     var body: some View {
         Button(action: {
@@ -17,11 +17,24 @@ struct AddrSearchResultItem: View {
                     .padding(.top, 2) // Align icon with first line of text
                 
                 VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
-                    Text(result.title)
-                        .heading(size: .article0)
-                        .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(alignment: .top) {
+                        Text(result.title)
+                            .heading(size: .article0)
+                            .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        #if DEBUG
+                        // Debug-only source indicator
+                        Text(sourceIndicator)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(sourceColor)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(sourceColor.opacity(0.2))
+                            .cornerRadius(4)
+                        #endif
+                    }
                     
                     if !result.subtitle.isEmpty {
                         Text(result.subtitle)
@@ -39,6 +52,28 @@ struct AddrSearchResultItem: View {
             .cornerRadius(Spacing.current.spaceS)
         }
     }
+    
+    #if DEBUG
+    /// Debug-only source indicator text
+    private var sourceIndicator: String {
+        switch result.source {
+        case .geoapify:
+            return "GA"
+        case .mapkit:
+            return "MK"
+        }
+    }
+    
+    /// Debug-only source indicator color
+    private var sourceColor: Color {
+        switch result.source {
+        case .geoapify:
+            return .blue
+        case .mapkit:
+            return .orange
+        }
+    }
+    #endif
 }
 
 #if DEBUG
