@@ -37,7 +37,7 @@ struct MapboxMapView: View {
     
     /// Offset distance in degrees to move camera south of user location
     /// This creates space for UI elements (like bottom sheets) above the user's location
-    private let cameraOffsetSouth: Double = 0.006 // Approximately 200-250 meters south
+    private let cameraOffsetSouth: Double = 0.01 // Approximately 200-250 meters south
     
     /// Calculates camera center offset south of the given location
     /// This allows the puck to show at the actual location while camera is offset
@@ -222,6 +222,7 @@ struct MapboxMapView: View {
     
     /// Fits the camera to show all GeoJSON features' coordinates
     /// Uses Mapbox SDK's camera(for:...) method following the recommended workflow
+    /// Applies the same geographic offset south as the initial camera to keep content toward the top of the viewport
     private func fitCameraToGeoJSON(proxy: MapboxMaps.MapProxy, geoJSON: GeoJSON) {
         let coordinates = geoJSON.extractCoordinates()
         
@@ -240,7 +241,7 @@ struct MapboxMapView: View {
             // Access the underlying MapboxMap instance via proxy.map
             // Fit camera to the given coordinates using Mapbox SDK's recommended method
             guard let mapboxMap = proxy.map,
-                  let cameraOptions = try? mapboxMap.camera(
+                  var cameraOptions = try? mapboxMap.camera(
                       for: coordinates,
                       camera: referenceCamera,
                       coordinatesPadding: .zero,
@@ -251,6 +252,14 @@ struct MapboxMapView: View {
                 print("⚠️ Failed to calculate camera for GeoJSON coordinates using SDK method")
                 #endif
                 return
+            }
+            
+            // Apply the same geographic offset south as the initial camera
+            // This moves the center south, making content appear toward the top of the viewport
+            if let currentCenter = cameraOptions.center {
+                let location = CLLocation(latitude: currentCenter.latitude, longitude: currentCenter.longitude)
+                let offsetCenter = offsetCameraSouth(of: location)
+                cameraOptions.center = offsetCenter
             }
             
             // Apply the fitted camera
@@ -265,7 +274,7 @@ struct MapboxMapView: View {
             camera.fly(to: cameraOptions, duration: 0.5)
             
             #if DEBUG
-            print("✅ Camera fitted to \(coordinates.count) GeoJSON feature coordinates using SDK method")
+            print("✅ Camera fitted to \(coordinates.count) GeoJSON feature coordinates with south offset applied")
            
             #endif
         }
@@ -516,7 +525,6 @@ fileprivate struct GeoJSONMapContent: MapboxMaps.MapContent {
 }
                 .allowOverlap(true)
                 // .priority(0)
-                // .priority(Int(distanceFromUser / 100))
             }
         }
     }
