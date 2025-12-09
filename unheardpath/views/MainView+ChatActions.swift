@@ -3,15 +3,15 @@ import SwiftUI
 // MARK: - Chat Actions
 extension TestMainView {
     func sendMessage() {
-        guard draftMessage.isEmpty == false else { return }
-        let text = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard chatState.draftMessage.isEmpty == false else { return }
+        let text = chatState.draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.isEmpty == false else { return }
 
         Task {
             await sendChatMessage(text)
         }
         
-        draftMessage = ""
+        chatState.draftMessage = ""
         isTextFieldFocused = false // Dismiss keyboard after sending
     }
     
@@ -34,19 +34,19 @@ extension TestMainView {
         // Add user message to chat immediately on main actor
         await MainActor.run {
             let userMessage = ChatMessage(text: trimmedMessage, isUser: true, isStreaming: false)
-            messages.append(userMessage)
+            chatState.messages.append(userMessage)
             // Update lastMessage for the bubble display
             liveUpdateViewModel.updateLastMessage(userMessage)
             #if DEBUG
-            print("✅ User message added to chat. Total messages: \(messages.count)")
+            print("✅ User message added to chat. Total messages: \(chatState.messages.count)")
             #endif
         }
         
         // Create assistant message placeholder for streaming
         await MainActor.run {
-            messages.append(ChatMessage(text: "", isUser: false, isStreaming: true))
+            chatState.messages.append(ChatMessage(text: "", isUser: false, isStreaming: true))
             #if DEBUG
-            print("✅ Assistant placeholder added. Total messages: \(messages.count)")
+            print("✅ Assistant placeholder added. Total messages: \(chatState.messages.count)")
             #endif
         }
         
@@ -130,16 +130,16 @@ extension TestMainView {
             
             // Ensure the final assistant message is marked as not streaming
             await MainActor.run {
-                if let lastIndex = messages.indices.last,
-                   !messages[lastIndex].isUser {
-                    let existingMessage = messages[lastIndex]
+                if let lastIndex = chatState.messages.indices.last,
+                   !chatState.messages[lastIndex].isUser {
+                    let existingMessage = chatState.messages[lastIndex]
                     let updatedMessage = ChatMessage(
                         id: existingMessage.id,
                         text: existingMessage.text,
                         isUser: existingMessage.isUser,
                         isStreaming: false
                     )
-                    messages[lastIndex] = updatedMessage
+                    chatState.messages[lastIndex] = updatedMessage
                     // Update lastMessage for the bubble display
                     liveUpdateViewModel.updateLastMessage(updatedMessage)
                     #if DEBUG
@@ -166,10 +166,10 @@ extension TestMainView {
             
             // Remove the streaming message placeholder on error
             await MainActor.run {
-                if let lastIndex = messages.indices.last,
-                   !messages[lastIndex].isUser,
-                   messages[lastIndex].text.isEmpty {
-                    messages.removeLast()
+                if let lastIndex = chatState.messages.indices.last,
+                   !chatState.messages[lastIndex].isUser,
+                   chatState.messages[lastIndex].text.isEmpty {
+                    chatState.messages.removeLast()
                     #if DEBUG
                     print("✅ Removed empty streaming message placeholder after error")
                     #endif

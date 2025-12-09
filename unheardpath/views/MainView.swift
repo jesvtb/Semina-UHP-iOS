@@ -9,6 +9,14 @@ enum PreviewTabSelection: Int, CaseIterable {
     case profile = 3
 }
 
+// MARK: - Chat State
+/// Manages chat-related state: messages and draft message
+@MainActor
+class ChatState: ObservableObject {
+    @Published var messages: [ChatMessage] = []
+    @Published var draftMessage: String = ""
+}
+
 struct TestMainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var locationManager: LocationManager
@@ -21,8 +29,7 @@ struct TestMainView: View {
     private let previewLastMessage: ChatMessage?
     private let previewCurrentNotification: NotificationData?
     
-    @State var messages: [ChatMessage] = []
-    @State var draftMessage: String = ""
+    @StateObject var chatState = ChatState()
     @State var inputLocation: String = ""
     @State private var selectedTab: PreviewTabSelection = .journey
     @State var geoJSONUpdateTrigger: UUID = UUID()
@@ -88,7 +95,7 @@ struct TestMainView: View {
             // Main content (messages list)
             if selectedTab == .chat {
                 ChatTabView(
-                    messages: messages,
+                    messages: chatState.messages,
                     isTextFieldFocused: $isTextFieldFocused
                 )
             }
@@ -162,7 +169,7 @@ struct TestMainView: View {
             VStack(spacing: 0) {
                 ChatInputBar(
                     selectedTab: selectedTab,
-                    draftMessage: $draftMessage,
+                    draftMessage: $chatState.draftMessage,
                     inputLocation: $inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
                     onSendMessage: sendMessage,
@@ -254,7 +261,7 @@ struct TestMainView: View {
                 selectedTab = previewTab
             }
             if let previewMessages = previewMessages {
-                messages = previewMessages
+                chatState.messages = previewMessages
             }
             if let previewGeoJSONData = previewGeoJSONData {
                 // Extract features from preview data and set to poisGeoJSON

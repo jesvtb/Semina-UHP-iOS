@@ -46,25 +46,25 @@ extension TestMainView {
     #endif
     
     await MainActor.run {
-      guard let lastIndex = messages.indices.last,
-            !messages[lastIndex].isUser else {
+      guard let lastIndex = chatState.messages.indices.last,
+            !chatState.messages[lastIndex].isUser else {
         #if DEBUG
         print("⚠️ No assistant message found to finish")
         #endif
         return
       }
       
-      let lastMsg = messages[lastIndex]
+      let lastMsg = chatState.messages[lastIndex]
       
       if lastMsg.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         // If it's just an empty streaming placeholder, remove it entirely
-        messages.removeLast()
+        chatState.messages.removeLast()
         #if DEBUG
         print("✅ Removed empty streaming assistant placeholder on finish event")
         #endif
       } else {
         // Otherwise, keep the content and just stop streaming
-        messages[lastIndex] = ChatMessage(
+        chatState.messages[lastIndex] = ChatMessage(
           id: lastMsg.id,
           text: lastMsg.text,
           isUser: lastMsg.isUser,
@@ -76,7 +76,7 @@ extension TestMainView {
       }
       
       // Update lastMessage for the bubble display
-      if let lastMsg = messages.last, !lastMsg.isUser {
+      if let lastMsg = chatState.messages.last, !lastMsg.isUser {
         liveUpdateViewModel.updateLastMessage(lastMsg)
       }
     }
@@ -155,11 +155,11 @@ extension TestMainView {
       #endif
       
       await MainActor.run {
-        if let lastIndex = messages.indices.last,
-           !messages[lastIndex].isUser {
-          let existingMessage = messages[lastIndex]
+        if let lastIndex = chatState.messages.indices.last,
+           !chatState.messages[lastIndex].isUser {
+          let existingMessage = chatState.messages[lastIndex]
           let isStreaming = dataDict["is_streaming"] as? Bool ?? true
-          messages[lastIndex] = ChatMessage(
+          chatState.messages[lastIndex] = ChatMessage(
             id: existingMessage.id,
             text: streamingContent,
             isUser: false,
@@ -170,7 +170,7 @@ extension TestMainView {
           #endif
           
           // Update lastMessage for the bubble display
-          liveUpdateViewModel.updateLastMessage(messages[lastIndex])
+          liveUpdateViewModel.updateLastMessage(chatState.messages[lastIndex])
         }
       }
     } catch {
