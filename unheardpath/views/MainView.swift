@@ -121,38 +121,10 @@ struct TestMainView: View {
             
             // Profile tab - scrollable view
             if selectedTab == .profile {
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Profile content placeholder
-                        Text("Profile")
-                            .font(.title)
-                            .foregroundColor(Color("onBkgTextColor20"))
-                            .padding(.top)
-                        
-                        // Logout button
-                        Button(action: handleLogout) {
-                            HStack {
-                                Spacer()
-                                Text("Logout")
-                                    .bodyText()
-                                    .foregroundColor(Color("AppBkgColor"))
-                                Spacer()
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(Color("buttonBkgColor90"))
-                            .cornerRadius(2)
-                        }
-                        .padding(.horizontal, 32)
-                        .padding(.top, 20)
-                    }
-                    .padding(.top)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isTextFieldFocused = false
-                }
-                .background(Color("AppBkgColor"))
+                ProfileTabView(
+                    onLogout: handleLogout,
+                    isTextFieldFocused: $isTextFieldFocused
+                )
             }
 
             
@@ -420,10 +392,6 @@ extension TestMainView {
 
 
 
-
-
-
-
 // MARK: - Debug Cache Components
 #if DEBUG
 extension TestMainView {
@@ -610,8 +578,7 @@ extension TestMainView {
         #endif
     }
 }
-#endif
-#if DEBUG
+
 #Preview("Map Tab with last user message") {
     TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
         .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
