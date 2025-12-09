@@ -1,5 +1,24 @@
 import SwiftUI
 
+// MARK: - Chat Tab View
+struct ChatTabView: View {
+    let messages: [ChatMessage]
+    @FocusState.Binding var isTextFieldFocused: Bool
+    
+    var body: some View {
+        VStack {
+            ChatDetailView(messages: messages)
+            
+            Spacer(minLength: 0) // keeps list separate from inset
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isTextFieldFocused = false
+        }
+    }
+}
+
+// MARK: - Chat Detail View
 struct ChatDetailView: View {
     let messages: [ChatMessage]
     

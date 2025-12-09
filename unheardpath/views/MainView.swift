@@ -89,15 +89,10 @@ struct TestMainView: View {
                 }
             // Main content (messages list)
             if selectedTab == .chat {
-                VStack {
-                    ChatDetailView(messages: messages)
-
-                    Spacer(minLength: 0) // keeps list separate from inset
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isTextFieldFocused = false
-                }
+                ChatTabView(
+                    messages: messages,
+                    isTextFieldFocused: $isTextFieldFocused
+                )
             }
             
             // Journey bottom sheet - positioned absolutely to avoid affecting layout
