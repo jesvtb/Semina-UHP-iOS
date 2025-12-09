@@ -131,6 +131,15 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
         super.init()
         completer.delegate = self
         completer.resultTypes = [.address, .pointOfInterest, .query]
+        
+        // Configure for global search (minimizes location bias)
+        // Set a very large region to cover the entire Earth
+        let globalCenter = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+        completer.region = MKCoordinateRegion(
+            center: globalCenter,
+            latitudinalMeters: 200_000_000, // ~20,000 km (covers entire Earth)
+            longitudinalMeters: 200_000_000
+        )
     }
     
     /// Updates the search query fragment and performs parallel searches
@@ -283,28 +292,6 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
         }
         
         return components.joined(separator: ", ")
-    }
-    
-    /// Configures the search region to prioritize results near a location
-    /// - Parameters:
-    ///   - center: The center coordinate for the search region
-    ///   - meters: The radius in meters (applied to both latitudinal and longitudinal)
-    func configureRegionSearch(center: CLLocationCoordinate2D, meters: Double) {
-        completer.region = MKCoordinateRegion(
-            center: center,
-            latitudinalMeters: meters,
-            longitudinalMeters: meters
-        )
-    }
-    
-    /// Configures the search region for global search (minimizes location bias)
-    func configureGlobalSearch() {
-        let globalCenter = CLLocationCoordinate2D(latitude: 0, longitude: 0)
-        completer.region = MKCoordinateRegion(
-            center: globalCenter,
-            latitudinalMeters: 200_000_000, // ~20,000 km (covers entire Earth)
-            longitudinalMeters: 200_000_000
-        )
     }
     
     /// Clears all search results

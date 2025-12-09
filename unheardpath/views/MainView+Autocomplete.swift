@@ -3,26 +3,6 @@ import SwiftUI
 
 // MARK: - Autocomplete Management
 extension TestMainView {
-    /// Sets up the address search manager
-    /// When shouldSearchAround is true: prioritizes results near the user's location
-    /// When shouldSearchAround is false: searches globally without location bias
-    func setupSearchCompleter() {
-        // Set region based on shouldSearchAround flag
-        if shouldSearchAround {
-            // Prioritize nearby results - use user's location if available
-            if let latitude = locationManager.latitude,
-               let longitude = locationManager.longitude {
-                let userLocation = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-                // Set a moderate region around user location (50km radius)
-                addressSearchManager.configureRegionSearch(center: userLocation, meters: 50_000)
-            }
-            // If location not available, region defaults to device location prioritization
-        } else {
-            // Global search - set a very large region to minimize location bias
-            addressSearchManager.configureGlobalSearch()
-        }
-    }
-    
     /// Updates autocomplete query
     func updateAutocomplete(query: String) {
         addressSearchManager.updateQuery(query)
@@ -79,7 +59,7 @@ extension TestMainView {
                     
                     // Clear autocomplete results and input location after flying to the location
                     addressSearchManager.clearResults()
-                    inputLocation = ""
+                    liveUpdateViewModel.inputLocation = ""
                     isTextFieldFocused = false
                 } else {
                     // No placemarks returned - use fallback
@@ -251,7 +231,7 @@ extension TestMainView {
                 
                 // Clear autocomplete results and input location after flying to the location
                 addressSearchManager.clearResults()
-                inputLocation = ""
+                liveUpdateViewModel.inputLocation = ""
                 isTextFieldFocused = false
             } catch {
                 #if DEBUG
@@ -293,7 +273,7 @@ extension TestMainView {
         
         // Clear autocomplete results and input location after flying to the location
         addressSearchManager.clearResults()
-        inputLocation = ""
+        liveUpdateViewModel.inputLocation = ""
         isTextFieldFocused = false
     }
 }

@@ -1,12 +1,13 @@
 import SwiftUI
 
 /// Manages state for the LiveUpdateStack overlay component
-/// Groups related state: lastMessage, currentNotification, and isMessageExpanded
+/// Groups related state: lastMessage, currentNotification, isMessageExpanded, and inputLocation
 @MainActor
 class LiveUpdateViewModel: ObservableObject {
     @Published var lastMessage: ChatMessage?
     @Published var currentNotification: NotificationData?
     @Published var isMessageExpanded: Bool = false
+    @Published var inputLocation: String = ""
     
     /// Dismisses the message bubble and resets expansion state
     func dismissMessage() {

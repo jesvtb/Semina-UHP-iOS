@@ -30,7 +30,6 @@ struct TestMainView: View {
     private let previewCurrentNotification: NotificationData?
     
     @StateObject var chatState = ChatState()
-    @State var inputLocation: String = ""
     @State private var selectedTab: PreviewTabSelection = .journey
     @State var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
@@ -46,7 +45,6 @@ struct TestMainView: View {
     
     // Autocomplete state for map tab
     @StateObject var addressSearchManager = AddressSearchManager()
-    @State var shouldSearchAround: Bool = false
     @State var targetLocation: TargetLocation?
     @State private var selectedLocation: CLLocation?
     
@@ -143,10 +141,10 @@ struct TestMainView: View {
             }
             
             // Show autocomplete results in map tab
-            if selectedTab == .map && !addressSearchManager.results.isEmpty && !inputLocation.isEmpty {
+            if selectedTab == .map && !addressSearchManager.results.isEmpty && !liveUpdateViewModel.inputLocation.isEmpty {
                 AddrSearchResultsList(
                     searchResults: addressSearchManager.results,
-                    inputLocation: $inputLocation,
+                    inputLocation: $liveUpdateViewModel.inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
                     onResultSelected: { result in
                         await geocodeAndFlyToLocation(result: result)
@@ -170,7 +168,7 @@ struct TestMainView: View {
                 ChatInputBar(
                     selectedTab: selectedTab,
                     draftMessage: $chatState.draftMessage,
-                    inputLocation: $inputLocation,
+                    inputLocation: $liveUpdateViewModel.inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
                     onSendMessage: {
                         Task { @MainActor in
@@ -208,11 +206,6 @@ struct TestMainView: View {
             }
         }
         .onChange(of: locationManager.deviceLocation) { newLocation in
-            // Update search completer region when location changes (if shouldSearchAround is true)
-            if selectedTab == .map && shouldSearchAround {
-                setupSearchCompleter()
-            }
-            
             // Call refreshPOIList only once when one-time location request completes
             // This handles the response from requestOneTimeLocation() (not continuous tracking)
             if let location = newLocation,
@@ -233,7 +226,7 @@ struct TestMainView: View {
         //         }
         //     }
         // }
-        .onChange(of: inputLocation) { newValue in
+        .onChange(of: liveUpdateViewModel.inputLocation) { newValue in
             // Update autocomplete when typing in map tab
             if selectedTab == .map {
                 updateAutocomplete(query: newValue)
@@ -243,15 +236,6 @@ struct TestMainView: View {
             // Clear autocomplete results when switching away from map tab
             if newTab != .map {
                 addressSearchManager.clearResults()
-            } else {
-                // Initialize search completer when entering map tab
-                setupSearchCompleter()
-            }
-        }
-        .onChange(of: shouldSearchAround) { _ in
-            // Reconfigure search completer when shouldSearchAround changes
-            if selectedTab == .map {
-                setupSearchCompleter()
             }
         }
         #if DEBUG
@@ -284,11 +268,6 @@ struct TestMainView: View {
             }
             if let previewCurrentNotification = previewCurrentNotification {
                 liveUpdateViewModel.currentNotification = previewCurrentNotification
-            }
-            
-            // Initialize search completer if starting in map tab
-            if selectedTab == .map {
-                setupSearchCompleter()
             }
             
             // Request one-time location update for initial POI list refresh
