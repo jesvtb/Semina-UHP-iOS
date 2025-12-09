@@ -196,6 +196,7 @@ struct TestMainView: View {
                 )
                 .opacity(shouldHideTabBar ? 0 : 1)
                 .allowsHitTesting(!shouldHideTabBar)
+                .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
             }
             
             // Show autocomplete results in map tab
@@ -227,6 +228,7 @@ struct TestMainView: View {
             .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
             // .opacity(0.2)
             .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
+            .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
         }
         .onChange(of: shouldDismissKeyboard) { shouldDismiss in
             if shouldDismiss {
@@ -783,18 +785,14 @@ struct ScrollOffsetTracker: View {
     let currentSnapPoint: SnapPoint
     let hideTabBarThreshold: CGFloat
     
-    // Track previous offset to detect scroll direction
-    @State private var previousOffset: CGFloat = 0
-    // Track when tab bar was hidden (timestamp)
-    @State private var tabBarHiddenTimestamp: Date?
-    // Track if tab bar was just hidden (to handle state synchronization)
-    @State private var wasTabBarHidden: Bool = false
-    // Track if tab bar was just shown due to scroll up (to prevent immediate re-hiding)
-    @State private var wasShownOnScrollUp: Bool = false
-    // Time window for showing tab bar again when scrolling up (in seconds)
-    private let showTabBarTimeWindow: TimeInterval = 2.0
-    // Hysteresis: require scrolling down more than this amount after showing to hide again
-    private let hideHysteresis: CGFloat = 10.0
+    // Animation is controlled by .animation() modifiers on the views (tab bar, liveUpdateStack).
+    // This tracker only updates shouldHideTabBar state - no animation logic here.
+    
+    // Minimum scroll delta to consider it a real direction change (filters micro-reversals)
+    private let minScrollDelta: CGFloat = 3.0
+    // Track accumulated scroll in each direction to filter noise
+    @State private var accumulatedUpScroll: CGFloat = 0
+    @State private var accumulatedDownScroll: CGFloat = 0
     
     var body: some View {
         VStack(spacing: 0) {
@@ -805,118 +803,52 @@ struct ScrollOffsetTracker: View {
                     .preference(key: TestScrollOffsetPreferenceKey.self, value: scrollOffset)
             }
             .frame(height: 0) // Zero height for tracking only
-            
-            // Visual top edge marker
-            // Rectangle()
-            //     .fill(Color.blue)
-            //     .frame(height: 2)
-            //     .overlay(
-            //         Text("TOP EDGE OF SCROLLVIEW")
-            //             .font(.system(size: 8))
-            //             .foregroundColor(.white)
-            //             .padding(.horizontal, 4)
-            //     )
         }
         .onPreferenceChange(TestScrollOffsetPreferenceKey.self) { newOffset in
-            // Update state directly from GeometryReader offset
+            // Update offset binding
             if abs(offset - newOffset) > 0.01 {
-                // Use current binding value as old offset (before update)
                 let oldOffset = offset
+                let delta = newOffset - oldOffset
                 offset = newOffset
                 
-                // Only process if we're at full snap point
+                // Only process tab bar visibility if we're at full snap point
                 guard currentSnapPoint == .full else {
-                    previousOffset = newOffset
-                    wasTabBarHidden = false
-                    tabBarHiddenTimestamp = nil
+                    accumulatedUpScroll = 0
+                    accumulatedDownScroll = 0
                     return
                 }
                 
-                // Detect scroll direction: scrolling up means offset is increasing (becoming less negative)
-                let isScrollingUp = newOffset > oldOffset
-                let isScrollingDownDirection = newOffset < oldOffset
+                let isCurrentlyHidden = shouldHideTabBar
                 
-                // Update our internal tracking of tab bar state
-                let tabBarIsCurrentlyHidden = shouldHideTabBar || wasTabBarHidden
-                
-                // PRIORITY: If scrolling up and tab bar is currently hidden, check if we should show it again
-                if isScrollingUp && tabBarIsCurrentlyHidden {
-                    if let hiddenTimestamp = tabBarHiddenTimestamp {
-                        let timeSinceHidden = Date().timeIntervalSince(hiddenTimestamp)
-                        // Show tab bar if scrolling up within the time window
-                        if timeSinceHidden <= showTabBarTimeWindow {
-                            // Update immediately without animation to avoid opacity fade-in
-                            shouldHideTabBar = false
-                            tabBarHiddenTimestamp = nil
-                            wasTabBarHidden = false
-                            wasShownOnScrollUp = true
-                            previousOffset = newOffset
-                            #if DEBUG
-                            print("📊 ScrollOffsetTracker: Showing tab bar on scroll up (time since hidden: \(String(format: "%.2f", timeSinceHidden))s, offset: \(String(format: "%.2f", newOffset)))")
-                            #endif
-                            return
-                        } else {
-                            // Time window expired, clear timestamp
-                            tabBarHiddenTimestamp = nil
-                            wasTabBarHidden = false
-                            wasShownOnScrollUp = false
-                            #if DEBUG
-                            print("📊 ScrollOffsetTracker: Time window expired (time since hidden: \(String(format: "%.2f", timeSinceHidden))s)")
-                            #endif
-                        }
-                    } else if newOffset >= hideTabBarThreshold {
-                        // No timestamp recorded, but scrolling up above threshold - show it
-                        // Update immediately without animation to avoid opacity fade-in
-                        shouldHideTabBar = false
-                        wasTabBarHidden = false
-                        wasShownOnScrollUp = true
-                        previousOffset = newOffset
-                        #if DEBUG
-                        print("📊 ScrollOffsetTracker: Showing tab bar on scroll up (no timestamp, but offset \(String(format: "%.2f", newOffset)) above threshold \(hideTabBarThreshold))")
-                        #endif
-                        return
-                    }
-                }
-                
-                // If tab bar was shown on scroll up, add hysteresis to prevent flickering
-                // Only hide again if scrolling down significantly past the threshold
-                let effectiveHideThreshold = wasShownOnScrollUp ? (hideTabBarThreshold - hideHysteresis) : hideTabBarThreshold
-                let shouldHide = newOffset < effectiveHideThreshold
-                
-                // If scrolling down and we were shown on scroll up, clear that flag
-                if isScrollingDownDirection && wasShownOnScrollUp {
-                    // Only clear if we've scrolled down significantly
-                    if newOffset < effectiveHideThreshold {
-                        wasShownOnScrollUp = false
-                    }
-                }
-                
-                // If hiding the tab bar, record the timestamp
-                if shouldHide {
-                    if !wasTabBarHidden {
-                        tabBarHiddenTimestamp = Date()
-                        wasTabBarHidden = true
-                        wasShownOnScrollUp = false
-                        #if DEBUG
-                        print("📊 ScrollOffsetTracker: Hiding tab bar at offset \(String(format: "%.2f", newOffset)), threshold: \(effectiveHideThreshold)")
-                        #endif
-                    }
+                // Accumulate scroll in each direction, reset the other
+                if delta > 0 {
+                    // Scrolling up
+                    accumulatedUpScroll += delta
+                    accumulatedDownScroll = 0
                 } else {
-                    // Not scrolled down - clear tracking state
-                    wasTabBarHidden = false
-                    tabBarHiddenTimestamp = nil
-                    // Keep wasShownOnScrollUp true if we're above threshold (user is still near top)
-                    if newOffset >= hideTabBarThreshold {
-                        wasShownOnScrollUp = false
-                    }
+                    // Scrolling down
+                    accumulatedDownScroll += abs(delta)
+                    accumulatedUpScroll = 0
                 }
                 
-                // Update tab bar visibility
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    shouldHideTabBar = shouldHide
+                // Show tab bar when accumulated upward scroll exceeds threshold
+                if isCurrentlyHidden && accumulatedUpScroll >= minScrollDelta {
+                    shouldHideTabBar = false
+                    accumulatedUpScroll = 0
+                    #if DEBUG
+                    print("📊 ScrollOffsetTracker: Showing tab bar on scroll up (offset: \(String(format: "%.2f", newOffset)))")
+                    #endif
+                    return
                 }
                 
-                previousOffset = newOffset
+                // Hide tab bar when scrolled past threshold (with accumulated down scroll)
+                if !isCurrentlyHidden && newOffset < hideTabBarThreshold && accumulatedDownScroll >= minScrollDelta {
+                    shouldHideTabBar = true
+                    accumulatedDownScroll = 0
+                    #if DEBUG
+                    print("📊 ScrollOffsetTracker: Hiding tab bar (offset: \(String(format: "%.2f", newOffset)), threshold: \(hideTabBarThreshold))")
+                    #endif
+                }
             }
         }
     }

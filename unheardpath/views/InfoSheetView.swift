@@ -62,6 +62,8 @@ struct InfoSheet: View {
     
     @State private var dragOffset: CGFloat = 0
     @State private var scrollViewContentOffset: CGFloat = 0
+    @State private var isScrolling: Bool = false
+    @State private var scrollSettleTask: Task<Void, Never>?
     
     // Offset adjustment for sheet positioning (bottom safe area + optional padding)
     private var positionOffsetAdjustment: CGFloat {
@@ -83,12 +85,18 @@ struct InfoSheet: View {
         if abs(scrollViewContentOffset - offset) > 0.01 {
             scrollViewContentOffset = offset
             
-            // Hide tab bar when scrolled down significantly
-            let isScrolledDown = offset < hideTabBarThreshold
-            let shouldHide = sheetSnapPoint == .full && isScrolledDown
+            // Mark as actively scrolling to prevent animation jitter
+            isScrolling = true
+            scrollSettleTask?.cancel()
             
-            withAnimation(.easeInOut(duration: 0.2)) {
-                shouldHideTabBar = shouldHide
+            // During active scrolling, update without animation to prevent jitter
+            // The ScrollOffsetTracker will handle the actual tab bar visibility with proper logic
+            // We just update the offset here without triggering animations
+            
+            // Debounce: consider scroll "settled" after 100ms of no updates
+            scrollSettleTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                isScrolling = false
             }
         }
     }
@@ -128,31 +136,31 @@ struct InfoSheet: View {
                         
                         // Content rendering
                         VStack(alignment: .leading, spacing: 0) {
-                            // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
+                            // // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
                             if sheetSnapPoint != .full {
                                 DisplayText("Journey Content", scale: .article2, color: Color("onBkgTextColor20"))
                                     .padding(.top, Spacing.current.spaceXs)
                                     .padding(.bottom, Spacing.current.spaceXs)
                             }
                             
-                            // Render standard content sections first
+                            // // Render standard content sections first
                             if let standardContent = standardContent, !standardContent.isEmpty {
                                 ForEach(standardContent) { section in
                                     ContentViewRegistry.view(for: section)
                                 }
                             }
                             
-                            // Render custom builders after standard content
-                            if let customBuilders = customBuilders, !customBuilders.isEmpty {
-                                ForEach(customBuilders) { builder in
-                                    builder.builder()
-                                }
-                            }
-                            
-                            // Fallback to TestBody if no content provided
-                            if (standardContent?.isEmpty ?? true) && (customBuilders?.isEmpty ?? true) {
+                            // // Render custom builders after standard content
+                            // if let customBuilders = customBuilders, !customBuilders.isEmpty {
+                            //     ForEach(customBuilders) { builder in
+                            //         builder.builder()
+                            //     }
+                            // }
                             TestBody()
-                            }
+                            // // Fallback to TestBody if no content provided
+                            // if (standardContent?.isEmpty ?? true) && (customBuilders?.isEmpty ?? true) {
+                            // TestBody()
+                            // }
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, Spacing.current.spaceS)
@@ -304,10 +312,10 @@ struct InfoSheet: View {
         }
         .onChange(of: sheetSnapPoint) { newSnapPoint in
             // Show tab bar when not at full snap point
+            // Set directly without animation - ScrollOffsetTracker owns the animation
+            // Using withTransaction here conflicts with ScrollOffsetTracker causing flicker
             if newSnapPoint != .full {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    shouldHideTabBar = false
-                }
+                shouldHideTabBar = false
             }
         }
     }
@@ -463,7 +471,7 @@ private func loadStandardContentFromJSON() -> [ContentSection] {
             }
             
             // Convert to JSONValue format
-            var feature: [String: JSONValue] = [
+            let feature: [String: JSONValue] = [
                 "type": .string("Feature"),
                 "geometry": .dictionary([
                     "type": .string("Point"),

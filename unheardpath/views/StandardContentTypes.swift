@@ -11,7 +11,9 @@ enum ContentViewType: String, CaseIterable {
 
 // MARK: - Content Section
 struct ContentSection: Identifiable {
-    let id: UUID
+    // Use type as stable ID - each type appears at most once
+    // This prevents SwiftUI from recreating views when parent state changes
+    var id: String { type.rawValue }
     let type: ContentViewType
     let data: ContentSectionData
     
@@ -21,8 +23,7 @@ struct ContentSection: Identifiable {
         case pointsOfInterest(features: [PointFeature])
     }
     
-    init(id: UUID = UUID(), type: ContentViewType, data: ContentSectionData) {
-        self.id = id
+    init(type: ContentViewType, data: ContentSectionData) {
         self.type = type
         self.data = data
     }
@@ -178,10 +179,11 @@ struct ContentPoiListView: View {
         VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
             DisplayText("Points of Interest", scale: .article2, color: Color("onBkgTextColor20"))
             
-            ForEach(Array(features.enumerated()), id: \.offset) { index, feature in
+            ForEach(features) { feature in
                 ContentPoiItemView(feature: feature)
                 
-                if index < features.count - 1 {
+                // Show divider if not the last item
+                if feature.id != features.last?.id {
                     Divider()
                         .background(Color("onBkgTextColor30").opacity(0.3))
                 }

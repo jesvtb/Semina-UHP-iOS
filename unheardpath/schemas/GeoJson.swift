@@ -301,9 +301,18 @@ struct GeoJSON: Sendable, Codable {
 // MARK: - PointFeature
 /// A type-safe representation of a GeoJSON Point feature
 /// Validates that the feature has Point geometry type and provides convenient access to properties
-struct PointFeature: Sendable {
+struct PointFeature: Sendable, Identifiable {
     /// The validated Point feature dictionary
     private let feature: [String: JSONValue]
+    
+    /// Stable identifier based on coordinates - prevents view recreation on parent state changes
+    var id: String {
+        if let coord = coordinate {
+            return "poi_\(coord.latitude)_\(coord.longitude)"
+        }
+        // Fallback to title if no coordinate (shouldn't happen for valid Point features)
+        return "poi_\(title ?? UUID().uuidString)"
+    }
     
     /// Failable initializer that validates the feature is a Point geometry type
     /// - Parameter feature: Feature dictionary to validate and wrap
