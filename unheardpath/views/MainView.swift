@@ -1,34 +1,6 @@
 import SwiftUI
 @preconcurrency import MapKit
 
-// MARK: - Standalone refreshPOIList Function
-@MainActor
-func refreshPOIList(
-    from location: CLLocationCoordinate2D?,
-    gateway: UHPGateway,
-    userManager: UserManager
-) async throws -> UHPResponse {
-    var jsonDict: [String: JSONValue] = [:]
-    if let user = userManager.currentUser {
-        jsonDict["device_lang"] = .string(user.device_lang)
-    } else {
-        jsonDict["device_lang"] = .string("en")
-    }
-    if let location = location {
-        jsonDict["lat"] = .double(location.latitude)
-        jsonDict["lon"] = .double(location.longitude)
-    }
-    jsonDict["range_type"] = .string("city")
-    
-    let response = try await gateway.request(
-        endpoint: "/v1/pois",
-        method: "POST",
-        jsonDict: jsonDict
-    )
-    // response.printContent()
-    return response
-}
-
 // MARK: - Input Tab Selection
 enum PreviewTabSelection: Int, CaseIterable {
     case journey = 0
@@ -53,7 +25,7 @@ struct TestMainView: View {
     @State private var draftMessage: String = ""
     @State private var inputLocation: String = ""
     @State private var selectedTab: PreviewTabSelection = .journey
-    @State private var geoJSONUpdateTrigger: UUID = UUID()
+    @State var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
     @State var lastMessage: ChatMessage?
     @State var currentNotification: NotificationData?
@@ -63,7 +35,7 @@ struct TestMainView: View {
     // Location-related state
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
-    @State private var poisGeoJSON = GeoJSON()
+    @State var poisGeoJSON = GeoJSON()
     @State private var hasReceivedFirstGPSUpdate = false
     @FocusState private var isTextFieldFocused: Bool
     
@@ -1006,128 +978,6 @@ extension TestMainView {
 }
 
 
-// MARK: - Location Management
-extension TestMainView {
-    /// Refreshes POI list when one-time location request completes
-    /// Only called once when requestOneTimeLocation() returns a location with 100m or better accuracy
-    @MainActor
-    private func refreshPOIListOnOneTimeLocation(location: CLLocation) async {
-        #if DEBUG
-        print("📍 One-time location request completed with 100m accuracy - calling refreshPOIList")
-        print("   Location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-        print("   Accuracy: ±\(Int(location.horizontalAccuracy))m")
-        #endif
-        
-        do {
-            let response = try await refreshPOIList(
-                from: location.coordinate,
-                gateway: uhpGateway,
-                userManager: userManager
-            )
-            
-            guard response.event == "map", let geojsonDict = response.content else {
-                #if DEBUG
-                print("⚠️ Response event is not 'map' or content is nil")
-                print("   Event: \(response.event ?? "nil")")
-                print("   Content: \(response.content != nil ? "exists" : "nil")")
-                #endif
-                return
-            }
-            
-            // response.content is the features array directly
-            // Extract features from the JSONValue array
-            guard case .array(let featuresArray) = geojsonDict else {
-                #if DEBUG
-                print("⚠️ Response content is not a features array")
-                #endif
-                return
-            }
-            
-            let features = featuresArray.compactMap { featureValue -> [String: JSONValue]? in
-                guard case .dictionary(let featureDict) = featureValue else {
-                    return nil
-                }
-                return featureDict
-            }
-            
-            guard !features.isEmpty else {
-                #if DEBUG
-                print("⚠️ No valid features extracted from response")
-                #endif
-                return
-            }
-            
-            poisGeoJSON.setFeatures(features)
-            geoJSONUpdateTrigger = UUID()  // Trigger map update
-            
-            #if DEBUG
-            print("✅ refreshPOIList completed - updated poisGeoJSON with \(features.count) features")
-            #endif
-        } catch {
-            #if DEBUG
-            print("❌ Failed to refresh POI list on GPS update: \(error.localizedDescription)")
-            if let geoJSONError = error as? GeoJSON.GeoJSONError {
-                print("   Error type: GeoJSONError")
-                print("   Error details: \(geoJSONError)")
-            }
-            print("   Full error: \(error)")
-            #endif
-        }
-    }
-    
-    /// Loads location data when geofence exit is detected
-    /// This is the single source of truth for when to fetch data from backend
-    // @MainActor
-    // private func loadLocationFromGeofenceExit() async {
-    //     // Prevent concurrent API calls
-    //     guard !isLoadingLocation else {
-    //         #if DEBUG
-    //         print("⏸️ API call already in progress, skipping duplicate request")
-    //         #endif
-    //         return
-    //     }
-        
-    //     // Only proceed if location is actually available
-    //     guard locationManager.latitude != nil,
-    //           locationManager.longitude != nil else {
-    //         #if DEBUG
-    //         print("⚠️ Location not available yet, skipping API call")
-    //         #endif
-    //         return
-    //     }
-        
-    //     // Reverse geocode user location and get JSON dict
-    //     #if DEBUG
-    //     print("📍 Geofence exit detected - reverse geocoding location for data refresh")
-    //     #endif
-        
-    //     // reverseGeocodeUserLocation now returns [String: JSONValue] directly
-    //     let jsonDict = await withCheckedContinuation { (continuation: CheckedContinuation<[String: JSONValue]?, Never>) in
-    //         locationManager.reverseGeocodeUserLocation { dict, error in
-    //             if let error = error {
-    //                 #if DEBUG
-    //                 print("⚠️ Reverse geocoding error: \(error.localizedDescription), using location only")
-    //                 #endif
-    //                 // Even if geocoding fails, dict should still have location data
-    //                 continuation.resume(returning: dict)
-    //             } else {
-    //                 continuation.resume(returning: dict)
-    //             }
-    //         }
-    //     }
-        
-    //     guard let jsonDict = jsonDict else {
-    //         #if DEBUG
-    //         print("❌ Failed to get location dict from reverse geocoding")
-    //         #endif
-    //         return
-    //     }
-        
-    //     // Load location data (will check cache, then API if needed)
-    //     await loadLocation(jsonDict: jsonDict)
-    // }
-
-}
 
 // MARK: - Debug Cache Components
 #if DEBUG
