@@ -144,6 +144,42 @@ struct TestMainView: View {
                         )
                 } 
             }
+            
+            // Profile tab - scrollable view
+            if selectedTab == .profile {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // Profile content placeholder
+                        Text("Profile")
+                            .font(.title)
+                            .foregroundColor(Color("onBkgTextColor20"))
+                            .padding(.top)
+                        
+                        // Logout button
+                        Button(action: handleLogout) {
+                            HStack {
+                                Spacer()
+                                Text("Logout")
+                                    .bodyText()
+                                    .foregroundColor(Color("AppBkgColor"))
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color("buttonBkgColor90"))
+                            .cornerRadius(2)
+                        }
+                        .padding(.horizontal, 32)
+                        .padding(.top, 20)
+                    }
+                    .padding(.top)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isTextFieldFocused = false
+                }
+                .background(Color("AppBkgColor"))
+            }
 
             
             if let lastMessage = lastMessage, selectedTab != .chat {
@@ -522,6 +558,18 @@ extension TestMainView {
 
 // MARK: - TestMainView: Actions
 extension TestMainView {
+    func handleLogout() {
+        Task {
+            do {
+                try await supabase.auth.signOut()
+            } catch {
+                #if DEBUG
+                print("❌ Logout error: \(error.localizedDescription)")
+                #endif
+            }
+        }
+    }
+    
     private func sendMessage() {
         guard draftMessage.isEmpty == false else { return }
         let text = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)

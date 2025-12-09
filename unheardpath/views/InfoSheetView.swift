@@ -15,6 +15,16 @@ enum SnapPoint {
     }
 }
 
+// MARK: - Test Body
+struct TestBody: View {
+    var body: some View {
+        ForEach(0..<20, id: \.self) { index in
+            Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
+                .bodyParagraph(color: Color("onBkgTextColor30"))
+        }
+    }
+}
+
 // MARK: - Test Info Sheet
 struct InfoSheet: View {
     @Binding var selectedTab: PreviewTabSelection
@@ -102,10 +112,7 @@ struct InfoSheet: View {
                                     .padding(.top, Spacing.current.spaceXs)
                             }
                             
-                            ForEach(0..<20, id: \.self) { index in
-                                Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
-                                    .bodyParagraph(color: Color("onBkgTextColor30"))
-                            }
+                            TestBody()
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, Spacing.current.spaceS)
@@ -287,4 +294,8 @@ struct InfoSheet: View {
         // No drag: stay at current
         return sheetSnapPoint
     }
+}
+
+#Preview("Full Height") {
+    InfoSheet(selectedTab: .constant(.journey), shouldHideTabBar: .constant(false), sheetFullHeight: 1000, bottomSafeAreaInsetHeight: 0, sheetSnapPoint: .constant(.full))
 }

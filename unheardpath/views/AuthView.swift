@@ -200,7 +200,12 @@ struct AuthView: View {
           #if DEBUG
           print("🔗 Handling callback URL: \(url.absoluteString)")
           #endif
+          
+          // session(from: url) handles both implicit and PKCE flows automatically
+          // It extracts token_hash if present and verifies it, or uses implicit flow tokens
+          // Reference: https://supabase.com/docs/guides/auth/auth-email-passwordless
           try await supabase.auth.session(from: url)
+          
           #if DEBUG
           print("✅ Session created successfully")
           #endif

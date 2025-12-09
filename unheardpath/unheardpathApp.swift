@@ -52,11 +52,21 @@ struct unheardpathApp: App {
                 .onOpenURL { url in
                     Task {
                         do {
+                            #if DEBUG
+                            print("🔗 App-level callback URL: \(url.absoluteString)")
+                            #endif
+                            
+                            // session(from: url) handles both implicit and PKCE flows automatically
+                            // It extracts token_hash if present and verifies it, or uses implicit flow tokens
+                            // Reference: https://supabase.com/docs/guides/auth/auth-email-passwordless
                             try await supabase.auth.session(from: url)
+                            
                             // After session is created from URL, authManager will detect the change
                             // via authStateChanges listener
                         } catch {
-                            print("Error handling auth callback: \(error)")
+                            #if DEBUG
+                            print("❌ Error handling auth callback: \(error)")
+                            #endif
                         }
                     }
                 }
