@@ -224,7 +224,16 @@ struct TestMainView: View {
         // Input bar pinned to bottom; moves with keyboard
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
-                chatInputBar
+                ChatInputBar(
+                    selectedTab: selectedTab,
+                    draftMessage: $draftMessage,
+                    inputLocation: $inputLocation,
+                    isTextFieldFocused: $isTextFieldFocused,
+                    onSendMessage: sendMessage,
+                    onSwitchToChat: {
+                        selectedTab = .chat
+                    }
+                )
                 if !isTextFieldFocused {
                     TabsBarView(selectedTab: $selectedTab, tabs: tabs)
                 }
@@ -504,61 +513,6 @@ extension TestMainView {
         .background(Color.clear)
     }
     
-    
-    private var chatInputBar: some View {
-        HStack(spacing: Spacing.current.spaceXs) {
-            TextField(
-                selectedTab == .map ? "Find any place..." : "Ask any thing...",
-                text: selectedTab == .map ? $inputLocation : $draftMessage,
-                axis: .vertical
-            )
-                .bodyText()
-                .focused($isTextFieldFocused)
-                .padding(.horizontal, Spacing.current.spaceXs)
-                .padding(.vertical, Spacing.current.space2xs)
-                .background(Color("AppBkgColor"))
-                .cornerRadius(Spacing.current.spaceXs)
-
-            if selectedTab != .chat && selectedTab != .map {
-                Button(action: {
-                    selectedTab = .chat
-                }) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .bodyText(size: .article0)
-                        .foregroundColor(Color("onBkgTextColor30"))
-                }
-            }
-            if selectedTab != .map {
-                Button(action: sendMessage) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .bodyText(size: .article2)
-                    .foregroundColor(draftMessage.isEmpty ? Color("onBkgTextColor30") : Color("onBkgTextColor10"))
-                }
-                .disabled(draftMessage.isEmpty)
-            }
-            // if selectedTab == .map {
-            //     Button(action: {
-            //         // Geocode the selected location and fly to it
-            //         Task {
-                        
-            //         }
-            //     }) {
-            //     Image(systemName: "mappin.circle.fill")
-            //         .bodyText(size: .article2)
-            //         .foregroundColor(draftMessage.isEmpty ? Color("onBkgTextColor30") : Color("onBkgTextColor10"))
-            //     }
-            //     .disabled(draftMessage.isEmpty)
-            // }
-           
-        }
-        .padding(.horizontal, Spacing.current.spaceXs)
-        .padding(.vertical, Spacing.current.space2xs)
-        .background(
-            Color("AppBkgColor")
-                // .opacity(0.9)
-                .ignoresSafeArea(edges: .bottom)
-        )
-    }
 }
 
 
