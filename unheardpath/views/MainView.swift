@@ -185,9 +185,9 @@ struct TestMainView: View {
 
             
             if let lastMessage = lastMessage, selectedTab != .chat {
-                liveUpdateStack(
+                LiveUpdateStack(
                     message: lastMessage,
-                    currentNotificationBinding: $currentNotification,
+                    currentNotification: $currentNotification,
                     isExpanded: $isMessageExpanded,
                     onDismiss: {
                         self.lastMessage = nil
@@ -428,91 +428,6 @@ extension TestMainView {
 
 // MARK: - TestMainView: View Components
 extension TestMainView {
-    private func liveUpdateStack(message: ChatMessage, currentNotificationBinding: Binding<NotificationData?>, isExpanded: Binding<Bool>, onDismiss: @escaping () -> Void) -> some View {
-        // Helper to check if text would exceed 3 lines
-        let estimatedLineCount = Typography.estimateLineCount(for: message.text, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
-        let shouldShowExpandButton = estimatedLineCount > 5
-        let bkgColor = message.isUser ? Color("AccentColor") : Color("onBkgTextColor30")
-        
-        return VStack {
-            Spacer()
-            if let notification = currentNotificationBinding.wrappedValue {
-                ProgressNotificationBanner(
-                    notification: notification,
-                    onNotificationDismiss: {
-                        currentNotificationBinding.wrappedValue = nil
-                    }
-                )
-            }
-            HStack {
-                
-                // Message bubble with text and dismiss button overlay
-                ZStack(alignment: .topTrailing) {
-                    // Message bubble with text
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(message.text)
-                            .bodyText()
-                            .padding(.horizontal, Spacing.current.spaceXs)
-                            .padding(.vertical, Spacing.current.space2xs)
-                            .foregroundColor(Color("AppBkgColor"))
-                            .background(bkgColor)
-                            .cornerRadius(Spacing.current.spaceS)
-                            .lineLimit(isExpanded.wrappedValue ? nil : 5)
-                            
-                        
-                        // Expand/Collapse button - only show if text is longer than 3 lines
-                        if shouldShowExpandButton {
-                            HStack {
-                                Spacer()
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        isExpanded.wrappedValue.toggle()
-                                    }
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Text(isExpanded.wrappedValue ? "Show less" : "Show more")
-                                            .bodyText(size: .articleMinus1)
-                                        Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                                            .bodyText(size: .articleMinus1)
-                                    }
-                                    .foregroundColor(Color("onBkgTextColor10"))
-                                    
-                                    .padding(.horizontal, Spacing.current.space2xs)
-                                    .padding(.vertical, Spacing.current.space3xs)
-                                }
-                                .padding(.trailing, Spacing.current.space2xs)
-                                .padding(.bottom, Spacing.current.space3xs)
-                            }
-                        }
-                    }
-                    .background(bkgColor)
-                    .cornerRadius(Spacing.current.spaceXs)
-                    
-                    // Dismiss button positioned at upper right corner, overlapping the border
-                    Button(action: {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            onDismiss()
-                        }
-                    }) {
-                        Image(systemName: "xmark")
-                            .bodyText(size: .articleMinus1)
-                            .foregroundColor(Color("AppBkgColor"))
-                            .padding(Spacing.current.space2xs)
-                            .background(bkgColor)
-                            .clipShape(Circle())
-                    }
-                    .padding(.top, -6)
-                    .padding(.trailing, -6)
-                }
-                
-                .padding(.horizontal, Spacing.current.spaceXs)
-                Spacer()
-            }
-        }
-        .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 5)
-        .background(Color.clear)
-    }
-    
 }
 
 
