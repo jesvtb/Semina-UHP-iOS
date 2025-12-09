@@ -321,6 +321,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = unheardpath/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
+				INFOPLIST_KEY_GEOAPIFY_API_KEY = "$(GEOAPIFY_API_KEY)";
 				INFOPLIST_KEY_IS_POSTHOG_TRACKING_ENABLED = "$(IS_POSTHOG_TRACKING_ENABLED)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_MBXAccessToken = "$(MAPBOX_ACCESS_TOKEN)";
@@ -336,7 +337,6 @@
 				INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = "$(SUPABASE_PUBLISHABLE_KEY)";
 				INFOPLIST_KEY_UHP_GATEWAY_HOST_DEBUG = "$(UHP_GATEWAY_HOST_DEBUG)";
 				INFOPLIST_KEY_UHP_GATEWAY_HOST_RELEASE = "$(UHP_GATEWAY_HOST_RELEASE)";
-				INFOPLIST_KEY_GEOAPIFY_API_KEY = "$(GEOAPIFY_API_KEY)";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -378,6 +378,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = unheardpath/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
+				INFOPLIST_KEY_GEOAPIFY_API_KEY = "$(GEOAPIFY_API_KEY)";
 				INFOPLIST_KEY_IS_POSTHOG_TRACKING_ENABLED = "$(IS_POSTHOG_TRACKING_ENABLED)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_MBXAccessToken = "$(MAPBOX_ACCESS_TOKEN)";
@@ -393,7 +394,6 @@
 				INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = "$(SUPABASE_PUBLISHABLE_KEY)";
 				INFOPLIST_KEY_UHP_GATEWAY_HOST_DEBUG = "$(UHP_GATEWAY_HOST_DEBUG)";
 				INFOPLIST_KEY_UHP_GATEWAY_HOST_RELEASE = "$(UHP_GATEWAY_HOST_RELEASE)";
-				INFOPLIST_KEY_GEOAPIFY_API_KEY = "$(GEOAPIFY_API_KEY)";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

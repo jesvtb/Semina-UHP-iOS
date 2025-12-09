@@ -103,11 +103,6 @@ struct TestMainView: View {
 
     var body: some View {
         ZStack {
-            // Background stays fixed
-            // Color("AccentColor")
-            //     .ignoresSafeArea(.container)
-            //     .ignoresSafeArea(.keyboard)
-
             MapboxMapView(
                 poisGeoJSON: $poisGeoJSON,
                 geoJSONUpdateTrigger: $geoJSONUpdateTrigger,
