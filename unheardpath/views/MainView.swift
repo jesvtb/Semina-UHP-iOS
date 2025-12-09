@@ -201,9 +201,19 @@ struct TestMainView: View {
             
             // Show autocomplete results in map tab
             if selectedTab == .map && !addressSearchManager.results.isEmpty && !inputLocation.isEmpty {
-                AddrSearchResultsList
-                    .opacity(shouldHideTabBar ? 0 : 1)
-                    .allowsHitTesting(!shouldHideTabBar)
+                AddrSearchResultsList(
+                    searchResults: addressSearchManager.results,
+                    inputLocation: $inputLocation,
+                    isTextFieldFocused: $isTextFieldFocused,
+                    onResultSelected: { result in
+                        await geocodeAndFlyToLocation(result: result)
+                    },
+                    onClearResults: {
+                        addressSearchManager.clearResults()
+                    }
+                )
+                .opacity(shouldHideTabBar ? 0 : 1)
+                .allowsHitTesting(!shouldHideTabBar)
             }
             
             // Debug cache button overlay
@@ -494,39 +504,6 @@ extension TestMainView {
         .background(Color.clear)
     }
     
-    
-    private var AddrSearchResultsList: some View {
-        let searchResults = addressSearchManager.results
-        let lastIndex = searchResults.count - 1
-        
-        return VStack {
-            Spacer()
-            VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
-                ForEach(Array(searchResults.enumerated()), id: \.offset) { index, result in
-                    let isMostRelevant = index == lastIndex
-                    
-                    AddrSearchResultItem(
-                        result: result,
-                        isMostRelevant: isMostRelevant,
-                        onSelect: { selectedResult in
-                            // Handle selection - geocode and update map
-                            inputLocation = selectedResult.title
-                            addressSearchManager.clearResults()
-                            isTextFieldFocused = false
-                            
-                            // Geocode the selected location and fly to it
-                            Task {
-                                await geocodeAndFlyToLocation(result: selectedResult)
-                            }
-                        }
-                    )
-                }
-            }
-            .padding(.top, Spacing.current.spaceXs)
-            .padding(.horizontal, Spacing.current.spaceXs)
-            .background(Color("AppBkgColor"))
-        }
-    }
     
     private var chatInputBar: some View {
         HStack(spacing: Spacing.current.spaceXs) {

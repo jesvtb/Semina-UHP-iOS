@@ -76,6 +76,47 @@ struct AddrSearchResultItem: View {
     #endif
 }
 
+// MARK: - Address Search Results List
+struct AddrSearchResultsList: View {
+    let searchResults: [AddressSearchResult]
+    @Binding var inputLocation: String
+    @FocusState.Binding var isTextFieldFocused: Bool
+    let onResultSelected: (AddressSearchResult) async -> Void
+    let onClearResults: () -> Void
+    
+    var body: some View {
+        let lastIndex = searchResults.count - 1
+        
+        VStack {
+            Spacer()
+            VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
+                ForEach(Array(searchResults.enumerated()), id: \.offset) { index, result in
+                    let isMostRelevant = index == lastIndex
+                    
+                    AddrSearchResultItem(
+                        result: result,
+                        isMostRelevant: isMostRelevant,
+                        onSelect: { selectedResult in
+                            // Handle selection - geocode and update map
+                            inputLocation = selectedResult.title
+                            onClearResults()
+                            isTextFieldFocused = false
+                            
+                            // Geocode the selected location and fly to it
+                            Task {
+                                await onResultSelected(selectedResult)
+                            }
+                        }
+                    )
+                }
+            }
+            .padding(.top, Spacing.current.spaceXs)
+            .padding(.horizontal, Spacing.current.spaceXs)
+            .background(Color("AppBkgColor"))
+        }
+    }
+}
+
 #if DEBUG
 // MARK: - Preview Helper Component
 /// Preview-only component that displays the same UI as AddrSearchResultItem
