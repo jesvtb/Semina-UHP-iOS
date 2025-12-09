@@ -5,12 +5,12 @@ This guide explains how to set up environment-specific configurations for Debug 
 ## Overview
 
 We use Xcode Build Configurations with `.xcconfig` files to manage different settings:
-- **Dev**: Local development (PostHog disabled, local API)
+- **Debug**: Local development (PostHog disabled, local API)
 - **Release**: Production/TestFlight (PostHog enabled, production API)
 
 ## Files Created
 
-1. `Config.Dev.xcconfig` - Dev/development settings
+1. `Config.Debug.xcconfig` - Debug/development settings
 2. `Config.Release.xcconfig` - Release/production settings
 3. `Config.xcconfig` - Base configuration (shared secrets)
 
@@ -21,7 +21,7 @@ We use Xcode Build Configurations with `.xcconfig` files to manage different set
 1. Open Xcode
 2. Right-click on the project root in the navigator
 3. Select "Add Files to 'unheardpath'..."
-4. Select both `Config.Dev.xcconfig` and `Config.Release.xcconfig`
+4. Select both `Config.Debug.xcconfig` and `Config.Release.xcconfig`
 5. Ensure "Copy items if needed" is **unchecked** (files are already in the right place)
 6. Click "Add"
 
@@ -32,7 +32,7 @@ We use Xcode Build Configurations with `.xcconfig` files to manage different set
 3. Go to **Build Settings** tab
 4. Search for "Configuration File" or "baseConfigurationReference"
 5. For **Debug** configuration:
-   - Set "Configuration File" to `Config.Dev.xcconfig`
+   - Set "Configuration File" to `Config.Debug.xcconfig`
 6. For **Release** configuration:
    - Set "Configuration File" to `Config.Release.xcconfig`
 
@@ -55,7 +55,7 @@ Remove these keys from `Info.plist` (they'll be injected via build settings):
 
 ## How It Works
 
-1. **Debug builds** use `Config.Dev.xcconfig`:
+1. **Debug builds** use `Config.Debug.xcconfig`:
    - `IS_POSTHOG_TRACKING_ENABLED = NO`
    - `UHP_GATEWAY_BASE_URL = http://192.168.50.171:1031`
 
@@ -81,4 +81,5 @@ After setup, verify:
 1. Build in Debug mode → Check `IsPosthogTracking` should be `false` in Info.plist
 2. Build in Release mode → Check `IsPosthogTracking` should be `true` in Info.plist
 3. CI/CD builds use Release configuration automatically
+
 
