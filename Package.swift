@@ -24,7 +24,9 @@ let package = Package(
         // Turf
         .package(url: "https://github.com/mapbox/turf-swift", from: "4.0.0"),
         // XCTest Dynamic Overlay
-        .package(url: "https://github.com/pointfreeco/xctest-dynamic-overlay", from: "1.6.1")
+        .package(url: "https://github.com/pointfreeco/xctest-dynamic-overlay", from: "1.6.1"),
+        // MarkdownUI
+        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.2.0")
     ],
     targets: [
         .target(
@@ -38,7 +40,8 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "HTTPTypes", package: "swift-http-types"),
                 .product(name: "Turf", package: "turf-swift"),
-                .product(name: "XCTestDynamicOverlay", package: "xctest-dynamic-overlay")
+                .product(name: "XCTestDynamicOverlay", package: "xctest-dynamic-overlay"),
+                .product(name: "MarkdownUI", package: "swift-markdown-ui")
             ]
         )
     ]

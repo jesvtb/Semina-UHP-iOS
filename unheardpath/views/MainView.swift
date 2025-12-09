@@ -136,7 +136,9 @@ struct TestMainView: View {
                         shouldHideTabBar: $shouldHideTabBar,
                         sheetFullHeight: sheetFullHeight,
                         bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight,
-                        sheetSnapPoint: $sheetSnapPoint
+                        sheetSnapPoint: $sheetSnapPoint,
+                        standardContent: buildContentSections(),
+                        customBuilders: nil
                     )
                         .position(
                             x: geometry.size.width / 2,
@@ -352,6 +354,31 @@ struct TestMainView: View {
                 // await loadLocationFromGeofenceExit()
             }
         }
+    }
+    
+    // MARK: - Content Building
+    /// Builds content sections from current state
+    private func buildContentSections() -> [ContentSection] {
+        var sections: [ContentSection] = []
+        
+        // Add location detail section if device location is available
+        if let deviceLocation = locationManager.deviceLocation {
+            sections.append(ContentSection(
+                type: .locationDetail,
+                data: .locationDetail(location: deviceLocation)
+            ))
+        }
+        
+        // Extract POIs from GeoJSON and add points of interest section
+        let pois = extractPOIs(from: poisGeoJSON)
+        if !pois.isEmpty {
+            sections.append(ContentSection(
+                type: .pointsOfInterest,
+                data: .pointsOfInterest(features: pois)
+            ))
+        }
+        
+        return sections
     }
 }
 

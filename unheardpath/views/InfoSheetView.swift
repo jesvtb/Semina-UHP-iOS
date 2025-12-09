@@ -1,5 +1,5 @@
 import SwiftUI
-
+import CoreLocation
 // MARK: - Snap Point
 enum SnapPoint {
     case collapsed
@@ -32,6 +32,28 @@ struct InfoSheet: View {
     let sheetFullHeight: CGFloat
     let bottomSafeAreaInsetHeight: CGFloat
     @Binding var sheetSnapPoint: SnapPoint
+    
+    // Content parameters
+    let standardContent: [ContentSection]?
+    let customBuilders: [ContentViewBuilder]?
+    
+    init(
+        selectedTab: Binding<PreviewTabSelection>,
+        shouldHideTabBar: Binding<Bool>,
+        sheetFullHeight: CGFloat,
+        bottomSafeAreaInsetHeight: CGFloat,
+        sheetSnapPoint: Binding<SnapPoint>,
+        standardContent: [ContentSection]? = nil,
+        customBuilders: [ContentViewBuilder]? = nil
+    ) {
+        self._selectedTab = selectedTab
+        self._shouldHideTabBar = shouldHideTabBar
+        self.sheetFullHeight = sheetFullHeight
+        self.bottomSafeAreaInsetHeight = bottomSafeAreaInsetHeight
+        self._sheetSnapPoint = sheetSnapPoint
+        self.standardContent = standardContent
+        self.customBuilders = customBuilders
+    }
     
     // Snap points - visible heights
     private var fullHeight: CGFloat {
@@ -104,15 +126,33 @@ struct InfoSheet: View {
                         // This must be at the very top of the scroll content
                         ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: sheetSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
                         
-                        // Minimal test content
-                        VStack(alignment: .leading) {
+                        // Content rendering
+                        VStack(alignment: .leading, spacing: 0) {
                             // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
                             if sheetSnapPoint != .full {
                                 DisplayText("Journey Content", scale: .article2, color: Color("onBkgTextColor20"))
                                     .padding(.top, Spacing.current.spaceXs)
+                                    .padding(.bottom, Spacing.current.spaceXs)
                             }
                             
+                            // Render standard content sections first
+                            if let standardContent = standardContent, !standardContent.isEmpty {
+                                ForEach(standardContent) { section in
+                                    ContentViewRegistry.view(for: section)
+                                }
+                            }
+                            
+                            // Render custom builders after standard content
+                            if let customBuilders = customBuilders, !customBuilders.isEmpty {
+                                ForEach(customBuilders) { builder in
+                                    builder.builder()
+                                }
+                            }
+                            
+                            // Fallback to TestBody if no content provided
+                            if (standardContent?.isEmpty ?? true) && (customBuilders?.isEmpty ?? true) {
                             TestBody()
+                            }
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, Spacing.current.spaceS)
@@ -297,5 +337,191 @@ struct InfoSheet: View {
 }
 
 #Preview("Full Height") {
-    InfoSheet(selectedTab: .constant(.journey), shouldHideTabBar: .constant(false), sheetFullHeight: 1000, bottomSafeAreaInsetHeight: 0, sheetSnapPoint: .constant(.full))
+    InfoSheet(
+        selectedTab: .constant(.journey),
+        shouldHideTabBar: .constant(false),
+        sheetFullHeight: 1000,
+        bottomSafeAreaInsetHeight: 0,
+        sheetSnapPoint: .constant(.full)
+    )
 }
+
+#if DEBUG
+#Preview("Standard Content") {
+    let sections = loadStandardContentFromJSON()
+    return InfoSheet(
+        selectedTab: .constant(.journey),
+        shouldHideTabBar: .constant(false),
+        sheetFullHeight: 1000,
+        bottomSafeAreaInsetHeight: 0,
+        sheetSnapPoint: .constant(.full),
+        standardContent: sections,
+        customBuilders: nil
+    )
+}
+
+#Preview("Custom Builders") {
+    let customBuilders: [ContentViewBuilder] = [
+        ContentViewBuilder {
+            VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
+                DisplayText("Custom Section 1", scale: .article2, color: Color("onBkgTextColor20"))
+                Text("This is a custom content builder that demonstrates dynamic content rendering.")
+                    .bodyParagraph(color: Color("onBkgTextColor30"))
+            }
+            .padding(.vertical, Spacing.current.spaceXs)
+        },
+        ContentViewBuilder {
+            VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
+                DisplayText("Custom Section 2", scale: .article2, color: Color("onBkgTextColor20"))
+                Text("You can use custom builders for conditional or dynamic content that doesn't fit standard content types.")
+                    .bodyParagraph(color: Color("onBkgTextColor30"))
+            }
+            .padding(.vertical, Spacing.current.spaceXs)
+        }
+    ]
+    
+    return InfoSheet(
+        selectedTab: .constant(.journey),
+        shouldHideTabBar: .constant(false),
+        sheetFullHeight: 1000,
+        bottomSafeAreaInsetHeight: 0,
+        sheetSnapPoint: .constant(.full),
+        standardContent: nil,
+        customBuilders: customBuilders
+    )
+}
+
+#Preview("Mixed Content") {
+    let sections = loadStandardContentFromJSON()
+    let customBuilders: [ContentViewBuilder] = [
+        ContentViewBuilder {
+            VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
+                DisplayText("Additional Info", scale: .article2, color: Color("onBkgTextColor20"))
+                Text("This custom section appears after standard content sections.")
+                    .bodyParagraph(color: Color("onBkgTextColor30"))
+            }
+            .padding(.vertical, Spacing.current.spaceXs)
+        }
+    ]
+    
+    return InfoSheet(
+        selectedTab: .constant(.journey),
+        shouldHideTabBar: .constant(false),
+        sheetFullHeight: 1000,
+        bottomSafeAreaInsetHeight: 0,
+        sheetSnapPoint: .constant(.full),
+        standardContent: sections,
+        customBuilders: customBuilders
+    )
+}
+
+// Helper function to load standard content from JSON file
+private func loadStandardContentFromJSON() -> [ContentSection] {
+    guard let url = Bundle.main.url(forResource: "standard_content_preview", withExtension: "json"),
+          let data = try? Data(contentsOf: url),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        return []
+    }
+    
+    var sections: [ContentSection] = []
+    
+    // Load overview if available
+    if let overview = json["overview"] as? String {
+        sections.append(ContentSection(
+            type: .overview,
+            data: .overview(markdown: overview)
+        ))
+    }
+    
+    // Load location detail if available
+    if let locationDict = json["locationDetail"] as? [String: Any],
+       let lat = locationDict["latitude"] as? Double,
+       let lon = locationDict["longitude"] as? Double {
+        let altitude = locationDict["altitude"] as? Double ?? 0
+        let location = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            altitude: altitude,
+            horizontalAccuracy: 0,
+            verticalAccuracy: 0,
+            timestamp: Date()
+        )
+        sections.append(ContentSection(
+            type: .locationDetail,
+            data: .locationDetail(location: location)
+        ))
+    }
+    
+    // Load POIs if available
+    if let poisArray = json["pointsOfInterest"] as? [[String: Any]] {
+        let features = poisArray.compactMap { poiDict -> PointFeature? in
+            // Convert dictionary to JSONValue format
+            guard let geometryDict = poiDict["geometry"] as? [String: Any],
+                  let coordinatesArray = geometryDict["coordinates"] as? [Double],
+                  coordinatesArray.count >= 2,
+                  let propertiesDict = poiDict["properties"] as? [String: Any] else {
+                return nil
+            }
+            
+            // Convert to JSONValue format
+            var feature: [String: JSONValue] = [
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array(coordinatesArray.map { .double($0) })
+                ]),
+                "properties": .dictionary(convertToJSONValue(propertiesDict))
+            ]
+            
+            return PointFeature(from: feature)
+        }
+        
+        if !features.isEmpty {
+            sections.append(ContentSection(
+                type: .pointsOfInterest,
+                data: .pointsOfInterest(features: features)
+            ))
+        }
+    }
+    
+    return sections
+}
+
+// Helper function to convert [String: Any] to [String: JSONValue]
+private func convertToJSONValue(_ dict: [String: Any]) -> [String: JSONValue] {
+    var result: [String: JSONValue] = [:]
+    
+    for (key, value) in dict {
+        result[key] = convertAnyToJSONValue(value)
+    }
+    
+    return result
+}
+
+private func convertAnyToJSONValue(_ value: Any) -> JSONValue {
+    switch value {
+    case let string as String:
+        return .string(string)
+    case let number as NSNumber:
+        if CFGetTypeID(number) == CFBooleanGetTypeID() {
+            return .bool(number.boolValue)
+        } else if number.isInt {
+            return .int(number.intValue)
+        } else {
+            return .double(number.doubleValue)
+        }
+    case let dict as [String: Any]:
+        return .dictionary(convertToJSONValue(dict))
+    case let array as [Any]:
+        return .array(array.map { convertAnyToJSONValue($0) })
+    default:
+        return .string("\(value)")
+    }
+}
+
+extension NSNumber {
+    var isInt: Bool {
+        let type = CFNumberGetType(self as CFNumber)
+        return type == .sInt8Type || type == .sInt16Type || type == .sInt32Type || type == .sInt64Type || type == .intType
+    }
+}
+#endif

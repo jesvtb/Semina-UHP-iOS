@@ -1,0 +1,312 @@
+import SwiftUI
+import MarkdownUI
+import CoreLocation
+
+// MARK: - Content View Type
+enum ContentViewType: String, CaseIterable {
+    case overview
+    case locationDetail
+    case pointsOfInterest
+}
+
+// MARK: - Content Section
+struct ContentSection: Identifiable {
+    let id: UUID
+    let type: ContentViewType
+    let data: ContentSectionData
+    
+    enum ContentSectionData {
+        case overview(markdown: String)
+        case locationDetail(location: CLLocation)
+        case pointsOfInterest(features: [PointFeature])
+    }
+    
+    init(id: UUID = UUID(), type: ContentViewType, data: ContentSectionData) {
+        self.id = id
+        self.type = type
+        self.data = data
+    }
+}
+
+// MARK: - Content View Registry
+struct ContentViewRegistry {
+    @ViewBuilder
+    static func view(for section: ContentSection) -> some View {
+        switch section.data {
+        case .overview(let markdown):
+            OverviewView(markdown: markdown)
+        case .locationDetail(let location):
+            LocationDetailView(location: location)
+        case .pointsOfInterest(let features):
+            if features.count == 1, let feature = features.first {
+                ContentPoiItemView(feature: feature)
+            } else {
+                ContentPoiListView(features: features)
+            }
+        }
+    }
+}
+
+// MARK: - Overview View
+struct OverviewView: View {
+    let markdown: String
+    
+    var body: some View {
+        // Use MarkdownUI with default theme for now
+        // Custom font styling can be applied via view modifiers if needed
+        Markdown(markdown)
+            .padding(.vertical, Spacing.current.spaceXs)
+    }
+}
+
+// MARK: - Location Detail View
+struct LocationDetailView: View {
+    let location: CLLocation
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
+            DisplayText("Location", scale: .article2, color: Color("onBkgTextColor20"))
+            
+            VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
+                Text("Latitude: \(location.coordinate.latitude, specifier: "%.6f")")
+                    .bodyText()
+                    .foregroundColor(Color("onBkgTextColor30"))
+                
+                Text("Longitude: \(location.coordinate.longitude, specifier: "%.6f")")
+                    .bodyText()
+                    .foregroundColor(Color("onBkgTextColor30"))
+                
+                if location.altitude != 0 {
+                    Text("Altitude: \(location.altitude, specifier: "%.2f") m")
+                        .bodyText()
+                        .foregroundColor(Color("onBkgTextColor30"))
+                }
+            }
+        }
+        .padding(.vertical, Spacing.current.spaceXs)
+    }
+}
+
+// MARK: - Content POI Item View
+struct ContentPoiItemView: View {
+    let feature: PointFeature
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
+            // Image at the top if available
+            if let imageURL = feature.imageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        // Placeholder while loading
+                        Rectangle()
+                            .fill(Color("onBkgTextColor30").opacity(0.1))
+                            .frame(height: 200)
+                            .overlay(
+                                ProgressView()
+                                    .tint(Color("onBkgTextColor30"))
+                            )
+                            .cornerRadius(Spacing.current.spaceXs)
+                    case .success(let image):
+                        ZStack {
+                            // Base image
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(maxHeight: 200)
+                                .clipped()
+                            
+                            // Gradient overlay for brand consistency
+                            // Creates a subtle blend that makes images look cohesive
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color("AppBkgColor").opacity(0.0),  // Transparent at top
+                                    Color("AppBkgColor").opacity(0.3), // Slight blend in middle
+                                    Color("AppBkgColor").opacity(0.5)  // More blend at bottom
+                                ]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .blendMode(.overlay)  // Blend mode for natural color mixing
+                        }
+                        .cornerRadius(Spacing.current.spaceXs)
+                        .overlay(
+                            // Subtle border for definition
+                            RoundedRectangle(cornerRadius: Spacing.current.spaceXs)
+                                .stroke(Color("onBkgTextColor30").opacity(0.1), lineWidth: 1)
+                        )
+                    case .failure:
+                        // Error state - show placeholder
+                        Rectangle()
+                            .fill(Color("onBkgTextColor30").opacity(0.1))
+                            .frame(height: 200)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .foregroundColor(Color("onBkgTextColor30").opacity(0.5))
+                            )
+                            .cornerRadius(Spacing.current.spaceXs)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+            
+            if let title = feature.title {
+                DisplayText(title, scale: .article2, color: Color("onBkgTextColor20"))
+            }
+            
+            if let description = feature.description {
+                Text(description)
+                    .bodyParagraph(color: Color("onBkgTextColor30"))
+            }
+            
+            if let coordinate = feature.coordinate {
+                Text("📍 \(coordinate.latitude, specifier: "%.6f"), \(coordinate.longitude, specifier: "%.6f")")
+                    .bodyText(size: .articleMinus1)
+                    .foregroundColor(Color("onBkgTextColor30"))
+            }
+        }
+        .padding(.vertical, Spacing.current.spaceXs)
+    }
+}
+
+// MARK: - Content POI List View
+struct ContentPoiListView: View {
+    let features: [PointFeature]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+            DisplayText("Points of Interest", scale: .article2, color: Color("onBkgTextColor20"))
+            
+            ForEach(Array(features.enumerated()), id: \.offset) { index, feature in
+                ContentPoiItemView(feature: feature)
+                
+                if index < features.count - 1 {
+                    Divider()
+                        .background(Color("onBkgTextColor30").opacity(0.3))
+                }
+            }
+        }
+        .padding(.vertical, Spacing.current.spaceXs)
+    }
+}
+
+// MARK: - PointFeature Description Extension
+extension PointFeature {
+    /// Extract description with priority: short_description > wikipedia.extract
+    var description: String? {
+        guard let properties = properties else { return nil }
+        
+        // First, try short_description
+        if let shortDescriptionValue = properties["short_description"],
+           let shortDescription = shortDescriptionValue.stringValue,
+           !shortDescription.isEmpty {
+            return shortDescription
+        }
+        
+        // Fall back to wikipedia.extract
+        if let wikipediaValue = properties["wikipedia"],
+           let wikipedia = wikipediaValue.dictionaryValue,
+           let extractValue = wikipedia["extract"],
+           let extract = extractValue.stringValue,
+           !extract.isEmpty {
+            return extract
+        }
+        
+        return nil
+    }
+}
+
+// MARK: - POI Extraction Helper
+/// Helper function to extract POI data from GeoJSON features
+func extractPOIs(from geoJSON: GeoJSON) -> [PointFeature] {
+    return geoJSON.features.compactMap { feature -> PointFeature? in
+        PointFeature(from: feature)
+    }
+}
+
+// MARK: - Previews
+#if DEBUG
+#Preview("Overview View") {
+    ScrollView {
+        OverviewView(markdown: """
+        # Welcome to Ancient Rome
+        
+        This journey takes you through the **heart of the Roman Empire**, exploring iconic landmarks and hidden gems.
+        
+        ## What You'll Discover
+        
+        - The Colosseum: An architectural marvel
+        - The Forum: The center of Roman public life
+        - [The Pantheon](https://en.wikipedia.org/wiki/Pantheon,_Rome): A temple to all gods
+        
+        ## Getting Started
+        
+        Begin your journey at the Colosseum and follow the path through history.
+        
+        ```swift
+        let journey = Journey(name: "Ancient Rome")
+        journey.start()
+        ```
+        
+        Enjoy your exploration!
+        """)
+        .padding()
+    }
+    .background(Color("AppBkgColor"))
+}
+
+#Preview("Location Detail View") {
+    ScrollView {
+        LocationDetailView(location: CLLocation(
+            latitude: 41.9028,
+            longitude: 12.4964
+        ))
+        .padding()
+    }
+    .background(Color("AppBkgColor"))
+}
+
+#Preview("POI Item View") {
+    ScrollView {
+        if let feature = createMockPointFeature() {
+            ContentPoiItemView(feature: feature)
+                .padding()
+        }
+    }
+    .background(Color("AppBkgColor"))
+}
+
+#Preview("POI List View") {
+    ScrollView {
+        let features = [
+            createMockPointFeature(name: "The Colosseum", description: "An elliptical amphitheatre in the centre of the city of Rome, Italy."),
+            createMockPointFeature(name: "The Roman Forum", description: "A rectangular forum surrounded by the ruins of several important ancient government buildings."),
+            createMockPointFeature(name: "The Pantheon", description: "A former Roman temple and, since AD 609, a Catholic church in Rome, Italy.")
+        ].compactMap { $0 }
+        
+        ContentPoiListView(features: features)
+            .padding()
+    }
+    .background(Color("AppBkgColor"))
+}
+
+// Helper function to create mock PointFeature for previews
+private func createMockPointFeature(name: String = "The Colosseum", description: String = "An elliptical amphitheatre in the centre of the city of Rome, Italy.") -> PointFeature? {
+    let feature: [String: JSONValue] = [
+        "type": .string("Feature"),
+        "geometry": .dictionary([
+            "type": .string("Point"),
+            "coordinates": .array([.double(12.4964), .double(41.9028)])
+        ]),
+        "properties": .dictionary([
+            "names": .dictionary([
+                "device_lang": .string(name)
+            ]),
+            "short_description": .string(description)
+        ])
+    ]
+    return PointFeature(from: feature)
+}
+#endif
+
