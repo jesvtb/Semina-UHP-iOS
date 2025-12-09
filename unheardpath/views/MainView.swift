@@ -352,10 +352,6 @@ extension TestMainView {
     }
 }
 
-// MARK: - TestMainView: View Components
-extension TestMainView {
-}
-
 
 // MARK: - TestMainView: Actions
 extension TestMainView {
