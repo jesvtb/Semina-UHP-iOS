@@ -77,7 +77,7 @@ extension TestMainView {
       
       // Update lastMessage for the bubble display
       if let lastMsg = messages.last, !lastMsg.isUser {
-        lastMessage = lastMsg
+        liveUpdateViewModel.updateLastMessage(lastMsg)
       }
     }
   }
@@ -110,12 +110,10 @@ extension TestMainView {
         print("   Setting currentNotification...")
         #endif
         
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-          currentNotification = notification
-        }
+        liveUpdateViewModel.setNotification(notification)
         
         #if DEBUG
-        print("   currentNotification set. Value: \(currentNotification?.message ?? "nil")")
+        print("   currentNotification set. Value: \(liveUpdateViewModel.currentNotification?.message ?? "nil")")
         #endif
         // Note: ProgressNotificationBanner handles its own auto-dismiss
       }
@@ -172,7 +170,7 @@ extension TestMainView {
           #endif
           
           // Update lastMessage for the bubble display
-          lastMessage = messages[lastIndex]
+          liveUpdateViewModel.updateLastMessage(messages[lastIndex])
         }
       }
     } catch {

@@ -36,7 +36,7 @@ extension TestMainView {
             let userMessage = ChatMessage(text: trimmedMessage, isUser: true, isStreaming: false)
             messages.append(userMessage)
             // Update lastMessage for the bubble display
-            lastMessage = userMessage
+            liveUpdateViewModel.updateLastMessage(userMessage)
             #if DEBUG
             print("✅ User message added to chat. Total messages: \(messages.count)")
             #endif
@@ -141,7 +141,7 @@ extension TestMainView {
                     )
                     messages[lastIndex] = updatedMessage
                     // Update lastMessage for the bubble display
-                    lastMessage = updatedMessage
+                    liveUpdateViewModel.updateLastMessage(updatedMessage)
                     #if DEBUG
                     print("✅ Stream finished, marked last assistant message as not streaming")
                     #endif

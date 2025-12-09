@@ -27,10 +27,8 @@ struct TestMainView: View {
     @State private var selectedTab: PreviewTabSelection = .journey
     @State var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
-    @State var lastMessage: ChatMessage?
-    @State var currentNotification: NotificationData?
+    @StateObject var liveUpdateViewModel = LiveUpdateViewModel()
     @State var shouldDismissKeyboard: Bool = false
-    @State private var isMessageExpanded: Bool = false
     
     // Location-related state
     @State private var isLoadingLocation = false
@@ -123,14 +121,13 @@ struct TestMainView: View {
             }
 
             
-            if let lastMessage = lastMessage, selectedTab != .chat {
+            if let lastMessage = liveUpdateViewModel.lastMessage, selectedTab != .chat {
                 LiveUpdateStack(
                     message: lastMessage,
-                    currentNotification: $currentNotification,
-                    isExpanded: $isMessageExpanded,
+                    currentNotification: $liveUpdateViewModel.currentNotification,
+                    isExpanded: $liveUpdateViewModel.isMessageExpanded,
                     onDismiss: {
-                        self.lastMessage = nil
-                        self.isMessageExpanded = false
+                        liveUpdateViewModel.dismissMessage()
                     }
                 )
                 .opacity(shouldHideTabBar ? 0 : 1)
@@ -272,10 +269,10 @@ struct TestMainView: View {
                 }
             }
             if let previewLastMessage = previewLastMessage {
-                lastMessage = previewLastMessage
+                liveUpdateViewModel.lastMessage = previewLastMessage
             }
             if let previewCurrentNotification = previewCurrentNotification {
-                currentNotification = previewCurrentNotification
+                liveUpdateViewModel.currentNotification = previewCurrentNotification
             }
             
             // Initialize search completer if starting in map tab

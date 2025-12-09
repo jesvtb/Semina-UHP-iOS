@@ -1,5 +1,32 @@
 import SwiftUI
 
+/// Manages state for the LiveUpdateStack overlay component
+/// Groups related state: lastMessage, currentNotification, and isMessageExpanded
+@MainActor
+class LiveUpdateViewModel: ObservableObject {
+    @Published var lastMessage: ChatMessage?
+    @Published var currentNotification: NotificationData?
+    @Published var isMessageExpanded: Bool = false
+    
+    /// Dismisses the message bubble and resets expansion state
+    func dismissMessage() {
+        lastMessage = nil
+        isMessageExpanded = false
+    }
+    
+    /// Sets a new notification with animation
+    func setNotification(_ notification: NotificationData) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            currentNotification = notification
+        }
+    }
+    
+    /// Updates the last message (used when streaming completes)
+    func updateLastMessage(_ message: ChatMessage) {
+        lastMessage = message
+    }
+}
+
 struct LiveUpdateStack: View {
     let message: ChatMessage
     @Binding var currentNotification: NotificationData?
