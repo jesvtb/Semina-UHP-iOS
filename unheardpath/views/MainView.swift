@@ -172,7 +172,11 @@ struct TestMainView: View {
                     draftMessage: $chatState.draftMessage,
                     inputLocation: $inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
-                    onSendMessage: sendMessage,
+                    onSendMessage: {
+                        Task { @MainActor in
+                            await sendMessage()
+                        }
+                    },
                     onSwitchToChat: {
                         selectedTab = .chat
                     }
