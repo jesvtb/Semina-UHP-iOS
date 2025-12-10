@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 90;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -14,10 +14,20 @@
 		C1037AC12E7185550014D793 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AC02E7185550014D793 /* Storage */; };
 		C1037AC32E7185550014D793 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AC22E7185550014D793 /* Supabase */; };
 		C1084CF22EE8106D00E6EC2C /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = C1084CF12EE8106D00E6EC2C /* MarkdownUI */; };
+		C141330A2EE9505400459EE0 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C14133092EE9505400459EE0 /* WidgetKit.framework */; };
+		C141330C2EE9505400459EE0 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C141330B2EE9505400459EE0 /* SwiftUI.framework */; };
+		C141331B2EE9505600459EE0 /* widgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C14133082EE9505400459EE0 /* widgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C1C87F622ED18B2C00A46F12 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = C1C87F612ED18B2C00A46F12 /* PostHog */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		C14133192EE9505600459EE0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C1CD228C2E6FE5D50057E60C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C14133072EE9505400459EE0;
+			remoteInfo = widgetExtension;
+		};
 		C1CD22A62E6FE5D60057E60C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C1CD228C2E6FE5D50057E60C /* Project object */;
@@ -35,15 +45,22 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		C14133202EE9505600459EE0 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				C141331B2EE9505600459EE0 /* widgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+		};
 		C16D76372E702A4400BA24BC /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
 			dstPath = "";
-			dstSubfolderSpec = 10;
+			dstSubfolder = Frameworks;
 			files = (
 			);
 			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -51,6 +68,10 @@
 		C1037A842E7126030014D793 /* unheardpath.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = unheardpath.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1037A852E7126030014D793 /* unheardpathTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1037A862E7126030014D793 /* unheardpathUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C14133082EE9505400459EE0 /* widgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = widgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C14133092EE9505400459EE0 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		C141330B2EE9505400459EE0 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		C14133212EE9508400459EE0 /* widgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = widgetExtension.entitlements; sourceTree = "<group>"; };
 		C1BC73C12EE51E9C00E51567 /* unheardpath.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = unheardpath.xctestplan; sourceTree = "<group>"; };
 		C1F7EF972EDEB6BD00A0E271 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.Debug.xcconfig; sourceTree = "<group>"; };
@@ -58,7 +79,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		C144ED8F2ED0614400A30988 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		C141331C2EE9505600459EE0 /* Exceptions for "widget" folder in "widgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C14133072EE9505400459EE0 /* widgetExtension */;
+		};
+		C144ED8F2ED0614400A30988 /* Exceptions for "unheardpath" folder in "unheardpath" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -68,15 +96,44 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C1CD22962E6FE5D50057E60C /* unheardpath */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C144ED8F2ED0614400A30988 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = unheardpath; sourceTree = "<group>"; };
-		C1CD22A82E6FE5D60057E60C /* unheardpathTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpathTests; sourceTree = "<group>"; };
-		C1CD22B22E6FE5D60057E60C /* unheardpathUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = unheardpathUITests; sourceTree = "<group>"; };
+		C141330D2EE9505400459EE0 /* widget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C141331C2EE9505600459EE0 /* Exceptions for "widget" folder in "widgetExtension" target */,
+			);
+			path = widget;
+			sourceTree = "<group>";
+		};
+		C1CD22962E6FE5D50057E60C /* unheardpath */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C144ED8F2ED0614400A30988 /* Exceptions for "unheardpath" folder in "unheardpath" target */,
+			);
+			path = unheardpath;
+			sourceTree = "<group>";
+		};
+		C1CD22A82E6FE5D60057E60C /* unheardpathTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = unheardpathTests;
+			sourceTree = "<group>";
+		};
+		C1CD22B22E6FE5D60057E60C /* unheardpathUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = unheardpathUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C14133052EE9505400459EE0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				C141330C2EE9505400459EE0 /* SwiftUI.framework in Frameworks */,
+				C141330A2EE9505400459EE0 /* WidgetKit.framework in Frameworks */,
+			);
+		};
 		C1CD22912E6FE5D50057E60C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				C1037AB52E71279A0014D793 /* MapboxMaps in Frameworks */,
 				C1037AC12E7185550014D793 /* Storage in Frameworks */,
@@ -87,21 +144,16 @@
 				C1037AB92E7185550014D793 /* Auth in Frameworks */,
 				C1037AC32E7185550014D793 /* Supabase in Frameworks */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C1CD22A22E6FE5D60057E60C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C1CD22AC2E6FE5D60057E60C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -109,6 +161,8 @@
 		C1C87F5C2ED157DA00A46F12 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				C14133092EE9505400459EE0 /* WidgetKit.framework */,
+				C141330B2EE9505400459EE0 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -116,6 +170,7 @@
 		C1CD228B2E6FE5D50057E60C = {
 			isa = PBXGroup;
 			children = (
+				C14133212EE9508400459EE0 /* widgetExtension.entitlements */,
 				C1BC73C12EE51E9C00E51567 /* unheardpath.xctestplan */,
 				C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */,
 				C1F7EF972EDEB6BD00A0E271 /* Config.xcconfig */,
@@ -123,16 +178,36 @@
 				C1037A842E7126030014D793 /* unheardpath.app */,
 				C1037A852E7126030014D793 /* unheardpathTests.xctest */,
 				C1037A862E7126030014D793 /* unheardpathUITests.xctest */,
+				C141330D2EE9505400459EE0 /* widget */,
 				C1C87F5C2ED157DA00A46F12 /* Frameworks */,
 				C1CD22962E6FE5D50057E60C /* unheardpath */,
 				C1CD22A82E6FE5D60057E60C /* unheardpathTests */,
 				C1CD22B22E6FE5D60057E60C /* unheardpathUITests */,
+				C14133082EE9505400459EE0 /* widgetExtension.appex */,
 			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C14133072EE9505400459EE0 /* widgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C141331D2EE9505600459EE0 /* Build configuration list for PBXNativeTarget "widgetExtension" */;
+			buildPhases = (
+				C14133042EE9505400459EE0 /* Sources */,
+				C14133052EE9505400459EE0 /* Frameworks */,
+				C14133062EE9505400459EE0 /* Resources */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				C141330D2EE9505400459EE0 /* widget */,
+			);
+			name = widgetExtension;
+			productName = widgetExtension;
+			productReference = C14133082EE9505400459EE0 /* widgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		C1CD22932E6FE5D50057E60C /* unheardpath */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C1CD22B82E6FE5D60057E60C /* Build configuration list for PBXNativeTarget "unheardpath" */;
@@ -141,10 +216,12 @@
 				C1CD22912E6FE5D50057E60C /* Frameworks */,
 				C1CD22922E6FE5D50057E60C /* Resources */,
 				C16D76372E702A4400BA24BC /* Embed Frameworks */,
+				C14133202EE9505600459EE0 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C141331A2EE9505600459EE0 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				C1CD22962E6FE5D50057E60C /* unheardpath */,
@@ -203,9 +280,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1640;
+				LastSwiftUpdateCheck = 2610;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					C14133072EE9505400459EE0 = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
 					C1CD22932E6FE5D50057E60C = {
 						CreatedOnToolsVersion = 16.4;
 					};
@@ -220,7 +300,6 @@
 				};
 			};
 			buildConfigurationList = C1CD228F2E6FE5D50057E60C /* Build configuration list for PBXProject "unheardpath" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -235,6 +314,7 @@
 				C1DF00482EC88B15009C463E /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				C1084CF02EE8106D00E6EC2C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 			);
+			preferredProjectObjectVersion = 90;
 			productRefGroup = C1CD228B2E6FE5D50057E60C;
 			projectDirPath = "";
 			projectRoot = "";
@@ -242,59 +322,63 @@
 				C1CD22932E6FE5D50057E60C /* unheardpath */,
 				C1CD22A42E6FE5D60057E60C /* unheardpathTests */,
 				C1CD22AE2E6FE5D60057E60C /* unheardpathUITests */,
+				C14133072EE9505400459EE0 /* widgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		C1CD22922E6FE5D50057E60C /* Resources */ = {
+		C14133062EE9505400459EE0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1CD22922E6FE5D50057E60C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
 		};
 		C1CD22A32E6FE5D60057E60C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C1CD22AD2E6FE5D60057E60C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		C1CD22902E6FE5D50057E60C /* Sources */ = {
+		C14133042EE9505400459EE0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1CD22902E6FE5D50057E60C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
 		};
 		C1CD22A12E6FE5D60057E60C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C1CD22AB2E6FE5D60057E60C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		C141331A2EE9505600459EE0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C14133072EE9505400459EE0 /* widgetExtension */;
+			targetProxy = C14133192EE9505600459EE0 /* PBXContainerItemProxy */;
+		};
 		C1CD22A72E6FE5D60057E60C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = C1CD22932E6FE5D50057E60C /* unheardpath */;
@@ -308,13 +392,79 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		C1CD22B92E6FE5D60057E60C /* Debug */ = {
+		C141331E2EE9505600459EE0 /* Debug configuration for PBXNativeTarget "widgetExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = widgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZMR9YNSJN2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = widget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = widget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpath.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C141331F2EE9505600459EE0 /* Release configuration for PBXNativeTarget "widgetExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = widgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZMR9YNSJN2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = widget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = widget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpath.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		C1CD22B92E6FE5D60057E60C /* Debug configuration for PBXNativeTarget "unheardpath" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = unheardpath/unheardpath.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -326,6 +476,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
 				INFOPLIST_KEY_GEOAPIFY_API_KEY = "$(GEOAPIFY_API_KEY)";
 				INFOPLIST_KEY_IS_POSTHOG_TRACKING_ENABLED = "$(IS_POSTHOG_TRACKING_ENABLED)";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_MBXAccessToken = "$(MAPBOX_ACCESS_TOKEN)";
 				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
@@ -334,6 +485,8 @@
 				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_POSTHOG_API_KEY = "$(POSTHOG_API_KEY)";
 				INFOPLIST_KEY_POSTHOG_HOST = "$(POSTHOG_HOST)";
 				INFOPLIST_KEY_SUPABASE_PROJECT_URL = "$(SUPABASE_PROJECT_URL)";
@@ -356,6 +509,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpath;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -365,13 +519,14 @@
 			};
 			name = Debug;
 		};
-		C1CD22BA2E6FE5D60057E60C /* Release */ = {
+		C1CD22BA2E6FE5D60057E60C /* Release configuration for PBXNativeTarget "unheardpath" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = unheardpath/unheardpath.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -383,6 +538,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Unheard Path";
 				INFOPLIST_KEY_GEOAPIFY_API_KEY = "$(GEOAPIFY_API_KEY)";
 				INFOPLIST_KEY_IS_POSTHOG_TRACKING_ENABLED = "$(IS_POSTHOG_TRACKING_ENABLED)";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_MBXAccessToken = "$(MAPBOX_ACCESS_TOKEN)";
 				INFOPLIST_KEY_MKDirectionsApplicationSupportedModes = "MKDirectionsModeCar MKDirectionsModePedestrian";
@@ -391,6 +547,8 @@
 				INFOPLIST_KEY_NSLocationTemporaryUsageDescription = "This app needs precise location access to provide accurate location-based features and map services.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "This app needs location access to provide directions and show your current position on the map.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to provide directions and map services.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_POSTHOG_API_KEY = "$(POSTHOG_API_KEY)";
 				INFOPLIST_KEY_POSTHOG_HOST = "$(POSTHOG_HOST)";
 				INFOPLIST_KEY_SUPABASE_PROJECT_URL = "$(SUPABASE_PROJECT_URL)";
@@ -413,6 +571,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.semina.unheardpath;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -422,7 +581,7 @@
 			};
 			name = Release;
 		};
-		C1CD22BB2E6FE5D60057E60C /* Debug */ = {
+		C1CD22BB2E6FE5D60057E60C /* Debug configuration for PBXProject "unheardpath" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */;
 			buildSettings = {
@@ -487,7 +646,7 @@
 			};
 			name = Debug;
 		};
-		C1CD22BC2E6FE5D60057E60C /* Release */ = {
+		C1CD22BC2E6FE5D60057E60C /* Release configuration for PBXProject "unheardpath" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */;
 			buildSettings = {
@@ -544,7 +703,7 @@
 			};
 			name = Release;
 		};
-		C1CD22BE2E6FE5D60057E60C /* Debug */ = {
+		C1CD22BE2E6FE5D60057E60C /* Debug configuration for PBXNativeTarget "unheardpathTests" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */;
 			buildSettings = {
@@ -568,7 +727,7 @@
 			};
 			name = Debug;
 		};
-		C1CD22BF2E6FE5D60057E60C /* Release */ = {
+		C1CD22BF2E6FE5D60057E60C /* Release configuration for PBXNativeTarget "unheardpathTests" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */;
 			buildSettings = {
@@ -592,7 +751,7 @@
 			};
 			name = Release;
 		};
-		C1CD22C12E6FE5D60057E60C /* Debug */ = {
+		C1CD22C12E6FE5D60057E60C /* Debug configuration for PBXNativeTarget "unheardpathUITests" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C1F7EF9B2EDEB74000A0E271 /* Config.Debug.xcconfig */;
 			buildSettings = {
@@ -615,7 +774,7 @@
 			};
 			name = Debug;
 		};
-		C1CD22C22E6FE5D60057E60C /* Release */ = {
+		C1CD22C22E6FE5D60057E60C /* Release configuration for PBXNativeTarget "unheardpathUITests" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */;
 			buildSettings = {
@@ -641,40 +800,44 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		C141331D2EE9505600459EE0 /* Build configuration list for PBXNativeTarget "widgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C141331E2EE9505600459EE0 /* Debug configuration for PBXNativeTarget "widgetExtension" */,
+				C141331F2EE9505600459EE0 /* Release configuration for PBXNativeTarget "widgetExtension" */,
+			);
+			defaultConfigurationName = Debug;
+		};
 		C1CD228F2E6FE5D50057E60C /* Build configuration list for PBXProject "unheardpath" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				C1CD22BB2E6FE5D60057E60C /* Debug */,
-				C1CD22BC2E6FE5D60057E60C /* Release */,
+				C1CD22BB2E6FE5D60057E60C /* Debug configuration for PBXProject "unheardpath" */,
+				C1CD22BC2E6FE5D60057E60C /* Release configuration for PBXProject "unheardpath" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
 		C1CD22B82E6FE5D60057E60C /* Build configuration list for PBXNativeTarget "unheardpath" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				C1CD22B92E6FE5D60057E60C /* Debug */,
-				C1CD22BA2E6FE5D60057E60C /* Release */,
+				C1CD22B92E6FE5D60057E60C /* Debug configuration for PBXNativeTarget "unheardpath" */,
+				C1CD22BA2E6FE5D60057E60C /* Release configuration for PBXNativeTarget "unheardpath" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
 		C1CD22BD2E6FE5D60057E60C /* Build configuration list for PBXNativeTarget "unheardpathTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				C1CD22BE2E6FE5D60057E60C /* Debug */,
-				C1CD22BF2E6FE5D60057E60C /* Release */,
+				C1CD22BE2E6FE5D60057E60C /* Debug configuration for PBXNativeTarget "unheardpathTests" */,
+				C1CD22BF2E6FE5D60057E60C /* Release configuration for PBXNativeTarget "unheardpathTests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
 		C1CD22C02E6FE5D60057E60C /* Build configuration list for PBXNativeTarget "unheardpathUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				C1CD22C12E6FE5D60057E60C /* Debug */,
-				C1CD22C22E6FE5D60057E60C /* Release */,
+				C1CD22C12E6FE5D60057E60C /* Debug configuration for PBXNativeTarget "unheardpathUITests" */,
+				C1CD22C22E6FE5D60057E60C /* Release configuration for PBXNativeTarget "unheardpathUITests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */

@@ -22,20 +22,6 @@ class GeoapifyGateway: ObservableObject {
     private let apiKey: String
     
     init() {
-        // Debug: Print all Info.plist keys to help diagnose issues
-        #if DEBUG
-        if let infoDict = Bundle.main.infoDictionary {
-            print("🔍 Available Info.plist keys: \(infoDict.keys.sorted().joined(separator: ", "))")
-            // Specifically check for GEOAPIFY_API_KEY
-            if let geoapifyKey = infoDict["GEOAPIFY_API_KEY"] as? String {
-                print("✅ Found GEOAPIFY_API_KEY in Info.plist: \(String(geoapifyKey.prefix(20)))...")
-            } else {
-                print("❌ GEOAPIFY_API_KEY NOT found in Info.plist")
-                print("   This means Config.xcconfig values are not being injected")
-                print("   Check that project.pbxproj has INFOPLIST_KEY_GEOAPIFY_API_KEY = \"$(GEOAPIFY_API_KEY)\"")
-            }
-        }
-        #endif
         
         // Read API key from Info.plist
         guard let apiKey = Bundle.main.infoDictionary?["GEOAPIFY_API_KEY"] as? String,

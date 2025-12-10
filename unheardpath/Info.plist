@@ -15,26 +15,71 @@
 			</array>
 		</dict>
 	</array>
+	<key>GEOAPIFY_API_KEY</key>
+	<string>e810e0454fda45acbf6b3fbaa7bebe15</string>
 	<key>IS_POSTHOG_TRACKING_ENABLED</key>
 	<false/>
-	<key>USE_PROD_URL</key>
-	<false/>
-	<key>UHP_GATEWAY_HOST_DEBUG</key>
-	<string>192.168.50.171:1031</string>
-	<key>UHP_GATEWAY_HOST_RELEASE</key>
-	<string>api.unheardpath.com</string>
-	<key>SUPABASE_PROJECT_URL</key>
-	<string>mrrssxdxblwhdsejdlxp.supabase.co</string>
-	<key>SUPABASE_PUBLISHABLE_KEY</key>
-	<string>sb_publishable_mBb4Rnl2jdhbCR9EjcOK_A_WyZK2DzM</string>
+	<key>MBXAccessToken</key>
+	<string>pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>127.0.0.1</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionAllowsInsecureHTTPSLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionAllowsInsecureHTTPSLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+			<key>mrrssxdxblwhdsejdlxp.supabase.co</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
 	<key>POSTHOG_API_KEY</key>
 	<string>phc_eemutcq6MB1APyM02DpBfKeye36dajanLsKHhcsmRye</string>
 	<key>POSTHOG_HOST</key>
 	<string>www.unheardpath.com/relay-TjH4</string>
-	<key>MBXAccessToken</key>
-	<string>pk.eyJ1IjoiamVzc2ljYW1pbmd5dSIsImEiOiJjbWZjY3cxd3AwODFvMmxxbzJiNWc4NGY4In0.6hWdeAXgQKoDQNqbPiebzw</string>
-	<key>GEOAPIFY_API_KEY</key>
-	<string>e810e0454fda45acbf6b3fbaa7bebe15</string>
+	<key>SUPABASE_PROJECT_URL</key>
+	<string>mrrssxdxblwhdsejdlxp.supabase.co</string>
+	<key>SUPABASE_PUBLISHABLE_KEY</key>
+	<string>sb_publishable_mBb4Rnl2jdhbCR9EjcOK_A_WyZK2DzM</string>
+	<key>UHP_GATEWAY_HOST_DEBUG</key>
+	<string>192.168.50.171:1031</string>
+	<key>UHP_GATEWAY_HOST_RELEASE</key>
+	<string>api.unheardpath.com</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SourceSerif4Display-Semibold.ttf</string>
@@ -44,54 +89,14 @@
 		<string>SourceSans3-Regular.ttf</string>
 		<string>SourceSans3-Semibold.ttf</string>
 	</array>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>mrrssxdxblwhdsejdlxp.supabase.co</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<true/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-				<false/>
-			</dict>
-			<key>127.0.0.1</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSIncludesSubdomains</key>
-				<false/>
-				<key>NSExceptionAllowsInsecureHTTPSLoads</key>
-				<true/>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
-			<key>localhost</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSIncludesSubdomains</key>
-				<false/>
-				<key>NSExceptionAllowsInsecureHTTPSLoads</key>
-				<true/>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
-		</dict>
-	</dict>
-	<key>ITSAppUsesNonExemptEncryption</key>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+		<string>remote-notification</string>
+	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>USE_PROD_URL</key>
 	<false/>
 </dict>
 </plist>

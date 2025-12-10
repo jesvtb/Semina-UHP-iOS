@@ -20,21 +20,6 @@ let mapboxAccessToken: String = {
   }
   #endif
   
-  // Debug: Print all Info.plist keys to help diagnose issues
-  #if DEBUG
-  if let infoDict = Bundle.main.infoDictionary {
-    print("🔍 Available Info.plist keys: \(infoDict.keys.sorted().joined(separator: ", "))")
-    // Specifically check for MBXAccessToken
-    if let mbxToken = infoDict["MBXAccessToken"] as? String {
-      print("✅ Found MBXAccessToken in Info.plist: \(String(mbxToken.prefix(20)))...")
-    } else {
-      print("❌ MBXAccessToken NOT found in Info.plist")
-      print("   This means Config.xcconfig values are not being injected")
-      print("   Check that project.pbxproj references Config.xcconfig")
-    }
-  }
-  #endif
-  
   // Try to get token from Info.plist first
   let token: String
   if let infoPlistToken = Bundle.main.infoDictionary?["MBXAccessToken"] as? String,

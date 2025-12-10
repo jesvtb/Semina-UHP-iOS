@@ -8,9 +8,50 @@
 import SwiftUI
 import MapboxMaps
 import PostHog
+import UIKit
+
+/// AppDelegate to handle remote notification registration
+/// According to Apple documentation: https://developer.apple.com/documentation/UIKit/UIApplication/registerForRemoteNotifications()
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        // Register for remote notifications each time the app launches
+        // Reference: https://developer.apple.com/documentation/UIKit/UIApplication/registerForRemoteNotifications()
+        application.registerForRemoteNotifications()
+        #if DEBUG
+        print("📱 Registered for remote notifications")
+        #endif
+        return true
+    }
+    
+    /// Called when the app successfully registers with APNs and receives a device token
+    /// Reference: https://developer.apple.com/documentation/UIKit/UIApplicationDelegate/application(_:didRegisterForRemoteNotificationsWithDeviceToken:)
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        // Convert device token to string format
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        #if DEBUG
+        print("✅ Successfully registered for remote notifications")
+        print("📱 Device token for Notification: \(tokenString)")
+        #endif
+        
+        // TODO: Send device token to your provider server
+        // Your provider server must have this token before it can deliver notifications to the device
+    }
+    
+    /// Called when the app fails to register with APNs
+    /// Reference: https://developer.apple.com/documentation/UIKit/UIApplicationDelegate/application(_:didFailToRegisterForRemoteNotificationsWithError:)
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        #if DEBUG
+        print("❌ Failed to register for remote notifications: \(error.localizedDescription)")
+        #endif
+    }
+}
 
 @main
 struct unheardpathApp: App {
+    // Connect AppDelegate to SwiftUI App
+    // This allows the AppDelegate methods to be called
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     // @StateObject is like React's useState for class instances
     // Creates AuthManager once and checks session during initialization
     // This is similar to creating a Context Provider in React
