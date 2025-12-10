@@ -103,11 +103,11 @@ class ChatViewModel: ObservableObject {
                 jsonDict: jsonDict
             )
             
-            var streamingContent = ""
+            var data = ""
             
             // Process SSE events from stream
             for try await event in stream {
-                await handleChatStreamEvent(event: event, streamingContent: &streamingContent)
+                await handleChatStreamEvent(event: event, data: &data)
             }
             
             // Ensure the final assistant message is marked as not streaming
@@ -168,7 +168,7 @@ class ChatViewModel: ObservableObject {
     /// function owns the per-event workflows.
     func handleChatStreamEvent(
         event: SSEEvent,
-        streamingContent: inout String
+        data: inout String
     ) async {
         let eventType = (event.event ?? "").lowercased()
         
@@ -177,7 +177,7 @@ class ChatViewModel: ObservableObject {
             await handleActivityUpdateEvent(event: event)
             
         case "content":
-            await handleContentEvent(event: event, streamingContent: &streamingContent)
+            await handleContentEvent(event: event, data: &data)
             
         case "finish":
             await handleSSEFinishEvent(event: event)
@@ -288,7 +288,7 @@ class ChatViewModel: ObservableObject {
     /// Handles `content` SSE events by updating the streaming assistant message.
     private func handleContentEvent(
         event: SSEEvent,
-        streamingContent: inout String
+        data: inout String
     ) async {
         #if DEBUG
         print("📝 Processing content event")
@@ -309,10 +309,10 @@ class ChatViewModel: ObservableObject {
                 return
             }
             
-            streamingContent += content
+            data += content
             #if DEBUG
             print("📝 Content chunk received: '\(content)'")
-            print("   Total streaming content length: \(streamingContent.count)")
+            print("   Total streaming content length: \(data.count)")
             #endif
             
             await MainActor.run {
@@ -322,7 +322,7 @@ class ChatViewModel: ObservableObject {
                     let isStreaming = dataDict["is_streaming"] as? Bool ?? true
                     messages[lastIndex] = ChatMessage(
                         id: existingMessage.id,
-                        text: streamingContent,
+                        text: data,
                         isUser: false,
                         isStreaming: isStreaming
                     )
