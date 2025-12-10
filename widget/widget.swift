@@ -76,9 +76,21 @@ struct widget: Widget {
     }
 }
 
+// Preview requires iOS 17.0+ for the 'as:' parameter
+// Deployment target is 16.6, so preview is conditionally available
+// 
+// IMPORTANT: The #Preview macro with 'as:' parameter has a known issue in Swift 6
+// where the macro doesn't properly respect @available annotations.
+// This is a Swift 6/Xcode limitation. The preview is commented out to avoid compilation errors.
+// You can test widgets by running the app on a device or simulator.
+//
+// Uncomment the following when the Swift 6 availability issue is resolved:
+/*
+@available(iOSApplicationExtension 17.0, *)
 #Preview(as: .systemSmall) {
     widget()
 } timeline: {
     SimpleEntry(date: .now, emoji: "😀")
     SimpleEntry(date: .now, emoji: "🤩")
 }
+*/

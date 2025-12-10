@@ -9,6 +9,8 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
+// ActivityKit and Live Activities are available from iOS 16.1+
+@available(iOSApplicationExtension 16.1, *)
 public struct widgetAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         // Dynamic stateful properties about your activity go here!
@@ -27,6 +29,8 @@ public struct widgetAttributes: ActivityAttributes {
     }
 }
 
+// Live Activities widget requires iOS 16.1+
+@available(iOSApplicationExtension 16.1, *)
 struct widgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: widgetAttributes.self) { context in
@@ -48,6 +52,7 @@ struct widgetLiveActivity: Widget {
             .activitySystemActionForegroundColor(Color.black)
 
         } dynamicIsland: { context in
+            // Dynamic Island is available from iOS 16.1+ but only displays on iPhone 14 Pro and later
             DynamicIsland {
                 // Expanded UI goes here.  Compose the expanded UI through
                 // various regions, like leading/trailing/center/bottom
@@ -98,12 +103,14 @@ struct widgetLiveActivity: Widget {
     }
 }
 
+@available(iOSApplicationExtension 16.1, *)
 extension widgetAttributes {
     fileprivate static var preview: widgetAttributes {
         widgetAttributes(name: "World")
     }
 }
 
+@available(iOSApplicationExtension 16.1, *)
 extension widgetAttributes.ContentState {
     fileprivate static var smiley: widgetAttributes.ContentState {
         widgetAttributes.ContentState(emoji: "😀")
@@ -117,9 +124,20 @@ extension widgetAttributes.ContentState {
 // MARK: - Preview
 // Note: Preview may require main app to be built first
 // If preview fails, try: Product > Build (⌘B) for main app, then preview again
+// Preview requires iOS 16.1+ for Live Activities
+// 
+// IMPORTANT: The #Preview macro with contentStates parameter has a known issue in Swift 6
+// where the result builder 'PreviewActivityBuilder' doesn't have sufficient availability.
+// This is a Swift 6/Xcode limitation. The preview is commented out to avoid compilation errors.
+// You can test Live Activities by running the app on a device or simulator.
+//
+// Uncomment the following when the Swift 6 availability issue is resolved:
+/*
+@available(iOSApplicationExtension 16.1, *)
 #Preview("Lock Screen", as: .content, using: widgetAttributes.preview) {
-   widgetLiveActivity()
+    widgetLiveActivity()
 } contentStates: {
     widgetAttributes.ContentState.smiley
     widgetAttributes.ContentState.starEyes
 }
+*/
