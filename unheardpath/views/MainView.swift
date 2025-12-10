@@ -9,27 +9,18 @@ enum PreviewTabSelection: Int, CaseIterable {
     case profile = 3
 }
 
-// MARK: - Chat State
-/// Manages chat-related state: messages and draft message
-@MainActor
-class ChatState: ObservableObject {
-    @Published var messages: [ChatMessage] = []
-    @Published var draftMessage: String = ""
-}
-
 struct TestMainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var userManager: UserManager
+    @EnvironmentObject var chatViewModel: ChatViewModel
     
     // Preview values for preview purposes
     private let previewTab: PreviewTabSelection?
     private let previewMessages: [ChatMessage]?
     private let previewGeoJSONData: [String: Any]?
     private let previewLastMessage: ChatMessage?
-    private let previewCurrentNotification: NotificationData?
-    
-    @StateObject var chatState = ChatState()
+    private let previewCurrentActivityUpdate: ActivityUpdateData?
     @State private var selectedTab: PreviewTabSelection = .journey
     @State var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
@@ -67,13 +58,13 @@ struct TestMainView: View {
         previewMessages: [ChatMessage]? = nil,
         previewGeoJSONData: [String: Any]? = nil,
         previewLastMessage: ChatMessage? = nil,
-        previewCurrentNotification: NotificationData? = nil
+        previewCurrentActivityUpdate: ActivityUpdateData? = nil
     ) {
         self.previewTab = previewTab
         self.previewMessages = previewMessages
         self.previewGeoJSONData = previewGeoJSONData
         self.previewLastMessage = previewLastMessage
-        self.previewCurrentNotification = previewCurrentNotification
+        self.previewCurrentActivityUpdate = previewCurrentActivityUpdate
     }
 
     var body: some View {
@@ -93,7 +84,7 @@ struct TestMainView: View {
             // Main content (messages list)
             if selectedTab == .chat {
                 ChatTabView(
-                    messages: chatState.messages,
+                    messages: chatViewModel.messages,
                     isTextFieldFocused: $isTextFieldFocused
                 )
             }
@@ -126,13 +117,13 @@ struct TestMainView: View {
             }
 
             
-            if let lastMessage = liveUpdateViewModel.lastMessage, selectedTab != .chat {
+            if let lastMessage = chatViewModel.lastMessage, selectedTab != .chat {
                 LiveUpdateStack(
                     message: lastMessage,
-                    currentNotification: $liveUpdateViewModel.currentNotification,
-                    isExpanded: $liveUpdateViewModel.isMessageExpanded,
+                    currentActivityUpdate: $chatViewModel.currentActivityUpdate,
+                    isExpanded: $chatViewModel.isMessageExpanded,
                     onDismiss: {
-                        liveUpdateViewModel.dismissMessage()
+                        chatViewModel.dismissLastMsg()
                     }
                 )
                 .opacity(shouldHideTabBar ? 0 : 1)
@@ -167,12 +158,12 @@ struct TestMainView: View {
             VStack(spacing: 0) {
                 ChatInputBar(
                     selectedTab: selectedTab,
-                    draftMessage: $chatState.draftMessage,
+                    draftMessage: $chatViewModel.draftMessage,
                     inputLocation: $liveUpdateViewModel.inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
                     onSendMessage: {
                         Task { @MainActor in
-                            await sendMessage()
+                            await chatViewModel.sendMessage()
                         }
                     },
                     onSwitchToChat: {
@@ -243,13 +234,35 @@ struct TestMainView: View {
             cacheDebugSheet
         }
         #endif
+        .onAppear {
+            // Set up callbacks for ChatViewModel
+            chatViewModel.onDismissKeyboard = {
+                shouldDismissKeyboard = true
+                // Reset the flag after a brief delay to allow the change to be detected
+                Task {
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                    await MainActor.run {
+                        shouldDismissKeyboard = false
+                    }
+                }
+            }
+            chatViewModel.onShowInfoSheet = {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    sheetSnapPoint = .full
+                }
+            }
+            chatViewModel.onTextFieldFocusChange = { isFocused in
+                isTextFieldFocused = isFocused
+            }
+        }
         .task { @MainActor in
+            
             // Set preview values if provided (for preview purposes)
             if let previewTab = previewTab {
                 selectedTab = previewTab
             }
             if let previewMessages = previewMessages {
-                chatState.messages = previewMessages
+                chatViewModel.messages = previewMessages
             }
             if let previewGeoJSONData = previewGeoJSONData {
                 // Extract features from preview data and set to poisGeoJSON
@@ -264,10 +277,10 @@ struct TestMainView: View {
                 }
             }
             if let previewLastMessage = previewLastMessage {
-                liveUpdateViewModel.lastMessage = previewLastMessage
+                chatViewModel.lastMessage = previewLastMessage
             }
-            if let previewCurrentNotification = previewCurrentNotification {
-                liveUpdateViewModel.currentNotification = previewCurrentNotification
+            if let previewCurrentActivityUpdate = previewCurrentActivityUpdate {
+                chatViewModel.currentActivityUpdate = previewCurrentActivityUpdate
             }
             
             // Request one-time location update for initial POI list refresh
@@ -558,21 +571,41 @@ extension TestMainView {
 }
 
 #Preview("Map Tab with last user message") {
-    TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
+    let uhpGateway = UHPGateway()
+    let locationManager = LocationManager()
+    let userManager = UserManager()
+    let chatViewModel = ChatViewModel(
+        uhpGateway: uhpGateway,
+        locationManager: locationManager,
+        userManager: userManager
+    )
+    
+    return TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
         .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
         .environmentObject(APIClient())
-        .environmentObject(UHPGateway())
-        .environmentObject(LocationManager())
-        .environmentObject(UserManager())
+        .environmentObject(uhpGateway)
+        .environmentObject(locationManager)
+        .environmentObject(userManager)
+        .environmentObject(chatViewModel)
 }
 
 #Preview("Journey Tab with last assistant message") {
-    TestMainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
+    let uhpGateway = UHPGateway()
+    let locationManager = LocationManager()
+    let userManager = UserManager()
+    let chatViewModel = ChatViewModel(
+        uhpGateway: uhpGateway,
+        locationManager: locationManager,
+        userManager: userManager
+    )
+    
+    return TestMainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
         .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
         .environmentObject(APIClient())
-        .environmentObject(UHPGateway())
-        .environmentObject(LocationManager())
-        .environmentObject(UserManager())
+        .environmentObject(uhpGateway)
+        .environmentObject(locationManager)
+        .environmentObject(userManager)
+        .environmentObject(chatViewModel)
 }
 #endif
 

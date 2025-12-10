@@ -37,43 +37,15 @@ struct unheardpathApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(authManager) // Pass auth state to all views (like React Context)
-                .environmentObject(apiClient) // Pass shared API service to all views
-                .environmentObject(locationManager) // Pass location manager to all views
-                .environmentObject(uhpGateway) // Pass UHP Gateway to all views
-                .environmentObject(geoapifyGateway) // Pass Geoapify Gateway to all views
-                .environmentObject(userManager) // Pass user manager to all views
-                .withScaledSpacing() // Inject scaled spacing values into environment
-                .onAppear {
-                    // Set UserManager reference in AuthManager after both are created
-                    authManager.setUserManager(userManager)
-                }
-                .onOpenURL { url in
-                    Task {
-                        do {
-                            #if DEBUG
-                            print("🔗 App-level callback URL: \(url.absoluteString)")
-                            #endif
-                            
-                            // session(from: url) handles both implicit and PKCE flows automatically
-                            // It extracts token_hash if present and verifies it, or uses implicit flow tokens
-                            // Reference: https://supabase.com/docs/guides/auth/auth-email-passwordless
-                            try await supabase.auth.session(from: url)
-                            
-                            // After session is created from URL, authManager will detect the change
-                            // via authStateChanges listener
-                        } catch {
-                            #if DEBUG
-                            print("❌ Error handling auth callback: \(error)")
-                            #endif
-                        }
-                    }
-                }
-                .task {
-                    // Request location permission when app appears
-                    locationManager.requestLocationPermission()
-                }
+            AppContentView(
+                authManager: authManager,
+                apiClient: apiClient,
+                locationManager: locationManager,
+                uhpGateway: uhpGateway,
+                geoapifyGateway: geoapifyGateway,
+                userManager: userManager
+            )
+            .id("app-content-view") // Stable identity ensures @StateObject persists
         }
     }
     
@@ -153,5 +125,83 @@ struct unheardpathApp: App {
             print("ℹ️ No session found for immediate PostHog identification")
             #endif
         }
+    }
+}
+
+/// Helper view that creates ChatViewModel with proper dependencies
+/// This allows ChatViewModel to be created as @StateObject with access to other @StateObject dependencies
+private struct AppContentView: View {
+    let authManager: AuthManager
+    let apiClient: APIClient
+    let locationManager: LocationManager
+    let uhpGateway: UHPGateway
+    let geoapifyGateway: GeoapifyGateway
+    let userManager: UserManager
+    
+    // Create ChatViewModel as @StateObject with proper dependencies
+    @StateObject private var chatViewModel: ChatViewModel
+    
+    init(
+        authManager: AuthManager,
+        apiClient: APIClient,
+        locationManager: LocationManager,
+        uhpGateway: UHPGateway,
+        geoapifyGateway: GeoapifyGateway,
+        userManager: UserManager
+    ) {
+        self.authManager = authManager
+        self.apiClient = apiClient
+        self.locationManager = locationManager
+        self.uhpGateway = uhpGateway
+        self.geoapifyGateway = geoapifyGateway
+        self.userManager = userManager
+        
+        // Initialize ChatViewModel after all above dependencies are available
+        _chatViewModel = StateObject(wrappedValue: ChatViewModel(
+            uhpGateway: uhpGateway,
+            locationManager: locationManager,
+            userManager: userManager
+        ))
+    }
+    
+    var body: some View {
+        ContentView()
+            .environmentObject(authManager) // Pass auth state to all views (like React Context)
+            .environmentObject(apiClient) // Pass shared API service to all views
+            .environmentObject(locationManager) // Pass location manager to all views
+            .environmentObject(uhpGateway) // Pass UHP Gateway to all views
+            .environmentObject(geoapifyGateway) // Pass Geoapify Gateway to all views
+            .environmentObject(userManager) // Pass user manager to all views
+            .environmentObject(chatViewModel) // Pass chat view model to all views
+            .withScaledSpacing() // Inject scaled spacing values into environment
+            .onAppear {
+                // Set UserManager reference in AuthManager after both are created
+                authManager.setUserManager(userManager)
+            }
+            .onOpenURL { url in
+                Task {
+                    do {
+                        #if DEBUG
+                        print("🔗 App-level callback URL: \(url.absoluteString)")
+                        #endif
+                        
+                        // session(from: url) handles both implicit and PKCE flows automatically
+                        // It extracts token_hash if present and verifies it, or uses implicit flow tokens
+                        // Reference: https://supabase.com/docs/guides/auth/auth-email-passwordless
+                        try await supabase.auth.session(from: url)
+                        
+                        // After session is created from URL, authManager will detect the change
+                        // via authStateChanges listener
+                    } catch {
+                        #if DEBUG
+                        print("❌ Error handling auth callback: \(error)")
+                        #endif
+                    }
+                }
+            }
+            .task {
+                // Request location permission when app appears
+                locationManager.requestLocationPermission()
+            }
     }
 }

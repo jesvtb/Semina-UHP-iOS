@@ -1,18 +1,18 @@
 import SwiftUI
 
-// MARK: - Progress Notification Banner Component
-/// A notification banner specifically for progress-related notifications in liveUpdateStack.
-/// Auto-dismisses after 4 seconds. When a new notification arrives, SwiftUI automatically
+// MARK: - Activity Update Banner Component
+/// A banner specifically for activity updates in liveUpdateStack.
+/// Auto-dismisses after 4 seconds. When a new activity update arrives, SwiftUI automatically
 /// removes this banner (onDisappear cancels the dismiss task).
-/// Uses `onNotificationDismiss` (separate from the message bubble's `onDismiss`).
-struct ProgressNotificationBanner: View {
-    let notification: NotificationData
-    let onNotificationDismiss: () -> Void
+/// Uses `onActivityUpdateDismiss` (separate from the message bubble's `onDismiss`).
+struct ActivityUpdateBanner: View {
+    let activityUpdate: ActivityUpdateData
+    let onActivityUpdateDismiss: () -> Void
     @State private var dismissTask: Task<Void, Never>?
     
-    /// Maps notification type to SF Symbol icon name
+    /// Maps activity update type to SF Symbol icon name
     private var iconName: String {
-        guard let type = notification.type else {
+        guard let type = activityUpdate.type else {
             return "bell.fill" // Default icon for null type
         }
         
@@ -49,8 +49,8 @@ struct ProgressNotificationBanner: View {
                 .foregroundColor(.primary)
                 .frame(width: 24, height: 24)
             
-            // Notification message
-            Text(notification.message)
+            // Activity update message
+            Text(activityUpdate.message)
                 .bodyText()
                 .foregroundColor(Color("onBkgTextColor20"))
                 .lineLimit(2)
@@ -75,14 +75,14 @@ struct ProgressNotificationBanner: View {
                     try? await Task.sleep(nanoseconds: 4_000_000_000) // 4 seconds
                     await MainActor.run {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            onNotificationDismiss()
+                            onActivityUpdateDismiss()
                         }
                     }
                 }
             }
             .onDisappear {
-                // Cancel dismiss task when view disappears (e.g., when new notification arrives)
-                // SwiftUI automatically calls this when currentNotification changes
+                // Cancel dismiss task when view disappears (e.g., when new activity update arrives)
+                // SwiftUI automatically calls this when currentActivityUpdate changes
                 dismissTask?.cancel()
             }
     }

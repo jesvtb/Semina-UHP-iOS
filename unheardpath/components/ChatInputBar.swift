@@ -12,11 +12,16 @@ struct ChatInputBar: View {
         HStack(spacing: Spacing.current.spaceXs) {
             TextField(
                 selectedTab == .map ? "Find any place..." : "Ask any thing...",
-                text: selectedTab == .map ? $inputLocation : $draftMessage,
-                axis: .vertical
+                text: selectedTab == .map ? $inputLocation : $draftMessage
             )
                 .bodyText()
                 .focused($isTextFieldFocused)
+                .submitLabel(selectedTab == .map ? .search : .send)
+                .onSubmit {
+                    if selectedTab != .map && !draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        onSendMessage()
+                    }
+                }
                 .padding(.horizontal, Spacing.current.spaceXs)
                 .padding(.vertical, Spacing.current.space2xs)
                 .background(Color("AppBkgColor"))

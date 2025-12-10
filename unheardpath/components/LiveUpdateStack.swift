@@ -1,36 +1,16 @@
 import SwiftUI
 
 /// Manages state for the LiveUpdateStack overlay component
-/// Groups related state: lastMessage, currentNotification, isMessageExpanded, and inputLocation
+/// Note: Chat-related state (lastMessage, currentActivityUpdate, isMessageExpanded) has been moved to ChatViewModel
+/// Only inputLocation remains here temporarily - will move to MapViewModel in future refactoring
 @MainActor
 class LiveUpdateViewModel: ObservableObject {
-    @Published var lastMessage: ChatMessage?
-    @Published var currentNotification: NotificationData?
-    @Published var isMessageExpanded: Bool = false
     @Published var inputLocation: String = ""
-    
-    /// Dismisses the message bubble and resets expansion state
-    func dismissMessage() {
-        lastMessage = nil
-        isMessageExpanded = false
-    }
-    
-    /// Sets a new notification with animation
-    func setNotification(_ notification: NotificationData) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            currentNotification = notification
-        }
-    }
-    
-    /// Updates the last message (used when streaming completes)
-    func updateLastMessage(_ message: ChatMessage) {
-        lastMessage = message
-    }
 }
 
 struct LiveUpdateStack: View {
     let message: ChatMessage
-    @Binding var currentNotification: NotificationData?
+    @Binding var currentActivityUpdate: ActivityUpdateData?
     @Binding var isExpanded: Bool
     let onDismiss: () -> Void
     
@@ -42,11 +22,11 @@ struct LiveUpdateStack: View {
         
         return VStack {
             Spacer()
-            if let notification = currentNotification {
-                ProgressNotificationBanner(
-                    notification: notification,
-                    onNotificationDismiss: {
-                        currentNotification = nil
+            if let activityUpdate = currentActivityUpdate {
+                ActivityUpdateBanner(
+                    activityUpdate: activityUpdate,
+                    onActivityUpdateDismiss: {
+                        currentActivityUpdate = nil
                     }
                 )
             }

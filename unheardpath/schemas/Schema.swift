@@ -173,8 +173,8 @@ struct ChatMessage: Identifiable {
 }
 
 
-// MARK: - Notification Model
-struct NotificationData {
+// MARK: - Activity Update Model
+struct ActivityUpdateData {
   let type: String?
   let message: String
   
@@ -186,7 +186,7 @@ struct NotificationData {
     self.message = message
   }
   
-  // Convenience initializer for creating mock notifications
+  // Convenience initializer for creating mock activity updates
   init(type: String? = nil, message: String) {
     self.type = type
     self.message = message
