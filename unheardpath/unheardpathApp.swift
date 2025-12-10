@@ -9,11 +9,16 @@ import SwiftUI
 import MapboxMaps
 import PostHog
 import UIKit
+@preconcurrency import UserNotifications
+import ActivityKit
 
-/// AppDelegate to handle remote notification registration
+/// AppDelegate to handle remote notification registration and LiveActivity push notifications
 /// According to Apple documentation: https://developer.apple.com/documentation/UIKit/UIApplication/registerForRemoteNotifications()
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        // Set up notification center delegate for handling push notifications
+        UNUserNotificationCenter.current().delegate = self
+        
         // Register for remote notifications each time the app launches
         // Reference: https://developer.apple.com/documentation/UIKit/UIApplication/registerForRemoteNotifications()
         application.registerForRemoteNotifications()
@@ -43,6 +48,69 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         #if DEBUG
         print("❌ Failed to register for remote notifications: \(error.localizedDescription)")
         #endif
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+// Separate extension to avoid Swift 6 concurrency warning on protocol conformance
+// The delegate methods are marked as nonisolated since they're called by the system
+// This is a known Swift 6 strict concurrency limitation with UNUserNotificationCenterDelegate
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    
+    /// Called when a remote notification is received while the app is in the foreground
+    /// Reference: https://developer.apple.com/documentation/usernotifications/unusernotificationcenterdelegate
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        let userInfo = notification.request.content.userInfo
+        
+        #if DEBUG
+        print("📬 Received remote notification while app is in foreground")
+        
+        // Check if this is a LiveActivity update notification
+        if let aps = userInfo["aps"] as? [String: Any],
+           let event = aps["event"] as? String {
+            print("   LiveActivity event: \(event)")
+            if let contentState = aps["content-state"] as? [String: Any] {
+                print("   Content state: \(contentState)")
+            }
+        }
+        #endif
+        
+        // For LiveActivity updates, the system handles them automatically
+        // We don't need to show a banner, but you can customize this behavior
+        // For regular notifications, you might want to show a banner:
+        // completionHandler([.banner, .sound, .badge])
+        
+        // For LiveActivities, we don't show a notification banner since the LiveActivity itself is the UI
+        completionHandler([])
+    }
+    
+    /// Called when the user taps on a notification
+    /// Reference: https://developer.apple.com/documentation/usernotifications/unusernotificationcenterdelegate
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        
+        #if DEBUG
+        print("👆 User tapped on notification")
+        
+        // Check if this is a LiveActivity update notification
+        if let aps = userInfo["aps"] as? [String: Any],
+           let event = aps["event"] as? String {
+            print("   LiveActivity event: \(event)")
+        }
+        #endif
+        
+        // Handle notification tap if needed
+        // For LiveActivities, the system handles navigation automatically
+        
+        completionHandler()
     }
 }
 
