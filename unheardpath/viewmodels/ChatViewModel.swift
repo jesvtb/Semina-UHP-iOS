@@ -99,7 +99,7 @@ class ChatViewModel: ObservableObject {
             // Note: We're already in @MainActor context, so accessing uhpGateway is safe
             // Swift 6 strict concurrency warning is a false positive here
             let stream = try await uhpGateway.stream(
-                endpoint: "/v1/ask",
+                endpoint: "/v1/chat",
                 jsonDict: jsonDict
             )
             

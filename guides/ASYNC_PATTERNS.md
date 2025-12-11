@@ -278,7 +278,7 @@ func sendChatMessage(_ messageText: String) async {
     
     // Pass JSONValue to API method (no data race warnings!)
     let stream = try await uhpGateway.stream(
-        endpoint: "/v1/ask",
+        endpoint: "/v1/chat",
         jsonDict: jsonDict  // ✅ Sendable-compliant
     )
 }
