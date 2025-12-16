@@ -19,6 +19,7 @@ class ChatViewModel: ObservableObject {
     private let uhpGateway: UHPGateway
     private let locationManager: LocationManager
     private let userManager: UserManager
+    private let authManager: AuthManager
     
     // MARK: - Callbacks (for cross-view coordination)
     var onDismissKeyboard: (() -> Void)?
@@ -29,17 +30,48 @@ class ChatViewModel: ObservableObject {
     init(
         uhpGateway: UHPGateway,
         locationManager: LocationManager,
-        userManager: UserManager
+        userManager: UserManager,
+        authManager: AuthManager
     ) {
         self.uhpGateway = uhpGateway
         self.locationManager = locationManager
         self.userManager = userManager
+        self.authManager = authManager
     }
     
     // MARK: - Message Actions
     
     /// Validates, sends message, and handles streaming response
     func sendMessage() async {
+        // Validate authentication state before sending
+        guard authManager.isAuthenticated else {
+            #if DEBUG
+            print("⚠️ sendMessage: User is not authenticated, cannot send message")
+            #endif
+            return
+        }
+        
+        // Wait for authentication check to complete if still loading
+        if authManager.isLoading {
+            #if DEBUG
+            print("⚠️ sendMessage: Authentication check in progress, waiting...")
+            #endif
+            // Wait a bit for auth to complete (max 2 seconds)
+            var waitCount = 0
+            while authManager.isLoading && waitCount < 20 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                waitCount += 1
+            }
+            
+            // Check again after waiting
+            guard authManager.isAuthenticated else {
+                #if DEBUG
+                print("⚠️ sendMessage: Authentication failed after waiting")
+                #endif
+                return
+            }
+        }
+        
         // Extract and validate draft message
         let text = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
@@ -77,9 +109,23 @@ class ChatViewModel: ObservableObject {
             // Include device timezone identifier (user's current device timezone)
             jsonDict["msg_timezone"] = .string(TimeZone.current.identifier)
             
-            // Add user UUID if available
+            // Add device_lang - REQUIRED field, use fallback if user not initialized yet
+            // This prevents 404 errors due to missing required field
             if let user = userManager.currentUser {
                 jsonDict["device_lang"] = .string(user.device_lang)
+            } else {
+                // Fallback to device language if user not initialized yet
+                // This handles race conditions during app startup
+                var device_lang = "en"
+                if #available(iOS 16.0, *) {
+                    device_lang = Locale.current.language.languageCode?.identifier ?? device_lang
+                } else {
+                    device_lang = Locale.current.languageCode ?? device_lang
+                }
+                jsonDict["device_lang"] = .string(device_lang)
+                #if DEBUG
+                print("⚠️ Using fallback device_lang: \(device_lang) (user not initialized yet)")
+                #endif
             }
             
             // Add location details from LocationManager
@@ -96,6 +142,7 @@ class ChatViewModel: ObservableObject {
                 jsonDict["last_lookup_location"] = .string("")
             }
             
+            print("🔍 jsonDict: \(jsonDict)")
             // Note: We're already in @MainActor context, so accessing uhpGateway is safe
             // Swift 6 strict concurrency warning is a false positive here
             let stream = try await uhpGateway.stream(

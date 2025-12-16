@@ -30,6 +30,8 @@ class AuthManager: ObservableObject {
     // Similar to React useEffect - runs once when object is created
     init() {
         // Start checking for session immediately (async task in init)
+        // Note: UserManager should be set via setUserManager() before this completes
+        // to avoid race conditions when setting currentUser
         Task {
             await checkInitialSession()
         }

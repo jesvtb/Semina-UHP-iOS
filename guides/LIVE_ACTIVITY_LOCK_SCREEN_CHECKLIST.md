@@ -185,3 +185,5 @@ After fixing the entitlements file, verify:
    - Check device Settings > Face ID & Passcode > Live Activities
    - Verify `ActivityAuthorizationInfo().areActivitiesEnabled` returns `true`
    - Check console for any error messages
+
+

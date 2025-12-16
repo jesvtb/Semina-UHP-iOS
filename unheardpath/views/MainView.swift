@@ -14,6 +14,7 @@ struct TestMainView: View {
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var userManager: UserManager
     @EnvironmentObject var chatViewModel: ChatViewModel
+    @EnvironmentObject var authManager: AuthManager
     
     // Preview values for preview purposes
     private let previewTab: PreviewTabSelection?
@@ -161,6 +162,8 @@ struct TestMainView: View {
                     draftMessage: $chatViewModel.draftMessage,
                     inputLocation: $liveUpdateViewModel.inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
+                    isAuthenticated: authManager.isAuthenticated,
+                    isLoading: authManager.isLoading,
                     onSendMessage: {
                         Task { @MainActor in
                             await chatViewModel.sendMessage()
@@ -574,14 +577,16 @@ extension TestMainView {
     let uhpGateway = UHPGateway()
     let locationManager = LocationManager()
     let userManager = UserManager()
+    let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
     let chatViewModel = ChatViewModel(
         uhpGateway: uhpGateway,
         locationManager: locationManager,
-        userManager: userManager
+        userManager: userManager,
+        authManager: authManager
     )
     
-    return TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
-        .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
+    TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
+        .environmentObject(authManager)
         .environmentObject(APIClient())
         .environmentObject(uhpGateway)
         .environmentObject(locationManager)
@@ -593,14 +598,16 @@ extension TestMainView {
     let uhpGateway = UHPGateway()
     let locationManager = LocationManager()
     let userManager = UserManager()
+    let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
     let chatViewModel = ChatViewModel(
         uhpGateway: uhpGateway,
         locationManager: locationManager,
-        userManager: userManager
+        userManager: userManager,
+        authManager: authManager
     )
     
-    return TestMainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
-        .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
+    TestMainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
+        .environmentObject(authManager)
         .environmentObject(APIClient())
         .environmentObject(uhpGateway)
         .environmentObject(locationManager)

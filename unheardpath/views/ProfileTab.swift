@@ -1,5 +1,5 @@
 import SwiftUI
-import ActivityKit
+@preconcurrency import ActivityKit
 
 // MARK: - LiveActivity Attributes (must match widget extension)
 // This type must be identical to widgetAttributes in widget/widgetLiveActivity.swift
@@ -186,7 +186,10 @@ struct ProfileTabView: View {
 @MainActor
 final class LiveActivityTestHelper: @unchecked Sendable {
     static let shared = LiveActivityTestHelper()
+    // Activity is not Sendable, but we access it only from @MainActor context
+    // @preconcurrency import ActivityKit allows safe usage from @MainActor
     private var currentActivity: Activity<widgetAttributes>?
+    
     private var pushTokenTask: Task<Void, Never>?
     private var currentPushToken: String?
     
@@ -199,6 +202,17 @@ final class LiveActivityTestHelper: @unchecked Sendable {
             return
         }
         
+        if #available(iOS 16.2, *) {
+            startTestActivityiOS162()
+        } else {
+            // iOS 16.1 doesn't support ActivityContent API
+            // LiveActivities with full functionality require iOS 16.2+
+            print("⚠️ LiveActivities with push token support require iOS 16.2+. Please update to iOS 16.2 or later.")
+        }
+    }
+    
+    @available(iOS 16.2, *)
+    private func startTestActivityiOS162() {
         let attributes = widgetAttributes(name: "Test Activity")
         let contentState = widgetAttributes.ContentState(emoji: "😀")
         
@@ -214,7 +228,8 @@ final class LiveActivityTestHelper: @unchecked Sendable {
             print("✅ LiveActivity started: \(activity.id)")
             
             // Listen for push token updates and send to backend
-            startListeningForPushToken(activity: activity)
+            // Access currentActivity directly to avoid passing non-Sendable type as parameter
+            startListeningForPushToken()
         } catch {
             print("❌ Failed to start LiveActivity: \(error)")
         }
@@ -222,15 +237,25 @@ final class LiveActivityTestHelper: @unchecked Sendable {
     
     /// Listens for push token updates and sends them to the backend
     /// Reference: https://developer.apple.com/documentation/activitykit/activity/pushtokenupdates
-    private func startListeningForPushToken(activity: Activity<widgetAttributes>) {
+    /// Accesses currentActivity directly to avoid passing non-Sendable type as parameter
+    @available(iOS 16.2, *)
+    @MainActor
+    private func startListeningForPushToken() {
         // Cancel any existing push token task
         pushTokenTask?.cancel()
         
-        pushTokenTask = Task {
+        pushTokenTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            
+            // Access currentActivity directly from @MainActor context without capturing
+            // @preconcurrency import ActivityKit allows safe usage of non-Sendable Activity
+            guard self.currentActivity != nil else { return }
+            
             // Listen for push token updates
             // The token may be received immediately or later, so we use an async sequence
             // Reference: https://developer.apple.com/documentation/activitykit/activity/pushtokenupdates
-            for await pushToken in activity.pushTokenUpdates {
+            // Access currentActivity directly in the loop to avoid capturing non-Sendable type
+            for await pushToken in self.currentActivity!.pushTokenUpdates {
                 // Check if task was cancelled
                 if Task.isCancelled {
                     break
@@ -240,15 +265,16 @@ final class LiveActivityTestHelper: @unchecked Sendable {
                 let pushTokenString = pushToken.map { String(format: "%02x", $0) }.joined()
                 
                 // Only send if token has changed
-                guard pushTokenString != currentPushToken else {
+                guard pushTokenString != self.currentPushToken else {
                     continue
                 }
                 
-                currentPushToken = pushTokenString
+                self.currentPushToken = pushTokenString
                 print("📱 Received ActivityPushToken: \(pushTokenString)")
                 
                 // Send push token to backend server
-                await sendPushTokenToBackend(pushToken: pushTokenString, activityId: activity.id)
+                // Access currentActivity directly to get ID without capturing
+                await self.sendPushTokenToBackend(pushToken: pushTokenString, activityId: self.currentActivity!.id)
             }
         }
     }
@@ -284,6 +310,16 @@ final class LiveActivityTestHelper: @unchecked Sendable {
             return
         }
         
+        if #available(iOS 16.2, *) {
+            updateTestActivityiOS162(emoji: emoji)
+        } else {
+            // iOS 16.1 doesn't support push token updates
+            print("⚠️ Push token updates require iOS 16.2+. LiveActivity cannot be updated remotely on iOS 16.1.")
+        }
+    }
+    
+    @available(iOS 16.2, *)
+    private func updateTestActivityiOS162(emoji: String) {
         guard let pushToken = currentPushToken else {
             print("❌ No push token available. LiveActivity may not have received push token yet.")
             return
@@ -323,25 +359,41 @@ final class LiveActivityTestHelper: @unchecked Sendable {
     
     /// Ends the current LiveActivity
     func endTestActivity() {
-        guard let activity = currentActivity else {
-            print("❌ No active LiveActivity to end")
-            return
-        }
-        
         // Cancel push token listening task
         pushTokenTask?.cancel()
         pushTokenTask = nil
         
-        Task {
-            let finalState = widgetAttributes.ContentState(emoji: "✅")
-            let content = ActivityContent(state: finalState, staleDate: nil)
-            await activity.end(content, dismissalPolicy: .immediate)
-            await MainActor.run {
-                currentActivity = nil
-                currentPushToken = nil
+        if #available(iOS 16.2, *) {
+            // Create Task on MainActor to access nonisolated(unsafe) currentActivity safely
+            Task { @MainActor in
+                await endTestActivityiOS162()
             }
-            print("✅ LiveActivity ended")
+        } else {
+            print("⚠️ Cannot end LiveActivity on iOS 16.1 - requires iOS 16.2+")
         }
+    }
+    
+    @available(iOS 16.2, *)
+    @MainActor
+    private func endTestActivityiOS162() async {
+        // Check if activity exists
+        guard currentActivity != nil else {
+            print("❌ No active LiveActivity to end")
+            return
+        }
+        
+        let finalState = widgetAttributes.ContentState(emoji: "✅")
+        let content = ActivityContent(state: finalState, staleDate: nil)
+        
+        // Access currentActivity directly and call end() without capturing
+        // @preconcurrency import ActivityKit allows safe usage of non-Sendable Activity type
+        // Accessing property directly avoids Sendable checking on the capture
+        await currentActivity!.end(content, dismissalPolicy: .immediate)
+        
+        // Clear state on MainActor (we're already on MainActor)
+        currentActivity = nil
+        currentPushToken = nil
+        print("✅ LiveActivity ended")
     }
     
     /// Checks if LiveActivities are available and enabled

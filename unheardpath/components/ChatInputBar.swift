@@ -5,8 +5,15 @@ struct ChatInputBar: View {
     @Binding var draftMessage: String
     @Binding var inputLocation: String
     @FocusState.Binding var isTextFieldFocused: Bool
+    let isAuthenticated: Bool
+    let isLoading: Bool
     let onSendMessage: () -> Void
     let onSwitchToChat: () -> Void
+    
+    // Computed property to determine if send button should be disabled
+    private var isSendDisabled: Bool {
+        draftMessage.isEmpty || !isAuthenticated || isLoading
+    }
     
     var body: some View {
         HStack(spacing: Spacing.current.spaceXs) {
@@ -38,9 +45,9 @@ struct ChatInputBar: View {
                 Button(action: onSendMessage) {
                     Image(systemName: "arrow.up.circle.fill")
                         .bodyText(size: .article2)
-                        .foregroundColor(draftMessage.isEmpty ? Color("onBkgTextColor30") : Color("onBkgTextColor10"))
+                        .foregroundColor(isSendDisabled ? Color("onBkgTextColor30") : Color("onBkgTextColor10"))
                 }
-                .disabled(draftMessage.isEmpty)
+                .disabled(isSendDisabled)
             }
         }
         .padding(.horizontal, Spacing.current.spaceXs)

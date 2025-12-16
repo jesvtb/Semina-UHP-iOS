@@ -129,6 +129,7 @@ struct unheardpathApp: App {
     @StateObject private var uhpGateway = UHPGateway()
     @StateObject private var geoapifyGateway = GeoapifyGateway()
     @StateObject private var locationManager = LocationManager()
+    @StateObject private var appLifecycleManager = AppLifecycleManager()
     
     init() {
         // Print configuration at app startup (visible in device logs)
@@ -139,6 +140,11 @@ struct unheardpathApp: App {
         #else
         print("   Configuration: RELEASE (Production)")
         #endif
+        
+        // CRITICAL: Set UserManager reference BEFORE AuthManager checks session
+        // This ensures userManager is available when session check completes
+        // and sets currentUser, preventing race conditions
+        authManager.setUserManager(userManager)
         
         setupMapboxToken()
         setupPostHog()
@@ -152,7 +158,8 @@ struct unheardpathApp: App {
                 locationManager: locationManager,
                 uhpGateway: uhpGateway,
                 geoapifyGateway: geoapifyGateway,
-                userManager: userManager
+                userManager: userManager,
+                appLifecycleManager: appLifecycleManager
             )
             .id("app-content-view") // Stable identity ensures @StateObject persists
         }
@@ -246,6 +253,7 @@ private struct AppContentView: View {
     let uhpGateway: UHPGateway
     let geoapifyGateway: GeoapifyGateway
     let userManager: UserManager
+    let appLifecycleManager: AppLifecycleManager
     
     // Create ChatViewModel as @StateObject with proper dependencies
     @StateObject private var chatViewModel: ChatViewModel
@@ -256,7 +264,8 @@ private struct AppContentView: View {
         locationManager: LocationManager,
         uhpGateway: UHPGateway,
         geoapifyGateway: GeoapifyGateway,
-        userManager: UserManager
+        userManager: UserManager,
+        appLifecycleManager: AppLifecycleManager
     ) {
         self.authManager = authManager
         self.apiClient = apiClient
@@ -264,12 +273,14 @@ private struct AppContentView: View {
         self.uhpGateway = uhpGateway
         self.geoapifyGateway = geoapifyGateway
         self.userManager = userManager
+        self.appLifecycleManager = appLifecycleManager
         
         // Initialize ChatViewModel after all above dependencies are available
         _chatViewModel = StateObject(wrappedValue: ChatViewModel(
             uhpGateway: uhpGateway,
             locationManager: locationManager,
-            userManager: userManager
+            userManager: userManager,
+            authManager: authManager
         ))
     }
     
@@ -286,6 +297,14 @@ private struct AppContentView: View {
             .onAppear {
                 // Set UserManager reference in AuthManager after both are created
                 authManager.setUserManager(userManager)
+                
+                // Register LocationManager with AppLifecycleManager
+                locationManager.appLifecycleManager = appLifecycleManager
+                appLifecycleManager.register(
+                    object: locationManager,
+                    didEnterBackground: { locationManager.appDidEnterBackground() },
+                    willEnterForeground: { locationManager.appWillEnterForeground() }
+                )
             }
             .onOpenURL { url in
                 Task {

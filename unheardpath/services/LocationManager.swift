@@ -13,6 +13,7 @@ import UIKit
 // struct LocationDetails
 
 @MainActor  // Ensure all state mutations stay on the main actor to avoid data races with Swift 6 strict concurrency
+// AppLifecycleHandler conformance is in a nonisolated extension with proper MainActor bridging
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private let geocoder = CLGeocoder()
@@ -31,6 +32,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var isTrackingActive = false
     private var isUsingSignificantChanges = false
     private var isAppInBackground = false
+    
+    // App lifecycle manager (optional, set after initialization)
+    weak var appLifecycleManager: AppLifecycleManager?
     
     // Configuration constants (Google Maps strategy)
     private let activeDistanceFilter: CLLocationDistance = 50.0  // Update every 50 meters when active
@@ -75,43 +79,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Load last saved locations immediately
         loadLastSavedDeviceLocation()
         loadLastSavedLookupLocation()
-        
-        // Observe app lifecycle to adapt tracking strategy
-        setupAppLifecycleObservers()
-    }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-    
-    // MARK: - App Lifecycle Observers
-    
-    private func setupAppLifecycleObservers() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(appDidEnterBackground),
-            name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(appWillEnterForeground),
-            name: UIApplication.willEnterForegroundNotification,
-            object: nil
-        )
-    }
-    
-    @objc private func appDidEnterBackground() {
-        isAppInBackground = true
-        print("📱 App entered background - switching to battery-efficient tracking")
-        switchToBackgroundTracking()
-    }
-    
-    @objc private func appWillEnterForeground() {
-        isAppInBackground = false
-        print("📱 App entering foreground - switching to active tracking")
-        switchToActiveTracking()
     }
     
     func requestLocationPermission() {
@@ -268,6 +235,26 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Also stop all geofence monitoring
         stopAllGeofences()
         devicePOIsRefreshRegion = nil
+    }
+    
+    // MARK: - App Lifecycle Methods
+    
+    /// Called when the app enters the background
+    /// Switches to battery-efficient tracking mode
+    /// This method is called from @MainActor context (AppLifecycleManager is @MainActor)
+    func appDidEnterBackground() {
+        isAppInBackground = true
+        print("📱 App entered background - switching to battery-efficient tracking")
+        switchToBackgroundTracking()
+    }
+    
+    /// Called when the app is about to enter the foreground
+    /// Switches to active tracking mode
+    /// This method is called from @MainActor context (AppLifecycleManager is @MainActor)
+    func appWillEnterForeground() {
+        isAppInBackground = false
+        print("📱 App entering foreground - switching to active tracking")
+        switchToActiveTracking()
     }
     
     /// Enables high accuracy mode (e.g., for navigation)
