@@ -462,6 +462,7 @@ class APIClient: ObservableObject {
     /// Processes an SSE (Server-Sent Events) stream and yields events to the continuation
     /// Note: This handles both continuous streaming (like LLM) and sparse progress notifications
     /// The connection stays alive during gaps between progress updates
+    /// Events are processed immediately when both event type and data are available (Solution 1)
     nonisolated private static func processSSEStream(
         asyncBytes: URLSession.AsyncBytes,
         continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation
@@ -469,14 +470,16 @@ class APIClient: ObservableObject {
         var currentEvent: String?
         var currentData = ""
         var currentId: String?
+        var hasEventType = false
+        var hasData = false
+        var hasYielded = false  // Track if we've already yielded this event
         
-        // asyncBytes.lines will wait for lines to arrive, handling long gaps between progress updates
-        for try await line in asyncBytes.lines {
-            let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            print("SSE Line: \(trimmedLine)")
-            // Empty line indicates end of event
-            if trimmedLine.isEmpty {
-                if !currentData.isEmpty {
+        // Helper function to yield event if we have both event type and data
+        // Only yields once per event to avoid duplicates from multiple data lines
+        func yieldEventIfComplete(force: Bool = false) {
+            if hasEventType && hasData && !currentData.isEmpty {
+                // Only yield if we haven't already yielded, or if forced (e.g., on empty line or new event)
+                if !hasYielded || force {
                     let event = SSEEvent(
                         event: currentEvent,
                         data: currentData,
@@ -486,15 +489,37 @@ class APIClient: ObservableObject {
                     
                     #if DEBUG
                     if let eventName = currentEvent {
-                        print("📨 SSE Event: \(eventName)")
+                        if hasYielded {
+                            print("📨 SSE Event (update): \(eventName)")
+                        } else {
+                            print("📨 SSE Event (immediate): \(eventName)")
+                        }
                     }
                     #endif
                     
-                    // Reset for next event
-                    currentEvent = nil
-                    currentData = ""
-                    currentId = nil
+                    hasYielded = true
+                    
+                    // Only reset if forced (empty line or new event type)
+                    if force {
+                        currentEvent = nil
+                        currentData = ""
+                        currentId = nil
+                        hasEventType = false
+                        hasData = false
+                        hasYielded = false
+                    }
                 }
+            }
+        }
+        
+        // asyncBytes.lines will wait for lines to arrive, handling long gaps between progress updates
+        for try await line in asyncBytes.lines {
+            let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("SSE Line: \(trimmedLine)")
+            
+            // Empty line indicates end of event (force yield and reset)
+            if trimmedLine.isEmpty {
+                yieldEventIfComplete(force: true)
                 continue
             }
             
@@ -506,25 +531,13 @@ class APIClient: ObservableObject {
                 switch field.lowercased() {
                 case "event":
                     // If we see a new event type, yield the previous event first (if it has data)
-                    if !currentData.isEmpty {
-                        let event = SSEEvent(
-                            event: currentEvent,
-                            data: currentData,
-                            id: currentId
-                        )
-                        continuation.yield(event)
-                        
-                        #if DEBUG
-                        if let eventName = currentEvent {
-                            print("📨 SSE Event: \(eventName)")
-                        }
-                        #endif
-                        
-                        // Reset for new event
-                        currentData = ""
-                        currentId = nil
-                    }
+                    yieldEventIfComplete(force: true)
+                    
+                    // Set new event type
                     currentEvent = value
+                    hasEventType = true
+                    hasYielded = false  // Reset yield flag for new event
+                    
                 case "data":
                     if currentData.isEmpty {
                         currentData = value
@@ -532,6 +545,14 @@ class APIClient: ObservableObject {
                         // Multiple data lines should be concatenated with newline
                         currentData += "\n" + value
                     }
+                    hasData = true
+                    
+                    // If we have both event type and data, yield immediately on first data line
+                    // Subsequent data lines will be accumulated but not re-yielded (to avoid duplicates)
+                    if hasEventType && !hasYielded {
+                        yieldEventIfComplete()
+                    }
+                    
                 case "id":
                     currentId = value
                 default:
@@ -549,15 +570,8 @@ class APIClient: ObservableObject {
             }
         }
         
-        // Handle any remaining data when stream ends
-        if !currentData.isEmpty {
-            let event = SSEEvent(
-                event: currentEvent,
-                data: currentData,
-                id: currentId
-            )
-            continuation.yield(event)
-        }
+        // Handle any remaining data when stream ends (force yield)
+        yieldEventIfComplete(force: true)
         
         #if DEBUG
         print("✅ SSE Stream Completed")
