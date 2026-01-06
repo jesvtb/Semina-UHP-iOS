@@ -73,45 +73,57 @@ enum StorageManager {
     // MARK: - UserDefaults Helper
     // For small data (< 100 KB) - similar to localStorage in React or a config file in Python
     
+    /// Get shared UserDefaults suite for widget compatibility
+    /// Uses main app's bundle ID so widget extension can access the same UserDefaults
+    private static var sharedUserDefaults: UserDefaults {
+        return UserDefaults(suiteName: "com.semina.unheardpath") ?? UserDefaults.standard
+    }
+    
     /// Save small data to UserDefaults (like localStorage.setItem in React)
     /// Automatically prefixes key with "UHP."
+    /// Uses shared suite so widget extension can read the data
     /// - Parameters:
     ///   - value: The value to save (must be PropertyList compatible)
     ///   - key: The key to store under (will be prefixed with "UHP.")
     static func saveToUserDefaults<T>(_ value: T, forKey key: String) {
         _ = _initialize // Trigger initialization
         let prefixed = prefixedKey(key)
-        UserDefaults.standard.set(value, forKey: prefixed)
-        UserDefaults.standard.synchronize()
+        let defaults = sharedUserDefaults
+        defaults.set(value, forKey: prefixed)
+        defaults.synchronize()
     }
     
     /// Load data from UserDefaults (like localStorage.getItem in React)
     /// Automatically prefixes key with "UHP."
+    /// Uses shared suite so widget extension can read the data
     /// - Parameter key: The key to retrieve (will be prefixed with "UHP.")
     /// - Returns: The stored value, or nil if not found
     static func loadFromUserDefaults<T>(forKey key: String, as type: T.Type) -> T? {
         _ = _initialize // Trigger initialization
         let prefixed = prefixedKey(key)
-        return UserDefaults.standard.object(forKey: prefixed) as? T
+        return sharedUserDefaults.object(forKey: prefixed) as? T
     }
     
     /// Check if key exists in UserDefaults
     /// Automatically prefixes key with "UHP."
+    /// Uses shared suite so widget extension can read the data
     /// - Parameter key: The key to check (will be prefixed with "UHP.")
     static func existsInUserDefaults(forKey key: String) -> Bool {
         _ = _initialize // Trigger initialization
         let prefixed = prefixedKey(key)
-        return UserDefaults.standard.object(forKey: prefixed) != nil
+        return sharedUserDefaults.object(forKey: prefixed) != nil
     }
     
     /// Remove data from UserDefaults
     /// Automatically prefixes key with "UHP."
+    /// Uses shared suite so widget extension can read the data
     /// - Parameter key: The key to remove (will be prefixed with "UHP.")
     static func removeFromUserDefaults(forKey key: String) {
         _ = _initialize // Trigger initialization
         let prefixed = prefixedKey(key)
-        UserDefaults.standard.removeObject(forKey: prefixed)
-        UserDefaults.standard.synchronize()
+        let defaults = sharedUserDefaults
+        defaults.removeObject(forKey: prefixed)
+        defaults.synchronize()
     }
     
     // MARK: - File Storage Methods
@@ -309,10 +321,30 @@ enum StorageManager {
     
     // MARK: - Debug Helpers
     
+    /// Get all "UHP." prefixed keys and their values from UserDefaults
+    /// - Returns: Dictionary of keys (with "UHP." prefix) to their values
+    static func getAllUHPKeys() -> [String: Any] {
+        _ = _initialize // Trigger initialization
+        let defaults = sharedUserDefaults
+        let allKeys = defaults.dictionaryRepresentation().keys
+        
+        // Filter keys that start with "UHP."
+        let uhpKeys = allKeys.filter { $0.hasPrefix("UHP.") }.sorted()
+        
+        var result: [String: Any] = [:]
+        for key in uhpKeys {
+            if let value = defaults.object(forKey: key) {
+                result[key] = value
+            }
+        }
+        
+        return result
+    }
+    
     /// Print all "UHP." prefixed keys in UserDefaults
     /// Useful for development to see what keys are stored
     static func printUHPKeysInUserDefaults() {
-        let defaults = UserDefaults.standard
+        let defaults = sharedUserDefaults
         let allKeys = defaults.dictionaryRepresentation().keys
         
         // Filter keys that start with "UHP."
@@ -362,7 +394,7 @@ enum StorageManager {
         print("---")
         
         // UserDefaults size (approximate)
-        let defaults = UserDefaults.standard
+        let defaults = sharedUserDefaults
         let defaultsDict = defaults.dictionaryRepresentation()
         let defaultsSize = defaultsDict.values.reduce(0) { total, value in
             let valueString = "\(value)"

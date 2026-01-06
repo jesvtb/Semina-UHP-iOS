@@ -200,16 +200,43 @@ struct TestMainView: View {
             }
         }
         .onChange(of: locationManager.deviceLocation) { newLocation in
-            // Call refreshPOIList only once when one-time location request completes
-            // This handles the response from requestOneTimeLocation() (not continuous tracking)
-            if let location = newLocation,
-               !hasReceivedFirstGPSUpdate,
-               location.horizontalAccuracy > 0,  // Positive accuracy means it's a real GPS reading
-               location.horizontalAccuracy <= 100,  // Within 100m accuracy
-               abs(location.timestamp.timeIntervalSinceNow) < 10 {  // Location is recent (within 10 seconds), not cached
+            guard let location = newLocation,
+                  location.horizontalAccuracy > 0,  // Positive accuracy means it's a real GPS reading
+                  location.horizontalAccuracy <= 100,  // Within 100m accuracy
+                  abs(location.timestamp.timeIntervalSinceNow) < 10 else {  // Location is recent (within 10 seconds), not cached
+                return
+            }
+            
+            // First GPS update: only refresh POI list
+            if !hasReceivedFirstGPSUpdate {
                 hasReceivedFirstGPSUpdate = true
                 Task {
                     await refreshPOIListOnOneTimeLocation(location: location)
+                }
+            }
+            // Subsequent updates: check if moved at least 100m from last sent location
+            else if hasReceivedFirstGPSUpdate {
+                // Check if we have a previous location to compare
+                if let lastSent = lastSentLocation {
+                    let previousLocation = CLLocation(
+                        latitude: lastSent.latitude,
+                        longitude: lastSent.longitude
+                    )
+                    let distance = location.distance(from: previousLocation)
+                    
+                    // Only update if moved at least 100m
+                    if distance >= 100.0 {
+                        lastSentLocation = (location.coordinate.latitude, location.coordinate.longitude)
+                        Task {
+                            await updateLocationToUHP(location: location)
+                        }
+                    }
+                } else {
+                    // No previous location, send this one and save it
+                    lastSentLocation = (location.coordinate.latitude, location.coordinate.longitude)
+                    Task {
+                        await updateLocationToUHP(location: location)
+                    }
                 }
             }
         }
@@ -521,33 +548,25 @@ extension TestMainView {
         }
         
         private func getCacheInfo() -> (entryCount: Int, totalSize: Int, formattedSize: String, breakdown: [(key: String, size: Int, formattedSize: String)]) {
-            let defaults = UserDefaults.standard
-            let dict = defaults.dictionaryRepresentation()
-            
-            // Filter cache keys (PlacesCache_ and wiki_)
-            let cacheKeys = dict.keys.filter { key in
-                key.hasPrefix("UHP.") && (
-                    key.contains("PlacesCache_") || key.contains("wiki_")
-                )
-            }
+            // Get all UHP keys using StorageManager
+            let uhpKeysDict = StorageManager.getAllUHPKeys()
             
             var breakdown: [(key: String, size: Int, formattedSize: String)] = []
             var totalSize = 0
             
-            for key in cacheKeys.sorted() {
-                if let value = dict[key] {
-                    let valueString = "\(value)"
-                    let size = valueString.data(using: .utf8)?.count ?? 0
-                    totalSize += size
-                    
-                    let keyWithoutPrefix = key.hasPrefix("UHP.") ? String(key.dropFirst(4)) : key
-                    let formattedSize = formatBytes(size)
-                    breakdown.append((key: keyWithoutPrefix, size: size, formattedSize: formattedSize))
-                }
+            for (key, value) in uhpKeysDict.sorted(by: { $0.key < $1.key }) {
+                let valueString = "\(value)"
+                let size = valueString.data(using: .utf8)?.count ?? 0
+                totalSize += size
+                
+                // Remove "UHP." prefix for display
+                let keyWithoutPrefix = key.hasPrefix("UHP.") ? String(key.dropFirst(4)) : key
+                let formattedSize = formatBytes(size)
+                breakdown.append((key: keyWithoutPrefix, size: size, formattedSize: formattedSize))
             }
             
             return (
-                entryCount: cacheKeys.count,
+                entryCount: uhpKeysDict.count,
                 totalSize: totalSize,
                 formattedSize: formatBytes(totalSize),
                 breakdown: breakdown

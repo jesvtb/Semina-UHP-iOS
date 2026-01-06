@@ -94,53 +94,42 @@ class ChatViewModel: ObservableObject {
         messages.append(ChatMessage(text: "", isUser: false, isStreaming: true))
         
         do {
-            // Prepare request data - build as [String: JSONValue] from the start
-            var jsonDict: [String: JSONValue] = [
-                "message": .string(text)
-            ]
-            
-            // Add UTC time in ISO 8601 format
-            let now = Date()
-            let utcFormatter = ISO8601DateFormatter()
-            utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
-            utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            jsonDict["msg_utc"] = .string(utcFormatter.string(from: now))
-            
-            // Include device timezone identifier (user's current device timezone)
-            jsonDict["msg_timezone"] = .string(TimeZone.current.identifier)
-            
-            // Add device_lang - REQUIRED field, use fallback if user not initialized yet
-            // This prevents 404 errors due to missing required field
+            // Prepare request data using UserEvent structure
+            // Get device_lang - use fallback if user not initialized yet
+            var device_lang = "en"
             if let user = userManager.currentUser {
-                jsonDict["device_lang"] = .string(user.device_lang)
+                device_lang = user.device_lang
             } else {
                 // Fallback to device language if user not initialized yet
                 // This handles race conditions during app startup
-                var device_lang = "en"
                 if #available(iOS 16.0, *) {
                     device_lang = Locale.current.language.languageCode?.identifier ?? device_lang
                 } else {
                     device_lang = Locale.current.languageCode ?? device_lang
                 }
-                jsonDict["device_lang"] = .string(device_lang)
                 #if DEBUG
                 print("⚠️ Using fallback device_lang: \(device_lang) (user not initialized yet)")
                 #endif
             }
             
-            // Add location details from LocationManager
-            // Use empty string if location details are not available
-            if let deviceLocationDetails = locationManager.locationDetails {
-                jsonDict["last_device_location"] = .dictionary(deviceLocationDetails)
-            } else {
-                jsonDict["last_device_location"] = .string("")
-            }
+            // Build evt_data with message and device_lang (no location details)
+            let evtData: [String: JSONValue] = [
+                "message": .string(text),
+                "device_lang": .string(device_lang)
+            ]
             
-            if let lookupLocationDetails = locationManager.lookupLocationDetails {
-                jsonDict["last_lookup_location"] = .dictionary(lookupLocationDetails)
-            } else {
-                jsonDict["last_lookup_location"] = .string("")
-            }
+            // Build UserEvent structure
+            let now = Date()
+            let utcFormatter = ISO8601DateFormatter()
+            utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
+            utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            
+            let jsonDict: [String: JSONValue] = [
+                "evt_utc": .string(utcFormatter.string(from: now)),
+                "evt_timezone": .string(TimeZone.current.identifier),
+                "evt_type": .string("chat_sent"),
+                "evt_data": .dictionary(evtData)
+            ]
             
             print("🔍 jsonDict: \(jsonDict)")
             // Note: We're already in @MainActor context, so accessing uhpGateway is safe

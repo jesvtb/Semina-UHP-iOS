@@ -9,6 +9,7 @@ import Foundation
 import CoreLocation
 import SwiftUI
 import UIKit
+import WidgetKit
 
 // struct LocationDetails
 
@@ -54,6 +55,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let lastDeviceLocationKey = "LastDeviceLocation"
     private let lastLookupLocationKey = "LastLookupLocation"
     
+    // UserDefaults keys for widget state
+    // Note: StorageManager will automatically add "UHP." prefix
+    private let appStateIsInBackgroundKey = "AppState.isInBackground"
+    private let trackingModeKey = "TrackingMode.current"
+    
     // Geofencing management
     private var monitoredGeofences: [String: CLCircularRegion] = [:]  // Track all geofences by identifier
     
@@ -75,6 +81,15 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         locationManager.distanceFilter = activeDistanceFilter
         authorizationStatus = locationManager.authorizationStatus
         isLocationPermissionGranted = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
+        
+        // Initialize app state in UserDefaults (defaults to foreground)
+        // This ensures widget always has a valid value to read
+        if !StorageManager.existsInUserDefaults(forKey: appStateIsInBackgroundKey) {
+            StorageManager.saveToUserDefaults(false, forKey: appStateIsInBackgroundKey)
+            #if DEBUG
+            print("💾 Initialized app state in UserDefaults: isInBackground = false")
+            #endif
+        }
         
         // Load last saved locations immediately
         loadLastSavedDeviceLocation()
@@ -184,6 +199,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         } else {
             print("📡 Updated active tracking configuration")
         }
+        
+        // Save tracking mode to UserDefaults for widget
+        StorageManager.saveToUserDefaults("active", forKey: trackingModeKey)
     }
     
     /// Switches to background tracking mode (app in background)
@@ -196,6 +214,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 isTrackingActive = false
                 print("⏸️ Stopped location tracking (no 'Always' permission for background)")
             }
+            // Save tracking mode as "stopped" for widget
+            StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
             return
         }
         
@@ -213,8 +233,12 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
                 isUsingSignificantChanges = true
                 print("📍 Started significant location change monitoring (battery-efficient)")
             }
+            // Save tracking mode as "background" for widget
+            StorageManager.saveToUserDefaults("background", forKey: trackingModeKey)
         } else {
             print("⚠️ Significant location change monitoring not available")
+            // Save tracking mode as "stopped" if significant changes not available
+            StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
         }
     }
     
@@ -245,7 +269,28 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func appDidEnterBackground() {
         isAppInBackground = true
         print("📱 App entered background - switching to battery-efficient tracking")
+        
+        // Save app state to UserDefaults for widget
+        StorageManager.saveToUserDefaults(true, forKey: appStateIsInBackgroundKey)
+        #if DEBUG
+        // Verify the value was saved correctly
+        let savedValue = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
+        print("💾 Saved app state to UserDefaults: isInBackground = true (verified: \(savedValue ?? false))")
+        #endif
+        
         switchToBackgroundTracking()
+        
+        // Trigger widget refresh (DEBUG only)
+        // Note: Widget refresh happens after both app state and tracking mode are saved
+        // Use a small delay to ensure UserDefaults write completes across process boundaries
+        #if DEBUG
+        Task { @MainActor in
+            // Small delay to ensure UserDefaults synchronization completes
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            WidgetCenter.shared.reloadAllTimelines()
+            print("🔄 Triggered widget refresh")
+        }
+        #endif
     }
     
     /// Called when the app is about to enter the foreground
@@ -254,7 +299,32 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func appWillEnterForeground() {
         isAppInBackground = false
         print("📱 App entering foreground - switching to active tracking")
+        
+        // Save app state to UserDefaults for widget
+        StorageManager.saveToUserDefaults(false, forKey: appStateIsInBackgroundKey)
+        #if DEBUG
+        // Verify the value was saved correctly
+        let savedValue = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
+        print("💾 Saved app state to UserDefaults: isInBackground = false (verified: \(savedValue ?? true))")
+        #endif
+        
         switchToActiveTracking()
+        
+        // Trigger widget refresh (DEBUG only)
+        // Note: Widget refresh happens after both app state and tracking mode are saved
+        // Use a small delay to ensure UserDefaults write completes across process boundaries
+        #if DEBUG
+        Task { @MainActor in
+            // Small delay to ensure UserDefaults synchronization completes
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            
+            // Use specific widget kind for more reliable refresh
+            WidgetCenter.shared.reloadTimelines(ofKind: "widget")
+            // Also reload all as fallback
+            WidgetCenter.shared.reloadAllTimelines()
+            print("🔄 Triggered widget refresh (kind: widget)")
+        }
+        #endif
     }
     
     /// Enables high accuracy mode (e.g., for navigation)
@@ -1027,6 +1097,125 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         
         return jsonValue
+    }
+    
+    /// Geocodes a location and constructs a NewLocation-like structure matching the Python schema
+    /// - Parameter location: The CLLocation to geocode
+    /// - Returns: A dictionary matching the NewLocation schema with coordinate and location details
+    /// - Throws: Error if geocoding fails
+    func constructNewLocation(from location: CLLocation) async throws -> [String: JSONValue] {
+        // Reverse geocode the location
+        let placemarks = try await geocoder.reverseGeocodeLocation(location)
+        let placemark = placemarks.first
+        
+        // Print complete geocoded results for evaluation
+        #if DEBUG
+        print("🔍 Complete Geocoded Results:")
+        print("   Number of placemarks: \(placemarks.count)")
+        if let placemark = placemark {
+            print("   📍 Placemark Details:")
+            print("      - name: \(placemark.name ?? "nil")")
+            print("      - thoroughfare: \(placemark.thoroughfare ?? "nil")")
+            print("      - subThoroughfare: \(placemark.subThoroughfare ?? "nil")")
+            print("      - locality: \(placemark.locality ?? "nil")")
+            print("      - subLocality: \(placemark.subLocality ?? "nil")")
+            print("      - administrativeArea: \(placemark.administrativeArea ?? "nil")")
+            print("      - subAdministrativeArea: \(placemark.subAdministrativeArea ?? "nil")")
+            print("      - postalCode: \(placemark.postalCode ?? "nil")")
+            print("      - country: \(placemark.country ?? "nil")")
+            print("      - isoCountryCode: \(placemark.isoCountryCode ?? "nil")")
+            print("      - inlandWater: \(placemark.inlandWater ?? "nil")")
+            print("      - ocean: \(placemark.ocean ?? "nil")")
+            print("      - areasOfInterest: \(placemark.areasOfInterest?.joined(separator: ", ") ?? "nil")")
+            print("      - timeZone: \(placemark.timeZone?.identifier ?? "nil")")
+            print("      - region: \(placemark.region?.identifier ?? "nil")")
+        } else {
+            print("   ⚠️ No placemark available")
+        }
+        print("   📍 Location Details:")
+        print("      - latitude: \(location.coordinate.latitude)")
+        print("      - longitude: \(location.coordinate.longitude)")
+        print("      - altitude: \(location.altitude)")
+        print("      - horizontalAccuracy: \(location.horizontalAccuracy)")
+        print("      - verticalAccuracy: \(location.verticalAccuracy)")
+        print("      - timestamp: \(location.timestamp)")
+        #endif
+        
+        // Build coordinate object
+        var coordinateDict: [String: JSONValue] = [
+            "lat": .double(location.coordinate.latitude),
+            "lng": .double(location.coordinate.longitude)
+        ]
+        if location.verticalAccuracy > 0 {
+            coordinateDict["alt"] = .double(location.altitude)
+        }
+        
+        // Build NewLocation structure (matching Python schema)
+        var newLocationDict: [String: JSONValue] = [
+            "coordinate": .dictionary(coordinateDict)
+        ]
+        
+        // Add optional fields from placemark
+        if let placemark = placemark {
+            if let countryCode = placemark.isoCountryCode {
+                newLocationDict["country_code"] = .string(countryCode)
+            }
+            
+            // Build subdivisions string using same pattern as constructDeviceLocation
+            // Order: subLocality, locality, subAdministrativeArea, administrativeArea
+            var subdivisionsParts: [String] = []
+            if let subLocality = placemark.subLocality {
+                subdivisionsParts.append(subLocality)
+            }
+            if let locality = placemark.locality {
+                subdivisionsParts.append(locality)
+            }
+            if let subAdministrativeArea = placemark.subAdministrativeArea {
+                subdivisionsParts.append(subAdministrativeArea)
+            }
+            if let administrativeArea = placemark.administrativeArea {
+                subdivisionsParts.append(administrativeArea)
+            }
+            if !subdivisionsParts.isEmpty {
+                newLocationDict["subdivisions"] = .string(subdivisionsParts.joined(separator: ", "))
+            }
+            
+            if let name = placemark.name {
+                newLocationDict["place_name"] = .string(name)
+            }
+            
+            if let country = placemark.country {
+                newLocationDict["country_name"] = .string(country)
+            }
+            
+            // Get timezone from placemark
+            if let timeZone = placemark.timeZone {
+                newLocationDict["timezone"] = .string(timeZone.identifier)
+            }
+        }
+        
+        // If timezone not available from placemark, use device timezone as fallback
+        if newLocationDict["timezone"] == nil {
+            newLocationDict["timezone"] = .string(TimeZone.current.identifier)
+        }
+        
+        // Print constructed NewLocation structure for comparison
+        #if DEBUG
+        print("✅ Constructed NewLocation Structure:")
+        print("   - coordinate: \(newLocationDict["coordinate"] != nil ? "present" : "missing")")
+        if case .dictionary(let coordDict) = newLocationDict["coordinate"] {
+            print("      * lat: \(coordDict["lat"] != nil ? "present" : "missing")")
+            print("      * lng: \(coordDict["lng"] != nil ? "present" : "missing")")
+            print("      * alt: \(coordDict["alt"] != nil ? "present" : "missing")")
+        }
+        print("   - timezone: \(newLocationDict["timezone"] != nil ? "present" : "missing")")
+        print("   - country_code: \(newLocationDict["country_code"] != nil ? "present" : "missing")")
+        print("   - country_name: \(newLocationDict["country_name"] != nil ? "present" : "missing")")
+        print("   - place_name: \(newLocationDict["place_name"] != nil ? "present" : "missing")")
+        print("   - subdivisions: \(newLocationDict["subdivisions"] != nil ? "present" : "missing")")
+        #endif
+        
+        return newLocationDict
     }
     
     /// Reverse geocodes the current user location and returns a JSON dictionary

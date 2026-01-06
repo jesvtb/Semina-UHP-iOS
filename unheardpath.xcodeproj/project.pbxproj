@@ -93,6 +93,13 @@
 			);
 			target = C1CD22932E6FE5D50057E60C /* unheardpath */;
 		};
+		C164F7952EF190D000889972 /* Exceptions for "unheardpath" folder in "widgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				services/StorageManager.swift,
+			);
+			target = C14133072EE9505400459EE0 /* widgetExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -108,6 +115,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				C144ED8F2ED0614400A30988 /* Exceptions for "unheardpath" folder in "unheardpath" target */,
+				C164F7952EF190D000889972 /* Exceptions for "unheardpath" folder in "widgetExtension" target */,
 			);
 			path = unheardpath;
 			sourceTree = "<group>";

@@ -351,3 +351,10 @@ After testing the basic LiveActivity:
 5. **Test Edge Cases**: Test with network issues, app termination, etc.
 
 
+
+
+
+
+
+
+

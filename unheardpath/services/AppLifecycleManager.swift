@@ -9,10 +9,58 @@ import Foundation
 import SwiftUI
 import UIKit
 
+/// Simple logger protocol for AppLifecycleManager
+/// Allows injection of custom logging implementations for testing
+/// Made internal (not private) to allow test access
+protocol AppLifecycleLogger {
+    func debug(_ message: String)
+    func error(_ message: String, handlerType: String?, error: Error?)
+    func warning(_ message: String, handlerType: String?)
+}
+
+/// Default logger implementation
+/// DEBUG builds: verbose logging
+/// RELEASE builds: minimal/silent logging
+/// Made internal (not private) to allow test access
+struct DefaultAppLifecycleLogger: AppLifecycleLogger {
+    func debug(_ message: String) {
+        #if DEBUG
+        print("📱 AppLifecycleManager: \(message)")
+        #endif
+    }
+    
+    func error(_ message: String, handlerType: String?, error: Error?) {
+        #if DEBUG
+        let handlerInfo = handlerType.map { " in \($0)" } ?? ""
+        let errorInfo = error.map { ": \($0)" } ?? ""
+        print("⚠️ AppLifecycleManager: \(message)\(handlerInfo)\(errorInfo)")
+        #else
+        // Silent in release builds (or use crash reporting service)
+        #endif
+    }
+    
+    func warning(_ message: String, handlerType: String?) {
+        #if DEBUG
+        let handlerInfo = handlerType.map { " in \($0)" } ?? ""
+        print("⚠️ AppLifecycleManager: \(message)\(handlerInfo)")
+        #endif
+    }
+}
+
 /// Type-erased wrapper for lifecycle handlers to avoid protocol conformance issues with @MainActor classes
 /// This allows @MainActor classes to register handlers without Swift 6 concurrency warnings
+///
+/// **Handler Requirements**:
+/// - Handlers are non-throwing closures. Any errors must be caught and handled internally.
+/// - Handlers execute synchronously on MainActor and should complete quickly.
+/// - Heavy work should be offloaded to background queues.
 private struct LifecycleHandlerCallbacks {
+    /// Non-throwing closure called when app enters background
+    /// Must handle errors internally - any thrown errors will be caught and logged
     let didEnterBackground: @MainActor () -> Void
+    
+    /// Non-throwing closure called when app enters foreground
+    /// Must handle errors internally - any thrown errors will be caught and logged
     let willEnterForeground: @MainActor () -> Void
 }
 
@@ -29,6 +77,51 @@ private class WeakLifecycleHandler {
 
 /// Centralized manager for app lifecycle events
 /// Allows services to register as handlers for background/foreground transitions
+///
+/// **Execution Model**:
+/// - All handlers execute **synchronously on the MainActor** (main thread)
+/// - Handlers should complete quickly (<100ms) to avoid blocking other handlers
+/// - Heavy work (network calls, file I/O, complex computations) should be offloaded
+///   to background queues using `Task.detached` or `DispatchQueue.global()`
+///
+/// **Error Isolation**:
+/// - Handlers are non-throwing closures. Errors must be caught and handled internally.
+/// - If a handler unexpectedly throws, the error is logged but does not prevent
+///   other handlers from executing.
+///
+/// **Cleanup Behavior**:
+/// - Deallocated handlers are automatically removed during notification
+/// - The handlers array is always rewritten to maintain validity (negligible cost)
+///
+/// **Thread Safety**:
+/// - This class is `@MainActor` isolated. All handler callbacks execute on the main thread.
+/// - Registration/unregistration must be called from MainActor context.
+///
+/// **Performance Monitoring**:
+/// - In DEBUG builds, handlers taking >100ms trigger warnings
+/// - Use this to identify handlers that need optimization
+///
+/// **Example Usage**:
+/// ```swift
+/// // Register a handler (use weak capture to avoid retain cycles)
+/// appLifecycleManager.register(
+///     object: self,
+///     didEnterBackground: { [weak self] in
+///         guard let self else { return }
+///         // Lightweight work on main thread
+///         self.saveState()
+///         
+///         // Heavy work offloaded to background
+///         Task.detached {
+///             await self.performHeavyCleanup()
+///         }
+///     },
+///     willEnterForeground: { [weak self] in
+///         guard let self else { return }
+///         self.refreshUI()
+///     }
+/// )
+/// ```
 @MainActor
 class AppLifecycleManager: ObservableObject {
     /// Published state indicating whether the app is currently in the background
@@ -37,7 +130,11 @@ class AppLifecycleManager: ObservableObject {
     /// Weak references to registered lifecycle handlers
     private var handlers: [WeakLifecycleHandler] = []
     
-    init() {
+    /// Logger for lifecycle events (injectable for testing)
+    private let logger: AppLifecycleLogger
+    
+    init(logger: AppLifecycleLogger = DefaultAppLifecycleLogger()) {
+        self.logger = logger
         setupAppLifecycleObservers()
     }
     
@@ -63,14 +160,12 @@ class AppLifecycleManager: ObservableObject {
         )
     }
     
-    @objc private func handleDidEnterBackground() {
+    @objc nonisolated private func handleDidEnterBackground() {
         // Bridge to MainActor since @objc methods are nonisolated
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.isAppInBackground = true
-            #if DEBUG
-            print("📱 AppLifecycleManager: App entered background")
-            #endif
+            logger.debug("App entered background")
             
             // Call all registered handlers on MainActor
             self.notifyHandlers { callbacks in
@@ -79,14 +174,12 @@ class AppLifecycleManager: ObservableObject {
         }
     }
     
-    @objc private func handleWillEnterForeground() {
+    @objc nonisolated private func handleWillEnterForeground() {
         // Bridge to MainActor since @objc methods are nonisolated
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.isAppInBackground = false
-            #if DEBUG
-            print("📱 AppLifecycleManager: App entering foreground")
-            #endif
+            logger.debug("App entering foreground")
             
             // Call all registered handlers on MainActor
             self.notifyHandlers { callbacks in
@@ -98,16 +191,28 @@ class AppLifecycleManager: ObservableObject {
     // MARK: - Handler Registration
     
     /// Registers a handler to receive app lifecycle events
+    ///
+    /// **Registration Behavior**:
+    /// - If the same object is registered multiple times, previous registrations are replaced
+    /// - This ensures each object has only one active registration
+    /// - Registration is thread-safe (must be called from MainActor context)
+    ///
+    /// **Handler Requirements**:
+    /// - Handlers are non-throwing closures that execute on MainActor
+    /// - Handlers should complete quickly (<100ms) to avoid blocking other handlers
+    /// - Use weak capture in closures to avoid retain cycles: `{ [weak self] in ... }`
+    ///
     /// - Parameters:
     ///   - object: The object to register (stored weakly to prevent retain cycles)
-    ///   - didEnterBackground: Closure called when app enters background (runs on @MainActor)
-    ///   - willEnterForeground: Closure called when app enters foreground (runs on @MainActor)
+    ///   - didEnterBackground: Non-throwing closure called when app enters background (runs on @MainActor)
+    ///   - willEnterForeground: Non-throwing closure called when app enters foreground (runs on @MainActor)
     func register(
         object: AnyObject,
         didEnterBackground: @escaping @MainActor () -> Void,
         willEnterForeground: @escaping @MainActor () -> Void
     ) {
-        // Remove any existing reference to this object (if re-registering)
+        // Remove any existing reference to this object (de-duplication)
+        // This ensures each object has only one active registration
         handlers.removeAll { $0.object === object }
         
         // Add new weak reference with callbacks
@@ -117,9 +222,8 @@ class AppLifecycleManager: ObservableObject {
         )
         handlers.append(WeakLifecycleHandler(object: object, callbacks: callbacks))
         
-        #if DEBUG
-        print("✅ AppLifecycleManager: Registered handler: \(type(of: object))")
-        #endif
+        let handlerType = String(describing: type(of: object))
+        logger.debug("Registered handler: \(handlerType)")
     }
     
     /// Unregisters a handler from receiving app lifecycle events
@@ -127,28 +231,49 @@ class AppLifecycleManager: ObservableObject {
     func unregister(object: AnyObject) {
         handlers.removeAll { $0.object === object }
         
-        #if DEBUG
-        print("✅ AppLifecycleManager: Unregistered handler: \(type(of: object))")
-        #endif
+        let handlerType = String(describing: type(of: object))
+        logger.debug("Unregistered handler: \(handlerType)")
     }
     
     // MARK: - Private Helpers
     
     /// Notifies all registered handlers, automatically cleaning up nil weak references
     /// All handlers are called on the main actor since AppLifecycleManager is @MainActor
+    ///
+    /// **Error Handling**: Handlers are expected to be non-throwing, but any unexpected
+    /// errors are caught and logged without preventing other handlers from executing.
+    ///
+    /// **Performance**: Handlers execute synchronously. Slow handlers will block other handlers.
+    /// In DEBUG builds, slow handlers (>100ms) trigger warnings.
     private func notifyHandlers(_ action: (LifecycleHandlerCallbacks) -> Void) {
-        // Clean up nil weak references while iterating
         var validHandlers: [WeakLifecycleHandler] = []
         
         for weakHandler in handlers {
-            if weakHandler.object != nil {
-                validHandlers.append(weakHandler)
-                // Callbacks are @MainActor closures, called from @MainActor context
+            guard let object = weakHandler.object else { continue }
+            validHandlers.append(weakHandler)
+            
+            #if DEBUG
+            let startTime = CFAbsoluteTimeGetCurrent()
+            #endif
+            
+            // Defensive error catching (handlers should not throw, but catch just in case)
+            do {
                 action(weakHandler.callbacks)
+            } catch {
+                let handlerType = String(describing: type(of: object))
+                logger.error("Handler error", handlerType: handlerType, error: error)
             }
+            
+            #if DEBUG
+            let duration = CFAbsoluteTimeGetCurrent() - startTime
+            if duration > 0.1 { // 100ms threshold
+                let handlerType = String(describing: type(of: object))
+                logger.warning("Slow handler detected (\(String(format: "%.0f", duration * 1000))ms)", handlerType: handlerType)
+            }
+            #endif
         }
         
-        // Update handlers array to remove deallocated references
+        // Always rewrite array to maintain validity (negligible cost, simpler correctness)
         handlers = validHandlers
     }
 }
