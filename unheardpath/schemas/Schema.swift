@@ -174,7 +174,7 @@ struct ChatMessage: Identifiable {
 
 
 // MARK: - Activity Update Model
-struct ActivityUpdateData {
+struct ToastData {
   let type: String?
   let message: String
   

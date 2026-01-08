@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Manages state for the LiveUpdateStack overlay component
-/// Note: Chat-related state (lastMessage, currentActivityUpdate, isMessageExpanded) has been moved to ChatViewModel
+/// Note: Chat-related state (lastMessage, currentToastData, isMessageExpanded) has been moved to ChatViewModel
 /// Only inputLocation remains here temporarily - will move to MapViewModel in future refactoring
 @MainActor
 class LiveUpdateViewModel: ObservableObject {
@@ -10,7 +10,7 @@ class LiveUpdateViewModel: ObservableObject {
 
 struct LiveUpdateStack: View {
     let message: ChatMessage
-    @Binding var currentActivityUpdate: ActivityUpdateData?
+    @Binding var currentToastData: ToastData?
     @Binding var isExpanded: Bool
     let onDismiss: () -> Void
     
@@ -22,11 +22,11 @@ struct LiveUpdateStack: View {
         
         return VStack {
             Spacer()
-            if let activityUpdate = currentActivityUpdate {
-                ActivityUpdateBanner(
-                    activityUpdate: activityUpdate,
-                    onActivityUpdateDismiss: {
-                        currentActivityUpdate = nil
+            if let toastData = currentToastData {
+                ToastView(
+                    toastData: toastData,
+                    onToastDimiss: {
+                        currentToastData = nil
                     }
                 )
             }

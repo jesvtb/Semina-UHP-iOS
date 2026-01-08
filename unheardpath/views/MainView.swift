@@ -21,7 +21,7 @@ struct TestMainView: View {
     private let previewMessages: [ChatMessage]?
     private let previewGeoJSONData: [String: Any]?
     private let previewLastMessage: ChatMessage?
-    private let previewCurrentActivityUpdate: ActivityUpdateData?
+    private let previewCurrentToastData: ToastData?
     @State private var selectedTab: PreviewTabSelection = .journey
     @State var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
@@ -59,13 +59,13 @@ struct TestMainView: View {
         previewMessages: [ChatMessage]? = nil,
         previewGeoJSONData: [String: Any]? = nil,
         previewLastMessage: ChatMessage? = nil,
-        previewCurrentActivityUpdate: ActivityUpdateData? = nil
+        previewCurrentToastData: ToastData? = nil
     ) {
         self.previewTab = previewTab
         self.previewMessages = previewMessages
         self.previewGeoJSONData = previewGeoJSONData
         self.previewLastMessage = previewLastMessage
-        self.previewCurrentActivityUpdate = previewCurrentActivityUpdate
+        self.previewCurrentToastData = previewCurrentToastData
     }
 
     var body: some View {
@@ -121,7 +121,7 @@ struct TestMainView: View {
             if let lastMessage = chatViewModel.lastMessage, selectedTab != .chat {
                 LiveUpdateStack(
                     message: lastMessage,
-                    currentActivityUpdate: $chatViewModel.currentActivityUpdate,
+                    currentToastData: $chatViewModel.currentToastData,
                     isExpanded: $chatViewModel.isMessageExpanded,
                     onDismiss: {
                         chatViewModel.dismissLastMsg()
@@ -309,8 +309,8 @@ struct TestMainView: View {
             if let previewLastMessage = previewLastMessage {
                 chatViewModel.lastMessage = previewLastMessage
             }
-            if let previewCurrentActivityUpdate = previewCurrentActivityUpdate {
-                chatViewModel.currentActivityUpdate = previewCurrentActivityUpdate
+            if let previewCurrentToastData = previewCurrentToastData {
+                chatViewModel.currentToastData = previewCurrentToastData
             }
             
             // Request one-time location update for initial POI list refresh

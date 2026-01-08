@@ -12,7 +12,7 @@ class ChatViewModel: ObservableObject {
     
     // From LiveUpdateViewModel (chat-related only)
     @Published var lastMessage: ChatMessage?
-    @Published var currentActivityUpdate: ActivityUpdateData?
+    @Published var currentToastData: ToastData?
     @Published var isMessageExpanded: Bool = false
     
     // MARK: - Dependencies
@@ -185,10 +185,10 @@ class ChatViewModel: ObservableObject {
         isMessageExpanded = false
     }
     
-    /// Sets a new activity update with animation
-    func setActivityUpdate(_ activityUpdate: ActivityUpdateData) {
+    /// Sets a new toast data with animation
+    func setToastData(_ toastData: ToastData) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            currentActivityUpdate = activityUpdate
+            currentToastData = toastData
         }
     }
     
@@ -209,14 +209,14 @@ class ChatViewModel: ObservableObject {
         let eventType = (event.event ?? "").lowercased()
         
         switch eventType {
-        case "notification":
-            await handleActivityUpdateEvent(event: event)
+        case "toast":
+            await handleToastEvent(event: event)
             
-        case "content":
-            await handleContentEvent(event: event, data: &data)
+        case "chat":
+            await handleChatEvent(event: event, data: &data)
             
-        case "finish":
-            await handleSSEFinishEvent(event: event)
+        case "stop":
+            await handleSSEStopEvent(event: event)
             
         case "map":
             await handleMapEvent()
@@ -235,9 +235,9 @@ class ChatViewModel: ObservableObject {
     /// Ensures the progress spinner is stopped and removed from the last
     /// assistant message by setting `isStreaming` to false or dropping an
     /// empty placeholder message.
-    private func handleSSEFinishEvent(event: SSEEvent) async {
+    private func handleSSEStopEvent(event: SSEEvent) async {
         #if DEBUG
-        print("🏁 Processing finish event")
+        print("🏁 Processing stop event")
         print("   Raw data: \(event.data)")
         #endif
         
@@ -245,7 +245,7 @@ class ChatViewModel: ObservableObject {
             guard let lastIndex = messages.indices.last,
                   !messages[lastIndex].isUser else {
                 #if DEBUG
-                print("⚠️ No assistant message found to finish")
+                print("⚠️ No assistant message found to stop")
                 #endif
                 return
             }
@@ -256,7 +256,7 @@ class ChatViewModel: ObservableObject {
                 // If it's just an empty streaming placeholder, remove it entirely
                 messages.removeLast()
                 #if DEBUG
-                print("✅ Removed empty streaming assistant placeholder on finish event")
+                print("✅ Removed empty streaming assistant placeholder on stop event")
                 #endif
             } else {
                 // Otherwise, keep the content and just stop streaming
@@ -267,7 +267,7 @@ class ChatViewModel: ObservableObject {
                     isStreaming: false
                 )
                 #if DEBUG
-                print("✅ Marked last assistant message as not streaming on finish event")
+                print("✅ Marked last assistant message as not streaming on stop event")
                 #endif
             }
             
@@ -279,61 +279,61 @@ class ChatViewModel: ObservableObject {
     }
     
     /// Handles `notification` SSE events by parsing the payload and updating
-    /// `currentActivityUpdate`. The ActivityUpdateBanner handles its own auto-dismiss.
+    /// `currentToastData`. The ToastView handles its own auto-dismiss.
     /// Note: The SSE event type remains "notification" as it's part of the backend API contract.
-    private func handleActivityUpdateEvent(event: SSEEvent) async {
+    private func handleToastEvent(event: SSEEvent) async {
         #if DEBUG
-        print("🔔 Processing activity update event (SSE event type: notification)")
+        print("🔔 Processing toast event (SSE event type: toast)")
         #endif
         
         do {
             guard let dataDict = try event.parseJSONData() else {
                 #if DEBUG
-                print("⚠️ Failed to parse activity update data as JSON")
+                print("⚠️ Failed to parse toast data as JSON")
                 #endif
                 return
             }
             
-            guard let activityUpdate = ActivityUpdateData(from: dataDict) else {
+            guard let toastData = ToastData(from: dataDict) else {
                 #if DEBUG
-                print("⚠️ Failed to create activity update from data: \(dataDict)")
+                print("⚠️ Failed to create toast from data: \(dataDict)")
                 #endif
                 return
             }
             
             await MainActor.run {
                 #if DEBUG
-                print("📬 Activity update received: type=\(activityUpdate.type ?? "nil"), message=\(activityUpdate.message)")
-                print("   Setting currentActivityUpdate...")
+                print("📬 Toast received: type=\(toastData.type ?? "nil"), message=\(toastData.message)")
+                print("   Setting currentToastData...")
                 #endif
                 
-                setActivityUpdate(activityUpdate)
+                setToastData(toastData)
                 
                 #if DEBUG
-                print("   currentActivityUpdate set. Value: \(currentActivityUpdate?.message ?? "nil")")
+                print("   currentToastData set. Value: \(currentToastData?.message ?? "nil")")
                 #endif
-                // Note: ActivityUpdateBanner handles its own auto-dismiss
+                // Note: ToastView handles its own auto-dismiss
             }
         } catch {
             #if DEBUG
-            print("❌ Error handling activity update event: \(error)")
+            print("❌ Error handling toast event: \(error)")
             #endif
         }
     }
     
     /// Handles `content` SSE events by updating the streaming assistant message.
-    private func handleContentEvent(
+    private func handleChatEvent(
         event: SSEEvent,
         data: inout String
     ) async {
         #if DEBUG
-        print("📝 Processing content event")
+        print("📝 Processing chat event")
         #endif
         
         do {
             guard let dataDict = try event.parseJSONData() else {
                 #if DEBUG
-                print("⚠️ Failed to parse content data as JSON")
+                print("⚠️ Failed to parse chat data as JSON")
                 #endif
                 return
             }
@@ -372,7 +372,7 @@ class ChatViewModel: ObservableObject {
             }
         } catch {
             #if DEBUG
-            print("❌ Error handling content event: \(error)")
+            print("❌ Error handling chat event: \(error)")
             #endif
         }
     }

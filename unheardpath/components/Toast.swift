@@ -4,15 +4,15 @@ import SwiftUI
 /// A banner specifically for activity updates in liveUpdateStack.
 /// Auto-dismisses after 4 seconds. When a new activity update arrives, SwiftUI automatically
 /// removes this banner (onDisappear cancels the dismiss task).
-/// Uses `onActivityUpdateDismiss` (separate from the message bubble's `onDismiss`).
-struct ActivityUpdateBanner: View {
-    let activityUpdate: ActivityUpdateData
-    let onActivityUpdateDismiss: () -> Void
+/// Uses `onToastDimiss` (separate from the message bubble's `onDismiss`).
+struct ToastView: View {
+    let toastData: ToastData
+    let onToastDimiss: () -> Void
     @State private var dismissTask: Task<Void, Never>?
     
     /// Maps activity update type to SF Symbol icon name
     private var iconName: String {
-        guard let type = activityUpdate.type else {
+        guard let type = toastData.type else {
             return "bell.fill" // Default icon for null type
         }
         
@@ -50,7 +50,7 @@ struct ActivityUpdateBanner: View {
                 .frame(width: 24, height: 24)
             
             // Activity update message
-            Text(activityUpdate.message)
+            Text(toastData.message)
                 .bodyText()
                 .foregroundColor(Color("onBkgTextColor20"))
                 .lineLimit(2)
@@ -75,14 +75,14 @@ struct ActivityUpdateBanner: View {
                     try? await Task.sleep(nanoseconds: 4_000_000_000) // 4 seconds
                     await MainActor.run {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            onActivityUpdateDismiss()
+                            onToastDimiss()
                         }
                     }
                 }
             }
             .onDisappear {
                 // Cancel dismiss task when view disappears (e.g., when new activity update arrives)
-                // SwiftUI automatically calls this when currentActivityUpdate changes
+                // SwiftUI automatically calls this when currentToastData changes
                 dismissTask?.cancel()
             }
     }
