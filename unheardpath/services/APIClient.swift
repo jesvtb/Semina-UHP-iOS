@@ -473,13 +473,16 @@ class APIClient: ObservableObject {
         var hasEventType = false
         var hasData = false
         var hasYielded = false  // Track if we've already yielded this event
+        var lastYieldedData = ""  // Track the data we last yielded to prevent duplicates
         
         // Helper function to yield event if we have both event type and data
-        // Only yields once per event to avoid duplicates from multiple data lines
+        // Prevents duplicate yields of the exact same data
         func yieldEventIfComplete(force: Bool = false) {
             if hasEventType && hasData && !currentData.isEmpty {
-                // Only yield if we haven't already yielded, or if forced (e.g., on empty line or new event)
-                if !hasYielded || force {
+                // Only yield if data has changed since last yield (prevents exact duplicates)
+                // Always yield if we haven't yielded yet, or if forced (empty line/new event)
+                let dataChanged = currentData != lastYieldedData
+                if !hasYielded || dataChanged || force {
                     let event = SSEEvent(
                         event: currentEvent,
                         data: currentData,
@@ -490,13 +493,14 @@ class APIClient: ObservableObject {
                     #if DEBUG
                     if let eventName = currentEvent {
                         if hasYielded {
-                            print("📨 SSE Event (update): \(eventName)")
+                            print("📨 SSE Event (update): \(eventName), data length: \(currentData.count)")
                         } else {
-                            print("📨 SSE Event (immediate): \(eventName)")
+                            print("📨 SSE Event (immediate): \(eventName), data length: \(currentData.count)")
                         }
                     }
                     #endif
                     
+                    lastYieldedData = currentData
                     hasYielded = true
                     
                     // Only reset if forced (empty line or new event type)
@@ -507,6 +511,7 @@ class APIClient: ObservableObject {
                         hasEventType = false
                         hasData = false
                         hasYielded = false
+                        lastYieldedData = ""
                     }
                 }
             }
@@ -515,11 +520,39 @@ class APIClient: ObservableObject {
         // asyncBytes.lines will wait for lines to arrive, handling long gaps between progress updates
         for try await line in asyncBytes.lines {
             let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            #if DEBUG
             print("SSE Line: \(trimmedLine)")
+            #endif
             
-            // Empty line indicates end of event (force yield and reset)
+            // Empty line indicates end of event
+            // Yield if data has changed since last yield (handles multiple data lines)
+            // This prevents duplicate yields of the exact same data
             if trimmedLine.isEmpty {
-                yieldEventIfComplete(force: true)
+                if hasEventType && hasData && !currentData.isEmpty {
+                    let dataChanged = currentData != lastYieldedData
+                    if !hasYielded || dataChanged {
+                        // Yield if we haven't yielded yet, or if data changed (multiple data lines)
+                        yieldEventIfComplete(force: true)
+                    } else {
+                        // Already yielded this exact data, just reset without yielding again
+                        currentEvent = nil
+                        currentData = ""
+                        currentId = nil
+                        hasEventType = false
+                        hasData = false
+                        hasYielded = false
+                        lastYieldedData = ""
+                    }
+                } else {
+                    // No data to yield, just reset
+                    currentEvent = nil
+                    currentData = ""
+                    currentId = nil
+                    hasEventType = false
+                    hasData = false
+                    hasYielded = false
+                    lastYieldedData = ""
+                }
                 continue
             }
             
@@ -531,12 +564,28 @@ class APIClient: ObservableObject {
                 switch field.lowercased() {
                 case "event":
                     // If we see a new event type, yield the previous event first (if it has data)
-                    yieldEventIfComplete(force: true)
+                    // BUT: Only yield if we haven't already yielded it on the data line
+                    // For streaming content, we already yielded on first data line, so skip duplicate yield
+                    if hasEventType && hasData && !currentData.isEmpty && !hasYielded {
+                        // Only yield previous event if we haven't yielded it yet
+                        yieldEventIfComplete(force: true)
+                    } else {
+                        // Already yielded or no previous event - just reset without yielding again
+                        // This prevents duplicate yields when streaming content events
+                        currentEvent = nil
+                        currentData = ""
+                        currentId = nil
+                        hasEventType = false
+                        hasData = false
+                        hasYielded = false
+                        lastYieldedData = ""
+                    }
                     
                     // Set new event type
                     currentEvent = value
                     hasEventType = true
                     hasYielded = false  // Reset yield flag for new event
+                    lastYieldedData = ""  // Reset last yielded data for new event
                     
                 case "data":
                     if currentData.isEmpty {
@@ -547,8 +596,9 @@ class APIClient: ObservableObject {
                     }
                     hasData = true
                     
-                    // If we have both event type and data, yield immediately on first data line
-                    // Subsequent data lines will be accumulated but not re-yielded (to avoid duplicates)
+                    // Yield immediately on first data line for streaming content
+                    // Don't yield on subsequent data lines - wait for empty line to yield final accumulated data
+                    // This prevents duplicate yields when multiple data lines arrive
                     if hasEventType && !hasYielded {
                         yieldEventIfComplete()
                     }
