@@ -98,6 +98,20 @@ extension TestMainView {
         }
     }
 
+    /// Routes SSE events from orchestrator stream to appropriate handlers
+    func handleOrchestratorStreamEvent(event: SSEEvent, data: inout String) async {
+        let eventType = (event.event ?? "").lowercased()
+
+        switch eventType {
+        case "map":
+            await handleMapEvent(event: event)
+        default:
+            #if DEBUG
+            print("⚠️ Unknown or unsupported event type: \(event.event ?? "nil")")
+            #endif
+        }
+    }
+
     @MainActor
     func updateLocationToUHP(location: CLLocation) async {
         #if DEBUG
@@ -126,11 +140,21 @@ extension TestMainView {
             print("📤 Sending location update event to /v1/orchestor")
             #endif
             
-            let _ = try await uhpGateway.request(
+            // let _ = try await uhpGateway.request(
+            //     endpoint: "/v1/orchestor",
+            //     method: "POST",
+            //     jsonDict: eventDict
+            // )
+            let stream = try await uhpGateway.stream(
                 endpoint: "/v1/orchestor",
-                method: "POST",
                 jsonDict: eventDict
             )
+
+            var data = ""
+
+            for try await event in stream {
+                await handleOrchestratorStreamEvent(event: event, data: &data)
+            }
             
             #if DEBUG
             print("✅ Successfully sent location update to /v1/orchestor")
@@ -142,7 +166,83 @@ extension TestMainView {
             #endif
         }
     }
-    
+
+    /// Handles `map` SSE events by processing GeoJSON features array
+    /// Similar to refreshPOIListOnOneTimeLocation, extracts features and updates poisGeoJSON
+    @MainActor
+    private func handleMapEvent(event: SSEEvent) async {
+        #if DEBUG
+        print("🗺️ Processing map event from SSE stream")
+        print("   Data length: \(event.data.count)")
+        print("   Data preview (first 200 chars): \(String(event.data.prefix(200)))")
+        #endif
+        
+        // Trim whitespace and newlines from the data string
+        let trimmedData = event.data.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Parse the event data as JSON
+        guard !trimmedData.isEmpty,
+              let jsonData = trimmedData.data(using: .utf8) else {
+            #if DEBUG
+            print("⚠️ Failed to convert data string to Data")
+            #endif
+            return
+        }
+        
+        // Try to parse as JSON
+        let jsonObject: Any
+        do {
+            jsonObject = try JSONSerialization.jsonObject(with: jsonData, options: [])
+        } catch {
+            #if DEBUG
+            print("⚠️ Failed to parse map event data as JSON: \(error.localizedDescription)")
+            print("   Data preview: \(String(trimmedData.prefix(500)))")
+            #endif
+            return
+        }
+        
+        // Convert to JSONValue
+        guard let geojsonValue = JSONValue(from: jsonObject) else {
+            #if DEBUG
+            print("⚠️ Failed to convert JSON object to JSONValue")
+            #endif
+            return
+        }
+        
+        // Extract features array from the JSONValue
+        // The data should be a features array directly (same as refreshPOIListOnOneTimeLocation)
+        guard case .array(let featuresArray) = geojsonValue else {
+            #if DEBUG
+            print("⚠️ Map event data is not a features array")
+            #endif
+            return
+        }
+        
+        // Extract features from the JSONValue array
+        let features = featuresArray.compactMap { featureValue -> [String: JSONValue]? in
+            guard case .dictionary(let featureDict) = featureValue else {
+                return nil
+            }
+            return featureDict
+        }
+        
+        guard !features.isEmpty else {
+            #if DEBUG
+            print("⚠️ No valid features extracted from map event")
+            #endif
+            return
+        }
+        
+        // Update poisGeoJSON with the new features
+        poisGeoJSON.setFeatures(features)
+        geoJSONUpdateTrigger = UUID()  // Trigger map and content updates
+        
+        #if DEBUG
+        print("✅ Map event processed - updated poisGeoJSON with \(features.count) features")
+        #endif
+    }
+
+
     /// Loads location data when geofence exit is detected
     /// This is the single source of truth for when to fetch data from backend
     // @MainActor

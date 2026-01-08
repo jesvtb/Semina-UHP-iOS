@@ -35,6 +35,9 @@ struct TestMainView: View {
     @State private var hasReceivedFirstGPSUpdate = false
     @FocusState var isTextFieldFocused: Bool
     
+    // Content management
+    @StateObject private var contentManager = ContentManager()
+    
     // Autocomplete state for map tab
     @StateObject var addressSearchManager = AddressSearchManager()
     @State var targetLocation: TargetLocation?
@@ -99,7 +102,7 @@ struct TestMainView: View {
                         sheetFullHeight: sheetFullHeight,
                         bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight,
                         sheetSnapPoint: $sheetSnapPoint,
-                        standardContent: contentSections,
+                        standardContent: contentManager.orderedSections,
                         customBuilders: nil
                     )
                         .position(
@@ -207,16 +210,20 @@ struct TestMainView: View {
                 print("📍 locationManager.deviceLocation changed to: nil")
             }
             #endif
+            
+            // Update content manager with location
+            if let location = newLocation {
+                contentManager.setContent(
+                    type: .locationDetail,
+                    data: .locationDetail(location: location)
+                )
+            } else {
+                contentManager.removeContent(type: .locationDetail)
+            }
+            
             guard let location = newLocation else {
                 return
             }
-            // guard let location = newLocation,
-            //       location.horizontalAccuracy > 0,  // Positive accuracy means it's a real GPS reading
-            //       location.horizontalAccuracy <= 100,  // Within 100m accuracy
-            //       abs(location.timestamp.timeIntervalSinceNow) < 10 else {  // Location is recent (within 10 seconds), not cached
-            //     return
-            // }
-            
             // First GPS update: only refresh POI list
             if !hasReceivedFirstGPSUpdate {
                 hasReceivedFirstGPSUpdate = true
@@ -225,12 +232,23 @@ struct TestMainView: View {
                     await updateLocationToUHP(location: location)
                 }
             }
-            // Subsequent updates: check if moved at least 100m from last sent location
             else if hasReceivedFirstGPSUpdate {
                 Task {
                     await updateLocationToUHP(location: location)
                 }
                 
+            }
+        }
+        .onChange(of: geoJSONUpdateTrigger) { _ in
+            // Update content manager with POIs when GeoJSON changes
+            let pois = extractPOIs(from: poisGeoJSON)
+            if !pois.isEmpty {
+                contentManager.setContent(
+                    type: .pointsOfInterest,
+                    data: .pointsOfInterest(features: pois)
+                )
+            } else {
+                contentManager.removeContent(type: .pointsOfInterest)
             }
         }
         // .onReceive(locationManager.$shouldRefreshDevicePOIs) { shouldRefresh in
@@ -339,31 +357,6 @@ struct TestMainView: View {
         }
     }
     
-    // MARK: - Content Building
-    /// Computed property that builds content sections from current state
-    /// Automatically recalculates when poisGeoJSON or locationManager.deviceLocation changes
-    private var contentSections: [ContentSection] {
-        var sections: [ContentSection] = []
-        
-        // Add location detail section if device location is available
-        if let deviceLocation = locationManager.deviceLocation {
-            sections.append(ContentSection(
-                type: .locationDetail,
-                data: .locationDetail(location: deviceLocation)
-            ))
-        }
-        
-        // Extract POIs from GeoJSON and add points of interest section
-        let pois = extractPOIs(from: poisGeoJSON)
-        if !pois.isEmpty {
-            sections.append(ContentSection(
-                type: .pointsOfInterest,
-                data: .pointsOfInterest(features: pois)
-            ))
-        }
-        
-        return sections
-    }
 }
 
 // MARK: - TestMainView: Computed Properties

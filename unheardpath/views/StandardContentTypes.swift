@@ -29,6 +29,52 @@ struct ContentSection: Identifiable {
     }
 }
 
+// MARK: - Content Manager
+/// Manages content sections by type, allowing selective updates
+@MainActor
+class ContentManager: ObservableObject {
+    @Published private var sections: [ContentViewType: ContentSection] = [:]
+    
+    /// Display order for content sections
+    private let displayOrder: [ContentViewType] = [
+        .overview,
+        .locationDetail,
+        .pointsOfInterest
+    ]
+    
+    /// Returns sections in display order
+    var orderedSections: [ContentSection] {
+        displayOrder.compactMap { type in
+            sections[type]
+        }
+    }
+    
+    /// Set or update content by type
+    func setContent(type: ContentViewType, data: ContentSection.ContentSectionData) {
+        sections[type] = ContentSection(type: type, data: data)
+    }
+    
+    /// Remove content by type
+    func removeContent(type: ContentViewType) {
+        sections.removeValue(forKey: type)
+    }
+    
+    /// Check if content exists for a type
+    func hasContent(type: ContentViewType) -> Bool {
+        sections[type] != nil
+    }
+    
+    /// Get content for a specific type
+    func getContent(type: ContentViewType) -> ContentSection? {
+        sections[type]
+    }
+    
+    /// Clear all content
+    func clearAll() {
+        sections.removeAll()
+    }
+}
+
 // MARK: - Content View Registry
 struct ContentViewRegistry {
     @ViewBuilder
