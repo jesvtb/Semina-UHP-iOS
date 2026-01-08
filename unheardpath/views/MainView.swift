@@ -99,7 +99,7 @@ struct TestMainView: View {
                         sheetFullHeight: sheetFullHeight,
                         bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight,
                         sheetSnapPoint: $sheetSnapPoint,
-                        standardContent: buildContentSections(),
+                        standardContent: contentSections,
                         customBuilders: nil
                     )
                         .position(
@@ -200,44 +200,37 @@ struct TestMainView: View {
             }
         }
         .onChange(of: locationManager.deviceLocation) { newLocation in
-            guard let location = newLocation,
-                  location.horizontalAccuracy > 0,  // Positive accuracy means it's a real GPS reading
-                  location.horizontalAccuracy <= 100,  // Within 100m accuracy
-                  abs(location.timestamp.timeIntervalSinceNow) < 10 else {  // Location is recent (within 10 seconds), not cached
+            #if DEBUG
+            if let location = newLocation {
+                print("📍 locationManager.deviceLocation changed to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+            } else {
+                print("📍 locationManager.deviceLocation changed to: nil")
+            }
+            #endif
+            guard let location = newLocation else {
                 return
             }
+            // guard let location = newLocation,
+            //       location.horizontalAccuracy > 0,  // Positive accuracy means it's a real GPS reading
+            //       location.horizontalAccuracy <= 100,  // Within 100m accuracy
+            //       abs(location.timestamp.timeIntervalSinceNow) < 10 else {  // Location is recent (within 10 seconds), not cached
+            //     return
+            // }
             
             // First GPS update: only refresh POI list
             if !hasReceivedFirstGPSUpdate {
                 hasReceivedFirstGPSUpdate = true
                 Task {
-                    await refreshPOIListOnOneTimeLocation(location: location)
+                    // await refreshPOIListOnOneTimeLocation(location: location)
+                    await updateLocationToUHP(location: location)
                 }
             }
             // Subsequent updates: check if moved at least 100m from last sent location
             else if hasReceivedFirstGPSUpdate {
-                // Check if we have a previous location to compare
-                if let lastSent = lastSentLocation {
-                    let previousLocation = CLLocation(
-                        latitude: lastSent.latitude,
-                        longitude: lastSent.longitude
-                    )
-                    let distance = location.distance(from: previousLocation)
-                    
-                    // Only update if moved at least 100m
-                    if distance >= 100.0 {
-                        lastSentLocation = (location.coordinate.latitude, location.coordinate.longitude)
-                        Task {
-                            await updateLocationToUHP(location: location)
-                        }
-                    }
-                } else {
-                    // No previous location, send this one and save it
-                    lastSentLocation = (location.coordinate.latitude, location.coordinate.longitude)
-                    Task {
-                        await updateLocationToUHP(location: location)
-                    }
+                Task {
+                    await updateLocationToUHP(location: location)
                 }
+                
             }
         }
         // .onReceive(locationManager.$shouldRefreshDevicePOIs) { shouldRefresh in
@@ -347,8 +340,9 @@ struct TestMainView: View {
     }
     
     // MARK: - Content Building
-    /// Builds content sections from current state
-    private func buildContentSections() -> [ContentSection] {
+    /// Computed property that builds content sections from current state
+    /// Automatically recalculates when poisGeoJSON or locationManager.deviceLocation changes
+    private var contentSections: [ContentSection] {
         var sections: [ContentSection] = []
         
         // Add location detail section if device location is available

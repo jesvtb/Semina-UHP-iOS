@@ -97,6 +97,51 @@ extension TestMainView {
             #endif
         }
     }
+
+    @MainActor
+    func updateLocationToUHP(location: CLLocation) async {
+        #if DEBUG
+        print("📍 updateLocationToUHP called for location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        #endif
+        
+        do {
+            // Use LocationManager helper to construct NewLocation structure
+            let newLocationDict = try await locationManager.constructNewLocation(from: location)
+            
+            // Create event structure
+            let now = Date()
+            let utcFormatter = ISO8601DateFormatter()
+            utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
+            utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            
+            let eventDict: [String: JSONValue] = [
+                "evt_utc": .string(utcFormatter.string(from: now)),
+                "evt_timezone": .string(TimeZone.current.identifier),
+                "evt_type": .string("location_updated"),
+                "evt_data": .dictionary(newLocationDict)
+            ]
+            
+            // Send to /v1/orchestor endpoint
+            #if DEBUG
+            print("📤 Sending location update event to /v1/orchestor")
+            #endif
+            
+            let _ = try await uhpGateway.request(
+                endpoint: "/v1/orchestor",
+                method: "POST",
+                jsonDict: eventDict
+            )
+            
+            #if DEBUG
+            print("✅ Successfully sent location update to /v1/orchestor")
+            #endif
+        } catch {
+            #if DEBUG
+            print("❌ Failed to update location to UHP: \(error.localizedDescription)")
+            print("   Full error: \(error)")
+            #endif
+        }
+    }
     
     /// Loads location data when geofence exit is detected
     /// This is the single source of truth for when to fetch data from backend
@@ -152,50 +197,7 @@ extension TestMainView {
     
     /// Updates location to UHP backend by geocoding the coordinate and sending event to /v1/orchestor
     /// - Parameter location: The CLLocation to geocode and send
-    @MainActor
-    func updateLocationToUHP(location: CLLocation) async {
-        #if DEBUG
-        print("📍 updateLocationToUHP called for location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-        #endif
-        
-        do {
-            // Use LocationManager helper to construct NewLocation structure
-            let newLocationDict = try await locationManager.constructNewLocation(from: location)
-            
-            // Create event structure
-            let now = Date()
-            let utcFormatter = ISO8601DateFormatter()
-            utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
-            utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            
-            let eventDict: [String: JSONValue] = [
-                "evt_utc": .string(utcFormatter.string(from: now)),
-                "evt_timezone": .string(TimeZone.current.identifier),
-                "evt_type": .string("location_updated"),
-                "evt_data": .dictionary(newLocationDict)
-            ]
-            
-            // Send to /v1/orchestor endpoint
-            #if DEBUG
-            print("📤 Sending location update event to /v1/orchestor")
-            #endif
-            
-            let _ = try await uhpGateway.request(
-                endpoint: "/v1/orchestor",
-                method: "POST",
-                jsonDict: eventDict
-            )
-            
-            #if DEBUG
-            print("✅ Successfully sent location update to /v1/orchestor")
-            #endif
-        } catch {
-            #if DEBUG
-            print("❌ Failed to update location to UHP: \(error.localizedDescription)")
-            print("   Full error: \(error)")
-            #endif
-        }
-    }
+    
 
 }
 

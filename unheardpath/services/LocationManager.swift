@@ -151,7 +151,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         
         // Set desired accuracy to 100m for the one-time request
-        locationManager.desiredAccuracy = activeAccuracy  // kCLLocationAccuracyHundredMeters
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest  // kCLLocationAccuracyHundredMeters
         
         #if DEBUG
         print("📍 Requesting one-time location with 100m accuracy")
@@ -188,7 +188,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         
         // Configure for active tracking (Google Maps strategy)
-        locationManager.desiredAccuracy = activeAccuracy
+        // locationManager.desiredAccuracy = activeAccuracy
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest  
         locationManager.distanceFilter = activeDistanceFilter
         
         // Start continuous updates
@@ -207,39 +208,35 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Switches to background tracking mode (app in background)
     /// Uses significant location changes for battery efficiency
     private func switchToBackgroundTracking() {
-        guard authorizationStatus == .authorizedAlways else {
-            // If we don't have "Always" permission, stop tracking in background
-            if isTrackingActive {
-                locationManager.stopUpdatingLocation()
-                isTrackingActive = false
-                print("⏸️ Stopped location tracking (no 'Always' permission for background)")
-            }
-            // Save tracking mode as "stopped" for widget
-            StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
-            return
-        }
-        
-        // Stop continuous updates
+        // Stop continuous updates if active (always do this when switching to background)
         if isTrackingActive {
             locationManager.stopUpdatingLocation()
             isTrackingActive = false
             print("🔄 Stopped continuous location updates")
         }
         
-        // Start significant location changes if available
-        if CLLocationManager.significantLocationChangeMonitoringAvailable() {
-            if !isUsingSignificantChanges {
-                locationManager.startMonitoringSignificantLocationChanges()
-                isUsingSignificantChanges = true
-                print("📍 Started significant location change monitoring (battery-efficient)")
-            }
-            // Save tracking mode as "background" for widget
-            StorageManager.saveToUserDefaults("background", forKey: trackingModeKey)
-        } else {
-            print("⚠️ Significant location change monitoring not available")
-            // Save tracking mode as "stopped" if significant changes not available
+        // Check authorization - iOS will prevent significant changes without "Always" permission
+        // but we need to update widget state accordingly
+        guard authorizationStatus == .authorizedAlways else {
             StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
+            print("⏸️ Background tracking requires 'Always' permission")
+            return
         }
+        
+        // Start significant location changes if available
+        guard CLLocationManager.significantLocationChangeMonitoringAvailable() else {
+            print("⚠️ Significant location change monitoring not available")
+            StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
+            return
+        }
+        
+        if !isUsingSignificantChanges {
+            locationManager.startMonitoringSignificantLocationChanges()
+            isUsingSignificantChanges = true
+            print("📍 Switching to significant location change monitoring")
+        }
+        
+        StorageManager.saveToUserDefaults("background", forKey: trackingModeKey)
     }
     
     /// Stops all location tracking
@@ -268,14 +265,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// This method is called from @MainActor context (AppLifecycleManager is @MainActor)
     func appDidEnterBackground() {
         isAppInBackground = true
-        print("📱 App entered background - switching to battery-efficient tracking")
         
         // Save app state to UserDefaults for widget
         StorageManager.saveToUserDefaults(true, forKey: appStateIsInBackgroundKey)
         #if DEBUG
         // Verify the value was saved correctly
         let savedValue = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
-        print("💾 Saved app state to UserDefaults: isInBackground = true (verified: \(savedValue ?? false))")
+        print("💾 Set UserDefaults: isInBackground = \(savedValue ?? false))")
         #endif
         
         switchToBackgroundTracking()
@@ -298,14 +294,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// This method is called from @MainActor context (AppLifecycleManager is @MainActor)
     func appWillEnterForeground() {
         isAppInBackground = false
-        print("📱 App entering foreground - switching to active tracking")
         
         // Save app state to UserDefaults for widget
         StorageManager.saveToUserDefaults(false, forKey: appStateIsInBackgroundKey)
         #if DEBUG
         // Verify the value was saved correctly
         let savedValue = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
-        print("💾 Saved app state to UserDefaults: isInBackground = false (verified: \(savedValue ?? true))")
+        print("💾 Set UserDefaults: isInBackground = \(savedValue ?? true))")
         #endif
         
         switchToActiveTracking()

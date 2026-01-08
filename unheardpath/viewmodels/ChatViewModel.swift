@@ -216,13 +216,13 @@ class ChatViewModel: ObservableObject {
             await handleChatEvent(event: event, data: &data)
             
         case "stop":
-            await handleSSEStopEvent(event: event)
+            await handleStopEvent(event: event)
             
         case "map":
             await handleMapEvent()
             
-        case "interface":
-            await handleInterfaceEvent(event: event)
+        case "hook":
+            await handleHookEvent(event: event)
             
         default:
             #if DEBUG
@@ -231,11 +231,11 @@ class ChatViewModel: ObservableObject {
         }
     }
     
-    /// Handles `finish` SSE events, which signal the end of streaming.
+    /// Handles `stop` SSE events, which signal the end of streaming.
     /// Ensures the progress spinner is stopped and removed from the last
     /// assistant message by setting `isStreaming` to false or dropping an
     /// empty placeholder message.
-    private func handleSSEStopEvent(event: SSEEvent) async {
+    private func handleStopEvent(event: SSEEvent) async {
         #if DEBUG
         print("🏁 Processing stop event")
         print("   Raw data: \(event.data)")
@@ -389,34 +389,34 @@ class ChatViewModel: ObservableObject {
         }
     }
     
-    /// Handles `interface` SSE events by controlling UI elements like the info sheet.
+    /// Handles `hook` SSE events by controlling UI elements like the info sheet.
     /// If message is "show info sheet", sets sheetSnapPoint to .full.
-    private func handleInterfaceEvent(event: SSEEvent) async {
+    private func handleHookEvent(event: SSEEvent) async {
         #if DEBUG
-        print("🖥️ Processing interface event")
+        print("🖥️ Processing hook event")
         #endif
         
         do {
             guard let dataDict = try event.parseJSONData() else {
                 #if DEBUG
-                print("⚠️ Failed to parse interface data as JSON")
+                print("⚠️ Failed to parse hook data as JSON")
                 #endif
                 return
             }
             
-            guard let message = dataDict["message"] as? String else {
+            guard let action = dataDict["action"] as? String else {
                 #if DEBUG
-                print("⚠️ Interface event payload missing 'message' field")
+                print("⚠️ Hook event payload missing 'action' field")
                 #endif
                 return
             }
             
             #if DEBUG
-            print("🖥️ Interface message received: '\(message)'")
+            print("🖥️ Hook action received: '\(action)'")
             #endif
             
             await MainActor.run {
-                if message.lowercased() == "show info sheet" {
+                if action.lowercased() == "show info sheet" {
                     #if DEBUG
                     print("📋 Calling onShowInfoSheet callback")
                     #endif
@@ -426,7 +426,7 @@ class ChatViewModel: ObservableObject {
             }
         } catch {
             #if DEBUG
-            print("❌ Error handling interface event: \(error)")
+            print("❌ Error handling hook event: \(error)")
             #endif
         }
     }
