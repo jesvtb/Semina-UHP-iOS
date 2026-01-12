@@ -131,7 +131,7 @@ extension TestMainView {
             let eventDict: [String: JSONValue] = [
                 "evt_utc": .string(utcFormatter.string(from: now)),
                 "evt_timezone": .string(TimeZone.current.identifier),
-                "evt_type": .string("location_updated"),
+                "evt_type": .string("location_detected"),
                 "evt_data": .dictionary(newLocationDict)
             ]
             

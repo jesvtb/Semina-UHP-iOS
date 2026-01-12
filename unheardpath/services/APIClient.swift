@@ -244,6 +244,10 @@ class UHPGateway: ObservableObject {
         let accessToken = try await supabase.auth.session.accessToken
         // #endif
 
+        #if DEBUG
+        print("🔑 Access Token: \(accessToken)")
+        #endif
+
         var headers = defaultHeaders
         headers["Authorization"] = "Bearer \(accessToken)"
         
