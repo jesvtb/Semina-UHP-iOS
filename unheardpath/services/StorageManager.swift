@@ -1,9 +1,6 @@
-//
 //  StorageManager.swift
 //  unheardpath
-//
-//  Created by Jessica Luo on 2025-01-XX.
-//
+//  Created by Jessica Luo on 2025-11-09.
 
 import Foundation
 
