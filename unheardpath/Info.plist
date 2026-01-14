@@ -77,7 +77,12 @@
 	<key>SUPABASE_PUBLISHABLE_KEY</key>
 	<string>sb_publishable_mBb4Rnl2jdhbCR9EjcOK_A_WyZK2DzM</string>
 	<key>UHP_GATEWAY_HOST_DEBUG</key>
-	<string>192.168.50.171:1031</string>
+	<!-- Local IP while developing in SZX -->
+	<!-- <string>192.168.50.171:1031</string> --> 
+	<!-- Local IP while developing in HKG on Carrier Network -->
+	<string>172.20.10.3:1031</string> 
+	<!-- Local IP while developing while tethering iPhone with USB: Settings → Network → iPhone USB → IP Address  -->
+	<!-- <string>172.20.10.2:1031</string> -->
 	<key>UHP_GATEWAY_HOST_RELEASE</key>
 	<string>api.unheardpath.com</string>
 	<key>UIAppFonts</key>

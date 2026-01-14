@@ -12,7 +12,6 @@ class ChatViewModel: ObservableObject {
     
     // From LiveUpdateViewModel (chat-related only)
     @Published var lastMessage: ChatMessage?
-    @Published var currentToastData: ToastData?
     @Published var isMessageExpanded: Bool = false
     
     // MARK: - Dependencies
@@ -20,6 +19,8 @@ class ChatViewModel: ObservableObject {
     private let locationManager: LocationManager
     private let userManager: UserManager
     private let authManager: AuthManager
+    private let mapFeaturesManager: MapFeaturesManager?
+    private let toastManager: ToastManager?
     
     // MARK: - Callbacks (for cross-view coordination)
     var onDismissKeyboard: (() -> Void)?
@@ -31,12 +32,16 @@ class ChatViewModel: ObservableObject {
         uhpGateway: UHPGateway,
         locationManager: LocationManager,
         userManager: UserManager,
-        authManager: AuthManager
+        authManager: AuthManager,
+        mapFeaturesManager: MapFeaturesManager? = nil,
+        toastManager: ToastManager? = nil
     ) {
         self.uhpGateway = uhpGateway
         self.locationManager = locationManager
         self.userManager = userManager
         self.authManager = authManager
+        self.mapFeaturesManager = mapFeaturesManager
+        self.toastManager = toastManager
     }
     
     // MARK: - Message Actions
@@ -118,33 +123,16 @@ class ChatViewModel: ObservableObject {
                 "device_lang": .string(device_lang)
             ]
             
-            // Build UserEvent structure
-            let now = Date()
-            let utcFormatter = ISO8601DateFormatter()
-            utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
-            utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            
-            let jsonDict: [String: JSONValue] = [
-                "evt_utc": .string(utcFormatter.string(from: now)),
-                "evt_timezone": .string(TimeZone.current.identifier),
-                "evt_type": .string("chat_sent"),
-                "evt_data": .dictionary(evtData)
-            ]
-            
-            print("🔍 jsonDict: \(jsonDict)")
-            // Note: We're already in @MainActor context, so accessing uhpGateway is safe
-            // Swift 6 strict concurrency warning is a false positive here
-            let stream = try await uhpGateway.stream(
+            // Use streamUserEvent convenience method
+            let stream = try await uhpGateway.streamUserEvent(
                 endpoint: "/v1/chat",
-                jsonDict: jsonDict
+                evtType: "chat_sent",
+                evtData: evtData
             )
             
-            var data = ""
-            
-            // Process SSE events from stream
-            for try await event in stream {
-                await handleChatStreamEvent(event: event, data: &data)
-            }
+            // Process SSE events using unified processor
+            let processor = SSEEventProcessor(handler: self)
+            try await processor.processStream(stream)
             
             // Ensure the final assistant message is marked as not streaming
             if let lastIndex = messages.indices.last,
@@ -185,11 +173,9 @@ class ChatViewModel: ObservableObject {
         isMessageExpanded = false
     }
     
-    /// Sets a new toast data with animation
+    /// Sets a new toast data with animation (delegates to ToastManager)
     func setToastData(_ toastData: ToastData) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            currentToastData = toastData
-        }
+        toastManager?.show(toastData)
     }
     
     /// Updates the last message (used when streaming completes)
@@ -197,237 +183,102 @@ class ChatViewModel: ObservableObject {
         lastMessage = message
     }
     
-    // MARK: - SSE Event Handling
-    
-    /// Dispatches handling for different SSE event types coming from the chat stream.
-    /// Keeps `sendMessage` focused on request/response orchestration while this
-    /// function owns the per-event workflows.
-    func handleChatStreamEvent(
-        event: SSEEvent,
-        data: inout String
-    ) async {
-        let eventType = (event.event ?? "").lowercased()
-        
-        switch eventType {
-        case "toast":
-            await handleToastEvent(event: event)
-            
-        case "chat":
-            await handleChatEvent(event: event, data: &data)
-            
-        case "stop":
-            await handleStopEvent(event: event)
-            
-        case "map":
-            await handleMapEvent()
-            
-        case "hook":
-            await handleHookEvent(event: event)
-            
-        default:
-            #if DEBUG
-            print("⚠️ Unknown or unsupported event type: \(event.event ?? "nil")")
-            #endif
-        }
-    }
-    
-    /// Handles `stop` SSE events, which signal the end of streaming.
-    /// Ensures the progress spinner is stopped and removed from the last
-    /// assistant message by setting `isStreaming` to false or dropping an
-    /// empty placeholder message.
-    private func handleStopEvent(event: SSEEvent) async {
+    // MARK: - SSE Event Handling (SSEEventHandler Protocol)
+}
+
+extension ChatViewModel: SSEEventHandler {
+    func onToast(_ toast: ToastData) async {
         #if DEBUG
-        print("🏁 Processing stop event")
-        print("   Raw data: \(event.data)")
+        print("📬 Toast received: type=\(toast.type ?? "nil"), message=\(toast.message)")
         #endif
         
-        await MainActor.run {
-            guard let lastIndex = messages.indices.last,
-                  !messages[lastIndex].isUser else {
-                #if DEBUG
-                print("⚠️ No assistant message found to stop")
-                #endif
-                return
-            }
-            
-            let lastMsg = messages[lastIndex]
-            
-            if lastMsg.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                // If it's just an empty streaming placeholder, remove it entirely
-                messages.removeLast()
-                #if DEBUG
-                print("✅ Removed empty streaming assistant placeholder on stop event")
-                #endif
-            } else {
-                // Otherwise, keep the content and just stop streaming
-                messages[lastIndex] = ChatMessage(
-                    id: lastMsg.id,
-                    text: lastMsg.text,
-                    isUser: lastMsg.isUser,
-                    isStreaming: false
-                )
-                #if DEBUG
-                print("✅ Marked last assistant message as not streaming on stop event")
-                #endif
-            }
+        toastManager?.show(toast)
+    }
+    
+    func onChatChunk(content: String, isStreaming: Bool) async {
+        
+        if let lastIndex = messages.indices.last,
+           !messages[lastIndex].isUser {
+            let existingMessage = messages[lastIndex]
+            messages[lastIndex] = ChatMessage(
+                id: existingMessage.id,
+                text: content,
+                isUser: false,
+                isStreaming: isStreaming
+            )
             
             // Update lastMessage for the bubble display
-            if let lastMsg = messages.last, !lastMsg.isUser {
-                updateLastMsg(lastMsg)
-            }
+            updateLastMsg(messages[lastIndex])
         }
     }
     
-    /// Handles `notification` SSE events by parsing the payload and updating
-    /// `currentToastData`. The ToastView handles its own auto-dismiss.
-    /// Note: The SSE event type remains "notification" as it's part of the backend API contract.
-    private func handleToastEvent(event: SSEEvent) async {
+    func onStop() async {
         #if DEBUG
-        print("🔔 Processing toast event (SSE event type: toast)")
+        print("🏁 Processing stop event")
         #endif
         
-        do {
-            guard let dataDict = try event.parseJSONData() else {
-                #if DEBUG
-                print("⚠️ Failed to parse toast data as JSON")
-                #endif
-                return
-            }
-            
-            guard let toastData = ToastData(from: dataDict) else {
-                #if DEBUG
-                print("⚠️ Failed to create toast from data: \(dataDict)")
-                #endif
-                return
-            }
-            
-            await MainActor.run {
-                #if DEBUG
-                print("📬 Toast received: type=\(toastData.type ?? "nil"), message=\(toastData.message)")
-                print("   Setting currentToastData...")
-                #endif
-                
-                setToastData(toastData)
-                
-                #if DEBUG
-                print("   currentToastData set. Value: \(currentToastData?.message ?? "nil")")
-                #endif
-                // Note: ToastView handles its own auto-dismiss
-            }
-        } catch {
+        guard let lastIndex = messages.indices.last,
+              !messages[lastIndex].isUser else {
             #if DEBUG
-            print("❌ Error handling toast event: \(error)")
+            print("⚠️ No assistant message found to stop")
             #endif
+            return
         }
-    }
-    
-    /// Handles `content` SSE events by updating the streaming assistant message.
-    private func handleChatEvent(
-        event: SSEEvent,
-        data: inout String
-    ) async {
-        #if DEBUG
-        print("📝 Processing chat event")
-        #endif
         
-        do {
-            guard let dataDict = try event.parseJSONData() else {
-                #if DEBUG
-                print("⚠️ Failed to parse chat data as JSON")
-                #endif
-                return
-            }
-            
-            guard let content = dataDict["content"] as? String else {
-                #if DEBUG
-                print("⚠️ Content event payload missing 'content' field")
-                #endif
-                return
-            }
-            
-            data += content
+        let lastMsg = messages[lastIndex]
+        
+        if lastMsg.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // If it's just an empty streaming placeholder, remove it entirely
+            messages.removeLast()
             #if DEBUG
-            print("📝 Content chunk received: '\(content)'")
-            print("   Total streaming content length: \(data.count)")
+            print("✅ Removed empty streaming assistant placeholder on stop event")
             #endif
-            
-            await MainActor.run {
-                if let lastIndex = messages.indices.last,
-                   !messages[lastIndex].isUser {
-                    let existingMessage = messages[lastIndex]
-                    let isStreaming = dataDict["is_streaming"] as? Bool ?? true
-                    messages[lastIndex] = ChatMessage(
-                        id: existingMessage.id,
-                        text: data,
-                        isUser: false,
-                        isStreaming: isStreaming
-                    )
-                    #if DEBUG
-                    print("✅ Updated assistant message. isStreaming: \(isStreaming)")
-                    #endif
-                    
-                    // Update lastMessage for the bubble display
-                    updateLastMsg(messages[lastIndex])
-                }
-            }
-        } catch {
+        } else {
+            // Otherwise, keep the content and just stop streaming
+            messages[lastIndex] = ChatMessage(
+                id: lastMsg.id,
+                text: lastMsg.text,
+                isUser: lastMsg.isUser,
+                isStreaming: false
+            )
             #if DEBUG
-            print("❌ Error handling chat event: \(error)")
+            print("✅ Marked last assistant message as not streaming on stop event")
             #endif
+        }
+        
+        // Update lastMessage for the bubble display
+        if let lastMsg = messages.last, !lastMsg.isUser {
+            updateLastMsg(lastMsg)
         }
     }
     
-    /// Handles `map` SSE events by dismissing the keyboard and resetting
-    /// the modal position in `ChatModalView`.
-    private func handleMapEvent() async {
+    func onMap(features: [[String: JSONValue]]) async {
         #if DEBUG
         print("🗺️ Processing map event - dismissing keyboard and resetting modal")
+        print("   Received \(features.count) features (can optionally forward to MapFeaturesManager)")
         #endif
         
-        await MainActor.run {
-            onDismissKeyboard?()
+        // Dismiss keyboard when map event arrives
+        onDismissKeyboard?()
+        
+        // Optionally forward to MapFeaturesManager if available
+        // This ensures chat-originated map data can update the shared map
+        if let mapFeaturesManager = mapFeaturesManager {
+            mapFeaturesManager.apply(features: features)
         }
     }
     
-    /// Handles `hook` SSE events by controlling UI elements like the info sheet.
-    /// If message is "show info sheet", sets sheetSnapPoint to .full.
-    private func handleHookEvent(event: SSEEvent) async {
+    func onHook(action: String) async {
         #if DEBUG
-        print("🖥️ Processing hook event")
+        print("🖥️ Hook action received: '\(action)'")
         #endif
         
-        do {
-            guard let dataDict = try event.parseJSONData() else {
-                #if DEBUG
-                print("⚠️ Failed to parse hook data as JSON")
-                #endif
-                return
-            }
-            
-            guard let action = dataDict["action"] as? String else {
-                #if DEBUG
-                print("⚠️ Hook event payload missing 'action' field")
-                #endif
-                return
-            }
-            
+        if action.lowercased() == "show info sheet" {
             #if DEBUG
-            print("🖥️ Hook action received: '\(action)'")
+            print("📋 Calling onShowInfoSheet callback")
             #endif
             
-            await MainActor.run {
-                if action.lowercased() == "show info sheet" {
-                    #if DEBUG
-                    print("📋 Calling onShowInfoSheet callback")
-                    #endif
-                    
-                    onShowInfoSheet?()
-                }
-            }
-        } catch {
-            #if DEBUG
-            print("❌ Error handling hook event: \(error)")
-            #endif
+            onShowInfoSheet?()
         }
     }
 }

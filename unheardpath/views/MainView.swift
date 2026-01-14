@@ -23,7 +23,6 @@ struct TestMainView: View {
     private let previewLastMessage: ChatMessage?
     private let previewCurrentToastData: ToastData?
     @State private var selectedTab: PreviewTabSelection = .journey
-    @State var geoJSONUpdateTrigger: UUID = UUID()
     @State private var shouldHideTabBar: Bool = false
     @StateObject var liveUpdateViewModel = LiveUpdateViewModel()
     @State var shouldDismissKeyboard: Bool = false
@@ -31,8 +30,12 @@ struct TestMainView: View {
     // Location-related state
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
-    @State var poisGeoJSON = GeoJSON()
     @State private var hasReceivedFirstGPSUpdate = false
+    
+    // Map features are now managed by MapFeaturesManager (passed as @EnvironmentObject)
+    @EnvironmentObject var mapFeaturesManager: MapFeaturesManager
+    // Toast notifications are now managed by ToastManager (passed as @EnvironmentObject)
+    @EnvironmentObject var toastManager: ToastManager
     @FocusState var isTextFieldFocused: Bool
     
     // Content management
@@ -74,8 +77,8 @@ struct TestMainView: View {
     var body: some View {
         ZStack {
             MapboxMapView(
-                poisGeoJSON: $poisGeoJSON,
-                geoJSONUpdateTrigger: $geoJSONUpdateTrigger,
+                poisGeoJSON: $mapFeaturesManager.poisGeoJSON,
+                geoJSONUpdateTrigger: $mapFeaturesManager.geoJSONUpdateTrigger,
                 targetLocation: $targetLocation,
                 selectedLocation: $selectedLocation
             )
@@ -124,7 +127,7 @@ struct TestMainView: View {
             if let lastMessage = chatViewModel.lastMessage, selectedTab != .chat {
                 LiveUpdateStack(
                     message: lastMessage,
-                    currentToastData: $chatViewModel.currentToastData,
+                    currentToastData: $toastManager.currentToastData,
                     isExpanded: $chatViewModel.isMessageExpanded,
                     onDismiss: {
                         chatViewModel.dismissLastMsg()
@@ -239,9 +242,9 @@ struct TestMainView: View {
                 
             }
         }
-        .onChange(of: geoJSONUpdateTrigger) { _ in
+        .onChange(of: mapFeaturesManager.geoJSONUpdateTrigger) { _ in
             // Update content manager with POIs when GeoJSON changes
-            let pois = extractPOIs(from: poisGeoJSON)
+            let pois = extractPOIs(from: mapFeaturesManager.poisGeoJSON)
             if !pois.isEmpty {
                 contentManager.setContent(
                     type: .pointsOfInterest,
@@ -306,11 +309,10 @@ struct TestMainView: View {
                 chatViewModel.messages = previewMessages
             }
             if let previewGeoJSONData = previewGeoJSONData {
-                // Extract features from preview data and set to poisGeoJSON
+                // Extract features from preview data and set to mapFeaturesManager
                 do {
                     let features = try GeoJSON.extractFeatures(from: previewGeoJSONData)
-                    poisGeoJSON.setFeatures(features)
-                    geoJSONUpdateTrigger = UUID()
+                    mapFeaturesManager.apply(features: features)
                 } catch {
                     #if DEBUG
                     print("⚠️ Failed to extract features from preview GeoJSON data: \(error)")
@@ -321,7 +323,7 @@ struct TestMainView: View {
                 chatViewModel.lastMessage = previewLastMessage
             }
             if let previewCurrentToastData = previewCurrentToastData {
-                chatViewModel.currentToastData = previewCurrentToastData
+                toastManager.show(previewCurrentToastData)
             }
             
             // Request one-time location update for initial POI list refresh

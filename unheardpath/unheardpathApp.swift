@@ -130,6 +130,8 @@ struct unheardpathApp: App {
     @StateObject private var geoapifyGateway = GeoapifyGateway()
     @StateObject private var locationManager = LocationManager()
     @StateObject private var appLifecycleManager = AppLifecycleManager()
+    @StateObject private var mapFeaturesManager = MapFeaturesManager()
+    @StateObject private var toastManager = ToastManager()
     
     init() {
         // Print configuration at app startup (visible in device logs)
@@ -159,7 +161,9 @@ struct unheardpathApp: App {
                 uhpGateway: uhpGateway,
                 geoapifyGateway: geoapifyGateway,
                 userManager: userManager,
-                appLifecycleManager: appLifecycleManager
+                appLifecycleManager: appLifecycleManager,
+                mapFeaturesManager: mapFeaturesManager,
+                toastManager: toastManager
             )
             .id("app-content-view") // Stable identity ensures @StateObject persists
         }
@@ -176,7 +180,6 @@ struct unheardpathApp: App {
             return
         }
         MapboxOptions.accessToken = token
-        print("✅ Mapbox token set from Info.plist: \(String(token.prefix(20)))...")
         
         // Verify token is set
         if MapboxOptions.accessToken.isEmpty {
@@ -254,6 +257,8 @@ private struct AppContentView: View {
     let geoapifyGateway: GeoapifyGateway
     let userManager: UserManager
     let appLifecycleManager: AppLifecycleManager
+    let mapFeaturesManager: MapFeaturesManager
+    let toastManager: ToastManager
     
     // Create ChatViewModel as @StateObject with proper dependencies
     @StateObject private var chatViewModel: ChatViewModel
@@ -265,7 +270,9 @@ private struct AppContentView: View {
         uhpGateway: UHPGateway,
         geoapifyGateway: GeoapifyGateway,
         userManager: UserManager,
-        appLifecycleManager: AppLifecycleManager
+        appLifecycleManager: AppLifecycleManager,
+        mapFeaturesManager: MapFeaturesManager,
+        toastManager: ToastManager
     ) {
         self.authManager = authManager
         self.apiClient = apiClient
@@ -274,13 +281,17 @@ private struct AppContentView: View {
         self.geoapifyGateway = geoapifyGateway
         self.userManager = userManager
         self.appLifecycleManager = appLifecycleManager
+        self.mapFeaturesManager = mapFeaturesManager
+        self.toastManager = toastManager
         
         // Initialize ChatViewModel after all above dependencies are available
         _chatViewModel = StateObject(wrappedValue: ChatViewModel(
             uhpGateway: uhpGateway,
             locationManager: locationManager,
             userManager: userManager,
-            authManager: authManager
+            authManager: authManager,
+            mapFeaturesManager: mapFeaturesManager,
+            toastManager: toastManager
         ))
     }
     
@@ -293,6 +304,8 @@ private struct AppContentView: View {
             .environmentObject(geoapifyGateway) // Pass Geoapify Gateway to all views
             .environmentObject(userManager) // Pass user manager to all views
             .environmentObject(chatViewModel) // Pass chat view model to all views
+            .environmentObject(mapFeaturesManager) // Pass map features manager to all views
+            .environmentObject(toastManager) // Pass toast manager to all views
             .withScaledSpacing() // Inject scaled spacing values into environment
             .onAppear {
                 // Set UserManager reference in AuthManager after both are created

@@ -319,6 +319,24 @@ class UHPGateway: ObservableObject {
             filesDict: [:]
         )
     }
+    
+    /// Convenience method to stream user events with auto-generated UTC and timezone
+    /// - Parameters:
+    ///   - endpoint: API endpoint (e.g., "/v1/chat", "/v1/orchestor")
+    ///   - evtType: Event type (e.g., "chat_sent", "location_detected")
+    ///   - evtData: Event data dictionary
+    /// - Returns: AsyncThrowingStream of SSEEvent
+    nonisolated func streamUserEvent(
+        endpoint: String,
+        evtType: String,
+        evtData: [String: JSONValue]
+    ) async throws -> AsyncThrowingStream<SSEEvent, Error> {
+        let userEvent = UserEventBuilder.build(evtType: evtType, evtData: evtData)
+        return try await stream(
+            endpoint: endpoint,
+            jsonDict: userEvent.toJSONDict()
+        )
+    }
 }
 
 // MARK: - API Service
