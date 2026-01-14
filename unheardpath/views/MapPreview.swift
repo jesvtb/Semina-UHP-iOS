@@ -6,12 +6,11 @@ import Foundation
 #Preview {
 //    MapboxDirectionsView()
     MapboxMapView(
-        poisGeoJSON: .constant(GeoJSON()),
-        geoJSONUpdateTrigger: .constant(UUID()),
         targetLocation: .constant(nil),
         selectedLocation: .constant(nil)
     )
         .environmentObject(LocationManager())
+        .environmentObject(MapFeaturesManager())
     // MapView()
     // MapLibreMapViewWrapper()
 }

@@ -78,8 +78,7 @@ let supabase: SupabaseClient = {
   // Validate API key format
   #if DEBUG
   if key.hasPrefix("sb_publishable_") {
-    print("✅ Using new publishable key format (sb_publishable_...)")
-    print("🔑 Supabase Key (first 30 chars): \(String(key.prefix(30)))...")
+    print("🔑 Supabase Publishable Key (first 30 chars): \(String(key.prefix(30)))...")
   } else {
     print("❌ Supabase Publishable Key NOT set in Info.plist (via Config.xcconfig)")
   }

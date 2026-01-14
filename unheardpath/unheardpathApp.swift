@@ -120,9 +120,8 @@ struct unheardpathApp: App {
     // This allows the AppDelegate methods to be called
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
-    // @StateObject is like React's useState for class instances
-    // Creates AuthManager once and checks session during initialization
-    // This is similar to creating a Context Provider in React
+    // @StateObject creates singleton instances that persist across view updates
+    // Similar to React Context Providers - these are created once and shared throughout the app
     @StateObject private var userManager = UserManager()
     @StateObject private var authManager = AuthManager()
     @StateObject private var apiClient = APIClient()
@@ -210,45 +209,12 @@ struct unheardpathApp: App {
         
         let config = PostHogConfig(apiKey: apiKey, host: hostWithProtocol)
         PostHogSDK.shared.setup(config)
-        
-        Task {
-            await identifyUserIfSessionExists()
-        }
         #endif
-    }
-    
-    /// Identifies user with PostHog immediately if a Supabase session exists
-    /// This ensures events are associated with the Supabase user ID, not a random UUID
-    /// Session expiration only affects JWT token validity, not user identity
-    private func identifyUserIfSessionExists() async {
-        do {
-            let session = try await supabase.auth.session
-            // Identify user regardless of session expiration - same user, just needs token refresh
-            let userID = session.user.id.uuidString
-            PostHogSDK.shared.identify(userID)
-            
-            // Set global user in UserManager
-            await MainActor.run {
-                userManager.setUser(uuid: userID)
-            }
-            
-            #if DEBUG
-            print("✅ PostHog identified user immediately: \(userID)")
-            if session.isExpired {
-                print("   Note: Session expired but user ID remains the same")
-            }
-            #endif
-        } catch {
-            // No session exists yet - user will be identified when they sign in
-            #if DEBUG
-            print("ℹ️ No session found for immediate PostHog identification")
-            #endif
-        }
     }
 }
 
-/// Helper view that creates ChatViewModel with proper dependencies
-/// This allows ChatViewModel to be created as @StateObject with access to other @StateObject dependencies
+/// Helper view that initializes ChatViewModel with dependencies and sets up app-level configuration
+/// ChatViewModel requires other @StateObject dependencies, so it must be created here where they're available
 private struct AppContentView: View {
     let authManager: AuthManager
     let apiClient: APIClient
@@ -308,9 +274,6 @@ private struct AppContentView: View {
             .environmentObject(toastManager) // Pass toast manager to all views
             .withScaledSpacing() // Inject scaled spacing values into environment
             .onAppear {
-                // Set UserManager reference in AuthManager after both are created
-                authManager.setUserManager(userManager)
-                
                 // Register LocationManager with AppLifecycleManager
                 locationManager.appLifecycleManager = appLifecycleManager
                 appLifecycleManager.register(

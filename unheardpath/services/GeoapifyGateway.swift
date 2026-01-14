@@ -138,7 +138,7 @@ class GeoapifyGateway: ObservableObject {
         }
         
         #if DEBUG
-        printGeoapifyResponse(data: mergedData)
+        // printGeoapifyResponse(data: mergedData)
         #endif
         
         return mergedData

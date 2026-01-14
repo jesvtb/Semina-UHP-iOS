@@ -26,8 +26,7 @@ struct TargetLocation: Equatable {
 
 struct MapboxMapView: View {
     @EnvironmentObject var locationManager: LocationManager
-    @Binding var poisGeoJSON: GeoJSON
-    @Binding var geoJSONUpdateTrigger: UUID
+    @EnvironmentObject var mapFeaturesManager: MapFeaturesManager
     @Binding var targetLocation: TargetLocation?
     @Binding var selectedLocation: CLLocation?
     @State private var mapProxy: MapboxMaps.MapProxy?
@@ -77,8 +76,8 @@ struct MapboxMapView: View {
                     MapboxMaps.Puck2D(bearing: MapboxMaps.PuckBearing.heading)
                     
                     // Add GeoJSON content using declarative MapContent API
-                    // Use poisGeoJSON directly
-                    GeoJSONMapContent(geoJSON: poisGeoJSON)
+                    // Use mapFeaturesManager.poisGeoJSON directly
+                    GeoJSONMapContent(geoJSON: mapFeaturesManager.poisGeoJSON)
                     
                     // Add lookup location marker when autocomplete selection is made
                     if let targetLocation = targetLocation {
@@ -110,7 +109,7 @@ struct MapboxMapView: View {
                 }
                 // .mapStyle(MapboxMaps.MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
                 .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
-                .id(geoJSONUpdateTrigger) // Force re-render when GeoJSON data updates
+                .id(mapFeaturesManager.geoJSONUpdateTrigger) // Force re-render when GeoJSON data updates
                 .ignoresSafeArea()
                 .onAppear {
                     mapProxy = proxy
@@ -129,9 +128,9 @@ struct MapboxMapView: View {
                         updateMapCamera(proxy: proxy, location: location, isDeviceLocation: true)
                     }
                 }
-                .onChange(of: geoJSONUpdateTrigger) { _ in
+                .onChange(of: mapFeaturesManager.geoJSONUpdateTrigger) { _ in
                     // When GeoJSON data updates, fit camera to show all features
-                    fitCameraToGeoJSON(proxy: proxy, geoJSON: poisGeoJSON)
+                    fitCameraToGeoJSON(proxy: proxy, geoJSON: mapFeaturesManager.poisGeoJSON)
                 }
                 .onChange(of: targetLocation) { newTargetLocation in
                     // When target location is set (from autocomplete selection), fly to it and show marker

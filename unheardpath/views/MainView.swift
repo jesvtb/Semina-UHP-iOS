@@ -77,8 +77,6 @@ struct TestMainView: View {
     var body: some View {
         ZStack {
             MapboxMapView(
-                poisGeoJSON: $mapFeaturesManager.poisGeoJSON,
-                geoJSONUpdateTrigger: $mapFeaturesManager.geoJSONUpdateTrigger,
                 targetLocation: $targetLocation,
                 selectedLocation: $selectedLocation
             )

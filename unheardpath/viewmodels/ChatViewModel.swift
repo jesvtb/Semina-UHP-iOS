@@ -134,18 +134,37 @@ class ChatViewModel: ObservableObject {
             let processor = SSEEventProcessor(handler: self)
             try await processor.processStream(stream)
             
-            // Ensure the final assistant message is marked as not streaming
+            // Safety net: Ensure the final assistant message is marked as not streaming
+            // This handles cases where the stream ends without an explicit "stop" event
+            // (e.g., network errors, stream completion without stop event)
+            // Note: If onStop() was called, this is idempotent (checks isStreaming first)
             if let lastIndex = messages.indices.last,
                !messages[lastIndex].isUser {
                 let existingMessage = messages[lastIndex]
-                let updatedMessage = ChatMessage(
-                    id: existingMessage.id,
-                    text: existingMessage.text,
-                    isUser: existingMessage.isUser,
-                    isStreaming: false
-                )
-                messages[lastIndex] = updatedMessage
-                updateLastMsg(updatedMessage)
+                
+                // Only update if still streaming (idempotent check)
+                if existingMessage.isStreaming {
+                    if existingMessage.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // Remove empty placeholder if stream ended without content
+                        messages.removeLast()
+                        #if DEBUG
+                        print("✅ sendMessage cleanup: Removed empty streaming placeholder after stream completion")
+                        #endif
+                    } else {
+                        // Mark as not streaming
+                        let updatedMessage = ChatMessage(
+                            id: existingMessage.id,
+                            text: existingMessage.text,
+                            isUser: existingMessage.isUser,
+                            isStreaming: false
+                        )
+                        messages[lastIndex] = updatedMessage
+                        updateLastMsg(updatedMessage)
+                        #if DEBUG
+                        print("✅ sendMessage cleanup: Marked message as not streaming after stream completion")
+                        #endif
+                    }
+                }
             }
             
         } catch {
@@ -213,14 +232,12 @@ extension ChatViewModel: SSEEventHandler {
     }
     
     func onStop() async {
-        #if DEBUG
-        print("🏁 Processing stop event")
-        #endif
-        
+        // Handle explicit stop event from server
+        // This is called when server sends a "stop" SSE event
         guard let lastIndex = messages.indices.last,
               !messages[lastIndex].isUser else {
             #if DEBUG
-            print("⚠️ No assistant message found to stop")
+            print("⚠️ onStop: No assistant message found to stop")
             #endif
             return
         }
@@ -231,7 +248,7 @@ extension ChatViewModel: SSEEventHandler {
             // If it's just an empty streaming placeholder, remove it entirely
             messages.removeLast()
             #if DEBUG
-            print("✅ Removed empty streaming assistant placeholder on stop event")
+            print("✅ onStop: Removed empty streaming assistant placeholder")
             #endif
         } else {
             // Otherwise, keep the content and just stop streaming
@@ -242,7 +259,7 @@ extension ChatViewModel: SSEEventHandler {
                 isStreaming: false
             )
             #if DEBUG
-            print("✅ Marked last assistant message as not streaming on stop event")
+            print("✅ onStop: Marked last assistant message as not streaming")
             #endif
         }
         
