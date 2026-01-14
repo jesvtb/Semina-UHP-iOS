@@ -134,7 +134,8 @@ class AuthManager: ObservableObject {
             print("🔄 Auth state changed: \(state.event)")
             #endif
             
-            if [.initialSession, .signedIn, .signedOut].contains(state.event) {
+            // Skip .initialSession since it's already handled by checkInitialSession()
+            if [.signedIn, .signedOut].contains(state.event) {
                 let wasAuthenticated = isAuthenticated
                 
                 // Check if session exists (regardless of expiration)

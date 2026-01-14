@@ -7,12 +7,6 @@
 
 import Foundation
 
-// MARK: - API Response Models
-struct APIResponse: Codable {
-    let data: AnyCodable?
-    let error: APIError?
-}
-
 struct APIError: Codable, Error {
     let message: String
     let code: Int?
@@ -38,52 +32,6 @@ struct SSEEvent {
             return nil
         }
         return try JSONSerialization.jsonObject(with: jsonData)
-    }
-}
-
-struct AnyCodable: Codable {
-    let value: Any
-    
-    init(_ value: Any) {
-        self.value = value
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if let string = try? container.decode(String.self) {
-            value = string
-        } else if let int = try? container.decode(Int.self) {
-            value = int
-        } else if let double = try? container.decode(Double.self) {
-            value = double
-        } else if let bool = try? container.decode(Bool.self) {
-            value = bool
-        } else if let array = try? container.decode([AnyCodable].self) {
-            value = array.map { $0.value }
-        } else if let dict = try? container.decode([String: AnyCodable].self) {
-            value = dict.mapValues { $0.value }
-        } else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Unsupported type"))
-        }
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        if let string = value as? String {
-            try container.encode(string)
-        } else if let int = value as? Int {
-            try container.encode(int)
-        } else if let double = value as? Double {
-            try container.encode(double)
-        } else if let bool = value as? Bool {
-            try container.encode(bool)
-        } else if let array = value as? [Any] {
-            try container.encode(array.map { AnyCodable($0) })
-        } else if let dict = value as? [String: Any] {
-            try container.encode(dict.mapValues { AnyCodable($0) })
-        } else {
-            throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: encoder.codingPath, debugDescription: "Unsupported type"))
-        }
     }
 }
 
@@ -512,15 +460,15 @@ class APIClient: ObservableObject {
                     )
                     continuation.yield(event)
                     
-                    #if DEBUG
-                    if let eventName = currentEvent {
-                        if hasYielded {
-                            print("📨 SSE Event (update): \(eventName), data length: \(currentData.count)")
-                        } else {
-                            print("📨 SSE Event (immediate): \(eventName), data length: \(currentData.count)")
-                        }
-                    }
-                    #endif
+                    // #if DEBUG
+                    // if let eventName = currentEvent {
+                    //     if hasYielded {
+                    //         print("📨 SSE Event (update): \(eventName), data length: \(currentData.count)")
+                    //     } else {
+                    //         print("📨 SSE Event (immediate): \(eventName), data length: \(currentData.count)")
+                    //     }
+                    // }
+                    // #endif
                     
                     lastYieldedData = currentData
                     hasYielded = true
@@ -542,9 +490,9 @@ class APIClient: ObservableObject {
         // asyncBytes.lines will wait for lines to arrive, handling long gaps between progress updates
         for try await line in asyncBytes.lines {
             let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            #if DEBUG
-            print("SSE Line: \(trimmedLine)")
-            #endif
+            // #if DEBUG
+            // print("SSE Line: \(trimmedLine)")
+            // #endif
             
             // Empty line indicates end of event
             // Yield if data has changed since last yield (handles multiple data lines)

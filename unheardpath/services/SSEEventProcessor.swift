@@ -236,9 +236,9 @@ class SSEEventProcessor {
     
     /// Handles stop events by delegating to handler
     private func handleStopEvent() async {
-        #if DEBUG
-        print("🏁 Processing stop event")
-        #endif
+        // #if DEBUG
+        // print("🏁 Processing stop event")
+        // #endif
         
         await handler?.onStop()
     }
