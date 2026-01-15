@@ -29,9 +29,9 @@ extension TestMainView {
             #endif
             
             // Reverse geocode to get placemark for lookupLocationDetails
-            let geocoder = CLGeocoder()
+            // Use LocationManager's geocoder for consistent state management
             do {
-                let placemarks = try await geocoder.reverseGeocodeLocation(location)
+                let placemarks = try await locationManager.reverseGeocodeLocation(location)
                 
                 if let placemark = placemarks.first {
                     // Construct lookup place dictionary and update lookupLocationDetails

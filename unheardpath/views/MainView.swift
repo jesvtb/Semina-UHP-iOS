@@ -217,39 +217,18 @@ struct TestMainView: View {
             }
             #endif
             
-            // Update content manager with location
-            if let location = newLocation {
-                // Create locationDetail with minimal metadata (will be updated with full metadata in updateLocationToUHP)
-                let locationDetailData = LocationDetailData(
-                    location: location,
-                    placeName: nil,
-                    subdivisions: nil,
-                    countryName: nil
-                )
-                contentManager.setContent(
-                    type: .locationDetail,
-                    data: .locationDetail(data: locationDetailData)
-                )
-            } else {
-                contentManager.removeContent(type: .locationDetail)
-            }
-            
+            // Remove content if location becomes nil
+            // Full locationDetail update with metadata is handled in updateLocationToUHP
             guard let location = newLocation else {
+                contentManager.removeContent(type: .locationDetail)
                 return
             }
-            // First GPS update: only refresh POI list
+            
             if !hasReceivedFirstGPSUpdate {
                 hasReceivedFirstGPSUpdate = true
-                Task {
-                    // await refreshPOIListOnOneTimeLocation(location: location)
-                    await updateLocationToUHP(location: location, router: sseEventRouter)
-                }
             }
-            else if hasReceivedFirstGPSUpdate {
-                Task {
-                    await updateLocationToUHP(location: location, router: sseEventRouter)
-                }
-                
+            Task {
+                await updateLocationToUHP(location: location, router: sseEventRouter)
             }
         }
         .onChange(of: mapFeaturesManager.geoJSONUpdateTrigger) { _ in
