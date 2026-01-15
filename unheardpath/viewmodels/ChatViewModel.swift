@@ -16,9 +16,7 @@ class ChatViewModel: ObservableObject {
     
     // MARK: - Dependencies
     private let uhpGateway: UHPGateway
-    private let locationManager: LocationManager
     private let userManager: UserManager
-    private let authManager: AuthManager
     
     // Router reference set by AppContentView after initialization
     weak var sseEventRouter: SSEEventRouter?
@@ -31,49 +29,16 @@ class ChatViewModel: ObservableObject {
     // MARK: - Initialization
     init(
         uhpGateway: UHPGateway,
-        locationManager: LocationManager,
-        userManager: UserManager,
-        authManager: AuthManager
+        userManager: UserManager
     ) {
         self.uhpGateway = uhpGateway
-        self.locationManager = locationManager
         self.userManager = userManager
-        self.authManager = authManager
     }
     
     // MARK: - Message Actions
     
     /// Validates, sends message, and handles streaming response
     func sendMessage() async {
-        // Validate authentication state before sending
-        guard authManager.isAuthenticated else {
-            #if DEBUG
-            print("⚠️ sendMessage: User is not authenticated, cannot send message")
-            #endif
-            return
-        }
-        
-        // Wait for authentication check to complete if still loading
-        if authManager.isLoading {
-            #if DEBUG
-            print("⚠️ sendMessage: Authentication check in progress, waiting...")
-            #endif
-            // Wait a bit for auth to complete (max 2 seconds)
-            var waitCount = 0
-            while authManager.isLoading && waitCount < 20 {
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                waitCount += 1
-            }
-            
-            // Check again after waiting
-            guard authManager.isAuthenticated else {
-                #if DEBUG
-                print("⚠️ sendMessage: Authentication failed after waiting")
-                #endif
-                return
-            }
-        }
-        
         // Extract and validate draft message
         let text = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {

@@ -259,9 +259,7 @@ private struct AppContentView: View {
         // Initialize ChatViewModel (no manager dependencies)
         _chatViewModel = StateObject(wrappedValue: ChatViewModel(
             uhpGateway: uhpGateway,
-            locationManager: locationManager,
-            userManager: userManager,
-            authManager: authManager
+            userManager: userManager
         ))
         
         // Create SSEEventRouter with all managers
