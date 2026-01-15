@@ -19,8 +19,9 @@ class ChatViewModel: ObservableObject {
     private let locationManager: LocationManager
     private let userManager: UserManager
     private let authManager: AuthManager
-    private let mapFeaturesManager: MapFeaturesManager?
-    private let toastManager: ToastManager?
+    
+    // Router reference set by AppContentView after initialization
+    weak var sseEventRouter: SSEEventRouter?
     
     // MARK: - Callbacks (for cross-view coordination)
     var onDismissKeyboard: (() -> Void)?
@@ -32,16 +33,12 @@ class ChatViewModel: ObservableObject {
         uhpGateway: UHPGateway,
         locationManager: LocationManager,
         userManager: UserManager,
-        authManager: AuthManager,
-        mapFeaturesManager: MapFeaturesManager? = nil,
-        toastManager: ToastManager? = nil
+        authManager: AuthManager
     ) {
         self.uhpGateway = uhpGateway
         self.locationManager = locationManager
         self.userManager = userManager
         self.authManager = authManager
-        self.mapFeaturesManager = mapFeaturesManager
-        self.toastManager = toastManager
     }
     
     // MARK: - Message Actions
@@ -130,8 +127,14 @@ class ChatViewModel: ObservableObject {
                 evtData: evtData
             )
             
-            // Process SSE events using unified processor
-            let processor = SSEEventProcessor(handler: self)
+            // Process SSE events using unified router
+            guard let router = sseEventRouter else {
+                #if DEBUG
+                print("⚠️ sendMessage: SSEEventRouter not available")
+                #endif
+                return
+            }
+            let processor = SSEEventProcessor(handler: router)
             try await processor.processStream(stream)
             
             // Safety net: Ensure the final assistant message is marked as not streaming
@@ -192,32 +195,17 @@ class ChatViewModel: ObservableObject {
         isMessageExpanded = false
     }
     
-    /// Sets a new toast data with animation (delegates to ToastManager)
-    func setToastData(_ toastData: ToastData) {
-        toastManager?.show(toastData)
-    }
-    
     /// Updates the last message (used when streaming completes)
     func updateLastMsg(_ message: ChatMessage) {
         lastMessage = message
     }
     
-    // MARK: - SSE Event Handling (SSEEventHandler Protocol)
-}
-
-extension ChatViewModel: SSEEventHandler {
-    func onToast(_ toast: ToastData) async {
-        #if DEBUG
-        print("📬 Toast received: type=\(toast.type ?? "nil"), message=\(toast.message)")
-        #endif
-        
-        toastManager?.show(toast)
-    }
+    // MARK: - Chat Event Handling (called by SSEEventRouter)
     
-    func onChatChunk(content: String, isStreaming: Bool) async {
-        
-        if let lastIndex = messages.indices.last,
-           !messages[lastIndex].isUser {
+    /// Handles chat content chunks from SSE stream
+    /// Called by SSEEventRouter when chat events arrive
+    func handleChatChunk(content: String, isStreaming: Bool) async {
+        if let lastIndex = messages.indices.last, !messages[lastIndex].isUser {
             let existingMessage = messages[lastIndex]
             messages[lastIndex] = ChatMessage(
                 id: existingMessage.id,
@@ -225,19 +213,16 @@ extension ChatViewModel: SSEEventHandler {
                 isUser: false,
                 isStreaming: isStreaming
             )
-            
-            // Update lastMessage for the bubble display
             updateLastMsg(messages[lastIndex])
         }
     }
     
-    func onStop() async {
-        // Handle explicit stop event from server
-        // This is called when server sends a "stop" SSE event
-        guard let lastIndex = messages.indices.last,
-              !messages[lastIndex].isUser else {
+    /// Handles stop event from SSE stream
+    /// Called by SSEEventRouter when stop events arrive
+    func handleStop() async {
+        guard let lastIndex = messages.indices.last, !messages[lastIndex].isUser else {
             #if DEBUG
-            print("⚠️ onStop: No assistant message found to stop")
+            print("⚠️ handleStop: No assistant message found to stop")
             #endif
             return
         }
@@ -245,13 +230,11 @@ extension ChatViewModel: SSEEventHandler {
         let lastMsg = messages[lastIndex]
         
         if lastMsg.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            // If it's just an empty streaming placeholder, remove it entirely
             messages.removeLast()
             #if DEBUG
-            print("✅ onStop: Removed empty streaming assistant placeholder")
+            print("✅ handleStop: Removed empty streaming assistant placeholder")
             #endif
         } else {
-            // Otherwise, keep the content and just stop streaming
             messages[lastIndex] = ChatMessage(
                 id: lastMsg.id,
                 text: lastMsg.text,
@@ -259,43 +242,12 @@ extension ChatViewModel: SSEEventHandler {
                 isStreaming: false
             )
             #if DEBUG
-            print("✅ onStop: Marked last assistant message as not streaming")
+            print("✅ handleStop: Marked last assistant message as not streaming")
             #endif
         }
         
-        // Update lastMessage for the bubble display
         if let lastMsg = messages.last, !lastMsg.isUser {
             updateLastMsg(lastMsg)
-        }
-    }
-    
-    func onMap(features: [[String: JSONValue]]) async {
-        #if DEBUG
-        print("🗺️ Processing map event - dismissing keyboard and resetting modal")
-        print("   Received \(features.count) features (can optionally forward to MapFeaturesManager)")
-        #endif
-        
-        // Dismiss keyboard when map event arrives
-        onDismissKeyboard?()
-        
-        // Optionally forward to MapFeaturesManager if available
-        // This ensures chat-originated map data can update the shared map
-        if let mapFeaturesManager = mapFeaturesManager {
-            mapFeaturesManager.apply(features: features)
-        }
-    }
-    
-    func onHook(action: String) async {
-        #if DEBUG
-        print("🖥️ Hook action received: '\(action)'")
-        #endif
-        
-        if action.lowercased() == "show info sheet" {
-            #if DEBUG
-            print("📋 Calling onShowInfoSheet callback")
-            #endif
-            
-            onShowInfoSheet?()
         }
     }
 }

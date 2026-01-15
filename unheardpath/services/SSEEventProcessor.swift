@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 
 /// Type alias for GeoJSON features array
 typealias GeoJSONFeatures = [[String: JSONValue]]
@@ -60,6 +61,12 @@ protocol SSEEventHandler: AnyObject {
     /// Handle "hook" events
     /// - Parameter action: Action string from hook event
     func onHook(action: String) async
+    
+    /// Handle "content" events (overview, location details, POIs)
+    /// - Parameters:
+    ///   - type: Content view type (overview, locationDetail, pointsOfInterest)
+    ///   - data: Content section data
+    func onContent(type: ContentViewType, data: ContentSection.ContentSectionData) async
 }
 
 /// Wrapper class to allow struct types (like View) to act as SSE event handlers
@@ -71,19 +78,22 @@ class SSEEventHandlerWrapper: SSEEventHandler {
     private let onStopHandler: (() async -> Void)?
     private let onMapHandler: (([[String: JSONValue]]) async -> Void)?
     private let onHookHandler: ((String) async -> Void)?
+    private let onContentHandler: ((ContentViewType, ContentSection.ContentSectionData) async -> Void)?
     
     init(
         onToast: ((ToastData) async -> Void)? = nil,
         onChatChunk: ((String, Bool) async -> Void)? = nil,
         onStop: (() async -> Void)? = nil,
         onMap: (([[String: JSONValue]]) async -> Void)? = nil,
-        onHook: ((String) async -> Void)? = nil
+        onHook: ((String) async -> Void)? = nil,
+        onContent: ((ContentViewType, ContentSection.ContentSectionData) async -> Void)? = nil
     ) {
         self.onToastHandler = onToast
         self.onChatChunkHandler = onChatChunk
         self.onStopHandler = onStop
         self.onMapHandler = onMap
         self.onHookHandler = onHook
+        self.onContentHandler = onContent
     }
     
     func onToast(_ toast: ToastData) async {
@@ -105,6 +115,10 @@ class SSEEventHandlerWrapper: SSEEventHandler {
     func onHook(action: String) async {
         await onHookHandler?(action)
     }
+    
+    func onContent(type: ContentViewType, data: ContentSection.ContentSectionData) async {
+        await onContentHandler?(type, data)
+    }
 }
 
 /// Default implementations (no-op) so implementers only need to override what they need
@@ -114,6 +128,7 @@ extension SSEEventHandler {
     func onStop() async {}
     func onMap(features: [[String: JSONValue]]) async {}
     func onHook(action: String) async {}
+    func onContent(type: ContentViewType, data: ContentSection.ContentSectionData) async {}
 }
 
 /// Unified SSE event processor that routes events to appropriate handlers
@@ -148,6 +163,9 @@ class SSEEventProcessor {
             
         case "hook":
             await handleHookEvent(event)
+            
+        case "overview", "content":  // Support both specific and generic names
+            await handleContentEvent(event)
             
         default:
             #if DEBUG
@@ -300,6 +318,112 @@ class SSEEventProcessor {
         } catch {
             #if DEBUG
             print("❌ Error handling hook event: \(error)")
+            #endif
+        }
+    }
+    
+    /// Handles content events (overview, location details, POIs)
+    private func handleContentEvent(_ event: SSEEvent) async {
+        #if DEBUG
+        print("📄 Processing content event")
+        #endif
+        
+        do {
+            guard let dataDict = try event.parseJSONData() else {
+                #if DEBUG
+                print("⚠️ Failed to parse content data as JSON")
+                #endif
+                return
+            }
+            
+            guard let typeString = dataDict["type"] as? String else {
+                #if DEBUG
+                print("⚠️ Content event payload missing 'type' field")
+                #endif
+                return
+            }
+            
+            guard let contentType = ContentViewType(rawValue: typeString) else {
+                #if DEBUG
+                print("⚠️ Unknown content type: \(typeString)")
+                #endif
+                return
+            }
+            
+            guard let dataValue = dataDict["data"] else {
+                #if DEBUG
+                print("⚠️ Content event payload missing 'data' field")
+                #endif
+                return
+            }
+            
+            // Parse data based on content type
+            let contentData: ContentSection.ContentSectionData
+            switch contentType {
+            case .overview:
+                guard let markdown = dataValue as? String else {
+                    #if DEBUG
+                    print("⚠️ Overview data is not a string")
+                    #endif
+                    return
+                }
+                contentData = .overview(markdown: markdown)
+                
+            case .locationDetail:
+                guard let locationDict = dataValue as? [String: Any],
+                      let lat = locationDict["latitude"] as? Double,
+                      let lon = locationDict["longitude"] as? Double else {
+                    #if DEBUG
+                    print("⚠️ Invalid location detail data format")
+                    #endif
+                    return
+                }
+                let altitude = locationDict["altitude"] as? Double ?? 0
+                let location = CLLocation(
+                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                    altitude: altitude,
+                    horizontalAccuracy: 0,
+                    verticalAccuracy: 0,
+                    timestamp: Date()
+                )
+                // Extract optional metadata from locationDict
+                let placeName = locationDict["place_name"] as? String
+                let subdivisions = locationDict["subdivisions"] as? String
+                let countryName = locationDict["country_name"] as? String
+                let locationDetailData = LocationDetailData(
+                    location: location,
+                    placeName: placeName,
+                    subdivisions: subdivisions,
+                    countryName: countryName
+                )
+                contentData = .locationDetail(data: locationDetailData)
+                
+            case .pointsOfInterest:
+                guard let featuresDict = dataValue as? [String: Any],
+                      let featuresArray = featuresDict["features"] as? [[String: Any]] else {
+                    #if DEBUG
+                    print("⚠️ Invalid POI data format")
+                    #endif
+                    return
+                }
+                // Convert to JSONValue format
+                let features = featuresArray.compactMap { dict -> PointFeature? in
+                    // Convert dict to JSONValue and create PointFeature
+                    guard let jsonValue = JSONValue(from: dict) else { return nil }
+                    guard case .dictionary(let featureDict) = jsonValue else { return nil }
+                    return PointFeature(from: featureDict)
+                }
+                contentData = .pointsOfInterest(features: features)
+            }
+            
+            await handler?.onContent(type: contentType, data: contentData)
+            
+            #if DEBUG
+            print("✅ Content event handled: \(contentType.rawValue)")
+            #endif
+        } catch {
+            #if DEBUG
+            print("❌ Error handling content event: \(error)")
             #endif
         }
     }

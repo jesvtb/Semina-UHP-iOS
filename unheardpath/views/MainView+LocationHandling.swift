@@ -94,7 +94,7 @@ extension TestMainView {
     }
 
     @MainActor
-    func updateLocationToUHP(location: CLLocation) async {
+    func updateLocationToUHP(location: CLLocation, router: SSEEventRouter) async {
         #if DEBUG
         print("📍 updateLocationToUHP called for location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         #endif
@@ -102,6 +102,35 @@ extension TestMainView {
         do {
             // Use LocationManager helper to construct NewLocation structure
             let newLocationDict = try await locationManager.constructNewLocation(from: location)
+            
+            // Extract location information for locationDetail content
+            var placeName: String?
+            var subdivisions: String?
+            var countryName: String?
+            
+            if case .string(let name) = newLocationDict["place_name"] {
+                placeName = name
+            }
+            
+            if case .string(let subs) = newLocationDict["subdivisions"] {
+                subdivisions = subs
+            }
+            
+            if case .string(let country) = newLocationDict["country_name"] {
+                countryName = country
+            }
+            
+            // Update ContentManager with locationDetail content (includes header metadata)
+            let locationDetailData = LocationDetailData(
+                location: location,
+                placeName: placeName,
+                subdivisions: subdivisions,
+                countryName: countryName
+            )
+            contentManager.setContent(
+                type: .locationDetail,
+                data: .locationDetail(data: locationDetailData)
+            )
             
             // Send to /v1/orchestor endpoint using streamUserEvent
             #if DEBUG
@@ -114,22 +143,8 @@ extension TestMainView {
                 evtData: newLocationDict
             )
 
-            // Process SSE events using unified processor
-            // Use wrapper since TestMainView is a struct
-            // Create handler that uses mapFeaturesManager and toastManager directly
-            let handler = SSEEventHandlerWrapper(
-                onToast: { toast in
-                    await MainActor.run {
-                        toastManager.show(toast)
-                    }
-                },
-                onMap: { features in
-                    await MainActor.run {
-                        mapFeaturesManager.apply(features: features)
-                    }
-                }
-            )
-            let processor = SSEEventProcessor(handler: handler)
+            // Process SSE events using unified router
+            let processor = SSEEventProcessor(handler: router)
             try await processor.processStream(stream)
             
             #if DEBUG

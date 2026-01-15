@@ -131,6 +131,7 @@ struct unheardpathApp: App {
     @StateObject private var appLifecycleManager = AppLifecycleManager()
     @StateObject private var mapFeaturesManager = MapFeaturesManager()
     @StateObject private var toastManager = ToastManager()
+    @StateObject private var contentManager = ContentManager()
     
     init() {
         // Print configuration at app startup (visible in device logs)
@@ -162,7 +163,8 @@ struct unheardpathApp: App {
                 userManager: userManager,
                 appLifecycleManager: appLifecycleManager,
                 mapFeaturesManager: mapFeaturesManager,
-                toastManager: toastManager
+                toastManager: toastManager,
+                contentManager: contentManager
             )
             .id("app-content-view") // Stable identity ensures @StateObject persists
         }
@@ -225,6 +227,8 @@ private struct AppContentView: View {
     let appLifecycleManager: AppLifecycleManager
     let mapFeaturesManager: MapFeaturesManager
     let toastManager: ToastManager
+    let contentManager: ContentManager
+    let sseEventRouter: SSEEventRouter
     
     // Create ChatViewModel as @StateObject with proper dependencies
     @StateObject private var chatViewModel: ChatViewModel
@@ -238,7 +242,8 @@ private struct AppContentView: View {
         userManager: UserManager,
         appLifecycleManager: AppLifecycleManager,
         mapFeaturesManager: MapFeaturesManager,
-        toastManager: ToastManager
+        toastManager: ToastManager,
+        contentManager: ContentManager
     ) {
         self.authManager = authManager
         self.apiClient = apiClient
@@ -249,16 +254,24 @@ private struct AppContentView: View {
         self.appLifecycleManager = appLifecycleManager
         self.mapFeaturesManager = mapFeaturesManager
         self.toastManager = toastManager
+        self.contentManager = contentManager
         
-        // Initialize ChatViewModel after all above dependencies are available
+        // Initialize ChatViewModel (no manager dependencies)
         _chatViewModel = StateObject(wrappedValue: ChatViewModel(
             uhpGateway: uhpGateway,
             locationManager: locationManager,
             userManager: userManager,
-            authManager: authManager,
+            authManager: authManager
+        ))
+        
+        // Create SSEEventRouter with all managers
+        // Note: chatViewModel will be set in onAppear after StateObject is initialized
+        self.sseEventRouter = SSEEventRouter(
+            chatViewModel: nil, // Will be set in onAppear
+            contentManager: contentManager,
             mapFeaturesManager: mapFeaturesManager,
             toastManager: toastManager
-        ))
+        )
     }
     
     var body: some View {
@@ -272,6 +285,8 @@ private struct AppContentView: View {
             .environmentObject(chatViewModel) // Pass chat view model to all views
             .environmentObject(mapFeaturesManager) // Pass map features manager to all views
             .environmentObject(toastManager) // Pass toast manager to all views
+            .environmentObject(contentManager) // Pass content manager to all views
+            .environmentObject(sseEventRouter) // Pass SSE event router to all views
             .withScaledSpacing() // Inject scaled spacing values into environment
             .onAppear {
                 // Register LocationManager with AppLifecycleManager
@@ -281,6 +296,9 @@ private struct AppContentView: View {
                     didEnterBackground: { locationManager.appDidEnterBackground() },
                     willEnterForeground: { locationManager.appWillEnterForeground() }
                 )
+                
+                // Set ChatViewModel reference in router after @StateObject is initialized
+                sseEventRouter.setChatViewModel(chatViewModel)
             }
             .onOpenURL { url in
                 Task {

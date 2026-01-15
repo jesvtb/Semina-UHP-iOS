@@ -100,6 +100,93 @@ enum SnapPoint {
     }
 }
 
+// MARK: - Info Sheet Header View
+/// Intelligently constructs header with DisplayText for smallest regions and body text for larger regions
+struct InfoSheetHeaderView: View {
+    let locationData: LocationDetailData?
+    
+    init(locationData: LocationDetailData?) {
+        self.locationData = locationData
+    }
+    
+    /// Computes the DisplayText content (smallest regions, up to 2 items)
+    private var displayText: String {
+        guard let locationData = locationData else {
+            return "Journey Content"
+        }
+        
+        // Split subdivisions by comma
+        let subdivisionsParts = locationData.subdivisions?
+            .components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty } ?? []
+        
+        // Take first 2 items for DisplayText
+        let displayParts = Array(subdivisionsParts.prefix(2))
+        
+        if !displayParts.isEmpty {
+            return displayParts.joined(separator: ", ")
+        }
+        
+        // Fallback: if no subdivisions, use place name if available
+        if let placeName = locationData.placeName, !placeName.isEmpty {
+            return placeName
+        }
+        
+        return "Journey Content"
+    }
+    
+    /// Computes the body text content (remaining subdivisions + country name)
+    private var bodyText: String? {
+        guard let locationData = locationData else {
+            return nil
+        }
+        
+        // Split subdivisions by comma
+        let subdivisionsParts = locationData.subdivisions?
+            .components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty } ?? []
+        
+        // Get remaining subdivisions (after first 2)
+        let remainingSubdivisions = Array(subdivisionsParts.dropFirst(2))
+        
+        // Build body text parts
+        var bodyParts: [String] = []
+        
+        // Add remaining subdivisions
+        if !remainingSubdivisions.isEmpty {
+            bodyParts.append(contentsOf: remainingSubdivisions)
+        }
+        
+        // Add country name if available
+        if let countryName = locationData.countryName, !countryName.isEmpty {
+            bodyParts.append(countryName)
+        }
+        
+        // Return joined body parts if we have any
+        if !bodyParts.isEmpty {
+            return bodyParts.joined(separator: ", ")
+        }
+        
+        return nil
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
+            // Body text (larger regions) on top if available
+            if let bodyText = bodyText, !bodyText.isEmpty {
+                Text(bodyText)
+                    .bodyText(size: .article0)
+                    .foregroundColor(Color("onBkgTextColor30"))
+            }
+            
+            // DisplayText (smallest regions) below
+            DisplayText(displayText, scale: .article2, color: Color("onBkgTextColor20"))
+        }
+    }
+}
+
 // MARK: - Test Body
 struct TestBody: View {
     var body: some View {
@@ -121,6 +208,7 @@ struct InfoSheet: View {
     // Content parameters
     let standardContent: [ContentSection]?
     let customBuilders: [ContentViewBuilder]?
+    @ObservedObject var contentManager: ContentManager
     
     init(
         selectedTab: Binding<PreviewTabSelection>,
@@ -129,7 +217,8 @@ struct InfoSheet: View {
         bottomSafeAreaInsetHeight: CGFloat,
         sheetSnapPoint: Binding<SnapPoint>,
         standardContent: [ContentSection]? = nil,
-        customBuilders: [ContentViewBuilder]? = nil
+        customBuilders: [ContentViewBuilder]? = nil,
+        contentManager: ContentManager
     ) {
         self._selectedTab = selectedTab
         self._shouldHideTabBar = shouldHideTabBar
@@ -138,6 +227,12 @@ struct InfoSheet: View {
         self._sheetSnapPoint = sheetSnapPoint
         self.standardContent = standardContent
         self.customBuilders = customBuilders
+        self.contentManager = contentManager
+    }
+    
+    /// Extracts LocationDetailData from ContentManager
+    private var locationDetailData: LocationDetailData? {
+        contentManager.locationDetailData
     }
     
     // Snap points - visible heights
@@ -221,9 +316,9 @@ struct InfoSheet: View {
                         
                         // Content rendering
                         VStack(alignment: .leading, spacing: 0) {
-                            // // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
+                            // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
                             if sheetSnapPoint != .full {
-                                DisplayText("Journey Content", scale: .article2, color: Color("onBkgTextColor20"))
+                                InfoSheetHeaderView(locationData: locationDetailData)
                                     .padding(.top, Spacing.current.spaceXs)
                                     .padding(.bottom, Spacing.current.spaceXs)
                             }
@@ -256,7 +351,7 @@ struct InfoSheet: View {
                     // Sticky header bar - only visible when at full snap point
                     if sheetSnapPoint == .full {
                         VStack(spacing: 0) {
-                            DisplayText("Journey Content", scale: .article2, color: Color("onBkgTextColor20"))
+                            InfoSheetHeaderView(locationData: locationDetailData)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, Spacing.current.spaceS)
                                 .padding(.top, Spacing.current.spaceM)
@@ -430,18 +525,37 @@ struct InfoSheet: View {
 }
 
 #Preview("Full Height") {
-    InfoSheet(
+    let contentManager = ContentManager()
+    let locationData = LocationDetailData(
+        location: CLLocation(latitude: 41.9028, longitude: 12.4964),
+        placeName: "Colosseum",
+        subdivisions: "Rome, Lazio",
+        countryName: "Italy"
+    )
+    contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
+    
+    return InfoSheet(
         selectedTab: .constant(.journey),
         shouldHideTabBar: .constant(false),
         sheetFullHeight: 1000,
         bottomSafeAreaInsetHeight: 0,
-        sheetSnapPoint: .constant(.full)
+        sheetSnapPoint: .constant(.full),
+        contentManager: contentManager
     )
 }
 
 #if DEBUG
 #Preview("Standard Content") {
     let sections = loadStandardContentFromJSON()
+    let contentManager = ContentManager()
+    let locationData = LocationDetailData(
+        location: CLLocation(latitude: 41.9028, longitude: 12.4964),
+        placeName: "Ancient Rome",
+        subdivisions: "Lazio",
+        countryName: "Italy"
+    )
+    contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
+    
     return InfoSheet(
         selectedTab: .constant(.journey),
         shouldHideTabBar: .constant(false),
@@ -449,7 +563,8 @@ struct InfoSheet: View {
         bottomSafeAreaInsetHeight: 0,
         sheetSnapPoint: .constant(.full),
         standardContent: sections,
-        customBuilders: nil
+        customBuilders: nil,
+        contentManager: contentManager
     )
 }
 
@@ -473,6 +588,15 @@ struct InfoSheet: View {
         }
     ]
     
+    let contentManager = ContentManager()
+    let locationData = LocationDetailData(
+        location: CLLocation(latitude: 37.7749, longitude: -122.4194),
+        placeName: nil,
+        subdivisions: "Custom Content Location",
+        countryName: nil
+    )
+    contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
+    
     return InfoSheet(
         selectedTab: .constant(.journey),
         shouldHideTabBar: .constant(false),
@@ -480,7 +604,8 @@ struct InfoSheet: View {
         bottomSafeAreaInsetHeight: 0,
         sheetSnapPoint: .constant(.full),
         standardContent: nil,
-        customBuilders: customBuilders
+        customBuilders: customBuilders,
+        contentManager: contentManager
     )
 }
 
@@ -497,6 +622,15 @@ struct InfoSheet: View {
         }
     ]
     
+    let contentManager = ContentManager()
+    let locationData = LocationDetailData(
+        location: CLLocation(latitude: 40.7128, longitude: -74.0060),
+        placeName: nil,
+        subdivisions: "Mixed Content Location",
+        countryName: nil
+    )
+    contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
+    
     return InfoSheet(
         selectedTab: .constant(.journey),
         shouldHideTabBar: .constant(false),
@@ -504,7 +638,8 @@ struct InfoSheet: View {
         bottomSafeAreaInsetHeight: 0,
         sheetSnapPoint: .constant(.full),
         standardContent: sections,
-        customBuilders: customBuilders
+        customBuilders: customBuilders,
+        contentManager: contentManager
     )
 }
 
@@ -538,9 +673,18 @@ private func loadStandardContentFromJSON() -> [ContentSection] {
             verticalAccuracy: 0,
             timestamp: Date()
         )
+        let placeName = locationDict["place_name"] as? String
+        let subdivisions = locationDict["subdivisions"] as? String
+        let countryName = locationDict["country_name"] as? String
+        let locationDetailData = LocationDetailData(
+            location: location,
+            placeName: placeName,
+            subdivisions: subdivisions,
+            countryName: countryName
+        )
         sections.append(ContentSection(
             type: .locationDetail,
-            data: .locationDetail(location: location)
+            data: .locationDetail(data: locationDetailData)
         ))
     }
     

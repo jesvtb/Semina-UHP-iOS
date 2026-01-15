@@ -9,6 +9,29 @@ enum ContentViewType: String, CaseIterable {
     case pointsOfInterest
 }
 
+// MARK: - Location Detail Data
+struct LocationDetailData {
+    let location: CLLocation
+    let placeName: String?
+    let subdivisions: String?
+    let countryName: String?
+    
+    /// Computes header text from location metadata
+    var headerText: String {
+        var parts: [String] = []
+        if let placeName = placeName, !placeName.isEmpty {
+            parts.append(placeName)
+        }
+        if let subdivisions = subdivisions, !subdivisions.isEmpty {
+            parts.append(subdivisions)
+        }
+        if let countryName = countryName, !countryName.isEmpty {
+            parts.append(countryName)
+        }
+        return parts.isEmpty ? "Journey Content" : parts.joined(separator: ", ")
+    }
+}
+
 // MARK: - Content Section
 struct ContentSection: Identifiable {
     // Use type as stable ID - each type appears at most once
@@ -19,7 +42,7 @@ struct ContentSection: Identifiable {
     
     enum ContentSectionData {
         case overview(markdown: String)
-        case locationDetail(location: CLLocation)
+        case locationDetail(data: LocationDetailData)
         case pointsOfInterest(features: [PointFeature])
     }
     
@@ -47,6 +70,24 @@ class ContentManager: ObservableObject {
         displayOrder.compactMap { type in
             sections[type]
         }
+    }
+    
+    /// Returns header text derived from locationDetail content, or default
+    var headerText: String {
+        if let locationSection = sections[.locationDetail],
+           case .locationDetail(let locationData) = locationSection.data {
+            return locationData.headerText
+        }
+        return "Journey Content"
+    }
+    
+    /// Returns LocationDetailData if available, for header view construction
+    var locationDetailData: LocationDetailData? {
+        if let locationSection = sections[.locationDetail],
+           case .locationDetail(let locationData) = locationSection.data {
+            return locationData
+        }
+        return nil
     }
     
     /// Set or update content by type
@@ -82,8 +123,8 @@ struct ContentViewRegistry {
         switch section.data {
         case .overview(let markdown):
             OverviewView(markdown: markdown)
-        case .locationDetail(let location):
-            LocationDetailView(location: location)
+        case .locationDetail(let locationData):
+            LocationDetailView(location: locationData.location)
         case .pointsOfInterest(let features):
             if features.count == 1, let feature = features.first {
                 ContentPoiItemView(feature: feature)

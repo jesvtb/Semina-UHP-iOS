@@ -39,7 +39,9 @@ struct TestMainView: View {
     @FocusState var isTextFieldFocused: Bool
     
     // Content management
-    @StateObject private var contentManager = ContentManager()
+    @EnvironmentObject var contentManager: ContentManager
+    // SSE event router for handling events from both /v1/chat and /v1/orchestrator
+    @EnvironmentObject var sseEventRouter: SSEEventRouter
     
     // Autocomplete state for map tab
     @StateObject var addressSearchManager = AddressSearchManager()
@@ -49,6 +51,7 @@ struct TestMainView: View {
     // Debug cache overlay state
     #if DEBUG
     @State private var showCacheDebugSheet: Bool = false
+    @State private var showSSEContentTestSheet: Bool = false
     #endif
     
     // Sheet snap point control - universal binding for bidirectional control
@@ -104,7 +107,8 @@ struct TestMainView: View {
                         bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight,
                         sheetSnapPoint: $sheetSnapPoint,
                         standardContent: contentManager.orderedSections,
-                        customBuilders: nil
+                        customBuilders: nil,
+                        contentManager: contentManager
                     )
                         .position(
                             x: geometry.size.width / 2,
@@ -156,6 +160,7 @@ struct TestMainView: View {
             // Debug cache button overlay
             #if DEBUG
             debugCacheButton
+            debugSSEContentTestButton
             #endif
         }
         // Input bar pinned to bottom; moves with keyboard
@@ -214,9 +219,16 @@ struct TestMainView: View {
             
             // Update content manager with location
             if let location = newLocation {
+                // Create locationDetail with minimal metadata (will be updated with full metadata in updateLocationToUHP)
+                let locationDetailData = LocationDetailData(
+                    location: location,
+                    placeName: nil,
+                    subdivisions: nil,
+                    countryName: nil
+                )
                 contentManager.setContent(
                     type: .locationDetail,
-                    data: .locationDetail(location: location)
+                    data: .locationDetail(data: locationDetailData)
                 )
             } else {
                 contentManager.removeContent(type: .locationDetail)
@@ -230,12 +242,12 @@ struct TestMainView: View {
                 hasReceivedFirstGPSUpdate = true
                 Task {
                     // await refreshPOIListOnOneTimeLocation(location: location)
-                    await updateLocationToUHP(location: location)
+                    await updateLocationToUHP(location: location, router: sseEventRouter)
                 }
             }
             else if hasReceivedFirstGPSUpdate {
                 Task {
-                    await updateLocationToUHP(location: location)
+                    await updateLocationToUHP(location: location, router: sseEventRouter)
                 }
                 
             }
@@ -275,6 +287,9 @@ struct TestMainView: View {
         .sheet(isPresented: $showCacheDebugSheet) {
             cacheDebugSheet
         }
+        .sheet(isPresented: $showSSEContentTestSheet) {
+            SSEContentTestView()
+        }
         #endif
         .onAppear {
             // Set up callbacks for ChatViewModel
@@ -296,6 +311,19 @@ struct TestMainView: View {
             chatViewModel.onTextFieldFocusChange = { isFocused in
                 isTextFieldFocused = isFocused
             }
+            
+            // Set router callbacks for view coordination
+            sseEventRouter.onShowInfoSheet = {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    sheetSnapPoint = .full
+                }
+            }
+            sseEventRouter.onDismissKeyboard = {
+                isTextFieldFocused = false
+            }
+            
+            // Set router reference in ChatViewModel
+            chatViewModel.sseEventRouter = sseEventRouter
         }
         .task { @MainActor in
             
@@ -422,6 +450,31 @@ extension TestMainView {
                 }
                 .padding(.top, 8)
                 .padding(.trailing, 8)
+            }
+            Spacer()
+        }
+    }
+    
+    private var debugSSEContentTestButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Button(action: {
+                    showSSEContentTestSheet = true
+                }) {
+                    Image(systemName: "doc.text.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color("onBkgTextColor30"))
+                        .padding(8)
+                        .background(
+                            Color("AppBkgColor")
+                                .opacity(0.8)
+                                .cornerRadius(8)
+                        )
+                }
+                .padding(.top, 8)
+                .padding(.trailing, 8)
+                .offset(y: 40) // Position below cache button
             }
             Spacer()
         }
