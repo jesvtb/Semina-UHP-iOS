@@ -109,20 +109,25 @@ struct InfoSheetHeaderView: View {
         self.locationData = locationData
     }
     
+    /// Parses subdivisions into display parts (first 2) and remaining parts
+    private func parseSubdivisions() -> (displayParts: [String], remainingParts: [String]) {
+        let subdivisionsParts = locationData?.subdivisions?
+            .components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty } ?? []
+        
+        let displayParts = Array(subdivisionsParts.prefix(2))
+        let remainingParts = Array(subdivisionsParts.dropFirst(2))
+        return (displayParts, remainingParts)
+    }
+    
     /// Computes the DisplayText content (smallest regions, up to 2 items)
     private var displayText: String {
         guard let locationData = locationData else {
             return "Journey Content"
         }
         
-        // Split subdivisions by comma
-        let subdivisionsParts = locationData.subdivisions?
-            .components(separatedBy: ", ")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty } ?? []
-        
-        // Take first 2 items for DisplayText
-        let displayParts = Array(subdivisionsParts.prefix(2))
+        let (displayParts, _) = parseSubdivisions()
         
         if !displayParts.isEmpty {
             return displayParts.joined(separator: ", ")
@@ -142,14 +147,7 @@ struct InfoSheetHeaderView: View {
             return nil
         }
         
-        // Split subdivisions by comma
-        let subdivisionsParts = locationData.subdivisions?
-            .components(separatedBy: ", ")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty } ?? []
-        
-        // Get remaining subdivisions (after first 2)
-        let remainingSubdivisions = Array(subdivisionsParts.dropFirst(2))
+        let (_, remainingSubdivisions) = parseSubdivisions()
         
         // Build body text parts
         var bodyParts: [String] = []
@@ -187,17 +185,7 @@ struct InfoSheetHeaderView: View {
     }
 }
 
-// MARK: - Test Body
-struct TestBody: View {
-    var body: some View {
-        ForEach(0..<20, id: \.self) { index in
-            Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
-                .bodyParagraph(color: Color("onBkgTextColor30"))
-        }
-    }
-}
-
-// MARK: - Test Info Sheet
+// MARK: - Info Sheet
 struct InfoSheet: View {
     @Binding var selectedTab: PreviewTabSelection
     @Binding var shouldHideTabBar: Bool
@@ -206,8 +194,6 @@ struct InfoSheet: View {
     @Binding var sheetSnapPoint: SnapPoint
     
     // Content parameters
-    let standardContent: [ContentSection]?
-    let customBuilders: [ContentViewBuilder]?
     @ObservedObject var contentManager: ContentManager
     
     init(
@@ -216,8 +202,6 @@ struct InfoSheet: View {
         sheetFullHeight: CGFloat,
         bottomSafeAreaInsetHeight: CGFloat,
         sheetSnapPoint: Binding<SnapPoint>,
-        standardContent: [ContentSection]? = nil,
-        customBuilders: [ContentViewBuilder]? = nil,
         contentManager: ContentManager
     ) {
         self._selectedTab = selectedTab
@@ -225,14 +209,7 @@ struct InfoSheet: View {
         self.sheetFullHeight = sheetFullHeight
         self.bottomSafeAreaInsetHeight = bottomSafeAreaInsetHeight
         self._sheetSnapPoint = sheetSnapPoint
-        self.standardContent = standardContent
-        self.customBuilders = customBuilders
         self.contentManager = contentManager
-    }
-    
-    /// Extracts LocationDetailData from ContentManager
-    private var locationDetailData: LocationDetailData? {
-        contentManager.locationDetailData
     }
     
     // Snap points - visible heights
@@ -284,16 +261,7 @@ struct InfoSheet: View {
     /// Checks if scroll content is exactly at the top edge
     /// Uses the offset directly from GeometryReader
     private var isScrollAtTop: Bool {
-        // Content is at top when offset is exactly 0 (or within 0.5 points for floating point precision)
-        // Negative values mean content has been scrolled down
-        // Positive values > 0.5 also mean content is not at top (might be bouncing or overscrolled)
-        // let isAtTop = scrollViewContentOffset >= 0 && scrollViewContentOffset <= 0.5
         let isAtTop = scrollViewContentOffset >= 0 
-        #if DEBUG
-        if sheetSnapPoint == .full && abs(scrollViewContentOffset) > 0.1 {
-            print("🔍 isScrollAtTop check: offset=\(String(format: "%.2f", scrollViewContentOffset)), isAtTop=\(isAtTop)")
-        }
-        #endif
         return isAtTop
     }
     
@@ -318,29 +286,17 @@ struct InfoSheet: View {
                         VStack(alignment: .leading, spacing: 0) {
                             // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
                             if sheetSnapPoint != .full {
-                                InfoSheetHeaderView(locationData: locationDetailData)
+                                InfoSheetHeaderView(locationData: contentManager.locationDetailData)
                                     .padding(.top, Spacing.current.spaceXs)
                                     .padding(.bottom, Spacing.current.spaceXs)
                             }
                             
-                            // // Render standard content sections first
-                            if let standardContent = standardContent, !standardContent.isEmpty {
-                                ForEach(standardContent) { section in
+                            // Render content sections from ContentManager
+                            if !contentManager.orderedSections.isEmpty {
+                                ForEach(contentManager.orderedSections) { section in
                                     ContentViewRegistry.view(for: section)
                                 }
                             }
-                            
-                            // // Render custom builders after standard content
-                            // if let customBuilders = customBuilders, !customBuilders.isEmpty {
-                            //     ForEach(customBuilders) { builder in
-                            //         builder.builder()
-                            //     }
-                            // }
-                            TestBody()
-                            // // Fallback to TestBody if no content provided
-                            // if (standardContent?.isEmpty ?? true) && (customBuilders?.isEmpty ?? true) {
-                            // TestBody()
-                            // }
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, Spacing.current.spaceS)
@@ -351,7 +307,7 @@ struct InfoSheet: View {
                     // Sticky header bar - only visible when at full snap point
                     if sheetSnapPoint == .full {
                         VStack(spacing: 0) {
-                            InfoSheetHeaderView(locationData: locationDetailData)
+                            InfoSheetHeaderView(locationData: contentManager.locationDetailData)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, Spacing.current.spaceS)
                                 .padding(.top, Spacing.current.spaceM)
@@ -548,6 +504,13 @@ struct InfoSheet: View {
 #Preview("Standard Content") {
     let sections = loadStandardContentFromJSON()
     let contentManager = ContentManager()
+    
+    // Add all sections to content manager
+    for section in sections {
+        contentManager.setContent(type: section.type, data: section.data)
+    }
+    
+    // Override location detail if needed
     let locationData = LocationDetailData(
         location: CLLocation(latitude: 41.9028, longitude: 12.4964),
         placeName: "Ancient Rome",
@@ -562,32 +525,11 @@ struct InfoSheet: View {
         sheetFullHeight: 1000,
         bottomSafeAreaInsetHeight: 0,
         sheetSnapPoint: .constant(.full),
-        standardContent: sections,
-        customBuilders: nil,
         contentManager: contentManager
     )
 }
 
-#Preview("Custom Builders") {
-    let customBuilders: [ContentViewBuilder] = [
-        ContentViewBuilder {
-            VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
-                DisplayText("Custom Section 1", scale: .article2, color: Color("onBkgTextColor20"))
-                Text("This is a custom content builder that demonstrates dynamic content rendering.")
-                    .bodyParagraph(color: Color("onBkgTextColor30"))
-            }
-            .padding(.vertical, Spacing.current.spaceXs)
-        },
-        ContentViewBuilder {
-            VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
-                DisplayText("Custom Section 2", scale: .article2, color: Color("onBkgTextColor20"))
-                Text("You can use custom builders for conditional or dynamic content that doesn't fit standard content types.")
-                    .bodyParagraph(color: Color("onBkgTextColor30"))
-            }
-            .padding(.vertical, Spacing.current.spaceXs)
-        }
-    ]
-    
+#Preview("Location Detail Only") {
     let contentManager = ContentManager()
     let locationData = LocationDetailData(
         location: CLLocation(latitude: 37.7749, longitude: -122.4194),
@@ -603,26 +545,20 @@ struct InfoSheet: View {
         sheetFullHeight: 1000,
         bottomSafeAreaInsetHeight: 0,
         sheetSnapPoint: .constant(.full),
-        standardContent: nil,
-        customBuilders: customBuilders,
         contentManager: contentManager
     )
 }
 
 #Preview("Mixed Content") {
     let sections = loadStandardContentFromJSON()
-    let customBuilders: [ContentViewBuilder] = [
-        ContentViewBuilder {
-            VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
-                DisplayText("Additional Info", scale: .article2, color: Color("onBkgTextColor20"))
-                Text("This custom section appears after standard content sections.")
-                    .bodyParagraph(color: Color("onBkgTextColor30"))
-            }
-            .padding(.vertical, Spacing.current.spaceXs)
-        }
-    ]
-    
     let contentManager = ContentManager()
+    
+    // Add all sections to content manager
+    for section in sections {
+        contentManager.setContent(type: section.type, data: section.data)
+    }
+    
+    // Override location detail if needed
     let locationData = LocationDetailData(
         location: CLLocation(latitude: 40.7128, longitude: -74.0060),
         placeName: nil,
@@ -637,8 +573,6 @@ struct InfoSheet: View {
         sheetFullHeight: 1000,
         bottomSafeAreaInsetHeight: 0,
         sheetSnapPoint: .constant(.full),
-        standardContent: sections,
-        customBuilders: customBuilders,
         contentManager: contentManager
     )
 }

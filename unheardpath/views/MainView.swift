@@ -106,8 +106,6 @@ struct TestMainView: View {
                         sheetFullHeight: sheetFullHeight,
                         bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight,
                         sheetSnapPoint: $sheetSnapPoint,
-                        standardContent: contentManager.orderedSections,
-                        customBuilders: nil,
                         contentManager: contentManager
                     )
                         .position(

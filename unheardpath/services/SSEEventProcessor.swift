@@ -216,10 +216,11 @@ class SSEEventProcessor {
     }
     
     /// Handles chat events by accumulating content and delegating to handler
+    /// Expects SSE format: {"content": string, "is_streaming": bool}
     private func handleChatEvent(_ event: SSEEvent, accumulatedData: inout String) async {
-        // #if DEBUG
-        // print("📝 Processing chat event")
-        // #endif
+        #if DEBUG
+        print("📝 Processing chat event")
+        #endif
         
         do {
             guard let dataDict = try event.parseJSONData() else {
@@ -229,20 +230,29 @@ class SSEEventProcessor {
                 return
             }
             
+            // Extract content from SSE format: {"content": string, "is_streaming": bool}
             guard let content = dataDict["content"] as? String else {
                 #if DEBUG
-                print("⚠️ Content event payload missing 'content' field")
+                print("⚠️ Chat event payload missing 'content' field. Data keys: \(dataDict.keys)")
                 #endif
                 return
             }
             
-            accumulatedData += content
+            // Extract streaming status (defaults to true for streaming chunks)
             let isStreaming = dataDict["is_streaming"] as? Bool ?? true
             
-            // #if DEBUG
-            // print("📝 Content chunk received: '\(content)'")
-            // print("   Total streaming content length: \(accumulatedData.count)")
-            // #endif
+            // Accumulate content for streaming chunks
+            if isStreaming {
+                accumulatedData += content
+            } else {
+                // Non-streaming message - replace accumulated data
+                accumulatedData = content
+            }
+            
+            #if DEBUG
+            print("📝 Content received: '\(String(content.prefix(50)))...' (streaming: \(isStreaming))")
+            print("   Total accumulated length: \(accumulatedData.count)")
+            #endif
             
             await handler?.onChatChunk(content: accumulatedData, isStreaming: isStreaming)
         } catch {
