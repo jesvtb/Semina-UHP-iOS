@@ -213,7 +213,7 @@ let features: [[String: JSONValue]] = [
 - **SSEEventRouter.swift**: Routes events to ContentManager
 - **ContentManager.swift**: Manages content sections
 - **InfoSheetView.swift**: Displays content
-- **StandardContentTypes.swift**: Content type definitions and views
+- **ContentManager.swift**: Content type definitions and views
 
 ## Notes
 

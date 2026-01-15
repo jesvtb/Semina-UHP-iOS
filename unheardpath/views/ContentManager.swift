@@ -16,7 +16,15 @@ struct LocationDetailData {
     let subdivisions: String?
     let countryName: String?
     
-    /// Computes header text from location metadata
+    /// Parsed subdivisions array (split by comma and trimmed)
+    private var subdivisionsParts: [String] {
+        subdivisions?
+            .components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty } ?? []
+    }
+    
+    /// Computes header text from location metadata (full: placeName, subdivisions, countryName)
     var headerText: String {
         var parts: [String] = []
         if let placeName = placeName, !placeName.isEmpty {
@@ -29,6 +37,47 @@ struct LocationDetailData {
             parts.append(countryName)
         }
         return parts.isEmpty ? "Journey Content" : parts.joined(separator: ", ")
+    }
+    
+    /// Computes the DisplayText content (smallest regions, up to 2 items)
+    /// Used for the main header display in InfoSheet
+    var displayText: String {
+        // Take first 2 items from subdivisions for DisplayText
+        let displayParts = Array(subdivisionsParts.prefix(2))
+        
+        if !displayParts.isEmpty {
+            return displayParts.joined(separator: ", ")
+        }
+        
+        // Fallback: if no subdivisions, use place name if available
+        if let placeName = placeName, !placeName.isEmpty {
+            return placeName
+        }
+        
+        return "Journey Content"
+    }
+    
+    /// Computes the body text content (remaining subdivisions + country name)
+    /// Used for secondary header text in InfoSheet
+    var bodyText: String? {
+        // Get remaining subdivisions (after first 2)
+        let remainingSubdivisions = Array(subdivisionsParts.dropFirst(2))
+        
+        // Build body text parts
+        var bodyParts: [String] = []
+        
+        // Add remaining subdivisions
+        if !remainingSubdivisions.isEmpty {
+            bodyParts.append(contentsOf: remainingSubdivisions)
+        }
+        
+        // Add country name if available
+        if let countryName = countryName, !countryName.isEmpty {
+            bodyParts.append(countryName)
+        }
+        
+        // Return joined body parts if we have any
+        return bodyParts.isEmpty ? nil : bodyParts.joined(separator: ", ")
     }
 }
 
@@ -70,15 +119,6 @@ class ContentManager: ObservableObject {
         displayOrder.compactMap { type in
             sections[type]
         }
-    }
-    
-    /// Returns header text derived from locationDetail content, or default
-    var headerText: String {
-        if let locationSection = sections[.locationDetail],
-           case .locationDetail(let locationData) = locationSection.data {
-            return locationData.headerText
-        }
-        return "Journey Content"
     }
     
     /// Returns LocationDetailData if available, for header view construction
@@ -398,4 +438,3 @@ private func createMockPointFeature(name: String = "The Colosseum", description:
     return PointFeature(from: feature)
 }
 #endif
-

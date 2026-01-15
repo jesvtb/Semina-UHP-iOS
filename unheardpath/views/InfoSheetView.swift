@@ -102,6 +102,7 @@ enum SnapPoint {
 
 // MARK: - Info Sheet Header View
 /// Intelligently constructs header with DisplayText for smallest regions and body text for larger regions
+/// All header text computation logic is consolidated in LocationDetailData
 struct InfoSheetHeaderView: View {
     let locationData: LocationDetailData?
     
@@ -109,83 +110,32 @@ struct InfoSheetHeaderView: View {
         self.locationData = locationData
     }
     
-    /// Parses subdivisions into display parts (first 2) and remaining parts
-    private func parseSubdivisions() -> (displayParts: [String], remainingParts: [String]) {
-        let subdivisionsParts = locationData?.subdivisions?
-            .components(separatedBy: ", ")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty } ?? []
-        
-        let displayParts = Array(subdivisionsParts.prefix(2))
-        let remainingParts = Array(subdivisionsParts.dropFirst(2))
-        return (displayParts, remainingParts)
-    }
-    
-    /// Computes the DisplayText content (smallest regions, up to 2 items)
-    private var displayText: String {
-        guard let locationData = locationData else {
-            return "Journey Content"
-        }
-        
-        let (displayParts, _) = parseSubdivisions()
-        
-        if !displayParts.isEmpty {
-            return displayParts.joined(separator: ", ")
-        }
-        
-        // Fallback: if no subdivisions, use place name if available
-        if let placeName = locationData.placeName, !placeName.isEmpty {
-            return placeName
-        }
-        
-        return "Journey Content"
-    }
-    
-    /// Computes the body text content (remaining subdivisions + country name)
-    private var bodyText: String? {
-        guard let locationData = locationData else {
-            return nil
-        }
-        
-        let (_, remainingSubdivisions) = parseSubdivisions()
-        
-        // Build body text parts
-        var bodyParts: [String] = []
-        
-        // Add remaining subdivisions
-        if !remainingSubdivisions.isEmpty {
-            bodyParts.append(contentsOf: remainingSubdivisions)
-        }
-        
-        // Add country name if available
-        if let countryName = locationData.countryName, !countryName.isEmpty {
-            bodyParts.append(countryName)
-        }
-        
-        // Return joined body parts if we have any
-        if !bodyParts.isEmpty {
-            return bodyParts.joined(separator: ", ")
-        }
-        
-        return nil
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
             // Body text (larger regions) on top if available
-            if let bodyText = bodyText, !bodyText.isEmpty {
+            if let bodyText = locationData?.bodyText, !bodyText.isEmpty {
                 Text(bodyText)
                     .bodyText(size: .article0)
                     .foregroundColor(Color("onBkgTextColor30"))
             }
             
             // DisplayText (smallest regions) below
-            DisplayText(displayText, scale: .article2, color: Color("onBkgTextColor20"))
+            DisplayText(locationData?.displayText ?? "Journey Content", scale: .article2, color: Color("onBkgTextColor20"))
         }
     }
 }
 
-// MARK: - Info Sheet
+// MARK: - Test Body
+struct TestBody: View {
+    var body: some View {
+        ForEach(0..<20, id: \.self) { index in
+            Text("Item \(index + 1) Bibendum ut euismod ultrices hendrerit cras, faucibus suspendisse mi curabitur. Amet sollicitudin nunc maximus diam curabitur imperdiet facilisi gravida, nullam enim velit maecenas lobortis condimentum tempus. Purus luctus aptent consectetur metus lacus venenatis taciti vestibulum nullam habitant magnis nulla magna rhoncus, litora condimentum dapibus montes nostra pretium sagittis vulputate facilisi varius dignissim justo proin. Mauris potenti molestie mattis sodales urna dui vitae donec duis, vivamus curabitur sollicitudin elit dolor vehicula et netus. Ultrices iaculis scelerisque pulvinar pharetra nulla praesent interdum blandit class, pretium egestas sed leo eros tincidunt turpis.")
+                .bodyParagraph(color: Color("onBkgTextColor30"))
+        }
+    }
+}
+
+// MARK: - Test Info Sheet
 struct InfoSheet: View {
     @Binding var selectedTab: PreviewTabSelection
     @Binding var shouldHideTabBar: Bool
@@ -193,7 +143,7 @@ struct InfoSheet: View {
     let bottomSafeAreaInsetHeight: CGFloat
     @Binding var sheetSnapPoint: SnapPoint
     
-    // Content parameters
+    // Content management
     @ObservedObject var contentManager: ContentManager
     
     init(
@@ -210,6 +160,11 @@ struct InfoSheet: View {
         self.bottomSafeAreaInsetHeight = bottomSafeAreaInsetHeight
         self._sheetSnapPoint = sheetSnapPoint
         self.contentManager = contentManager
+    }
+    
+    /// Extracts LocationDetailData from ContentManager
+    private var locationDetailData: LocationDetailData? {
+        contentManager.locationDetailData
     }
     
     // Snap points - visible heights
@@ -286,17 +241,19 @@ struct InfoSheet: View {
                         VStack(alignment: .leading, spacing: 0) {
                             // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
                             if sheetSnapPoint != .full {
-                                InfoSheetHeaderView(locationData: contentManager.locationDetailData)
+                                InfoSheetHeaderView(locationData: locationDetailData)
                                     .padding(.top, Spacing.current.spaceXs)
                                     .padding(.bottom, Spacing.current.spaceXs)
                             }
                             
-                            // Render content sections from ContentManager
+                            // Render standard content sections
                             if !contentManager.orderedSections.isEmpty {
                                 ForEach(contentManager.orderedSections) { section in
                                     ContentViewRegistry.view(for: section)
                                 }
                             }
+                            
+                            TestBody()
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, Spacing.current.spaceS)
@@ -307,7 +264,7 @@ struct InfoSheet: View {
                     // Sticky header bar - only visible when at full snap point
                     if sheetSnapPoint == .full {
                         VStack(spacing: 0) {
-                            InfoSheetHeaderView(locationData: contentManager.locationDetailData)
+                            InfoSheetHeaderView(locationData: locationDetailData)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, Spacing.current.spaceS)
                                 .padding(.top, Spacing.current.spaceM)
@@ -504,13 +461,6 @@ struct InfoSheet: View {
 #Preview("Standard Content") {
     let sections = loadStandardContentFromJSON()
     let contentManager = ContentManager()
-    
-    // Add all sections to content manager
-    for section in sections {
-        contentManager.setContent(type: section.type, data: section.data)
-    }
-    
-    // Override location detail if needed
     let locationData = LocationDetailData(
         location: CLLocation(latitude: 41.9028, longitude: 12.4964),
         placeName: "Ancient Rome",
@@ -519,46 +469,25 @@ struct InfoSheet: View {
     )
     contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
     
-    return InfoSheet(
-        selectedTab: .constant(.journey),
-        shouldHideTabBar: .constant(false),
-        sheetFullHeight: 1000,
-        bottomSafeAreaInsetHeight: 0,
-        sheetSnapPoint: .constant(.full),
-        contentManager: contentManager
-    )
-}
-
-#Preview("Location Detail Only") {
-    let contentManager = ContentManager()
-    let locationData = LocationDetailData(
-        location: CLLocation(latitude: 37.7749, longitude: -122.4194),
-        placeName: nil,
-        subdivisions: "Custom Content Location",
-        countryName: nil
-    )
-    contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
-    
-    return InfoSheet(
-        selectedTab: .constant(.journey),
-        shouldHideTabBar: .constant(false),
-        sheetFullHeight: 1000,
-        bottomSafeAreaInsetHeight: 0,
-        sheetSnapPoint: .constant(.full),
-        contentManager: contentManager
-    )
-}
-
-#Preview("Mixed Content") {
-    let sections = loadStandardContentFromJSON()
-    let contentManager = ContentManager()
-    
-    // Add all sections to content manager
+    // Add sections from JSON to contentManager
     for section in sections {
         contentManager.setContent(type: section.type, data: section.data)
     }
     
-    // Override location detail if needed
+    return InfoSheet(
+        selectedTab: .constant(.journey),
+        shouldHideTabBar: .constant(false),
+        sheetFullHeight: 1000,
+        bottomSafeAreaInsetHeight: 0,
+        sheetSnapPoint: .constant(.full),
+        contentManager: contentManager
+    )
+}
+
+
+#Preview("Mixed Content") {
+    let sections = loadStandardContentFromJSON()
+    let contentManager = ContentManager()
     let locationData = LocationDetailData(
         location: CLLocation(latitude: 40.7128, longitude: -74.0060),
         placeName: nil,
@@ -566,6 +495,11 @@ struct InfoSheet: View {
         countryName: nil
     )
     contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
+    
+    // Add sections from JSON to contentManager
+    for section in sections {
+        contentManager.setContent(type: section.type, data: section.data)
+    }
     
     return InfoSheet(
         selectedTab: .constant(.journey),

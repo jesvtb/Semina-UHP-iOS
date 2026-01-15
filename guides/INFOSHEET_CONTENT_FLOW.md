@@ -8,7 +8,7 @@ This document explains how content in the `InfoSheet` component is updated and d
 
 ### Components
 
-1. **ContentManager** (`StandardContentTypes.swift`)
+1. **ContentManager** (`ContentManager.swift`)
    - `@MainActor` `ObservableObject` that manages content sections by type
    - Stores content in a dictionary keyed by `ContentViewType`
    - Provides `orderedSections` property that returns sections in display order
@@ -17,7 +17,7 @@ This document explains how content in the `InfoSheet` component is updated and d
    - Receives `standardContent: [ContentSection]?` as a parameter
    - Renders content using `ContentViewRegistry.view(for: section)`
 
-3. **ContentViewRegistry** (`StandardContentTypes.swift`)
+3. **ContentViewRegistry** (`ContentManager.swift`)
    - Static view builder that switches on content type and returns appropriate view
 
 4. **MainView** (`MainView.swift`)
@@ -122,7 +122,7 @@ case pointsOfInterest(features: [PointFeature])
 
 **POI Extraction:**
 - `extractPOIs()` function converts GeoJSON features to `PointFeature` objects
-- Located in `StandardContentTypes.swift` (line 270)
+- Located in `ContentManager.swift` (line 270)
 
 ## Display Order
 
@@ -162,7 +162,7 @@ if let standardContent = standardContent, !standardContent.isEmpty {
 ### ContentViewRegistry View Selection
 
 ```swift
-// In StandardContentTypes.swift, lines 81-94
+// In ContentManager.swift, lines 81-94
 static func view(for section: ContentSection) -> some View {
     switch section.data {
     case .overview(let markdown):
