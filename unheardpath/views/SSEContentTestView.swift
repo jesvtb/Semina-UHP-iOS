@@ -42,7 +42,7 @@ You can test different content types using the buttons below.
                 
                 Section(header: Text("Content Data")) {
                     switch selectedContentType {
-                    case .overview:
+                    case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
                         TextEditor(text: $overviewMarkdown)
                             .frame(height: 200)
                             .font(.system(.body, design: .monospaced))
@@ -68,6 +68,11 @@ You can test different content types using the buttons below.
                         
                     case .pointsOfInterest:
                         Text("POI testing requires GeoJSON features. Use the 'Test Sample POIs' button below.")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                        
+                    case .regionalCuisine:
+                        Text("Regional cuisine testing requires structured data. Not yet implemented in test view.")
                             .foregroundColor(.secondary)
                             .font(.caption)
                     }
@@ -145,15 +150,17 @@ You can test different content types using the buttons below.
             return "Location: \(locationData.location.coordinate.latitude), \(locationData.location.coordinate.longitude)"
         case .pointsOfInterest(let features):
             return "POIs: \(features.count) features"
+        case .regionalCuisine(let data):
+            return "Regional Cuisine: \(data.dishes.count) dishes"
         }
     }
     
     private func simulateContentEvent() {
         Task { @MainActor in
             switch selectedContentType {
-            case .overview:
+            case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
                 let data: ContentSection.ContentSectionData = .overview(markdown: overviewMarkdown)
-                await sseEventRouter.onContent(type: .overview, data: data)
+                await sseEventRouter.onContent(type: selectedContentType, data: data)
                 
             case .locationDetail:
                 guard let lat = Double(locationLatitude),
@@ -181,6 +188,9 @@ You can test different content types using the buttons below.
             case .pointsOfInterest:
                 // Use sample POIs
                 simulateSamplePOIs()
+                
+            case .regionalCuisine:
+                print("⚠️ Regional cuisine simulation not yet implemented in test view")
             }
         }
     }

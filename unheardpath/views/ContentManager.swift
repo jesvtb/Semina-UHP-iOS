@@ -7,6 +7,66 @@ enum ContentViewType: String, CaseIterable {
     case overview
     case locationDetail
     case pointsOfInterest
+    case countryOverview
+    case subdivisionsOverview
+    case neighborhoodOverview
+    case cultureOverview
+    case regionalCuisine
+}
+
+struct RegionalDish {
+    let localName: String
+    let globalName: String
+    let description: String
+    let imageURL: URL?
+}
+
+struct RegionalCuisineData {
+    let introduction: String
+    let dishes: [RegionalDish]
+}
+
+struct RegionalCuisineView: View {
+    let data: RegionalCuisineData
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
+            Text(data.introduction)
+                .bodyParagraph(color: Color("onBkgTextColor30"))
+            ForEach(data.dishes, id: \.localName) { dish in
+                Text(dish.localName)
+                    .bodyText()
+                    .foregroundColor(Color("onBkgTextColor30"))
+                Text(dish.globalName)
+                    .bodyText()
+                    .foregroundColor(Color("onBkgTextColor30"))
+                Text(dish.description)
+                    .bodyText()
+                    .foregroundColor(Color("onBkgTextColor30"))
+                if let imageURL = dish.imageURL {
+                    AsyncImage(url: imageURL) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 200)
+                                .clipped()
+                        case .failure:
+                            Image(systemName: "photo")
+                                .foregroundColor(Color("onBkgTextColor30").opacity(0.5))
+                                .frame(height: 200)
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, Spacing.current.spaceXs)
+    }
 }
 
 // MARK: - Location Detail Data
@@ -90,6 +150,7 @@ struct ContentSection: Identifiable {
     let data: ContentSectionData
     
     enum ContentSectionData {
+        case regionalCuisine(data: RegionalCuisineData)
         case overview(markdown: String)
         case locationDetail(data: LocationDetailData)
         case pointsOfInterest(features: [PointFeature])
@@ -111,6 +172,7 @@ class ContentManager: ObservableObject {
     private let displayOrder: [ContentViewType] = [
         .overview,
         .locationDetail,
+        .regionalCuisine,
         .pointsOfInterest
     ]
     
@@ -171,6 +233,8 @@ struct ContentViewRegistry {
             } else {
                 ContentPoiListView(features: features)
             }
+        case .regionalCuisine(let data):
+            RegionalCuisineView(data: data)
         }
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import CoreLocation
 
 /// Type alias for GeoJSON features array
@@ -360,7 +361,7 @@ class SSEEventProcessor {
             // Parse data based on content type
             let contentData: ContentSection.ContentSectionData
             switch contentType {
-            case .overview:
+            case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
                 guard let markdown = dataValue as? String else {
                     #if DEBUG
                     print("⚠️ Overview data is not a string")
@@ -414,6 +415,31 @@ class SSEEventProcessor {
                     return PointFeature(from: featureDict)
                 }
                 contentData = .pointsOfInterest(features: features)
+            case .regionalCuisine:
+                guard let regionalCuisineDict = dataValue as? [String: Any],
+                      let introduction = regionalCuisineDict["introduction"] as? String,
+                      let dishesDict = regionalCuisineDict["dishes"] as? [[String: Any]] else {
+                    #if DEBUG
+                    print("⚠️ Invalid regional cuisine data format")
+                    #endif
+                    return
+                }
+                let dishes = dishesDict.compactMap { dict -> RegionalDish? in
+                    guard let localName = dict["local_name"] as? String,
+                          let globalName = dict["global_name"] as? String,
+                          let description = dict["description"] as? String else {
+                        return nil
+                    }
+                    let imageURLString = dict["image_url"] as? String
+                    let imageURL = imageURLString.flatMap { URL(string: $0) }
+                    return RegionalDish(
+                        localName: localName,
+                        globalName: globalName,
+                        description: description,
+                        imageURL: imageURL
+                    )
+                }
+                contentData = .regionalCuisine(data: RegionalCuisineData(introduction: introduction, dishes: dishes))
             }
             
             await handler?.onContent(type: contentType, data: contentData)
