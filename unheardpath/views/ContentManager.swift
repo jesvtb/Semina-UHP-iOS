@@ -3,7 +3,7 @@ import MarkdownUI
 import CoreLocation
 
 // MARK: - Content View Type
-enum ContentViewType: String, CaseIterable {
+enum ContentViewType: String, CaseIterable, Sendable {
     case overview
     case locationDetail
     case pointsOfInterest
@@ -12,6 +12,98 @@ enum ContentViewType: String, CaseIterable {
     case neighborhoodOverview
     case cultureOverview
     case regionalCuisine
+}
+
+// MARK: - Content Type Definition Protocol
+/// Protocol that defines all metadata and behavior for a content type
+/// Each content type conforms to this protocol, consolidating parsing, view creation, and type information
+/// Sendable because all conforming types are value types (structs) with only static methods
+protocol ContentTypeDefinition: Sendable {
+    static var type: ContentViewType { get }
+    
+    /// Parse raw data from SSE event into ContentSectionData
+    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData?
+    
+    /// Create SwiftUI view from ContentSectionData
+    static func createView(for data: ContentSection.ContentSectionData) -> AnyView
+}
+
+// MARK: - Content Type Registry
+/// Centralized registry for all content types
+/// Provides parsing, view creation, and display order management
+/// 
+/// Concurrency Safety (Swift 6):
+/// - All stored properties are `let` (immutable after initialization)
+/// - ContentTypeDefinition protocol is Sendable
+/// - ContentViewType enum is Sendable
+/// - Dictionary key/value types are Sendable
+/// - Registry is only written during initialization, then only read
+/// 
+/// Note: Using @unchecked Sendable because Swift 6 cannot automatically verify
+/// that existential metatypes (`any ContentTypeDefinition.Type`) are Sendable,
+/// even though the protocol is Sendable. This is safe because:
+/// 1. Metatypes themselves are value types (no mutable state)
+/// 2. All conforming types are structs (value types) with only static methods
+/// 3. The dictionary is immutable after initialization
+/// 4. All access is read-only after initialization
+final class ContentTypeRegistry: @unchecked Sendable {
+    private let definitions: [ContentViewType: any ContentTypeDefinition.Type]
+    
+    /// Display order defined as ordered array - easy to reorder by moving items!
+    let displayOrder: [ContentViewType] = [
+        .overview,
+        .locationDetail,
+        .regionalCuisine,
+        .pointsOfInterest
+    ]
+    
+    fileprivate init() {
+        var tempDefinitions: [ContentViewType: any ContentTypeDefinition.Type] = [:]
+        
+        // Register overview and all its variants to use OverviewContentType
+        let overviewTypes: [ContentViewType] = [.overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview]
+        for type in overviewTypes {
+            tempDefinitions[type] = OverviewContentType.self
+        }
+        
+        // Register remaining content types
+        tempDefinitions[.locationDetail] = LocationDetailContentType.self
+        tempDefinitions[.pointsOfInterest] = PointsOfInterestContentType.self
+        tempDefinitions[.regionalCuisine] = RegionalCuisineContentType.self
+        
+        self.definitions = tempDefinitions
+    }
+    
+    /// Parse content data from raw SSE event data
+    /// Must be called from @MainActor context (used by SSEEventProcessor)
+    @MainActor
+    func parse(type: ContentViewType, dataValue: Any) -> ContentSection.ContentSectionData? {
+        definitions[type]?.parse(from: dataValue)
+    }
+    
+    /// Create SwiftUI view for a content section
+    /// Can be called from any context (used by SwiftUI view builders)
+    func createView(for section: ContentSection) -> AnyView {
+        definitions[section.type]?.createView(for: section.data) ?? AnyView(EmptyView())
+    }
+}
+
+// Global shared instance - safe because ContentTypeRegistry is @unchecked Sendable
+// and all properties are immutable after initialization
+private let _contentTypeRegistry = ContentTypeRegistry()
+
+extension ContentTypeRegistry {
+    /// Access the shared registry instance
+    /// 
+    /// Swift 6 Concurrency: Using a function instead of a static property
+    /// to avoid static property concurrency warnings. The registry is safe for
+    /// concurrent access because:
+    /// 1. It's @unchecked Sendable (immutable after init)
+    /// 2. All stored properties are `let`
+    /// 3. Only read operations after initialization
+    nonisolated static func shared() -> ContentTypeRegistry {
+        _contentTypeRegistry
+    }
 }
 
 struct RegionalDish {
@@ -66,6 +158,132 @@ struct RegionalCuisineView: View {
             }
         }
         .padding(.vertical, Spacing.current.spaceXs)
+    }
+}
+
+// MARK: - Content Type Definitions
+
+/// Overview content type definition
+/// Handles all overview variants (overview, countryOverview, subdivisionsOverview, etc.)
+struct OverviewContentType: ContentTypeDefinition {
+    static var type: ContentViewType { .overview }
+    
+    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
+        guard let markdown = dataValue as? String else {
+            return nil
+        }
+        return .overview(markdown: markdown)
+    }
+    
+    static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
+        if case .overview(let markdown) = data {
+            return AnyView(OverviewView(markdown: markdown))
+        }
+        return AnyView(EmptyView())
+    }
+}
+
+/// Location detail content type definition
+struct LocationDetailContentType: ContentTypeDefinition {
+    static var type: ContentViewType { .locationDetail }
+    
+    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
+        guard let locationDict = dataValue as? [String: Any],
+              let lat = locationDict["latitude"] as? Double,
+              let lon = locationDict["longitude"] as? Double else {
+            return nil
+        }
+        let altitude = locationDict["altitude"] as? Double ?? 0
+        let location = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            altitude: altitude,
+            horizontalAccuracy: 0,
+            verticalAccuracy: 0,
+            timestamp: Date()
+        )
+        let placeName = locationDict["place_name"] as? String
+        let subdivisions = locationDict["subdivisions"] as? String
+        let countryName = locationDict["country_name"] as? String
+        let locationDetailData = LocationDetailData(
+            location: location,
+            placeName: placeName,
+            subdivisions: subdivisions,
+            countryName: countryName
+        )
+        return .locationDetail(data: locationDetailData)
+    }
+    
+    static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
+        if case .locationDetail(let locationData) = data {
+            return AnyView(LocationDetailView(location: locationData.location))
+        }
+        return AnyView(EmptyView())
+    }
+}
+
+/// Points of interest content type definition
+struct PointsOfInterestContentType: ContentTypeDefinition {
+    static var type: ContentViewType { .pointsOfInterest }
+    
+    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
+        guard let featuresDict = dataValue as? [String: Any],
+              let featuresArray = featuresDict["features"] as? [[String: Any]] else {
+            return nil
+        }
+        // Convert to JSONValue format
+        let features = featuresArray.compactMap { dict -> PointFeature? in
+            guard let jsonValue = JSONValue(from: dict) else { return nil }
+            guard case .dictionary(let featureDict) = jsonValue else { return nil }
+            return PointFeature(from: featureDict)
+        }
+        return .pointsOfInterest(features: features)
+    }
+    
+    static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
+        if case .pointsOfInterest(let features) = data {
+            if features.count == 1, let feature = features.first {
+                return AnyView(ContentPoiItemView(feature: feature))
+            } else {
+                return AnyView(ContentPoiListView(features: features))
+            }
+        }
+        return AnyView(EmptyView())
+    }
+}
+
+/// Regional cuisine content type definition
+struct RegionalCuisineContentType: ContentTypeDefinition {
+    static var type: ContentViewType { .regionalCuisine }
+    
+    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
+        guard let regionalCuisineDict = dataValue as? [String: Any],
+              let introduction = regionalCuisineDict["introduction"] as? String,
+              let dishesDict = regionalCuisineDict["dishes"] as? [[String: Any]] else {
+            return nil
+        }
+        let dishes = dishesDict.compactMap { dict -> RegionalDish? in
+            guard let localName = dict["local_name"] as? String,
+                  let globalName = dict["global_name"] as? String,
+                  let description = dict["description"] as? String else {
+                return nil
+            }
+            let imageURLString = dict["image_url"] as? String
+            let imageURL = imageURLString.flatMap { URL(string: $0) }
+            return RegionalDish(
+                localName: localName,
+                globalName: globalName,
+                description: description,
+                imageURL: imageURL
+            )
+        }
+        return .regionalCuisine(data: RegionalCuisineData(introduction: introduction, dishes: dishes))
+    }
+    
+    static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
+        if case .regionalCuisine(let cuisineData) = data {
+            return AnyView(RegionalCuisineView(data: cuisineData))
+        }
+        return AnyView(EmptyView())
     }
 }
 
@@ -168,17 +386,9 @@ struct ContentSection: Identifiable {
 class ContentManager: ObservableObject {
     @Published private var sections: [ContentViewType: ContentSection] = [:]
     
-    /// Display order for content sections
-    private let displayOrder: [ContentViewType] = [
-        .overview,
-        .locationDetail,
-        .regionalCuisine,
-        .pointsOfInterest
-    ]
-    
-    /// Returns sections in display order
+    /// Returns sections in display order (from ContentTypeRegistry)
     var orderedSections: [ContentSection] {
-        displayOrder.compactMap { type in
+        ContentTypeRegistry.shared().displayOrder.compactMap { type in
             sections[type]
         }
     }
@@ -220,22 +430,8 @@ class ContentManager: ObservableObject {
 
 // MARK: - Content View Registry
 struct ContentViewRegistry {
-    @ViewBuilder
     static func view(for section: ContentSection) -> some View {
-        switch section.data {
-        case .overview(let markdown):
-            OverviewView(markdown: markdown)
-        case .locationDetail(let locationData):
-            LocationDetailView(location: locationData.location)
-        case .pointsOfInterest(let features):
-            if features.count == 1, let feature = features.first {
-                ContentPoiItemView(feature: feature)
-            } else {
-                ContentPoiListView(features: features)
-            }
-        case .regionalCuisine(let data):
-            RegionalCuisineView(data: data)
-        }
+        ContentTypeRegistry.shared().createView(for: section)
     }
 }
 

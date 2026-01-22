@@ -301,6 +301,8 @@ struct TestMainView: View {
             
             // Set router reference in ChatViewModel
             chatViewModel.sseEventRouter = sseEventRouter
+            // Also set ChatViewModel reference in router (bidirectional connection)
+            sseEventRouter.setChatViewModel(chatViewModel)
         }
         .task { @MainActor in
             

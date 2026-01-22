@@ -218,9 +218,9 @@ class SSEEventProcessor {
     
     /// Handles chat events by accumulating content and delegating to handler
     private func handleChatEvent(_ event: SSEEvent, accumulatedData: inout String) async {
-        // #if DEBUG
-        // print("📝 Processing chat event")
-        // #endif
+        #if DEBUG
+        print("📝 Processing chat event")
+        #endif
         
         do {
             guard let dataDict = try event.parseJSONData() else {
@@ -233,6 +233,7 @@ class SSEEventProcessor {
             guard let content = dataDict["content"] as? String else {
                 #if DEBUG
                 print("⚠️ Content event payload missing 'content' field")
+                print("   Available keys: \(dataDict.keys.joined(separator: ", "))")
                 #endif
                 return
             }
@@ -240,12 +241,21 @@ class SSEEventProcessor {
             accumulatedData += content
             let isStreaming = dataDict["is_streaming"] as? Bool ?? true
             
-            // #if DEBUG
-            // print("📝 Content chunk received: '\(content)'")
-            // print("   Total streaming content length: \(accumulatedData.count)")
-            // #endif
+            #if DEBUG
+            print("📝 Content chunk received: '\(content.prefix(50))...' (\(content.count) chars)")
+            print("   Total accumulated content length: \(accumulatedData.count)")
+            print("   isStreaming: \(isStreaming)")
+            print("   Handler available: \(handler != nil)")
+            #endif
             
-            await handler?.onChatChunk(content: accumulatedData, isStreaming: isStreaming)
+            guard let handler = handler else {
+                #if DEBUG
+                print("⚠️ handleChatEvent: Handler is nil, cannot route chat chunk")
+                #endif
+                return
+            }
+            
+            await handler.onChatChunk(content: accumulatedData, isStreaming: isStreaming)
         } catch {
             #if DEBUG
             print("❌ Error handling chat event: \(error)")
@@ -358,88 +368,17 @@ class SSEEventProcessor {
                 return
             }
             
-            // Parse data based on content type
-            let contentData: ContentSection.ContentSectionData
-            switch contentType {
-            case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
-                guard let markdown = dataValue as? String else {
-                    #if DEBUG
-                    print("⚠️ Overview data is not a string")
-                    #endif
-                    return
-                }
-                contentData = .overview(markdown: markdown)
-                
-            case .locationDetail:
-                guard let locationDict = dataValue as? [String: Any],
-                      let lat = locationDict["latitude"] as? Double,
-                      let lon = locationDict["longitude"] as? Double else {
-                    #if DEBUG
-                    print("⚠️ Invalid location detail data format")
-                    #endif
-                    return
-                }
-                let altitude = locationDict["altitude"] as? Double ?? 0
-                let location = CLLocation(
-                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                    altitude: altitude,
-                    horizontalAccuracy: 0,
-                    verticalAccuracy: 0,
-                    timestamp: Date()
-                )
-                // Extract optional metadata from locationDict
-                let placeName = locationDict["place_name"] as? String
-                let subdivisions = locationDict["subdivisions"] as? String
-                let countryName = locationDict["country_name"] as? String
-                let locationDetailData = LocationDetailData(
-                    location: location,
-                    placeName: placeName,
-                    subdivisions: subdivisions,
-                    countryName: countryName
-                )
-                contentData = .locationDetail(data: locationDetailData)
-                
-            case .pointsOfInterest:
-                guard let featuresDict = dataValue as? [String: Any],
-                      let featuresArray = featuresDict["features"] as? [[String: Any]] else {
-                    #if DEBUG
-                    print("⚠️ Invalid POI data format")
-                    #endif
-                    return
-                }
-                // Convert to JSONValue format
-                let features = featuresArray.compactMap { dict -> PointFeature? in
-                    // Convert dict to JSONValue and create PointFeature
-                    guard let jsonValue = JSONValue(from: dict) else { return nil }
-                    guard case .dictionary(let featureDict) = jsonValue else { return nil }
-                    return PointFeature(from: featureDict)
-                }
-                contentData = .pointsOfInterest(features: features)
-            case .regionalCuisine:
-                guard let regionalCuisineDict = dataValue as? [String: Any],
-                      let introduction = regionalCuisineDict["introduction"] as? String,
-                      let dishesDict = regionalCuisineDict["dishes"] as? [[String: Any]] else {
-                    #if DEBUG
-                    print("⚠️ Invalid regional cuisine data format")
-                    #endif
-                    return
-                }
-                let dishes = dishesDict.compactMap { dict -> RegionalDish? in
-                    guard let localName = dict["local_name"] as? String,
-                          let globalName = dict["global_name"] as? String,
-                          let description = dict["description"] as? String else {
-                        return nil
-                    }
-                    let imageURLString = dict["image_url"] as? String
-                    let imageURL = imageURLString.flatMap { URL(string: $0) }
-                    return RegionalDish(
-                        localName: localName,
-                        globalName: globalName,
-                        description: description,
-                        imageURL: imageURL
-                    )
-                }
-                contentData = .regionalCuisine(data: RegionalCuisineData(introduction: introduction, dishes: dishes))
+            // Parse data using ContentTypeRegistry
+            // Note: parse method is @MainActor, so we need to call from main actor context
+            let contentData = await MainActor.run {
+                ContentTypeRegistry.shared().parse(type: contentType, dataValue: dataValue)
+            }
+            
+            guard let contentData = contentData else {
+                #if DEBUG
+                print("⚠️ Failed to parse content type: \(contentType.rawValue)")
+                #endif
+                return
             }
             
             await handler?.onContent(type: contentType, data: contentData)

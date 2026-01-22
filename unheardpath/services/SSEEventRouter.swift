@@ -7,7 +7,9 @@ import CoreLocation
 @MainActor
 class SSEEventRouter: ObservableObject, SSEEventHandler {
     // Optional manager references - not all endpoints need all managers
-    private weak var chatViewModel: ChatViewModel?
+    // Note: Strong reference is safe here because ChatViewModel only weakly references SSEEventRouter,
+    // and both are managed by SwiftUI (as @StateObject and environmentObject), preventing retain cycles
+    private var chatViewModel: ChatViewModel?
     private let contentManager: ContentManager?
     private let mapFeaturesManager: MapFeaturesManager?
     private let toastManager: ToastManager?
@@ -46,6 +48,8 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
     func onChatChunk(content: String, isStreaming: Bool) async {
         #if DEBUG
         print("💬 SSEEventRouter: Routing chat chunk to ChatViewModel")
+        print("   Content length: \(content.count), isStreaming: \(isStreaming)")
+        print("   ChatViewModel available: \(chatViewModel != nil)")
         #endif
         await chatViewModel?.handleChatChunk(content: content, isStreaming: isStreaming)
     }
