@@ -170,15 +170,7 @@ class ChatViewModel: ObservableObject {
     /// Handles chat content chunks from SSE stream
     /// Called by SSEEventRouter when chat events arrive
     func handleChatChunk(content: String, isStreaming: Bool) async {
-        #if DEBUG
-        print("📥 handleChatChunk: Received content (\(content.count) chars), isStreaming: \(isStreaming)")
-        print("   Current messages count: \(messages.count)")
-        if let lastMsg = messages.last {
-            print("   Last message: isUser=\(lastMsg.isUser), text length=\(lastMsg.text.count), isStreaming=\(lastMsg.isStreaming)")
-        }
-        #endif
         
-        // Check if we have an existing assistant message to update
         if let lastIndex = messages.indices.last, !messages[lastIndex].isUser {
             let existingMessage = messages[lastIndex]
             messages[lastIndex] = ChatMessage(
@@ -188,18 +180,10 @@ class ChatViewModel: ObservableObject {
                 isStreaming: isStreaming
             )
             updateLastMsg(messages[lastIndex])
-            #if DEBUG
-            print("✅ handleChatChunk: Updated existing assistant message at index \(lastIndex)")
-            #endif
         } else {
-            // No assistant message exists - create one (defensive programming)
-            // This handles edge cases where placeholder wasn't created or was removed
             let assistantMessage = ChatMessage(text: content, isUser: false, isStreaming: isStreaming)
             messages.append(assistantMessage)
             updateLastMsg(assistantMessage)
-            #if DEBUG
-            print("⚠️ handleChatChunk: Created new assistant message (placeholder was missing)")
-            #endif
         }
     }
     

@@ -46,11 +46,6 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
     }
     
     func onChatChunk(content: String, isStreaming: Bool) async {
-        #if DEBUG
-        print("💬 SSEEventRouter: Routing chat chunk to ChatViewModel")
-        print("   Content length: \(content.count), isStreaming: \(isStreaming)")
-        print("   ChatViewModel available: \(chatViewModel != nil)")
-        #endif
         await chatViewModel?.handleChatChunk(content: content, isStreaming: isStreaming)
     }
     

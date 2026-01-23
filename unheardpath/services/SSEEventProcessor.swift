@@ -241,13 +241,6 @@ class SSEEventProcessor {
             accumulatedData += content
             let isStreaming = dataDict["is_streaming"] as? Bool ?? true
             
-            #if DEBUG
-            print("📝 Content chunk received: '\(content.prefix(50))...' (\(content.count) chars)")
-            print("   Total accumulated content length: \(accumulatedData.count)")
-            print("   isStreaming: \(isStreaming)")
-            print("   Handler available: \(handler != nil)")
-            #endif
-            
             guard let handler = handler else {
                 #if DEBUG
                 print("⚠️ handleChatEvent: Handler is nil, cannot route chat chunk")
