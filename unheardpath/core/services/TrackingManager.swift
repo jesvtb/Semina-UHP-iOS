@@ -17,9 +17,17 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let coreLocationManager = CLLocationManager()
     
     // Published state
-    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var deviceLocation: CLLocation?
-    @Published var isLocationPermissionGranted: Bool = false
+    
+    /// Current authorization status (read from coreLocationManager)
+    var authorizationStatus: CLAuthorizationStatus {
+        coreLocationManager.authorizationStatus
+    }
+    
+    /// Computed property indicating if location permission is granted
+    var isLocationPermissionGranted: Bool {
+        authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
+    }
     
     // Tracking mode state
     private var isTrackingActive = false
@@ -43,47 +51,24 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     // Configuration constants (Google Maps strategy)
     private let foregroundDistanceFilter: CLLocationDistance = 50.0  // Update every 50 meters when in foreground
-    private let backgroundDistanceFilter: CLLocationDistance = 100.0  // Update every 100 meters in background
     private let foregroundAccuracy: CLLocationAccuracy = kCLLocationAccuracyHundredMeters  // Moderate accuracy when in foreground
-    private let backgroundAccuracy: CLLocationAccuracy = kCLLocationAccuracyKilometer  // Lower accuracy in background
-    private let highAccuracyMode: CLLocationAccuracy = kCLLocationAccuracyBest  // High accuracy for navigation
     
-    // UserDefaults keys for widget state
-    // Note: StorageManager will automatically add "UHP." prefix
-    private let appStateIsInBackgroundKey = "AppState.isInBackground"
     private let trackingModeKey = "TrackingMode.current"
     
     override init() {
         super.init()
         coreLocationManager.delegate = self
-        // Start with moderate accuracy (Google Maps strategy)
-        coreLocationManager.desiredAccuracy = foregroundAccuracy
-        coreLocationManager.distanceFilter = foregroundDistanceFilter
-        authorizationStatus = coreLocationManager.authorizationStatus
-        isLocationPermissionGranted = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
-        
-        // Initialize app state in UserDefaults (defaults to foreground)
-        // This ensures widget always has a valid value to read
-        if !StorageManager.existsInUserDefaults(forKey: appStateIsInBackgroundKey) {
-            StorageManager.saveToUserDefaults(false, forKey: appStateIsInBackgroundKey)
-            #if DEBUG
-            print("💾 Initialized app state in UserDefaults: isInBackground = false")
-            #endif
-        }
     }
     
     // MARK: - Permission Management
     
     func requestLocationPermission() {
-        let currentStatus = coreLocationManager.authorizationStatus
-        
-        switch currentStatus {
+        switch authorizationStatus {
         case .notDetermined:
             // Request "when in use" authorization first
             coreLocationManager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse, .authorizedAlways:
-            // Permission already granted, request precise location if needed
-            requestPreciseLocationIfNeeded()
+            // Permission already granted, start location updates
             startLocationUpdates()
         case .denied, .restricted:
             print("❌ Location permission denied or restricted")
@@ -92,51 +77,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
     
-    private func requestPreciseLocationIfNeeded() {
-        // iOS 14+ supports reduced accuracy mode
-        // Request precise location if available
-        if #available(iOS 14.0, *) {
-            if coreLocationManager.accuracyAuthorization == .reducedAccuracy {
-                coreLocationManager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "NSLocationTemporaryUsageDescription") { [weak self] error in
-                    guard let self else { return }
-                    Task { @MainActor [weak self] in
-                        guard let self else { return }
-                        if let error = error {
-                            print("❌ Failed to request precise location: \(error.localizedDescription)")
-                        } else {
-                            print("✅ Precise location permission granted")
-                            self.startLocationUpdates()
-                        }
-                    }
-                }
-            } else {
-                print("✅ Precise location already authorized")
-            }
-        }
-    }
-    
     // MARK: - Location Tracking Methods
-    
-    /// Requests a one-time location update with 100m accuracy
-    /// This is more battery-efficient than continuous updates for initial location
-    /// The location will be delivered via didUpdateLocations delegate method
-    func requestOneTimeLocation() {
-        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
-            #if DEBUG
-            print("⚠️ Cannot request one-time location - permission not granted")
-            #endif
-            return
-        }
-        
-        // Set desired accuracy to 100m for the one-time request
-        coreLocationManager.desiredAccuracy = kCLLocationAccuracyBest  // kCLLocationAccuracyHundredMeters
-        
-        #if DEBUG
-        print("📍 Requesting one-time location with 100m accuracy")
-        #endif
-        
-        coreLocationManager.requestLocation()
-    }
     
     /// Starts location updates with adaptive strategy based on app state
     private func startLocationUpdates() {
@@ -165,9 +106,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             print("🔄 Stopped significant location changes")
         }
         
-        // Configure for foreground tracking (Google Maps strategy)
-        // coreLocationManager.desiredAccuracy = foregroundAccuracy
-        coreLocationManager.desiredAccuracy = kCLLocationAccuracyBest  
+        coreLocationManager.desiredAccuracy = foregroundAccuracy
         coreLocationManager.distanceFilter = foregroundDistanceFilter
         
         // Start continuous updates
@@ -233,119 +172,13 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     // MARK: - App Lifecycle Methods
-    
-    /// Called when the app enters the background
-    /// Switches to battery-efficient tracking mode
-    /// This method is called from @MainActor context (AppLifecycleManager is @MainActor)
-    /// 
-    /// Note: AppLifecycleManager already sets isAppInBackground = true, so we use its state
+
     func appDidEnterBackground() {
-        // Save app state to UserDefaults for widget
-        // Note: AppLifecycleManager.isAppInBackground is already true at this point
-        StorageManager.saveToUserDefaults(true, forKey: appStateIsInBackgroundKey)
-        #if DEBUG
-        // Verify the value was saved correctly
-        let savedValue = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
-        print("💾 Set UserDefaults: isInBackground = \(savedValue ?? false)")
-        #endif
-        
         switchToBackgroundTracking()
-        
-        // Trigger widget refresh (DEBUG only)
-        // Note: Widget refresh happens after both app state and tracking mode are saved
-        // Use a small delay to ensure UserDefaults write completes across process boundaries
-        #if DEBUG
-        Task { @MainActor in
-            // Small delay to ensure UserDefaults synchronization completes
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-            WidgetCenter.shared.reloadAllTimelines()
-            print("🔄 Triggered widget refresh")
-        }
-        #endif
     }
     
-    /// Called when the app is about to enter the foreground
-    /// Switches to foreground tracking mode
-    /// This method is called from @MainActor context (AppLifecycleManager is @MainActor)
-    /// 
-    /// Note: AppLifecycleManager already sets isAppInBackground = false, so we use its state
     func appWillEnterForeground() {
-        // Save app state to UserDefaults for widget
-        // Note: AppLifecycleManager.isAppInBackground is already false at this point
-        StorageManager.saveToUserDefaults(false, forKey: appStateIsInBackgroundKey)
-        #if DEBUG
-        // Verify the value was saved correctly
-        let savedValue = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
-        print("💾 Set UserDefaults: isInBackground = \(savedValue ?? true))")
-        #endif
-        
         switchToForegroundTracking()
-        
-        // Trigger widget refresh (DEBUG only)
-        // Note: Widget refresh happens after both app state and tracking mode are saved
-        // Use a small delay to ensure UserDefaults write completes across process boundaries
-        #if DEBUG
-        Task { @MainActor in
-            // Small delay to ensure UserDefaults synchronization completes
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-            
-            // Use specific widget kind for more reliable refresh
-            WidgetCenter.shared.reloadTimelines(ofKind: "widget")
-            // Also reload all as fallback
-            WidgetCenter.shared.reloadAllTimelines()
-            print("🔄 Triggered widget refresh (kind: widget)")
-        }
-        #endif
-    }
-    
-    // MARK: - High Accuracy Mode
-    
-    /// Enables high accuracy mode (e.g., for navigation)
-    /// Call this when you need precise location tracking
-    func enableHighAccuracyMode() {
-        coreLocationManager.desiredAccuracy = highAccuracyMode
-        coreLocationManager.distanceFilter = kCLDistanceFilterNone  // No distance filter for high accuracy
-        print("🎯 Enabled high accuracy mode (navigation-level precision)")
-        
-        // Restart tracking if it was active
-        if !isTrackingActive && !isAppInBackground {
-            startLocationUpdates()
-        }
-    }
-    
-    /// Disables high accuracy mode and returns to adaptive strategy
-    func disableHighAccuracyMode() {
-        if isAppInBackground {
-            coreLocationManager.desiredAccuracy = backgroundAccuracy
-            coreLocationManager.distanceFilter = backgroundDistanceFilter
-        } else {
-            coreLocationManager.desiredAccuracy = foregroundAccuracy
-            coreLocationManager.distanceFilter = foregroundDistanceFilter
-        }
-        print("🚫 Disabled high accuracy mode, returned to adaptive strategy")
-        
-        // Restart tracking if it was active
-        if !isTrackingActive && !isAppInBackground {
-            startLocationUpdates()
-        }
-    }
-    
-    // MARK: - Location Data Access
-    
-    /// Returns the current latitude if available
-    var latitude: CLLocationDegrees? {
-        return deviceLocation?.coordinate.latitude
-    }
-    
-    /// Returns the current longitude if available
-    var longitude: CLLocationDegrees? {
-        return deviceLocation?.coordinate.longitude
-    }
-    
-    /// Returns both latitude and longitude as a tuple if available
-    var coordinates: (latitude: CLLocationDegrees, longitude: CLLocationDegrees)? {
-        guard let location = deviceLocation else { return nil }
-        return (location.coordinate.latitude, location.coordinate.longitude)
     }
     
     // MARK: - CLLocationManagerDelegate
@@ -373,43 +206,18 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let newStatus = manager.authorizationStatus
-        let accuracyStatus: CLAccuracyAuthorization? = {
-            if #available(iOS 14.0, *) {
-                return manager.accuracyAuthorization
-            }
-            return nil
-        }()
         
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let oldStatus = self.authorizationStatus
             
-            guard newStatus != oldStatus else {
-                return
-            }
-            
-            self.authorizationStatus = newStatus
-            self.isLocationPermissionGranted = newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways
+            // Notify SwiftUI that authorization status changed (so computed properties are re-evaluated)
+            self.objectWillChange.send()
             
             print("🔄 Location authorization changed to: \(newStatus.rawValue)")
-            
-            if #available(iOS 14.0, *), let accuracyStatus {
-                if accuracyStatus == .reducedAccuracy {
-                    print("⚠️ Location accuracy is reduced - requesting precise location")
-                    self.requestPreciseLocationIfNeeded()
-                } else {
-                    print("✅ Precise location authorized")
-                }
-            }
             
             switch newStatus {
             case .authorizedWhenInUse, .authorizedAlways:
                 print("✅ Location permission granted")
-                if #available(iOS 14.0, *) {
-                    // Already handled above
-                } else {
-                    self.requestPreciseLocationIfNeeded()
-                }
                 self.startLocationUpdates()
             case .denied:
                 print("❌ Location permission denied by user")

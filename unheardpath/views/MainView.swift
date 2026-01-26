@@ -195,33 +195,21 @@ struct TestMainView: View {
             .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
             .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
         }
+        #if DEBUG
+        .sheet(isPresented: $showCacheDebugSheet) {
+            cacheDebugSheet
+        }
+        .sheet(isPresented: $showSSEContentTestSheet) {
+            SSEContentTestView()
+        }
+        #endif
         .onChange(of: shouldDismissKeyboard) { shouldDismiss in
             if shouldDismiss {
                 isTextFieldFocused = false
             }
         }
-        .onChange(of: trackingManager.isLocationPermissionGranted) { isGranted in
-            // When permission is granted, update location to UHP if already available
-            // Location tracking will start automatically via TrackingManager's startLocationUpdates()
-            if isGranted, let existingLocation = trackingManager.deviceLocation {
-                Task {
-                    await updateLocationToUHP(location: existingLocation, router: sseEventRouter)
-                }
-            }
-        }
         .onChange(of: trackingManager.deviceLocation) { newLocation in
-            #if DEBUG
-            if let location = newLocation {
-                print("📍 trackingManager.deviceLocation changed to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-            } else {
-                print("📍 trackingManager.deviceLocation changed to: nil")
-            }
-            #endif
-            
-            // Remove content if location becomes nil
-            // Full locationDetail update with metadata is handled in updateLocationToUHP
             guard let location = newLocation else {
-                contentManager.removeContent(type: .locationDetail)
                 return
             }
             
@@ -241,13 +229,6 @@ struct TestMainView: View {
                 contentManager.removeContent(type: .pointsOfInterest)
             }
         }
-        // .onReceive(locationManager.$shouldRefreshDevicePOIs) { shouldRefresh in
-        //     if shouldRefresh {
-        //         Task {
-        //             await loadLocationFromGeofenceExit()
-        //         }
-        //     }
-        // }
         .onChange(of: liveUpdateViewModel.inputLocation) { newValue in
             // Update autocomplete when typing in map tab
             if selectedTab == .map {
@@ -260,14 +241,6 @@ struct TestMainView: View {
                 addressSearchManager.clearResults()
             }
         }
-        #if DEBUG
-        .sheet(isPresented: $showCacheDebugSheet) {
-            cacheDebugSheet
-        }
-        .sheet(isPresented: $showSSEContentTestSheet) {
-            SSEContentTestView()
-        }
-        #endif
         .onAppear {
             // Set up callbacks for ChatViewModel
             chatViewModel.onDismissKeyboard = {

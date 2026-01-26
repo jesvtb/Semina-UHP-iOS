@@ -137,7 +137,13 @@ private class WeakLifecycleHandler {
 @MainActor
 class AppLifecycleManager: ObservableObject {
     /// Published state indicating whether the app is currently in the background
-    @Published var isAppInBackground: Bool = false
+    @Published var isAppInBackground: Bool = false {
+        didSet {
+            // Persist app state to UserDefaults for widget access
+            // Note: StorageManager will automatically add "UHP." prefix
+            StorageManager.saveToUserDefaults(isAppInBackground, forKey: appStateIsInBackgroundKey)
+        }
+    }
     
     /// Weak references to registered lifecycle handlers
     private var handlers: [WeakLifecycleHandler] = []
@@ -145,8 +151,17 @@ class AppLifecycleManager: ObservableObject {
     /// Logger for lifecycle events (injectable for testing)
     private let logger: AppLifecycleLogger
     
+    // UserDefaults key for widget state
+    // Note: StorageManager will automatically add "UHP." prefix
+    private let appStateIsInBackgroundKey = "AppState.isInBackground"
+    
     init(logger: AppLifecycleLogger = DefaultAppLifecycleLogger()) {
         self.logger = logger
+        // Initialize app state in UserDefaults (defaults to foreground)
+        // This ensures widget always has a valid value to read
+        if !StorageManager.existsInUserDefaults(forKey: appStateIsInBackgroundKey) {
+            StorageManager.saveToUserDefaults(false, forKey: appStateIsInBackgroundKey)
+        }
         setupAppLifecycleObservers()
     }
     
