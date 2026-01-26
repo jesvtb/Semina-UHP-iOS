@@ -198,12 +198,6 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
     
-    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor in
-            print("❌ Location manager failed with error: \(error.localizedDescription)")
-        }
-    }
-    
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let newStatus = manager.authorizationStatus
         
