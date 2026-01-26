@@ -10,11 +10,11 @@ import CoreLocation
 import SwiftUI
 import WidgetKit
 
-/// Manages location tracking functionality including permissions, active/background tracking modes,
+/// Manages location tracking functionality including permissions, foreground/background tracking modes,
 /// and high accuracy mode. Handles only location tracking - excludes geofencing and lookup location management.
 @MainActor
 class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
-    private let locationManager = CLLocationManager()
+    private let coreLocationManager = CLLocationManager()
     
     // Published state
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
@@ -42,9 +42,9 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     // Configuration constants (Google Maps strategy)
-    private let activeDistanceFilter: CLLocationDistance = 50.0  // Update every 50 meters when active
+    private let foregroundDistanceFilter: CLLocationDistance = 50.0  // Update every 50 meters when in foreground
     private let backgroundDistanceFilter: CLLocationDistance = 100.0  // Update every 100 meters in background
-    private let activeAccuracy: CLLocationAccuracy = kCLLocationAccuracyHundredMeters  // Moderate accuracy when active
+    private let foregroundAccuracy: CLLocationAccuracy = kCLLocationAccuracyHundredMeters  // Moderate accuracy when in foreground
     private let backgroundAccuracy: CLLocationAccuracy = kCLLocationAccuracyKilometer  // Lower accuracy in background
     private let highAccuracyMode: CLLocationAccuracy = kCLLocationAccuracyBest  // High accuracy for navigation
     
@@ -55,11 +55,11 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     override init() {
         super.init()
-        locationManager.delegate = self
+        coreLocationManager.delegate = self
         // Start with moderate accuracy (Google Maps strategy)
-        locationManager.desiredAccuracy = activeAccuracy
-        locationManager.distanceFilter = activeDistanceFilter
-        authorizationStatus = locationManager.authorizationStatus
+        coreLocationManager.desiredAccuracy = foregroundAccuracy
+        coreLocationManager.distanceFilter = foregroundDistanceFilter
+        authorizationStatus = coreLocationManager.authorizationStatus
         isLocationPermissionGranted = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
         
         // Initialize app state in UserDefaults (defaults to foreground)
@@ -75,12 +75,12 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // MARK: - Permission Management
     
     func requestLocationPermission() {
-        let currentStatus = locationManager.authorizationStatus
+        let currentStatus = coreLocationManager.authorizationStatus
         
         switch currentStatus {
         case .notDetermined:
             // Request "when in use" authorization first
-            locationManager.requestWhenInUseAuthorization()
+            coreLocationManager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse, .authorizedAlways:
             // Permission already granted, request precise location if needed
             requestPreciseLocationIfNeeded()
@@ -96,8 +96,8 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         // iOS 14+ supports reduced accuracy mode
         // Request precise location if available
         if #available(iOS 14.0, *) {
-            if locationManager.accuracyAuthorization == .reducedAccuracy {
-                locationManager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "NSLocationTemporaryUsageDescription") { [weak self] error in
+            if coreLocationManager.accuracyAuthorization == .reducedAccuracy {
+                coreLocationManager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "NSLocationTemporaryUsageDescription") { [weak self] error in
                     guard let self else { return }
                     Task { @MainActor [weak self] in
                         guard let self else { return }
@@ -129,13 +129,13 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         
         // Set desired accuracy to 100m for the one-time request
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest  // kCLLocationAccuracyHundredMeters
+        coreLocationManager.desiredAccuracy = kCLLocationAccuracyBest  // kCLLocationAccuracyHundredMeters
         
         #if DEBUG
         print("📍 Requesting one-time location with 100m accuracy")
         #endif
         
-        locationManager.requestLocation()
+        coreLocationManager.requestLocation()
     }
     
     /// Starts location updates with adaptive strategy based on app state
@@ -147,40 +147,40 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if isAppInBackground {
             switchToBackgroundTracking()
         } else {
-            switchToActiveTracking()
+            switchToForegroundTracking()
         }
     }
     
-    /// Switches to active tracking mode (app in foreground)
+    /// Switches to foreground tracking mode (app in foreground)
     /// Uses continuous GPS with moderate accuracy and distance filter
-    private func switchToActiveTracking() {
+    private func switchToForegroundTracking() {
         guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
             return
         }
         
         // Stop significant location changes if active
         if isUsingSignificantChanges {
-            locationManager.stopMonitoringSignificantLocationChanges()
+            coreLocationManager.stopMonitoringSignificantLocationChanges()
             isUsingSignificantChanges = false
             print("🔄 Stopped significant location changes")
         }
         
-        // Configure for active tracking (Google Maps strategy)
-        // locationManager.desiredAccuracy = activeAccuracy
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest  
-        locationManager.distanceFilter = activeDistanceFilter
+        // Configure for foreground tracking (Google Maps strategy)
+        // coreLocationManager.desiredAccuracy = foregroundAccuracy
+        coreLocationManager.desiredAccuracy = kCLLocationAccuracyBest  
+        coreLocationManager.distanceFilter = foregroundDistanceFilter
         
         // Start continuous updates
         if !isTrackingActive {
-            locationManager.startUpdatingLocation()
+            coreLocationManager.startUpdatingLocation()
             isTrackingActive = true
-            print("📡 Started active location tracking (accuracy: \(activeAccuracy)m, filter: \(activeDistanceFilter)m)")
+            print("📡 Started foreground location tracking (accuracy: \(foregroundAccuracy)m, filter: \(foregroundDistanceFilter)m)")
         } else {
-            print("📡 Updated active tracking configuration")
+            print("📡 Updated foreground tracking configuration")
         }
         
         // Save tracking mode to UserDefaults for widget
-        StorageManager.saveToUserDefaults("active", forKey: trackingModeKey)
+        StorageManager.saveToUserDefaults("foreground", forKey: trackingModeKey)
     }
     
     /// Switches to background tracking mode (app in background)
@@ -188,7 +188,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private func switchToBackgroundTracking() {
         // Stop continuous updates if active (always do this when switching to background)
         if isTrackingActive {
-            locationManager.stopUpdatingLocation()
+            coreLocationManager.stopUpdatingLocation()
             isTrackingActive = false
             print("🔄 Stopped continuous location updates")
         }
@@ -209,7 +209,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         
         if !isUsingSignificantChanges {
-            locationManager.startMonitoringSignificantLocationChanges()
+            coreLocationManager.startMonitoringSignificantLocationChanges()
             isUsingSignificantChanges = true
             print("📍 Switching to significant location change monitoring")
         }
@@ -220,13 +220,13 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Stops all location tracking
     func stopLocationUpdates() {
         if isTrackingActive {
-            locationManager.stopUpdatingLocation()
+            coreLocationManager.stopUpdatingLocation()
             isTrackingActive = false
             print("⏸️ Stopped continuous location updates")
         }
         
         if isUsingSignificantChanges {
-            locationManager.stopMonitoringSignificantLocationChanges()
+            coreLocationManager.stopMonitoringSignificantLocationChanges()
             isUsingSignificantChanges = false
             print("⏸️ Stopped significant location changes")
         }
@@ -265,7 +265,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     /// Called when the app is about to enter the foreground
-    /// Switches to active tracking mode
+    /// Switches to foreground tracking mode
     /// This method is called from @MainActor context (AppLifecycleManager is @MainActor)
     /// 
     /// Note: AppLifecycleManager already sets isAppInBackground = false, so we use its state
@@ -279,7 +279,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("💾 Set UserDefaults: isInBackground = \(savedValue ?? true))")
         #endif
         
-        switchToActiveTracking()
+        switchToForegroundTracking()
         
         // Trigger widget refresh (DEBUG only)
         // Note: Widget refresh happens after both app state and tracking mode are saved
@@ -303,8 +303,8 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Enables high accuracy mode (e.g., for navigation)
     /// Call this when you need precise location tracking
     func enableHighAccuracyMode() {
-        locationManager.desiredAccuracy = highAccuracyMode
-        locationManager.distanceFilter = kCLDistanceFilterNone  // No distance filter for high accuracy
+        coreLocationManager.desiredAccuracy = highAccuracyMode
+        coreLocationManager.distanceFilter = kCLDistanceFilterNone  // No distance filter for high accuracy
         print("🎯 Enabled high accuracy mode (navigation-level precision)")
         
         // Restart tracking if it was active
@@ -316,11 +316,11 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Disables high accuracy mode and returns to adaptive strategy
     func disableHighAccuracyMode() {
         if isAppInBackground {
-            locationManager.desiredAccuracy = backgroundAccuracy
-            locationManager.distanceFilter = backgroundDistanceFilter
+            coreLocationManager.desiredAccuracy = backgroundAccuracy
+            coreLocationManager.distanceFilter = backgroundDistanceFilter
         } else {
-            locationManager.desiredAccuracy = activeAccuracy
-            locationManager.distanceFilter = activeDistanceFilter
+            coreLocationManager.desiredAccuracy = foregroundAccuracy
+            coreLocationManager.distanceFilter = foregroundDistanceFilter
         }
         print("🚫 Disabled high accuracy mode, returned to adaptive strategy")
         

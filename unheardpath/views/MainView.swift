@@ -31,7 +31,6 @@ struct TestMainView: View {
     // Location-related state
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
-    @State private var hasReceivedFirstGPSUpdate = false
     
     // Map features are now managed by MapFeaturesManager (passed as @EnvironmentObject)
     @EnvironmentObject var mapFeaturesManager: MapFeaturesManager
@@ -202,9 +201,12 @@ struct TestMainView: View {
             }
         }
         .onChange(of: trackingManager.isLocationPermissionGranted) { isGranted in
-            // Request one-time location when permission is granted
-            if isGranted && !hasReceivedFirstGPSUpdate {
-                trackingManager.requestOneTimeLocation()
+            // When permission is granted, update location to UHP if already available
+            // Location tracking will start automatically via TrackingManager's startLocationUpdates()
+            if isGranted, let existingLocation = trackingManager.deviceLocation {
+                Task {
+                    await updateLocationToUHP(location: existingLocation, router: sseEventRouter)
+                }
             }
         }
         .onChange(of: trackingManager.deviceLocation) { newLocation in
@@ -223,9 +225,6 @@ struct TestMainView: View {
                 return
             }
             
-            if !hasReceivedFirstGPSUpdate {
-                hasReceivedFirstGPSUpdate = true
-            }
             Task {
                 await updateLocationToUHP(location: location, router: sseEventRouter)
             }
@@ -332,10 +331,10 @@ struct TestMainView: View {
                 toastManager.show(previewCurrentToastData)
             }
             
-            // Request one-time location update for initial POI list refresh
-            // This is more battery-efficient than continuous updates
-            if trackingManager.isLocationPermissionGranted {
-                trackingManager.requestOneTimeLocation()
+            // When permission is granted, update location to UHP if already available
+            // Location tracking will start automatically via TrackingManager's startLocationUpdates()
+            if trackingManager.isLocationPermissionGranted, let existingLocation = trackingManager.deviceLocation {
+                await updateLocationToUHP(location: existingLocation, router: sseEventRouter)
             }
             
             // Initial load: Check if geofence exists and is valid
