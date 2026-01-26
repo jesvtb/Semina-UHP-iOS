@@ -9,7 +9,8 @@ import Foundation
         targetLocation: .constant(nil),
         selectedLocation: .constant(nil)
     )
-        .environmentObject(LocationManager())
+        .environmentObject(TrackingManager())
+        .environmentObject(LocationManager())  // Still needed for geofencing debug info
         .environmentObject(MapFeaturesManager())
     // MapView()
     // MapLibreMapViewWrapper()

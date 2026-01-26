@@ -47,6 +47,18 @@ struct DefaultAppLifecycleLogger: AppLifecycleLogger {
     }
 }
 
+/// Protocol for services that need app lifecycle management
+/// All conforming types must be @MainActor isolated
+///
+/// **Usage**:
+/// Types conforming to this protocol can be registered with AppLifecycleManager
+/// using the convenience method `registerLifecycleHandler(_:)`
+@MainActor
+protocol AppLifecycleHandler: AnyObject {
+    func appDidEnterBackground()
+    func appWillEnterForeground()
+}
+
 /// Type-erased wrapper for lifecycle handlers to avoid protocol conformance issues with @MainActor classes
 /// This allows @MainActor classes to register handlers without Swift 6 concurrency warnings
 ///
@@ -233,6 +245,28 @@ class AppLifecycleManager: ObservableObject {
         
         let handlerType = String(describing: type(of: object))
         logger.debug("Unregistered handler: \(handlerType)")
+    }
+    
+    /// Convenience method for registering protocol-conforming lifecycle handlers
+    /// This provides a type-safe, cleaner API for types that conform to AppLifecycleHandler
+    ///
+    /// **Usage**:
+    /// ```swift
+    /// extension MyService: AppLifecycleHandler {
+    ///     func appDidEnterBackground() { /* ... */ }
+    ///     func appWillEnterForeground() { /* ... */ }
+    /// }
+    ///
+    /// appLifecycleManager.registerLifecycleHandler(myService)
+    /// ```
+    ///
+    /// - Parameter handler: Handler conforming to AppLifecycleHandler protocol
+    func registerLifecycleHandler(_ handler: AppLifecycleHandler) {
+        register(
+            object: handler as AnyObject,
+            didEnterBackground: { handler.appDidEnterBackground() },
+            willEnterForeground: { handler.appWillEnterForeground() }
+        )
     }
     
     // MARK: - Private Helpers

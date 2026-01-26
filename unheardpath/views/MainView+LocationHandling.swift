@@ -103,6 +103,9 @@ extension TestMainView {
             // Use LocationManager helper to construct NewLocation structure
             let newLocationDict = try await locationManager.constructNewLocation(from: location)
             
+            // Save NewLocation structure to UserDefaults (single key-value pair)
+            locationManager.saveDeviceLocation(newLocationDict, location: location)
+            
             // Extract location information for locationDetail content
             var placeName: String?
             var subdivisions: String?

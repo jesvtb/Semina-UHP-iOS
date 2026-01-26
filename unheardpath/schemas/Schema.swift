@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import Combine
 
 // MARK: - JSON Value Type (Sendable)
 /// A type-safe, Sendable representation of JSON values

@@ -25,7 +25,8 @@ struct TargetLocation: Equatable {
 /// but we configure it to match LocationManager's settings and avoid duplicate permission requests
 
 struct MapboxMapView: View {
-    @EnvironmentObject var locationManager: LocationManager
+    @EnvironmentObject var trackingManager: TrackingManager
+    @EnvironmentObject var locationManager: LocationManager  // Still needed for geofencing debug info
     @EnvironmentObject var mapFeaturesManager: MapFeaturesManager
     @Binding var targetLocation: TargetLocation?
     @Binding var selectedLocation: CLLocation?
@@ -46,10 +47,10 @@ struct MapboxMapView: View {
         )
     }
     
-    /// Computes the initial viewport using the saved location from LocationManager
-    /// LocationManager loads the last saved location on init, so it should be available immediately
+    /// Computes the initial viewport using the saved location from TrackingManager
+    /// TrackingManager loads the last saved location on init, so it should be available immediately
     private var initialViewport: Viewport {
-        if let location = locationManager.deviceLocation {
+        if let location = trackingManager.deviceLocation {
             // Use saved location with offset south for camera center
             let offsetCenter = offsetCameraSouth(of: location)
             #if DEBUG 
@@ -115,14 +116,14 @@ struct MapboxMapView: View {
                     mapProxy = proxy
                     setupMapboxLocation(proxy: proxy)
                     // If we have a saved location, update camera immediately
-                    // (LocationManager loads saved location on init, so it should be available)
-                    if let location = locationManager.deviceLocation {
+                    // (TrackingManager loads saved location on init, so it should be available)
+                    if let location = trackingManager.deviceLocation {
                         updateMapCamera(proxy: proxy, location: location, isDeviceLocation: true)
                     }
                     // GeoJSON data will be added as a source when available
                 }
-                .onChange(of: locationManager.deviceLocation) { newLocation in
-                    // When location updates from shared LocationManager, update camera
+                .onChange(of: trackingManager.deviceLocation) { newLocation in
+                    // When location updates from shared TrackingManager, update camera
                     // This happens when GPS gets a fresh location update
                     if let location = newLocation {
                         updateMapCamera(proxy: proxy, location: location, isDeviceLocation: true)
@@ -180,17 +181,17 @@ struct MapboxMapView: View {
     
     private func setupMapboxLocation(proxy: MapboxMaps.MapProxy) {
         #if DEBUG
-        print("🌍 Setting up Mapbox location with shared LocationManager...")
+        print("🌍 Setting up Mapbox location with shared TrackingManager...")
         #endif
-        // Note: Location permission is already handled by the shared LocationManager
+        // Note: Location permission is already handled by the shared TrackingManager
         // in unheardpathApp.swift, so we don't need to request it again here.
         // This avoids duplicate permission requests.
         
-        // Configure Mapbox's location provider to match LocationManager's settings
+        // Configure Mapbox's location provider to match TrackingManager's settings
         // This ensures consistent behavior and reduces battery usage
         let mapboxProvider = AppleLocationProvider()
         mapboxProvider.options.activityType = .otherNavigation
-        // Match LocationManager's accuracy setting (kCLLocationAccuracyHundredMeters)
+        // Match TrackingManager's accuracy setting (kCLLocationAccuracyHundredMeters)
         mapboxProvider.options.desiredAccuracy = kCLLocationAccuracyHundredMeters
         
         // Override the map's location provider
@@ -200,19 +201,19 @@ struct MapboxMapView: View {
         proxy.location?.options.puckType = .puck2D()
         proxy.location?.options.puckBearingEnabled = true
         
-        // If we already have a location from shared LocationManager, center the map on it
-        if let deviceLocation = locationManager.deviceLocation {
+        // If we already have a location from shared TrackingManager, center the map on it
+        if let deviceLocation = trackingManager.deviceLocation {
             updateMapCamera(proxy: proxy, location: deviceLocation, isDeviceLocation: true)
         }
         
         #if DEBUG
         print("✅ Mapbox location provider configured")
-        print("   Using shared LocationManager for permission handling")
-        print("   Mapbox location provider configured to match LocationManager accuracy settings")
-        if let deviceLocation = locationManager.deviceLocation {
+        print("   Using shared TrackingManager for permission handling")
+        print("   Mapbox location provider configured to match TrackingManager accuracy settings")
+        if let deviceLocation = trackingManager.deviceLocation {
             print("   Current location: \(deviceLocation.coordinate.latitude), \(deviceLocation.coordinate.longitude)")
         } else {
-            print("   Waiting for location update from shared LocationManager...")
+            print("   Waiting for location update from shared TrackingManager...")
         }
         #endif
     }

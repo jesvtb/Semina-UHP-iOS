@@ -11,7 +11,8 @@ enum PreviewTabSelection: Int, CaseIterable {
 
 struct TestMainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
-    @EnvironmentObject var locationManager: LocationManager
+    @EnvironmentObject var trackingManager: TrackingManager
+    @EnvironmentObject var locationManager: LocationManager  // Still needed for geocoding/geofencing
     @EnvironmentObject var userManager: UserManager
     @EnvironmentObject var chatViewModel: ChatViewModel
     @EnvironmentObject var authManager: AuthManager
@@ -200,18 +201,18 @@ struct TestMainView: View {
                 isTextFieldFocused = false
             }
         }
-        .onChange(of: locationManager.isLocationPermissionGranted) { isGranted in
+        .onChange(of: trackingManager.isLocationPermissionGranted) { isGranted in
             // Request one-time location when permission is granted
             if isGranted && !hasReceivedFirstGPSUpdate {
-                locationManager.requestOneTimeLocation()
+                trackingManager.requestOneTimeLocation()
             }
         }
-        .onChange(of: locationManager.deviceLocation) { newLocation in
+        .onChange(of: trackingManager.deviceLocation) { newLocation in
             #if DEBUG
             if let location = newLocation {
-                print("📍 locationManager.deviceLocation changed to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                print("📍 trackingManager.deviceLocation changed to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
             } else {
-                print("📍 locationManager.deviceLocation changed to: nil")
+                print("📍 trackingManager.deviceLocation changed to: nil")
             }
             #endif
             
@@ -333,8 +334,8 @@ struct TestMainView: View {
             
             // Request one-time location update for initial POI list refresh
             // This is more battery-efficient than continuous updates
-            if locationManager.isLocationPermissionGranted {
-                locationManager.requestOneTimeLocation()
+            if trackingManager.isLocationPermissionGranted {
+                trackingManager.requestOneTimeLocation()
             }
             
             // Initial load: Check if geofence exists and is valid
@@ -357,7 +358,7 @@ struct TestMainView: View {
                         locationManager.setupDevicePOIsRefreshGeofence(centerLat: userLat, centerLon: userLon)
                     }
                 }
-            } else if locationManager.deviceLocation != nil {
+            } else if trackingManager.deviceLocation != nil {
                 // No valid geofence, load data from cache or API
                 // await loadLocationFromGeofenceExit()
             }
@@ -613,7 +614,8 @@ extension TestMainView {
 
 #Preview("Map Tab with last user message") {
     let uhpGateway = UHPGateway()
-    let locationManager = LocationManager()
+    let trackingManager = TrackingManager()
+    let locationManager = LocationManager()  // Still needed for geocoding/geofencing
     let userManager = UserManager()
     let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
     let chatViewModel = ChatViewModel(
@@ -625,6 +627,7 @@ extension TestMainView {
         .environmentObject(authManager)
         .environmentObject(APIClient())
         .environmentObject(uhpGateway)
+        .environmentObject(trackingManager)
         .environmentObject(locationManager)
         .environmentObject(userManager)
         .environmentObject(chatViewModel)
@@ -632,7 +635,8 @@ extension TestMainView {
 
 #Preview("Journey Tab with last assistant message") {
     let uhpGateway = UHPGateway()
-    let locationManager = LocationManager()
+    let trackingManager = TrackingManager()
+    let locationManager = LocationManager()  // Still needed for geocoding/geofencing
     let userManager = UserManager()
     let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
     let chatViewModel = ChatViewModel(
@@ -644,6 +648,7 @@ extension TestMainView {
         .environmentObject(authManager)
         .environmentObject(APIClient())
         .environmentObject(uhpGateway)
+        .environmentObject(trackingManager)
         .environmentObject(locationManager)
         .environmentObject(userManager)
         .environmentObject(chatViewModel)

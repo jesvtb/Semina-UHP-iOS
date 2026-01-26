@@ -33,7 +33,8 @@ struct ContentView: View {
      .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: false))
      .environmentObject(APIClient())
      .environmentObject(UHPGateway())
-     .environmentObject(LocationManager())
+     .environmentObject(TrackingManager())
+     .environmentObject(LocationManager())  // Still needed for geocoding/geofencing
      .environmentObject(UserManager())
  }
 
@@ -42,7 +43,8 @@ struct ContentView: View {
      .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
      .environmentObject(APIClient())
      .environmentObject(UHPGateway())
-     .environmentObject(LocationManager())
+     .environmentObject(TrackingManager())
+     .environmentObject(LocationManager())  // Still needed for geocoding/geofencing
      .environmentObject(UserManager())
  }
 
@@ -51,7 +53,8 @@ struct ContentView: View {
      .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: true))
      .environmentObject(APIClient())
      .environmentObject(UHPGateway())
-     .environmentObject(LocationManager())
+     .environmentObject(TrackingManager())
+     .environmentObject(LocationManager())  // Still needed for geocoding/geofencing
      .environmentObject(UserManager())
  }
  #endif

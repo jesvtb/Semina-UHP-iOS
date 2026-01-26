@@ -96,6 +96,7 @@
 		C164F7952EF190D000889972 /* Exceptions for "unheardpath" folder in "widgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				schemas/Schema.swift,
 				services/StorageManager.swift,
 			);
 			target = C14133072EE9505400459EE0 /* widgetExtension */;

@@ -8,6 +8,7 @@
 import WidgetKit
 import SwiftUI
 import CoreLocation
+import Foundation
 
 // Location tracking data structure for widget
 struct LocationTrackingEntry: TimelineEntry {
@@ -23,9 +24,7 @@ struct LocationTrackingEntry: TimelineEntry {
 struct Provider: TimelineProvider {
     // UserDefaults keys (matching LocationManager)
     // Note: StorageManager automatically adds "UHP." prefix, so we use keys without prefix
-    private let lastDeviceLatKey = "LastDeviceCoord.latitude"
-    private let lastDeviceLonKey = "LastDeviceCoord.longitude"
-    private let lastDeviceCoordTimestamp = "LastDeviceCoord.timestamp"
+    private let lastDeviceLocationKey = "LastDeviceLocation"
     private let appStateIsInBackgroundKey = "AppState.isInBackground"
     private let trackingModeKey = "TrackingMode.current"
     
@@ -148,10 +147,9 @@ struct Provider: TimelineProvider {
         // Read tracking mode using StorageManager
         let trackingMode = StorageManager.loadFromUserDefaults(forKey: trackingModeKey, as: String.self)
         
-        // Read location data using StorageManager
-        guard let latitudeValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceLatKey, as: Double.self),
-              let longitudeValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceLonKey, as: Double.self),
-              let timestampValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceCoordTimestamp, as: TimeInterval.self) else {
+        // Read location data from new format (single key with NewLocation structure)
+        guard let newLocationString = StorageManager.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self),
+              let newLocationDict = JSONValue.decodeFromString(newLocationString) else {
             return LocationTrackingEntry(
                 date: currentDate,
                 latitude: nil,
@@ -161,10 +159,34 @@ struct Provider: TimelineProvider {
                 trackingMode: trackingMode,
                 hasLocation: false
             )
+        }
+        
+        // Extract coordinate from NewLocation structure
+        guard case .dictionary(let coordinateDict) = newLocationDict["coordinate"],
+              case .double(let latitude) = coordinateDict["lat"],
+              case .double(let longitude) = coordinateDict["lng"] else {
+            return LocationTrackingEntry(
+                date: currentDate,
+                latitude: nil,
+                longitude: nil,
+                timestamp: nil,
+                isAppInBackground: finalValue,
+                trackingMode: trackingMode,
+                hasLocation: false
+            )
+        }
+        
+        // Extract timestamp
+        let timestamp: Date
+        if case .double(let ts) = newLocationDict["timestamp"] {
+            timestamp = Date(timeIntervalSince1970: ts)
+        } else {
+            // If timestamp missing, use current time as fallback
+            timestamp = currentDate
         }
         
         // Validate coordinates are not zero
-        guard latitudeValue != 0.0 || longitudeValue != 0.0 else {
+        guard latitude != 0.0 || longitude != 0.0 else {
             return LocationTrackingEntry(
                 date: currentDate,
                 latitude: nil,
@@ -175,10 +197,6 @@ struct Provider: TimelineProvider {
                 hasLocation: false
             )
         }
-        
-        let latitude: CLLocationDegrees = latitudeValue
-        let longitude: CLLocationDegrees = longitudeValue
-        let timestamp = Date(timeIntervalSince1970: timestampValue)
         
         return LocationTrackingEntry(
             date: currentDate,

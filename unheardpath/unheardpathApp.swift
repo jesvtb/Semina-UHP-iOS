@@ -127,7 +127,8 @@ struct unheardpathApp: App {
     @StateObject private var apiClient = APIClient()
     @StateObject private var uhpGateway = UHPGateway()
     @StateObject private var geoapifyGateway = GeoapifyGateway()
-    @StateObject private var locationManager = LocationManager()
+    @StateObject private var trackingManager = TrackingManager()
+    @StateObject private var locationManager = LocationManager()  // Still needed for geocoding/geofencing
     @StateObject private var appLifecycleManager = AppLifecycleManager()
     @StateObject private var mapFeaturesManager = MapFeaturesManager()
     @StateObject private var toastManager = ToastManager()
@@ -157,6 +158,7 @@ struct unheardpathApp: App {
             AppContentView(
                 authManager: authManager,
                 apiClient: apiClient,
+                trackingManager: trackingManager,
                 locationManager: locationManager,
                 uhpGateway: uhpGateway,
                 geoapifyGateway: geoapifyGateway,
@@ -220,7 +222,8 @@ struct unheardpathApp: App {
 private struct AppContentView: View {
     let authManager: AuthManager
     let apiClient: APIClient
-    let locationManager: LocationManager
+    let trackingManager: TrackingManager
+    let locationManager: LocationManager  // Still needed for geocoding/geofencing
     let uhpGateway: UHPGateway
     let geoapifyGateway: GeoapifyGateway
     let userManager: UserManager
@@ -236,6 +239,7 @@ private struct AppContentView: View {
     init(
         authManager: AuthManager,
         apiClient: APIClient,
+        trackingManager: TrackingManager,
         locationManager: LocationManager,
         uhpGateway: UHPGateway,
         geoapifyGateway: GeoapifyGateway,
@@ -247,6 +251,7 @@ private struct AppContentView: View {
     ) {
         self.authManager = authManager
         self.apiClient = apiClient
+        self.trackingManager = trackingManager
         self.locationManager = locationManager
         self.uhpGateway = uhpGateway
         self.geoapifyGateway = geoapifyGateway
@@ -276,7 +281,8 @@ private struct AppContentView: View {
         ContentView()
             .environmentObject(authManager) // Pass auth state to all views (like React Context)
             .environmentObject(apiClient) // Pass shared API service to all views
-            .environmentObject(locationManager) // Pass location manager to all views
+            .environmentObject(trackingManager) // Pass tracking manager to all views (GPS tracking)
+            .environmentObject(locationManager) // Pass location manager to all views (geocoding/geofencing)
             .environmentObject(uhpGateway) // Pass UHP Gateway to all views
             .environmentObject(geoapifyGateway) // Pass Geoapify Gateway to all views
             .environmentObject(userManager) // Pass user manager to all views
@@ -287,13 +293,9 @@ private struct AppContentView: View {
             .environmentObject(sseEventRouter) // Pass SSE event router to all views
             .withScaledSpacing() // Inject scaled spacing values into environment
             .onAppear {
-                // Register LocationManager with AppLifecycleManager
-                locationManager.appLifecycleManager = appLifecycleManager
-                appLifecycleManager.register(
-                    object: locationManager,
-                    didEnterBackground: { locationManager.appDidEnterBackground() },
-                    willEnterForeground: { locationManager.appWillEnterForeground() }
-                )
+                // Set appLifecycleManager reference - auto-registration happens in didSet
+                // TrackingManager automatically registers itself when appLifecycleManager is set
+                trackingManager.appLifecycleManager = appLifecycleManager
                 
                 // Set ChatViewModel reference in router after @StateObject is initialized
                 sseEventRouter.setChatViewModel(chatViewModel)
@@ -321,7 +323,7 @@ private struct AppContentView: View {
             }
             .task {
                 // Request location permission when app appears
-                locationManager.requestLocationPermission()
+                trackingManager.requestLocationPermission()
             }
     }
 }

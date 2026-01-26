@@ -46,9 +46,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     // UserDefaults keys for persisting location
     // Note: StorageManager will automatically add "UHP." prefix
-    private let lastDeviceLatKey = "LastDeviceCoord.latitude"
-    private let lastDeviceLonKey = "LastDeviceCoord.longitude"
-    private let lastDeviceCoordTimestamp = "LastDeviceCoord.timestamp"
     private let lastLookupLatKey = "LastLookupCoord.latitude"
     private let lastLookupLonKey = "LastLookupCoord.longitude"
     private let lastLookupCoordTimestamp = "LastLookupCoord.timestamp"
@@ -354,12 +351,27 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     // MARK: - Location Persistence
     
-    /// Saves the current location to UserDefaults for persistence across app launches
+    /// Saves the device location from NewLocation structure to UserDefaults
+    /// This is called when location is actually used (sent to backend via updateLocationToUHP)
     /// Uses StorageManager for consistent UserDefaults management
-    private func saveDeviceLocation(_ location: CLLocation) {
-        StorageManager.saveToUserDefaults(location.coordinate.latitude, forKey: lastDeviceLatKey)
-        StorageManager.saveToUserDefaults(location.coordinate.longitude, forKey: lastDeviceLonKey)
-        StorageManager.saveToUserDefaults(location.timestamp.timeIntervalSince1970, forKey: lastDeviceCoordTimestamp)
+    /// - Parameters:
+    ///   - newLocationDict: The NewLocation dictionary structure
+    ///   - location: The CLLocation object for updating deviceLocation property
+    func saveDeviceLocation(_ newLocationDict: [String: JSONValue], location: CLLocation) {
+        // Encode NewLocation dictionary to JSON string
+        guard let jsonString = JSONValue.encodeToString(newLocationDict) else {
+            #if DEBUG
+            print("⚠️ Failed to encode NewLocation dictionary to JSON string")
+            #endif
+            return
+        }
+        
+        // Save to single UserDefaults key (StorageManager automatically adds "UHP." prefix)
+        StorageManager.saveToUserDefaults(jsonString, forKey: lastDeviceLocationKey)
+        
+        // Update published properties
+        deviceLocation = location
+        locationDetails = newLocationDict
         
         #if DEBUG
         print("💾 Saved Latest Device Location to UserDefaults: \(location.coordinate.latitude), \(location.coordinate.longitude)")
@@ -385,28 +397,42 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// This allows the app to start with the user's last known location
     /// Uses StorageManager for consistent UserDefaults management
     private func loadLastSavedDeviceLocation() {
-        guard StorageManager.existsInUserDefaults(forKey: lastDeviceLatKey),
-              StorageManager.existsInUserDefaults(forKey: lastDeviceLonKey) else {
+        guard let newLocationString = StorageManager.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self),
+              let newLocationDict = JSONValue.decodeFromString(newLocationString) else {
             #if DEBUG
             print("ℹ️ No saved location found in UserDefaults")
             #endif
             return
         }
         
-        guard let latitudeValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceLatKey, as: Double.self),
-              let longitudeValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceLonKey, as: Double.self),
-              let timestampValue = StorageManager.loadFromUserDefaults(forKey: lastDeviceCoordTimestamp, as: TimeInterval.self) else {
+        // Extract coordinate from NewLocation structure
+        guard case .dictionary(let coordinateDict) = newLocationDict["coordinate"],
+              case .double(let latitude) = coordinateDict["lat"],
+              case .double(let longitude) = coordinateDict["lng"] else {
             #if DEBUG
-            print("ℹ️ Failed to load saved location from UserDefaults")
+            print("⚠️ Failed to extract coordinates from NewLocation structure")
             #endif
             return
         }
         
-        let latitude: CLLocationDegrees = latitudeValue
-        let longitude: CLLocationDegrees = longitudeValue
-        let timestamp = timestampValue
+        // Extract timestamp
+        let timestamp: TimeInterval
+        if case .double(let ts) = newLocationDict["timestamp"] {
+            timestamp = ts
+        } else {
+            // If timestamp missing, use current time as fallback
+            timestamp = Date().timeIntervalSince1970
+        }
         
-        // Validate coordinates are not zero (which would indicate no saved location)
+        // Extract altitude if available
+        let altitude: CLLocationDistance
+        if case .double(let alt) = coordinateDict["alt"] {
+            altitude = alt
+        } else {
+            altitude = 0
+        }
+        
+        // Validate coordinates are not zero
         guard latitude != 0.0 || longitude != 0.0 else {
             #if DEBUG
             print("ℹ️ Saved location coordinates are zero, ignoring")
@@ -414,38 +440,53 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             return
         }
         
-        // Create CLLocation from saved coordinates
+        // Create CLLocation from extracted data
         let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         let savedTimestamp = Date(timeIntervalSince1970: timestamp)
         
-        // Create a CLLocation with saved coordinates
-        // Use a default accuracy since we don't save that
         let savedLocation = CLLocation(
             coordinate: coordinate,
-            altitude: 0,
+            altitude: altitude,
             horizontalAccuracy: kCLLocationAccuracyHundredMeters,
             verticalAccuracy: -1,
             timestamp: savedTimestamp
         )
         
-        // Set as current location immediately
+        // Set as current location and location details
         deviceLocation = savedLocation
+        locationDetails = newLocationDict
         
-        // Load location details from LastDeviceLocation key
-        if let locationDetailsString = StorageManager.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self),
-           let locationDetailsDict = JSONValue.decodeFromString(locationDetailsString) {
-            locationDetails = locationDetailsDict
-            #if DEBUG
-            print("📂 Loaded LastDeviceLocation details from UserDefaults")
-            #endif
-        }
+        // One-time cleanup: Remove old location keys after successfully loading from new format
+        // cleanupOldLocationKeys()
         
         #if DEBUG
-        print("📂 Loaded UserDefaults Last Device Coordinates: \(latitude), \(longitude)")
+        print("📂 Loaded UserDefaults Last Device Location: \(latitude), \(longitude)")
         #endif
+    }
+    
+    /// Removes old location keys from UserDefaults (one-time migration cleanup)
+    private func cleanupOldLocationKeys() {
+        // Old device location keys to remove (from previous implementation)
+        let oldKeys = [
+            "LastDeviceCoord.latitude",
+            "LastDeviceCoord.longitude",
+            "LastDeviceCoord.timestamp",
+            "LastDeviceLocationNew"  // Old key name before rename to LastDeviceLocation
+        ]
         
-        // Note: Geofence will be restored after checking cache/loading data
-        // This prevents premature geofence setup that blocks initial data load
+        var removedCount = 0
+        for key in oldKeys {
+            if StorageManager.existsInUserDefaults(forKey: key) {
+                StorageManager.removeFromUserDefaults(forKey: key)
+                removedCount += 1
+            }
+        }
+        
+        if removedCount > 0 {
+            #if DEBUG
+            print("🧹 Cleaned up \(removedCount) old device location key(s)")
+            #endif
+        }
     }
     
     /// Loads the last saved lookup location from UserDefaults
@@ -970,14 +1011,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             return [:]
         }
         
-        // Save the final dict as JSON string to UserDefaults
-        if let jsonString = JSONValue.encodeToString(jsonValue) {
-            StorageManager.saveToUserDefaults(jsonString, forKey: lastDeviceLocationKey)
-            #if DEBUG
-            print("💾 Saved LastDeviceLocation to UserDefaults")
-            #endif
-        }
-        
         return jsonValue
     }
     
@@ -1203,6 +1236,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             newLocationDict["timezone"] = .string(TimeZone.current.identifier)
         }
         
+        // Add timestamp from location
+        newLocationDict["timestamp"] = .double(location.timestamp.timeIntervalSince1970)
+        
         // Print constructed NewLocation structure for comparison
         #if DEBUG
         print("✅ Constructed NewLocation Structure:")
@@ -1213,6 +1249,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             print("      * alt: \(coordDict["alt"] != nil ? "present" : "missing")")
         }
         print("   - timezone: \(newLocationDict["timezone"] != nil ? "present" : "missing")")
+        print("   - timestamp: \(newLocationDict["timestamp"] != nil ? "present" : "missing")")
         print("   - country_code: \(newLocationDict["country_code"] != nil ? "present" : "missing")")
         print("   - country_name: \(newLocationDict["country_name"] != nil ? "present" : "missing")")
         print("   - place_name: \(newLocationDict["place_name"] != nil ? "present" : "missing")")
@@ -1447,8 +1484,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             let accuracy = location.horizontalAccuracy
             print("📍 Location updated (\(updateType)): \(location.coordinate.latitude), \(location.coordinate.longitude) (accuracy: ±\(Int(accuracy))m)")
             
+            // Update deviceLocation property (caching now happens in updateLocationToUHP)
             self.deviceLocation = location
-            self.saveDeviceLocation(location)
         }
     }
     
@@ -1594,11 +1631,15 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     /// Debug function to clear all cached location data
     func debugClearAllCache() {
-        let defaults = UserDefaults.standard
+        // Use shared UserDefaults suite (same as StorageManager) to find keys
+        let sharedDefaults = UserDefaults(suiteName: "com.semina.unheardpath") ?? UserDefaults.standard
         // StorageManager adds "UHP." prefix, so we need to look for keys with that prefix
-        let keys = defaults.dictionaryRepresentation().keys.filter { key in
+        let keys = sharedDefaults.dictionaryRepresentation().keys.filter { key in
             key.hasPrefix("UHP.") && (
-                key.contains("PlacesCache_") || key.contains("wiki_")
+                key.contains("PlacesCache_") || 
+                key.contains("wiki_") ||
+                key.contains("LastDeviceCoord") ||     // Old device location keys (from previous implementation)
+                key == "UHP.LastDeviceLocationNew"    // Old key name before rename
             )
         }
         // Remove the "UHP." prefix when calling StorageManager.removeFromUserDefaults
