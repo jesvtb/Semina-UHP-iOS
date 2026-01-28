@@ -331,10 +331,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
     
-    /// Async version of geocodeAddress using async/await
-    /// - Parameter addressString: The address or location name to geocode
-    /// - Returns: The first placemark if geocoding succeeds
-    /// - Throws: Error if geocoding fails
     func geocodeAddress(_ addressString: String) async throws -> CLPlacemark {
         return try await withCheckedThrowingContinuation { continuation in
             geocodeAddress(addressString) { placemark, error in
@@ -350,21 +346,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
     
-    /// Reverse geocodes a location and returns placemarks
-    /// Uses the shared geocoder instance for consistent state management
-    /// - Parameter location: The CLLocation to reverse geocode
-    /// - Returns: Array of CLPlacemark objects
-    /// - Throws: Error if reverse geocoding fails
     func reverseGeocodeLocation(_ location: CLLocation) async throws -> [CLPlacemark] {
         return try await geocoder.reverseGeocodeLocation(location)
     }
     
-    /// Constructs a JSON dictionary from location and placemark data
-    /// - Parameters:
-    ///   - location: The CLLocation with coordinates
-    ///   - placemark: Optional CLPlacemark with address information
-    /// - Returns: Dictionary with location and geocoding data
-    /// Note: All fields required by backend Location model must be present
     private func constructDeviceLocation(location: CLLocation, placemark: CLPlacemark?) -> [String: JSONValue] {
         var dict: [String: Any] = [:]
         

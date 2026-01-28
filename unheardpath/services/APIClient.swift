@@ -193,7 +193,7 @@ class UHPGateway: ObservableObject {
         // #endif
 
         #if DEBUG
-        print("🔑 Access Token: \(accessToken)")
+        print("🔑 Supabase Access Token: \(accessToken)")
         #endif
 
         var headers = defaultHeaders

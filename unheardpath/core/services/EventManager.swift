@@ -50,7 +50,8 @@ class EventManager: ObservableObject {
     private let pastSessionsKey = "EventManager.pastSessions"
     private let sessionIdKey = "EventManager.sessionId"
     private let sessionMetadataKey = "EventManager.sessionMetadata"
-    private let lastDeviceLocationKey = "LastDeviceLocation"  // Widget compatibility
+    private let lastDeviceLocationKey = "LastDeviceLocation"      // Widget compatibility
+    private let lastSearchLocationKey = "LastSearchLocation"
     
     // MARK: - Configuration
     
@@ -412,10 +413,15 @@ class EventManager: ObservableObject {
             StorageManager.saveToUserDefaults(metadata, forKey: sessionMetadataKey)
         }
         
-        // Save derived location for widget backward compatibility
+        // Save derived locations for widget and app-level use
         if let deviceLocation = latestDeviceLocation,
            let locationString = JSONValue.encodeToString(deviceLocation) {
             StorageManager.saveToUserDefaults(locationString, forKey: lastDeviceLocationKey)
+        }
+        
+        if let searchLocation = latestSearchLocation,
+           let searchLocationString = JSONValue.encodeToString(searchLocation) {
+            StorageManager.saveToUserDefaults(searchLocationString, forKey: lastSearchLocationKey)
         }
         
         logger.debug("Saved events: \(thisSession.count) in current session, \(pastSessions.count) past sessions")
