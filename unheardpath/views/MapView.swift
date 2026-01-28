@@ -34,6 +34,19 @@ struct MapboxMapView: View {
     @State private var defaultPitch: Double = 60
     @State private var longPressLocation: CGPoint?
     
+    // Logger for error and debug logging
+    private let logger: AppLifecycleLogger
+    
+    init(
+        targetLocation: Binding<TargetLocation?>,
+        selectedLocation: Binding<CLLocation?>,
+        logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger
+    ) {
+        self._targetLocation = targetLocation
+        self._selectedLocation = selectedLocation
+        self.logger = logger
+    }
+    
     /// Offset distance in degrees to move camera south of user location
     /// This creates space for UI elements (like bottom sheets) above the user's location
     private let cameraOffsetSouth: Double = 0.01 // Approximately 200-250 meters south
@@ -53,16 +66,11 @@ struct MapboxMapView: View {
         if let location = trackingManager.deviceLocation {
             // Use saved location with offset south for camera center
             let offsetCenter = offsetCameraSouth(of: location)
-            #if DEBUG 
-            print("🌍 Initalizd map with device location offset: \(offsetCenter.latitude), \(offsetCenter.longitude)")
-            #endif
-
+            logger.debug("Initialized map with device location offset: \(offsetCenter.latitude), \(offsetCenter.longitude)")
             
             return .camera(center: offsetCenter, zoom: 14, bearing: 0, pitch: defaultPitch)
         } else {
-            #if DEBUG
-            print("🌍 Initalizd map with fallback viewport")
-            #endif
+            logger.debug("Initialized map with fallback viewport")
             // Fallback: Use a wide viewport if no saved location exists (first time app launch)
             return .camera(center: CLLocationCoordinate2D(latitude: 0, longitude: 0), zoom: 3, bearing: 0, pitch: defaultPitch)
         }
@@ -180,9 +188,7 @@ struct MapboxMapView: View {
     
     
     private func setupMapboxLocation(proxy: MapboxMaps.MapProxy) {
-        #if DEBUG
-        print("🌍 Setting up Mapbox location with shared TrackingManager...")
-        #endif
+        logger.debug("Setting up Mapbox location with shared TrackingManager...")
         // Note: Location permission is already handled by the shared TrackingManager
         // in unheardpathApp.swift, so we don't need to request it again here.
         // This avoids duplicate permission requests.
@@ -206,16 +212,13 @@ struct MapboxMapView: View {
             updateMapCamera(proxy: proxy, location: deviceLocation, isDeviceLocation: true)
         }
         
-        #if DEBUG
-        print("✅ Mapbox location provider configured")
-        print("   Using shared TrackingManager for permission handling")
-        print("   Mapbox location provider configured to match TrackingManager accuracy settings")
+        logger.debug("Mapbox location provider configured - Using shared TrackingManager for permission handling")
+        logger.debug("Mapbox location provider configured to match TrackingManager accuracy settings")
         if let deviceLocation = trackingManager.deviceLocation {
-            print("   Current location: \(deviceLocation.coordinate.latitude), \(deviceLocation.coordinate.longitude)")
+            logger.debug("Current location: \(deviceLocation.coordinate.latitude), \(deviceLocation.coordinate.longitude)")
         } else {
-            print("   Waiting for location update from shared TrackingManager...")
+            logger.debug("Waiting for location update from shared TrackingManager...")
         }
-        #endif
     }
     
     /// Updates the map camera to center slightly south of the user's location
@@ -237,23 +240,19 @@ struct MapboxMapView: View {
             
             // Use the map's camera API to update the viewport
             guard let camera = proxy.camera else {
-                #if DEBUG
-                print("⚠️ Camera proxy not available yet, will retry")
-                #endif
+                logger.warning("Camera proxy not available yet, will retry", handlerType: "MapboxMapView")
                 return
             }
             
             // Try to update camera - the exact method may vary by SDK version
             // Using flyTo with a short duration for smooth transition
             camera.fly(to: cameraOptions, duration: 0.5)
-            #if DEBUG
             if isDeviceLocation {
-                print("✅ Camera updated to offset center (south of user): \(cameraCenter.latitude), \(cameraCenter.longitude)")
-                print("📍 User location puck at: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                logger.debug("Camera updated to offset center (south of user): \(cameraCenter.latitude), \(cameraCenter.longitude)")
+                logger.debug("User location puck at: \(location.coordinate.latitude), \(location.coordinate.longitude)")
             } else {
-                print("✅ Camera flew to target location: \(cameraCenter.latitude), \(cameraCenter.longitude)")
+                logger.debug("Camera flew to target location: \(cameraCenter.latitude), \(cameraCenter.longitude)")
             }
-            #endif
         }
     }
     
@@ -264,9 +263,7 @@ struct MapboxMapView: View {
         let coordinates = geoJSON.extractCoordinates()
         
         guard !coordinates.isEmpty else {
-            #if DEBUG
-            print("⚠️ No coordinates found in GeoJSON features to fit camera")
-            #endif
+            logger.warning("No coordinates found in GeoJSON features to fit camera", handlerType: "MapboxMapView")
             return
         }
         
@@ -285,9 +282,7 @@ struct MapboxMapView: View {
                       maxZoom: nil,
                       offset: nil
                   ) else {
-                #if DEBUG
-                print("⚠️ Failed to calculate camera for GeoJSON coordinates using SDK method")
-                #endif
+                logger.warning("Failed to calculate camera for GeoJSON coordinates using SDK method", handlerType: "MapboxMapView")
                 return
             }
             
@@ -301,19 +296,14 @@ struct MapboxMapView: View {
             
             // Apply the fitted camera
             guard let camera = proxy.camera else {
-                #if DEBUG
-                print("⚠️ Camera proxy not available for fitting")
-                #endif
+                logger.warning("Camera proxy not available for fitting", handlerType: "MapboxMapView")
                 return
             }
             
             // Use flyTo with a short duration for smooth transition
             camera.fly(to: cameraOptions, duration: 0.5)
             
-            #if DEBUG
-            print("✅ Camera fitted to \(coordinates.count) GeoJSON feature coordinates with south offset applied")
-           
-            #endif
+            logger.debug("Camera fitted to \(coordinates.count) GeoJSON feature coordinates with south offset applied")
         }
     }
     
@@ -321,9 +311,7 @@ struct MapboxMapView: View {
     /// Converts screen coordinates to geographic coordinates and creates a CLLocation
     private func handleLongPressSelection(at point: CGPoint, proxy: MapboxMaps.MapProxy) {
         guard let mapboxMap = proxy.map else {
-            #if DEBUG
-            print("⚠️ MapboxMap not available for coordinate conversion")
-            #endif
+            logger.warning("MapboxMap not available for coordinate conversion", handlerType: "MapboxMapView")
             return
         }
         
@@ -341,9 +329,7 @@ struct MapboxMapView: View {
             timestamp: Date()
         )
         
-        #if DEBUG
-        print("📍 Manual location selected: \(coordinate.latitude), \(coordinate.longitude)")
-        #endif
+        logger.debug("Manual location selected: \(coordinate.latitude), \(coordinate.longitude)")
         
         // First, set the marker to show immediate visual feedback
         Task { @MainActor in
@@ -361,9 +347,14 @@ struct MapboxMapView: View {
 // MARK: - Location Manager Delegate
 class LocationManagerDelegate: NSObject, CLLocationManagerDelegate {
     private let onLocationUpdate: (CLLocation) -> Void
+    private let logger: AppLifecycleLogger
     
-    init(onLocationUpdate: @escaping (CLLocation) -> Void) {
+    init(
+        onLocationUpdate: @escaping (CLLocation) -> Void,
+        logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger
+    ) {
         self.onLocationUpdate = onLocationUpdate
+        self.logger = logger
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -372,24 +363,24 @@ class LocationManagerDelegate: NSObject, CLLocationManagerDelegate {
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("❌ Location manager failed with error: \(error.localizedDescription)")
+        logger.error("Location manager failed", handlerType: "LocationManagerDelegate", error: error)
     }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
-        print("🔄 Location authorization changed to: \(status.rawValue)")
+        logger.debug("Location authorization changed to: \(status.rawValue)")
         
         switch status {
         case .authorizedWhenInUse, .authorizedAlways:
-            print("✅ Location permission granted - starting location updates")
+            logger.debug("Location permission granted - starting location updates")
             manager.startUpdatingLocation()
         case .denied:
-            print("❌ Location permission denied by user")
+            logger.error("Location permission denied by user", handlerType: "LocationManagerDelegate", error: nil)
         case .restricted:
-            print("❌ Location permission restricted by system")
+            logger.error("Location permission restricted by system", handlerType: "LocationManagerDelegate", error: nil)
         case .notDetermined:
-            print("⏳ Location permission not determined yet")
+            logger.debug("Location permission not determined yet")
         @unknown default:
-            print("❓ Unknown location permission status: \(status.rawValue)")
+            logger.warning("Unknown location permission status: \(status.rawValue)", handlerType: "LocationManagerDelegate")
         }
     }
 }

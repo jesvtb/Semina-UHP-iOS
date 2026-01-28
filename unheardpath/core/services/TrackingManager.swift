@@ -55,7 +55,11 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     private let trackingModeKey = "TrackingMode.current"
     
-    override init() {
+    // Logger for error and debug logging
+    private let logger: AppLifecycleLogger
+    
+    init(logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger) {
+        self.logger = logger
         super.init()
         coreLocationManager.delegate = self
     }
@@ -71,9 +75,9 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             // Permission already granted, start location updates
             startLocationUpdates()
         case .denied, .restricted:
-            print("❌ Location permission denied or restricted")
+            logger.error("Location permission denied or restricted", handlerType: "TrackingManager", error: nil)
         @unknown default:
-            print("❓ Unknown location authorization status")
+            logger.warning("Unknown location authorization status", handlerType: "TrackingManager")
         }
     }
     
@@ -103,7 +107,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if isUsingSignificantChanges {
             coreLocationManager.stopMonitoringSignificantLocationChanges()
             isUsingSignificantChanges = false
-            print("🔄 Stopped significant location changes")
+            logger.debug("Stopped significant location changes")
         }
         
         coreLocationManager.desiredAccuracy = foregroundAccuracy
@@ -113,9 +117,9 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if !isTrackingActive {
             coreLocationManager.startUpdatingLocation()
             isTrackingActive = true
-            print("📡 Started foreground location tracking (accuracy: \(foregroundAccuracy)m, filter: \(foregroundDistanceFilter)m)")
+            logger.debug("Started foreground location tracking (accuracy: \(foregroundAccuracy)m, filter: \(foregroundDistanceFilter)m)")
         } else {
-            print("📡 Updated foreground tracking configuration")
+            logger.debug("Updated foreground tracking configuration")
         }
         
         // Save tracking mode to UserDefaults for widget
@@ -129,20 +133,20 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if isTrackingActive {
             coreLocationManager.stopUpdatingLocation()
             isTrackingActive = false
-            print("🔄 Stopped continuous location updates")
+            logger.debug("Stopped continuous location updates")
         }
         
         // Check authorization - iOS will prevent significant changes without "Always" permission
         // but we need to update widget state accordingly
         guard authorizationStatus == .authorizedAlways else {
             StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
-            print("⏸️ Background tracking requires 'Always' permission")
+            logger.warning("Background tracking requires 'Always' permission", handlerType: "TrackingManager")
             return
         }
         
         // Start significant location changes if available
         guard CLLocationManager.significantLocationChangeMonitoringAvailable() else {
-            print("⚠️ Significant location change monitoring not available")
+            logger.warning("Significant location change monitoring not available", handlerType: "TrackingManager")
             StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
             return
         }
@@ -150,7 +154,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if !isUsingSignificantChanges {
             coreLocationManager.startMonitoringSignificantLocationChanges()
             isUsingSignificantChanges = true
-            print("📍 Switching to significant location change monitoring")
+            logger.debug("Switching to significant location change monitoring")
         }
         
         StorageManager.saveToUserDefaults("background", forKey: trackingModeKey)
@@ -161,13 +165,13 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if isTrackingActive {
             coreLocationManager.stopUpdatingLocation()
             isTrackingActive = false
-            print("⏸️ Stopped continuous location updates")
+            logger.debug("📡 Stopped continuous location updates")
         }
         
         if isUsingSignificantChanges {
             coreLocationManager.stopMonitoringSignificantLocationChanges()
             isUsingSignificantChanges = false
-            print("⏸️ Stopped significant location changes")
+            logger.debug("📡 Stopped significant location changes")
         }
     }
     
@@ -191,7 +195,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             
             let updateType = self.isUsingSignificantChanges ? "significant change" : "continuous"
             let accuracy = location.horizontalAccuracy
-            print("📍 Location updated (\(updateType)): \(location.coordinate.latitude), \(location.coordinate.longitude) (accuracy: ±\(Int(accuracy))m)")
+            self.logger.debug("Location updated (\(updateType)): \(location.coordinate.latitude), \(location.coordinate.longitude) (accuracy: ±\(Int(accuracy))m)")
             
             // Update deviceLocation property
             self.deviceLocation = location
@@ -207,20 +211,20 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             // Notify SwiftUI that authorization status changed (so computed properties are re-evaluated)
             self.objectWillChange.send()
             
-            print("🔄 Location authorization changed to: \(newStatus.rawValue)")
+            self.logger.debug("Location authorization changed to: \(newStatus.rawValue)")
             
             switch newStatus {
             case .authorizedWhenInUse, .authorizedAlways:
-                print("✅ Location permission granted")
+                self.logger.debug("Location permission granted")
                 self.startLocationUpdates()
             case .denied:
-                print("❌ Location permission denied by user")
+                self.logger.error("Location permission denied by user", handlerType: "TrackingManager", error: nil)
             case .restricted:
-                print("❌ Location permission restricted by system")
+                self.logger.error("Location permission restricted by system", handlerType: "TrackingManager", error: nil)
             case .notDetermined:
-                print("⏳ Location permission not determined yet")
+                self.logger.debug("Location permission not determined yet")
             @unknown default:
-                print("❓ Unknown location permission status: \(newStatus.rawValue)")
+                self.logger.warning("Unknown location permission status: \(newStatus.rawValue)", handlerType: "TrackingManager")
             }
         }
     }

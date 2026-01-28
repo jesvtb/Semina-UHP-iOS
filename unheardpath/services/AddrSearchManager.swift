@@ -127,7 +127,11 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
     private let geoapifyGateway = GeoapifyGateway()
     private var currentQuery: String = ""
     
-    override init() {
+    // Logger for error and debug logging
+    private let logger: AppLifecycleLogger
+    
+    init(logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger) {
+        self.logger = logger
         super.init()
         completer.delegate = self
         completer.resultTypes = [.address, .pointOfInterest, .query]
@@ -169,36 +173,28 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
     /// - Parameter query: The search query string
     private func performGeoapifySearch(query: String) async {
         do {
-            #if DEBUG
-            print("🔍 Starting Geoapify search for: '\(query)'")
-            #endif
+            logger.debug("Starting Geoapify search for: '\(query)'")
             
             // Call Geoapify API - limit to 3 results (we'll interleave with MapKit, max 6 total)
             let data = try await geoapifyGateway.searchCities(query: query, limit: 3)
             
             // Parse JSON response
             guard let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                #if DEBUG
-                print("⚠️ Geoapify response is not a JSON object")
-                #endif
+                logger.warning("Geoapify response is not a JSON object", handlerType: "AddrSearchManager")
                 return
             }
             
             // Extract features using GeoJSON helper
             let features = try GeoJSON.extractFeatures(from: jsonObject)
             
-            #if DEBUG
-            print("📦 Geoapify returned \(features.count) features")
-            #endif
+            logger.debug("Geoapify returned \(features.count) features")
             
             // Convert to PointFeatures and build AddressSearchResult array
             var geoapifyResults: [AddressSearchResult] = []
             for feature in features {
                 guard let pointFeature = PointFeature(from: feature),
                       let coordinate = pointFeature.coordinate else {
-                    #if DEBUG
-                    print("⚠️ Skipping feature - not a valid PointFeature or missing coordinate")
-                    #endif
+                    logger.warning("Skipping feature - not a valid PointFeature or missing coordinate", handlerType: "AddrSearchManager")
                     continue
                 }
                 
@@ -208,9 +204,7 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
                 geoapifyResults.append(.geoapify(pointFeature, coordinate: coordinate, subtitle: subtitle))
             }
             
-            #if DEBUG
-            print("✅ Geoapify parsed \(geoapifyResults.count) valid results")
-            #endif
+            logger.debug("Geoapify parsed \(geoapifyResults.count) valid results")
             
             // Reverse Geoapify results so most relevant appears at bottom in UI
             // (UI shows last item as most relevant, so we reverse to match)
@@ -230,10 +224,8 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
             }
             
             guard isCurrentQuery else {
-                #if DEBUG
                 let currentQueryValue = await MainActor.run { self.currentQuery }
-                print("⚠️ Geoapify query '\(query)' is no longer current (current: '\(currentQueryValue)')")
-                #endif
+                logger.warning("Geoapify query '\(query)' is no longer current (current: '\(currentQueryValue)')", handlerType: "AddrSearchManager")
                 return
             }
             
@@ -242,20 +234,14 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
                 // Double-check query is still current
                 if query == self.currentQuery {
                     self.results = self.interleaveResults(Array(reversedGeoapifyResults), mapkitResults)
-                    #if DEBUG
-                    print("✅ Interleaved results: \(geoapifyResults.count) Geoapify + \(mapkitResults.count) MapKit = \(self.results.count) total")
-                    #endif
+                    self.logger.debug("Interleaved results: \(geoapifyResults.count) Geoapify + \(mapkitResults.count) MapKit = \(self.results.count) total")
                 } else {
-                    #if DEBUG
-                    print("⚠️ Query changed during merge, skipping update")
-                    #endif
+                    self.logger.warning("Query changed during merge, skipping update", handlerType: "AddrSearchManager")
                 }
             }
             
         } catch {
-            #if DEBUG
-            print("❌ Geoapify search failed: \(error.localizedDescription)")
-            #endif
+            logger.error("Geoapify search failed", handlerType: "AddrSearchManager", error: error)
             // On error, keep existing MapKit results only
         }
     }
@@ -346,9 +332,7 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
         Task { @MainActor in
             // Only update if query matches current query (prevent stale results)
             guard capturedQuery == self.currentQuery else {
-                #if DEBUG
-                print("⚠️ MapKit query '\(capturedQuery)' doesn't match current '\(self.currentQuery)', skipping")
-                #endif
+                self.logger.warning("MapKit query '\(capturedQuery)' doesn't match current '\(self.currentQuery)', skipping", handlerType: "AddrSearchManager")
                 return
             }
             
@@ -362,9 +346,7 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
                     AddressSearchResult.mapkit(completion)
                 }
             
-            #if DEBUG
-            print("📦 MapKit returned \(capturedCompletions.count) results, \(mapkitResults.count) after filtering")
-            #endif
+            self.logger.debug("MapKit returned \(capturedCompletions.count) results, \(mapkitResults.count) after filtering")
             
             // Preserve existing Geoapify results and merge with new MapKit results
             let existingGeoapifyResults = self.results.filter { result in
@@ -374,24 +356,18 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
                 return false
             }
             
-            #if DEBUG
-            print("🔄 Merging: \(existingGeoapifyResults.count) existing Geoapify + \(mapkitResults.count) new MapKit")
-            #endif
+            self.logger.debug("Merging: \(existingGeoapifyResults.count) existing Geoapify + \(mapkitResults.count) new MapKit")
             
             // Interleave results to prioritize best from each category
             self.results = self.interleaveResults(existingGeoapifyResults, mapkitResults)
             
-            #if DEBUG
-            print("✅ Total results after MapKit merge (interleaved): \(self.results.count)")
-            #endif
+            self.logger.debug("Total results after MapKit merge (interleaved): \(self.results.count)")
         }
     }
     
     nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        #if DEBUG
-        print("❌ MKLocalSearchCompleter error: \(error.localizedDescription)")
-        #endif
         Task { @MainActor in
+            self.logger.error("MKLocalSearchCompleter error", handlerType: "AddrSearchManager", error: error)
             // On error, keep Geoapify results but clear MapKit results
             let existingGeoapifyResults = self.results.filter { result in
                 if case .geoapify = result {

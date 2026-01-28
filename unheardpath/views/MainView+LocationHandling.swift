@@ -31,6 +31,11 @@ func refreshPOIList(
 
 // MARK: - Location Management
 extension TestMainView {
+    /// Logger for error and debug logging
+    private var logger: AppLifecycleLogger {
+        AppLifecycleManager.sharedLogger
+    }
+    
     /// Refreshes POI list when one-time location request completes
     /// Only called once when requestOneTimeLocation() returns a location with 100m or better accuracy
     @MainActor
@@ -95,9 +100,7 @@ extension TestMainView {
 
     @MainActor
     func updateLocationToUHP(location: CLLocation, router: SSEEventRouter) async {
-        #if DEBUG
-        print("📍 updateLocationToUHP called for location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-        #endif
+        logger.debug("updateLocationToUHP called for location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         
         do {
             // Use LocationManager helper to construct NewLocation structure
@@ -136,9 +139,7 @@ extension TestMainView {
             )
             
             // Send to /v1/orchestor endpoint using streamUserEvent
-            #if DEBUG
-            print("📤 Sending location update event to /v1/orchestor")
-            #endif
+            logger.debug("Sending location update event to /v1/orchestor")
             
             let stream = try await uhpGateway.streamUserEvent(
                 endpoint: "/v1/orchestor",
@@ -150,14 +151,9 @@ extension TestMainView {
             let processor = SSEEventProcessor(handler: router)
             try await processor.processStream(stream)
             
-            #if DEBUG
-            print("✅ Successfully sent location update to /v1/orchestor")
-            #endif
+            logger.debug("Successfully sent location update to /v1/orchestor")
         } catch {
-            #if DEBUG
-            print("❌ Failed to update location to UHP: \(error.localizedDescription)")
-            print("   Full error: \(error)")
-            #endif
+            logger.error("Failed to update location to UHP", handlerType: "updateLocationToUHP", error: error)
         }
     }
     /// Updates location to UHP backend by geocoding the coordinate and sending event to /v1/orchestor

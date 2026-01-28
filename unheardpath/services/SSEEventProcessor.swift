@@ -18,9 +18,8 @@ private func parseGeoJSONFeatures(from dataString: String) -> GeoJSONFeatures? {
     do {
         jsonObject = try JSONSerialization.jsonObject(with: jsonData, options: [])
     } catch {
-        #if DEBUG
-        print("⚠️ Failed to parse map event data as JSON: \(error.localizedDescription)")
-        #endif
+        // Note: This is a private helper function, so we can't use logger here
+        // The error will be handled by the caller (handleMapEvent)
         return nil
     }
     
@@ -137,9 +136,12 @@ extension SSEEventHandler {
 @MainActor
 class SSEEventProcessor {
     weak var handler: SSEEventHandler?
+    // Store logger for MainActor methods, but use shared logger directly in nonisolated methods
+    private let logger: AppLifecycleLogger
     
-    init(handler: SSEEventHandler) {
+    init(handler: SSEEventHandler, logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger) {
         self.handler = handler
+        self.logger = logger
     }
     
     /// Process a single SSE event and route it to the appropriate handler
@@ -169,9 +171,8 @@ class SSEEventProcessor {
             await handleContentEvent(event)
             
         default:
-            #if DEBUG
-            print("⚠️ Unknown or unsupported event type: \(event.event ?? "nil")")
-            #endif
+            // Use shared logger directly in nonisolated context
+            AppLifecycleManager.sharedLogger.warning("Unknown or unsupported event type: \(event.event ?? "nil")", handlerType: "SSEEventProcessor")
         }
     }
     
@@ -189,52 +190,37 @@ class SSEEventProcessor {
     
     /// Handles toast events by parsing and delegating to handler
     private func handleToastEvent(_ event: SSEEvent) async {
-        #if DEBUG
-        print("🔔 Processing toast event")
-        #endif
+        logger.debug("Processing toast event")
         
         do {
             guard let dataDict = try event.parseJSONData() else {
-                #if DEBUG
-                print("⚠️ Failed to parse toast data as JSON")
-                #endif
+                logger.warning("Failed to parse toast data as JSON", handlerType: "SSEEventProcessor")
                 return
             }
             
             guard let toastData = ToastData(from: dataDict) else {
-                #if DEBUG
-                print("⚠️ Failed to create toast from data: \(dataDict)")
-                #endif
+                logger.warning("Failed to create toast from data: \(dataDict)", handlerType: "SSEEventProcessor")
                 return
             }
             
             await handler?.onToast(toastData)
         } catch {
-            #if DEBUG
-            print("❌ Error handling toast event: \(error)")
-            #endif
+            logger.error("Error handling toast event", handlerType: "SSEEventProcessor", error: error)
         }
     }
     
     /// Handles chat events by accumulating content and delegating to handler
     private func handleChatEvent(_ event: SSEEvent, accumulatedData: inout String) async {
-        #if DEBUG
-        print("📝 Processing chat event")
-        #endif
+        logger.debug("Processing chat event")
         
         do {
             guard let dataDict = try event.parseJSONData() else {
-                #if DEBUG
-                print("⚠️ Failed to parse chat data as JSON")
-                #endif
+                logger.warning("Failed to parse chat data as JSON", handlerType: "SSEEventProcessor")
                 return
             }
             
             guard let content = dataDict["content"] as? String else {
-                #if DEBUG
-                print("⚠️ Content event payload missing 'content' field")
-                print("   Available keys: \(dataDict.keys.joined(separator: ", "))")
-                #endif
+                logger.warning("Content event payload missing 'content' field. Available keys: \(dataDict.keys.joined(separator: ", "))", handlerType: "SSEEventProcessor")
                 return
             }
             
@@ -242,17 +228,13 @@ class SSEEventProcessor {
             let isStreaming = dataDict["is_streaming"] as? Bool ?? true
             
             guard let handler = handler else {
-                #if DEBUG
-                print("⚠️ handleChatEvent: Handler is nil, cannot route chat chunk")
-                #endif
+                logger.warning("handleChatEvent: Handler is nil, cannot route chat chunk", handlerType: "SSEEventProcessor")
                 return
             }
             
             await handler.onChatChunk(content: accumulatedData, isStreaming: isStreaming)
         } catch {
-            #if DEBUG
-            print("❌ Error handling chat event: \(error)")
-            #endif
+            logger.error("Error handling chat event", handlerType: "SSEEventProcessor", error: error)
         }
     }
     
@@ -276,9 +258,8 @@ class SSEEventProcessor {
         }.value
         
         guard let features = parsedFeatures, !features.isEmpty else {
-            #if DEBUG
-            print("⚠️ Failed to parse map event features, skipping handler")
-            #endif
+            // Use shared logger directly in nonisolated context
+            AppLifecycleManager.sharedLogger.warning("Failed to parse map event features, skipping handler", handlerType: "SSEEventProcessor")
             return
         }
         
@@ -295,69 +276,49 @@ class SSEEventProcessor {
     
     /// Handles hook events by parsing and delegating to handler
     private func handleHookEvent(_ event: SSEEvent) async {
-        #if DEBUG
-        print("🖥️ Processing hook event")
-        #endif
+        logger.debug("Processing hook event")
         
         do {
             guard let dataDict = try event.parseJSONData() else {
-                #if DEBUG
-                print("⚠️ Failed to parse hook data as JSON")
-                #endif
+                logger.warning("Failed to parse hook data as JSON", handlerType: "SSEEventProcessor")
                 return
             }
             
             guard let action = dataDict["action"] as? String else {
-                #if DEBUG
-                print("⚠️ Hook event payload missing 'action' field")
-                #endif
+                logger.warning("Hook event payload missing 'action' field", handlerType: "SSEEventProcessor")
                 return
             }
             
-            #if DEBUG
-            print("🖥️ Hook action received: '\(action)'")
-            #endif
+            logger.debug("Hook action received: '\(action)'")
             
             await handler?.onHook(action: action)
         } catch {
-            #if DEBUG
-            print("❌ Error handling hook event: \(error)")
-            #endif
+            logger.error("Error handling hook event", handlerType: "SSEEventProcessor", error: error)
         }
     }
     
     /// Handles content events (overview, location details, POIs)
     private func handleContentEvent(_ event: SSEEvent) async {
-        #if DEBUG
-        print("📄 Processing content event")
-        #endif
+        logger.debug("Processing content event")
         
         do {
             guard let dataDict = try event.parseJSONData() else {
-                #if DEBUG
-                print("⚠️ Failed to parse content data as JSON")
-                #endif
+                logger.warning("Failed to parse content data as JSON", handlerType: "SSEEventProcessor")
                 return
             }
             
             guard let typeString = dataDict["type"] as? String else {
-                #if DEBUG
-                print("⚠️ Content event payload missing 'type' field")
-                #endif
+                logger.warning("Content event payload missing 'type' field", handlerType: "SSEEventProcessor")
                 return
             }
             
             guard let contentType = ContentViewType(rawValue: typeString) else {
-                #if DEBUG
-                print("⚠️ Unknown content type: \(typeString)")
-                #endif
+                logger.warning("Unknown content type: \(typeString)", handlerType: "SSEEventProcessor")
                 return
             }
             
             guard let dataValue = dataDict["data"] else {
-                #if DEBUG
-                print("⚠️ Content event payload missing 'data' field")
-                #endif
+                logger.warning("Content event payload missing 'data' field", handlerType: "SSEEventProcessor")
                 return
             }
             
@@ -368,21 +329,15 @@ class SSEEventProcessor {
             }
             
             guard let contentData = contentData else {
-                #if DEBUG
-                print("⚠️ Failed to parse content type: \(contentType.rawValue)")
-                #endif
+                logger.warning("Failed to parse content type: \(contentType.rawValue)", handlerType: "SSEEventProcessor")
                 return
             }
             
             await handler?.onContent(type: contentType, data: contentData)
             
-            #if DEBUG
-            print("✅ Content event handled: \(contentType.rawValue)")
-            #endif
+            logger.debug("Content event handled: \(contentType.rawValue)")
         } catch {
-            #if DEBUG
-            print("❌ Error handling content event: \(error)")
-            #endif
+            logger.error("Error handling content event", handlerType: "SSEEventProcessor", error: error)
         }
     }
 }

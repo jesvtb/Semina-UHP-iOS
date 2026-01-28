@@ -9,40 +9,152 @@ import Foundation
 import SwiftUI
 import UIKit
 
-/// Simple logger protocol for AppLifecycleManager
+/// Simple logger protocol for app-wide logging
 /// Allows injection of custom logging implementations for testing
-/// Made internal (not private) to allow test access
-protocol AppLifecycleLogger {
+/// Made internal (not private) to allow test access and use across services
+protocol AppLifecycleLogger: Sendable {
     func debug(_ message: String)
     func error(_ message: String, handlerType: String?, error: Error?)
     func warning(_ message: String, handlerType: String?)
 }
 
-/// Default logger implementation
-/// DEBUG builds: verbose logging
-/// RELEASE builds: minimal/silent logging
-/// Made internal (not private) to allow test access
-struct DefaultAppLifecycleLogger: AppLifecycleLogger {
-    func debug(_ message: String) {
+/// Log entry structure for storing log records
+struct LogEntry: Sendable {
+    let timestamp: Date
+    let level: LogLevel
+    let message: String
+    let handlerType: String?
+    let error: String?
+    
+    enum LogLevel: String, Sendable {
+        case debug
+        case warning
+        case error
+    }
+}
+
+/// Default logger implementation with log storage
+/// DEBUG builds: verbose logging + in-memory storage
+/// RELEASE builds: minimal/silent logging (can still store for crash reporting)
+/// Made internal (not private) to allow test access and use across services
+class DefaultAppLifecycleLogger: AppLifecycleLogger, @unchecked Sendable {
+    /// Shared singleton instance for app-wide use
+    static let shared = DefaultAppLifecycleLogger()
+    
+    /// In-memory log storage (thread-safe using DispatchQueue)
+    private let logQueue = DispatchQueue(label: "com.unheardpath.logger", attributes: .concurrent)
+    private var _logEntries: [LogEntry] = []
+    
+    /// Maximum number of log entries to keep in memory (prevents memory issues)
+    private let maxLogEntries = 1000
+    
+    /// Get all stored log entries (thread-safe)
+    var allLogs: [LogEntry] {
+        logQueue.sync {
+            return _logEntries
+        }
+    }
+    
+    /// Get logs as formatted string
+    var formattedLogs: String {
+        let logs = allLogs
+        return logs.map { (entry: LogEntry) -> String in
+            let timestamp = Self.formatTimestamp(entry.timestamp)
+            let handlerInfo = entry.handlerType.map { " [\($0)]" } ?? ""
+            let errorInfo = entry.error.map { ": \($0)" } ?? ""
+            let emoji = entry.level == .error ? "❌" : entry.level == .warning ? "⚠️" : "📱"
+            return "\(timestamp) \(emoji) \(entry.message)\(handlerInfo)\(errorInfo)"
+        }.joined(separator: "\n")
+    }
+    
+    /// Clear all stored logs
+    func clearLogs() {
+        logQueue.async(flags: .barrier) { [weak self] in
+            self?._logEntries.removeAll()
+        }
+    }
+    
+    private static func formatTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+        return formatter.string(from: date)
+    }
+    
+    private func addLog(_ entry: LogEntry) {
+        logQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+            self._logEntries.append(entry)
+            // Keep only the most recent entries
+            if self._logEntries.count > self.maxLogEntries {
+                self._logEntries.removeFirst(self._logEntries.count - self.maxLogEntries)
+            }
+        }
+    }
+
+    func info(_ message: String) {
+        let entry = LogEntry(
+            timestamp: Date(),
+            level: .info,
+            message: message,
+            handlerType: nil,
+            error: nil
+        )
+        addLog(entry)
+        
         #if DEBUG
-        print("📱 AppLifecycleManager: \(message)")
+        print("INFO ℹ️ \(message)")
+        #endif
+    }
+    
+    func debug(_ message: String) {
+        let entry = LogEntry(
+            timestamp: Date(),
+            level: .debug,
+            message: message,
+            handlerType: nil,
+            error: nil
+        )
+        addLog(entry)
+        
+        #if DEBUG
+        print("DBUG 🧪  \(message)")
         #endif
     }
     
     func error(_ message: String, handlerType: String?, error: Error?) {
+        let errorString = error.map { $0.localizedDescription } ?? nil
+        let entry = LogEntry(
+            timestamp: Date(),
+            level: .error,
+            message: message,
+            handlerType: handlerType,
+            error: errorString
+        )
+        addLog(entry)
+        
         #if DEBUG
-        let handlerInfo = handlerType.map { " in \($0)" } ?? ""
+        let handlerInfo = handlerType.map { " [\($0)]" } ?? ""
         let errorInfo = error.map { ": \($0)" } ?? ""
-        print("⚠️ AppLifecycleManager: \(message)\(handlerInfo)\(errorInfo)")
+        print("ERRR ❌  \(message)\(handlerInfo)\(errorInfo)")
         #else
-        // Silent in release builds (or use crash reporting service)
+        // In release builds, still store errors for crash reporting
+        // but don't print to console
         #endif
     }
     
     func warning(_ message: String, handlerType: String?) {
+        let entry = LogEntry(
+            timestamp: Date(),
+            level: .warning,
+            message: message,
+            handlerType: handlerType,
+            error: nil
+        )
+        addLog(entry)
+        
         #if DEBUG
-        let handlerInfo = handlerType.map { " in \($0)" } ?? ""
-        print("⚠️ AppLifecycleManager: \(message)\(handlerInfo)")
+        let handlerInfo = handlerType.map { " [\($0)]" } ?? ""
+        print("WARN ⚠️ \(message)\(handlerInfo)")
         #endif
     }
 }
@@ -149,13 +261,23 @@ class AppLifecycleManager: ObservableObject {
     private var handlers: [WeakLifecycleHandler] = []
     
     /// Logger for lifecycle events (injectable for testing)
+    /// Defaults to shared logger instance for app-wide consistency
     private let logger: AppLifecycleLogger
     
     // UserDefaults key for widget state
     // Note: StorageManager will automatically add "UHP." prefix
     private let appStateIsInBackgroundKey = "AppState.isInBackground"
     
-    init(logger: AppLifecycleLogger = DefaultAppLifecycleLogger()) {
+    /// Shared logger instance accessible from AppLifecycleManager
+    /// All services should use this same instance for consistent logging
+    /// Returns the concrete type so you can access log storage methods (allLogs, formattedLogs, etc.)
+    /// Can be used as AppLifecycleLogger protocol type for dependency injection
+    /// Marked as nonisolated so it can be accessed from any context (logger is Sendable)
+    nonisolated static var sharedLogger: DefaultAppLifecycleLogger {
+        DefaultAppLifecycleLogger.shared
+    }
+    
+    init(logger: AppLifecycleLogger = DefaultAppLifecycleLogger.shared) {
         self.logger = logger
         // Initialize app state in UserDefaults (defaults to foreground)
         // This ensures widget always has a valid value to read
@@ -192,7 +314,7 @@ class AppLifecycleManager: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.isAppInBackground = true
-            logger.debug("App entered background")
+            logger.debug("AppLifecycleManager: App entered background")
             
             // Call all registered handlers on MainActor
             self.notifyHandlers { callbacks in
@@ -206,7 +328,7 @@ class AppLifecycleManager: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.isAppInBackground = false
-            logger.debug("App entering foreground")
+            logger.debug("AppLifecycleManager: App entering foreground")
             
             // Call all registered handlers on MainActor
             self.notifyHandlers { callbacks in

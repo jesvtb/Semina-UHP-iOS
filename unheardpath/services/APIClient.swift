@@ -291,8 +291,10 @@ class UHPGateway: ObservableObject {
 @MainActor
 class APIClient: ObservableObject {
     private let session: URLSession
+    private let logger: AppLifecycleLogger
     
-    init() {
+    init(logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger) {
+        self.logger = logger
         // See https://developer.apple.com/documentation/foundation/urlsessionconfiguration
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30.0
@@ -406,7 +408,7 @@ class APIClient: ObservableObject {
         
         // Debug logging (only in debug builds)
         #if DEBUG
-        print("🚀 API Request: \(method.uppercased()) \(url)")
+        logger.debug("API Request: \(method.uppercased()) \(url)")
         if let headers = headers {
             // Print a truncated view of the headers (showing up to 2 entries)
             let maxToShow = 2
@@ -418,10 +420,10 @@ class APIClient: ObservableObject {
             // print("📋 Headers: [\(headersString)]")
         }
         if !jsonDict.isEmpty {
-            print("📦 JSON Body: \(jsonDictAsAny)")
+            logger.debug("JSON Body: \(jsonDictAsAny)")
         }
         if !dataDict.isEmpty {
-            print("📦 Data Body: \(dataDict)")
+            logger.debug("Data Body: \(dataDict)")
         }
         #endif
         
@@ -435,7 +437,8 @@ class APIClient: ObservableObject {
     /// Events are processed immediately when both event type and data are available (Solution 1)
     nonisolated private static func processSSEStream(
         asyncBytes: URLSession.AsyncBytes,
-        continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation
+        continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation,
+        logger: AppLifecycleLogger
     ) async throws {
         var currentEvent: String?
         var currentData = ""
@@ -583,9 +586,7 @@ class APIClient: ObservableObject {
                 // Comment line (often used as keep-alive heartbeat)
                 // FastAPI may send ":\n\n" as keep-alive during long operations
                 // We ignore these but they help keep the connection alive
-                #if DEBUG
-                print("💓 SSE Keep-alive heartbeat received")
-                #endif
+                // Keep-alive heartbeats are too verbose to log
                 continue
             }
         }
@@ -593,9 +594,7 @@ class APIClient: ObservableObject {
         // Handle any remaining data when stream ends (force yield)
         yieldEventIfComplete(force: true)
         
-        #if DEBUG
-        print("✅ SSE Stream Completed")
-        #endif
+        logger.debug("SSE Stream Completed")
         
         continuation.finish()
     }
@@ -631,29 +630,21 @@ class APIClient: ObservableObject {
                   httpResponse.statusCode == 200 else {
                 let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
                 let errorMessage = Self.extractErrorMessage(from: data, statusCode: statusCode)
-                #if DEBUG
-                print("❌ API Error from \(url): \(errorMessage)")
-                #endif
+                logger.error("API Error from \(url): \(errorMessage)", handlerType: "APIClient", error: nil)
                 throw APIError(message: errorMessage, code: statusCode)
             }
             
-            #if DEBUG
-            print("📊 Response Status from \(url): \(httpResponse.statusCode)")
-            #endif
+            logger.debug("Response Status from \(url): \(httpResponse.statusCode)")
             
             // Return raw data directly
             return data
             
         } catch let apiError as APIError {
-            #if DEBUG
-            print("❌ API Error from \(url): \(apiError.message)")
-            #endif
+            logger.error("API Error from \(url): \(apiError.message)", handlerType: "APIClient", error: apiError)
             throw apiError
         } catch {
             let errorMessage = "Failed to call API at \(url): \(error.localizedDescription)"
-            #if DEBUG
-            print("❌ Network Error from \(url): \(errorMessage)")
-            #endif
+            logger.error("Network Error from \(url): \(errorMessage)", handlerType: "APIClient", error: error)
             throw APIError(message: errorMessage, code: nil)
         }
     }
@@ -730,12 +721,11 @@ class APIClient: ObservableObject {
             let capturedMethod = method
             let capturedUrl = url
             let capturedSession = session
+            let capturedLogger = logger
             
             Task.detached {
                 do {
-                    #if DEBUG
-                    print("🌊 Starting SSE Stream: \(capturedMethod.uppercased()) \(capturedUrl)")
-                    #endif
+                    capturedLogger.debug("Starting SSE Stream: \(capturedMethod.uppercased()) \(capturedUrl)")
                     
                     // Important: iOS will suspend network tasks when app goes to background
                     // The connection will resume when app returns to foreground, but may need reconnection
@@ -760,26 +750,21 @@ class APIClient: ObservableObject {
                         return
                     }
                     
-                    #if DEBUG
-                    print("📡 SSE Stream Connected: Status \(httpResponse.statusCode)")
-                    #endif
+                    capturedLogger.debug("SSE Stream Connected: Status \(httpResponse.statusCode)")
                     
                     // Process SSE stream
                     try await Self.processSSEStream(
                         asyncBytes: asyncBytes,
-                        continuation: continuation
+                        continuation: continuation,
+                        logger: capturedLogger
                     )
                     
                 } catch let apiError as APIError {
-                    #if DEBUG
-                    print("❌ SSE Stream Error: \(apiError.message)")
-                    #endif
+                    capturedLogger.error("SSE Stream Error: \(apiError.message)", handlerType: "APIClient", error: apiError)
                     continuation.finish(throwing: apiError)
                 } catch {
                     let errorMessage = "Failed to stream API at \(url): \(error.localizedDescription)"
-                    #if DEBUG
-                    print("❌ SSE Network Error: \(errorMessage)")
-                    #endif
+                    capturedLogger.error("SSE Network Error: \(errorMessage)", handlerType: "APIClient", error: error)
                     continuation.finish(throwing: APIError(message: errorMessage, code: nil))
                 }
             }
