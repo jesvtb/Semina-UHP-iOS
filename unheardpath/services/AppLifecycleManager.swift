@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import UIKit
+import WidgetKit
 
 /// Simple logger protocol for app-wide logging
 /// Allows injection of custom logging implementations for testing
@@ -255,6 +256,13 @@ class AppLifecycleManager: ObservableObject {
             // Persist app state to UserDefaults for widget access
             // Note: StorageManager will automatically add "UHP." prefix
             StorageManager.saveToUserDefaults(isAppInBackground, forKey: appStateIsInBackgroundKey)
+            
+            // Reload widget timeline immediately to reflect app state change
+            WidgetCenter.shared.reloadTimelines(ofKind: "widget")
+            
+            #if DEBUG
+            logger.debug("Widget timeline reloaded due to app state change: \(isAppInBackground ? "background" : "foreground")")
+            #endif
         }
     }
     

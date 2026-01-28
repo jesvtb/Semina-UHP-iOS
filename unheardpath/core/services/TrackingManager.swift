@@ -124,6 +124,9 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         // Save tracking mode to UserDefaults for widget
         StorageManager.saveToUserDefaults("foreground", forKey: trackingModeKey)
+        
+        // Reload widget timeline to reflect tracking mode change
+        WidgetCenter.shared.reloadTimelines(ofKind: "widget")
     }
     
     /// Switches to background tracking mode (app in background)
@@ -140,6 +143,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         // but we need to update widget state accordingly
         guard authorizationStatus == .authorizedAlways else {
             StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
+            WidgetCenter.shared.reloadTimelines(ofKind: "widget")
             logger.warning("Background tracking requires 'Always' permission", handlerType: "TrackingManager")
             return
         }
@@ -148,6 +152,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         guard CLLocationManager.significantLocationChangeMonitoringAvailable() else {
             logger.warning("Significant location change monitoring not available", handlerType: "TrackingManager")
             StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
+            WidgetCenter.shared.reloadTimelines(ofKind: "widget")
             return
         }
         
@@ -158,6 +163,9 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         
         StorageManager.saveToUserDefaults("background", forKey: trackingModeKey)
+        
+        // Reload widget timeline to reflect tracking mode change
+        WidgetCenter.shared.reloadTimelines(ofKind: "widget")
     }
     
     /// Stops all location tracking
