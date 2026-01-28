@@ -1287,7 +1287,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Debug function to clear all cached location data
     func debugClearAllCache() {
         // Use shared UserDefaults suite (same as StorageManager) to find keys
-        let sharedDefaults = UserDefaults(suiteName: "com.semina.unheardpath") ?? UserDefaults.standard
+        let sharedDefaults = UserDefaults(suiteName: "group.com.semina.unheardpath") ?? UserDefaults.standard
         // StorageManager adds "UHP." prefix, so we need to look for keys with that prefix
         let keys = sharedDefaults.dictionaryRepresentation().keys.filter { key in
             key.hasPrefix("UHP.") && (

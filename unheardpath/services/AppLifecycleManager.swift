@@ -30,6 +30,7 @@ struct LogEntry: Sendable {
         case debug
         case warning
         case error
+        case info
     }
 }
 

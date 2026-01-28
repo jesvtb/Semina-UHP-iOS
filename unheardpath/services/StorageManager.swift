@@ -71,9 +71,9 @@ enum StorageManager {
     // For small data (< 100 KB) - similar to localStorage in React or a config file in Python
     
     /// Get shared UserDefaults suite for widget compatibility
-    /// Uses main app's bundle ID so widget extension can access the same UserDefaults
+    /// Uses App Group identifier (must start with "group.") so widget extension can access the same UserDefaults
     private static var sharedUserDefaults: UserDefaults {
-        return UserDefaults(suiteName: "com.semina.unheardpath") ?? UserDefaults.standard
+        return UserDefaults(suiteName: "group.com.semina.unheardpath") ?? UserDefaults.standard
     }
     
     /// Save small data to UserDefaults (like localStorage.setItem in React)
@@ -340,47 +340,97 @@ enum StorageManager {
     
     /// Print all "UHP." prefixed keys in UserDefaults
     /// Useful for development to see what keys are stored
+    /// Checks both App Group suite and standard UserDefaults for migration purposes
     static func printUHPKeysInUserDefaults() {
-        let defaults = sharedUserDefaults
-        let allKeys = defaults.dictionaryRepresentation().keys
+        // Check App Group suite (current)
+        let appGroupDefaults = UserDefaults(suiteName: "group.com.semina.unheardpath")
+        let appGroupKeys = appGroupDefaults?.dictionaryRepresentation().keys.filter { $0.hasPrefix("UHP.") }.sorted() ?? []
         
-        // Filter keys that start with "UHP."
-        let uhpKeys = allKeys.filter { $0.hasPrefix("UHP.") }.sorted()
+        // Check standard UserDefaults (old location, for migration)
+        let standardDefaults = UserDefaults.standard
+        let standardKeys = standardDefaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("UHP.") }.sorted()
         
-        print("🔑 UHP-Prefixed Keys in UserDefaults")
+        // Check old bundle identifier suite (if it exists)
+        let oldSuiteDefaults = UserDefaults(suiteName: "com.semina.unheardpath")
+        let oldSuiteKeys = oldSuiteDefaults?.dictionaryRepresentation().keys.filter { $0.hasPrefix("UHP.") }.sorted() ?? []
+        
+        print("🔑 UHP Keys in UserDefaults")
         print("═══════════════════════════════════════════════════════════")
         
-        if uhpKeys.isEmpty {
-            print("   (0 keys found)")
-        } else {
-            print("   Total: \(uhpKeys.count) key\(uhpKeys.count == 1 ? "" : "s")")
-            print("")
-            for (index, key) in uhpKeys.enumerated() {
-                let value = defaults.object(forKey: key)
-                let valueDescription: String
-                
-                if let stringValue = value as? String {
-                    valueDescription = "\"\(stringValue)\""
-                } else if let numberValue = value as? NSNumber {
-                    valueDescription = "\(numberValue)"
-                } else if let boolValue = value as? Bool {
-                    valueDescription = "\(boolValue)"
-                } else if let dataValue = value as? Data {
-                    valueDescription = "Data(\(dataValue.count) bytes)"
-                } else if let arrayValue = value as? [Any] {
-                    valueDescription = "Array(\(arrayValue.count) items)"
-                } else if let dictValue = value as? [String: Any] {
-                    valueDescription = "Dictionary(\(dictValue.count) keys)"
-                } else {
-                    valueDescription = "\(type(of: value))"
+        // App Group suite (current)
+        if let appGroupDefaults = appGroupDefaults {
+            print("📦 App Group Suite (group.com.semina.unheardpath):")
+            if appGroupKeys.isEmpty {
+                print("  (0 keys found)")
+            } else {
+                print("  Total: \(appGroupKeys.count) key\(appGroupKeys.count == 1 ? "" : "s")")
+                for (index, key) in appGroupKeys.enumerated() {
+                    if let value = appGroupDefaults.object(forKey: key) {
+                        let valueDescription = formatValueDescription(value)
+                        print("  \(index + 1). \(key)")
+                        print("     └─ Value: \(valueDescription)")
+                    }
                 }
-                
-                print("   \(index + 1). \(key)")
-                print("      └─ Value: \(valueDescription)")
+            }
+        } else {
+            print("⚠️ App Group Suite (group.com.semina.unheardpath): Not available")
+            print("   (App Group may not be configured in Xcode)")
+        }
+        
+        print("")
+        
+        // Standard UserDefaults (fallback)
+        if !standardKeys.isEmpty {
+            print("📦 Standard UserDefaults:")
+            print("  Total: \(standardKeys.count) key\(standardKeys.count == 1 ? "" : "s")")
+            for (index, key) in standardKeys.enumerated() {
+                if let value = standardDefaults.object(forKey: key) {
+                    let valueDescription = formatValueDescription(value)
+                    print("  \(index + 1). \(key)")
+                    print("     └─ Value: \(valueDescription)")
+                }
             }
         }
         
+        // Old suite (migration check)
+        if let oldSuiteDefaults = oldSuiteDefaults, !oldSuiteKeys.isEmpty {
+            print("")
+            print("⚠️ Old Suite (com.semina.unheardpath) - Migration needed:")
+            print("  Total: \(oldSuiteKeys.count) key\(oldSuiteKeys.count == 1 ? "" : "s")")
+            for (index, key) in oldSuiteKeys.enumerated() {
+                if let value = oldSuiteDefaults.object(forKey: key) {
+                    let valueDescription = formatValueDescription(value)
+                    print("  \(index + 1). \(key)")
+                    print("     └─ Value: \(valueDescription)")
+                }
+            }
+        }
+        
+        let totalKeys = appGroupKeys.count + standardKeys.count + oldSuiteKeys.count
+        if totalKeys == 0 {
+            print("(0 keys found in any suite)")
+        }
+        
         print("═══════════════════════════════════════════════════════════")
+    }
+    
+    /// Helper to format value description for logging
+    private static func formatValueDescription(_ value: Any) -> String {
+        if let stringValue = value as? String {
+            return "\"\(stringValue.prefix(100))\(stringValue.count > 100 ? "..." : "")\""
+        } else if let numberValue = value as? NSNumber {
+            return "\(numberValue)"
+        } else if let boolValue = value as? Bool {
+            return "\(boolValue)"
+        } else if let dataValue = value as? Data {
+            return "Data(\(dataValue.count) bytes)"
+        } else if let arrayValue = value as? [Any] {
+            return "Array(\(arrayValue.count) items)"
+        } else if let dictValue = value as? [String: Any] {
+            return "Dictionary(\(dictValue.count) keys)"
+        } else {
+            return "\(type(of: value))"
+        }
     }
     
     #if DEBUG

@@ -82,7 +82,7 @@ struct Provider: TimelineProvider {
         // Read app state using StorageManager with fallback to direct UserDefaults access
         // This ensures we can read the value even if StorageManager has issues
         let fullKey = "UHP.\(appStateIsInBackgroundKey)"
-        let sharedDefaults = UserDefaults(suiteName: "com.semina.unheardpath")
+        let sharedDefaults = UserDefaults(suiteName: "group.com.semina.unheardpath")
         
         // Try StorageManager first
         var isAppInBackground = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
@@ -148,8 +148,34 @@ struct Provider: TimelineProvider {
         let trackingMode = StorageManager.loadFromUserDefaults(forKey: trackingModeKey, as: String.self)
         
         // Read location data from new format (single key with NewLocation structure)
-        guard let newLocationString = StorageManager.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self),
-              let newLocationDict = JSONValue.decodeFromString(newLocationString) else {
+        let locationKey = "UHP.\(lastDeviceLocationKey)"
+        let newLocationString = StorageManager.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self)
+        
+        #if DEBUG
+        print("📍 Widget: Reading location data...")
+        print("   Key: \(locationKey)")
+        print("   StorageManager result: \(newLocationString != nil ? "Found (\(newLocationString!.count) chars)" : "nil")")
+        
+        // Also try direct UserDefaults access
+        let directLocationString = sharedDefaults?.string(forKey: locationKey)
+        print("   Direct UserDefaults result: \(directLocationString != nil ? "Found (\(directLocationString!.count) chars)" : "nil")")
+        
+        // Check all location-related keys
+        if let sharedDefaults = sharedDefaults {
+            let allKeys = sharedDefaults.dictionaryRepresentation().keys
+            let locationKeys = allKeys.filter { $0.contains("Location") || $0.contains("location") }.sorted()
+            print("   Location-related keys found: \(locationKeys)")
+        }
+        #endif
+        
+        guard let locationString = newLocationString ?? sharedDefaults?.string(forKey: locationKey),
+              let newLocationDict = JSONValue.decodeFromString(locationString) else {
+            #if DEBUG
+            print("⚠️ Widget: Location data not found or invalid JSON")
+            if let locationString = newLocationString ?? sharedDefaults?.string(forKey: locationKey) {
+                print("   Raw string (first 200 chars): \(locationString.prefix(200))")
+            }
+            #endif
             return LocationTrackingEntry(
                 date: currentDate,
                 latitude: nil,
@@ -282,7 +308,7 @@ struct widgetEntryView: View {
                         .foregroundColor(.secondary.opacity(0.7))
                     
                     // Show what keys are available (for debugging)
-                    let sharedDefaults = UserDefaults(suiteName: "com.semina.unheardpath")
+                    let sharedDefaults = UserDefaults(suiteName: "group.com.semina.unheardpath")
                     if let sharedDefaults = sharedDefaults {
                         let allKeys = sharedDefaults.dictionaryRepresentation().keys
                         let uhpKeys = allKeys.filter { $0.hasPrefix("UHP.") && $0.contains("AppState") }

@@ -22,9 +22,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Register for remote notifications each time the app launches
         // Reference: https://developer.apple.com/documentation/UIKit/UIApplication/registerForRemoteNotifications()
         application.registerForRemoteNotifications()
-        #if DEBUG
-        print("📱 Registered for remote notifications")
-        #endif
+        AppLifecycleManager.sharedLogger.debug("Registered for remote notifications")
         return true
     }
     
@@ -33,10 +31,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         // Convert device token to string format
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        #if DEBUG
-        print("✅ Successfully registered for remote notifications")
-        print("📱 Device token for Notification: \(tokenString)")
-        #endif
+        AppLifecycleManager.sharedLogger.debug("Successfully registered for remote notifications")
+        AppLifecycleManager.sharedLogger.debug("Device token for Notification: \(tokenString)")
         
         // TODO: Send device token to your provider server
         // Your provider server must have this token before it can deliver notifications to the device
@@ -45,9 +41,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     /// Called when the app fails to register with APNs
     /// Reference: https://developer.apple.com/documentation/UIKit/UIApplicationDelegate/application(_:didFailToRegisterForRemoteNotificationsWithError:)
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        #if DEBUG
-        print("❌ Failed to register for remote notifications: \(error.localizedDescription)")
-        #endif
+        AppLifecycleManager.sharedLogger.error("Failed to register for remote notifications", handlerType: "AppDelegate", error: error)
     }
 }
 
@@ -66,18 +60,16 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     ) {
         let userInfo = notification.request.content.userInfo
         
-        #if DEBUG
-        print("📬 Received remote notification while app is in foreground")
+        AppLifecycleManager.sharedLogger.debug("Received remote notification while app is in foreground")
         
         // Check if this is a LiveActivity update notification
         if let aps = userInfo["aps"] as? [String: Any],
            let event = aps["event"] as? String {
-            print("   LiveActivity event: \(event)")
+            AppLifecycleManager.sharedLogger.debug("LiveActivity event: \(event)")
             if let contentState = aps["content-state"] as? [String: Any] {
-                print("   Content state: \(contentState)")
+                AppLifecycleManager.sharedLogger.debug("Content state: \(contentState)")
             }
         }
-        #endif
         
         // For LiveActivity updates, the system handles them automatically
         // We don't need to show a banner, but you can customize this behavior
@@ -97,15 +89,13 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     ) {
         let userInfo = response.notification.request.content.userInfo
         
-        #if DEBUG
-        print("👆 User tapped on notification")
+        AppLifecycleManager.sharedLogger.debug("User tapped on notification")
         
         // Check if this is a LiveActivity update notification
         if let aps = userInfo["aps"] as? [String: Any],
            let event = aps["event"] as? String {
-            print("   LiveActivity event: \(event)")
+            AppLifecycleManager.sharedLogger.debug("LiveActivity event: \(event)")
         }
-        #endif
         
         // Handle notification tap if needed
         // For LiveActivities, the system handles navigation automatically
@@ -134,14 +124,18 @@ struct unheardpathApp: App {
     @StateObject private var toastManager = ToastManager()
     @StateObject private var contentManager = ContentManager()
     
+    // Logger for app initialization logging
+    private var logger: AppLifecycleLogger {
+        AppLifecycleManager.sharedLogger
+    }
+    
     init() {
-        // Print configuration at app startup (visible in device logs)
-        print("🚀 unheardpath App Starting")
-        print("📱 Build Configuration Check:")
+        // Log app startup configuration
+        logger.debug("🚀 Starting App")
         #if DEBUG
-        print("   Configuration: DEBUG (Development)")
+        logger.debug("Configuration: DEBUG (Development)")
         #else
-        print("   Configuration: RELEASE (Production)")
+        logger.debug("Configuration: RELEASE (Production)")
         #endif
         
         // CRITICAL: Set UserManager reference BEFORE AuthManager checks session
@@ -180,13 +174,16 @@ struct unheardpathApp: App {
         guard let token = Bundle.main.infoDictionary?["MBXAccessToken"] as? String,
               !token.isEmpty,
               token.hasPrefix("pk.") else {
+            logger.warning("Mapbox token not found in Info.plist or invalid format", handlerType: "unheardpathApp")
             return
         }
         MapboxOptions.accessToken = token
         
         // Verify token is set
         if MapboxOptions.accessToken.isEmpty {
-            print("❌ Mapbox token injection failed - using programmatic token")
+            logger.error("Mapbox token injection failed - using programmatic token", handlerType: "unheardpathApp", error: nil)
+        } else {
+            logger.debug("Mapbox token configured successfully")
         }
     }
     
@@ -195,7 +192,7 @@ struct unheardpathApp: App {
     private func setupPostHog() {
         #if DEBUG
         // PostHog tracking disabled for development builds
-        print("📊 PostHog tracking disabled (DEBUG build)")
+        logger.debug("PostHog tracking disabled (DEBUG build)")
         return
         #else
 
@@ -203,13 +200,13 @@ struct unheardpathApp: App {
               !apiKey.isEmpty,
               let host = Bundle.main.infoDictionary?["POSTHOG_HOST"] as? String,
               !host.isEmpty else {
-            print("⚠️ POSTHOG_API_KEY or POSTHOG_HOST missing/invalid in Info.plist, skipping PostHog setup")
+            logger.warning("POSTHOG_API_KEY or POSTHOG_HOST missing/invalid in Info.plist, skipping PostHog setup", handlerType: "unheardpathApp")
             return
         }
         
         let hostWithProtocol = "https://\(host)"
         
-        print("📊 PostHog configured (RELEASE build)")
+        logger.debug("PostHog configured (RELEASE build)")
         
         let config = PostHogConfig(apiKey: apiKey, host: hostWithProtocol)
         PostHogSDK.shared.setup(config)
@@ -303,9 +300,7 @@ private struct AppContentView: View {
             .onOpenURL { url in
                 Task {
                     do {
-                        #if DEBUG
-                        print("🔗 App-level callback URL: \(url.absoluteString)")
-                        #endif
+                        AppLifecycleManager.sharedLogger.debug("App-level callback URL: \(url.absoluteString)")
                         
                         // session(from: url) handles both implicit and PKCE flows automatically
                         // It extracts token_hash if present and verifies it, or uses implicit flow tokens
@@ -315,9 +310,7 @@ private struct AppContentView: View {
                         // After session is created from URL, authManager will detect the change
                         // via authStateChanges listener
                     } catch {
-                        #if DEBUG
-                        print("❌ Error handling auth callback: \(error)")
-                        #endif
+                        AppLifecycleManager.sharedLogger.error("Error handling auth callback", handlerType: "AppContentView", error: error)
                     }
                 }
             }
