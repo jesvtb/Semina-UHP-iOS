@@ -42,9 +42,10 @@ struct TestMainView: View {
     @EnvironmentObject var contentManager: ContentManager
     // SSE event router for handling events from both /v1/chat and /v1/orchestrator
     @EnvironmentObject var sseEventRouter: SSEEventRouter
-    
-    // Autocomplete state for map tab
-    @StateObject var addressSearchManager = AddressSearchManager()
+    // Event manager for event-driven location tracking
+    @EnvironmentObject var eventManager: EventManager
+    // Address search manager (moved to app-level for dependency injection)
+    @EnvironmentObject var addressSearchManager: AddressSearchManager
     @State var targetLocation: TargetLocation?
     @State private var selectedLocation: CLLocation?
     
@@ -576,6 +577,9 @@ extension TestMainView {
     }
     
     private func clearCache() {
+        // Clear all StorageManager-backed UserDefaults entries (UHP-prefixed),
+        // then run location-specific cache cleanup for any legacy keys.
+        StorageManager.clearAllUHPUserDefaults()
         locationManager.debugClearAllCache()
         #if DEBUG
         print("✅ Cache cleared from debug button")

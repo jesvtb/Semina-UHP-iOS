@@ -34,24 +34,35 @@ extension TestMainView {
                 let placemarks = try await locationManager.reverseGeocodeLocation(location)
                 
                 if let placemark = placemarks.first {
-                    // Construct lookup place dictionary and update lookupLocationDetails
+                    // Construct lookup place dictionary
                     let lookupDict = locationManager.constructLookupLocation(
                         location: location,
                         placemark: placemark,
                         mapItemName: result.title
                     )
-                    locationManager.lookupLocationDetails = lookupDict
                     
                     #if DEBUG
                     print("📦 Constructed lookup place dict from reverse geocoding: \(lookupDict)")
-                    print("✅ Updated lookupLocationDetails in LocationManager")
                     if let fullAddress = lookupDict["full_address"]?.stringValue {
                         print("   Full address: \(fullAddress)")
                     }
                     #endif
                     
-                    // Save lookup location to UserDefaults
-                    locationManager.saveLookupLocation(location)
+                    // Create location_searched event and add to EventManager
+                    // Use NewLocation structure for backend compatibility
+                    do {
+                        let newLocationDict = try await locationManager.constructNewLocation(from: location)
+                        let event = UserEventBuilder.build(
+                            evtType: "location_searched",
+                            evtData: newLocationDict,
+                            sessionId: eventManager.sessionId
+                        )
+                        _ = try await eventManager.addEvent(event)
+                    } catch {
+                        #if DEBUG
+                        print("⚠️ Failed to add location_searched event with NewLocation structure: \(error.localizedDescription)")
+                        #endif
+                    }
                     
                     // Update target location to trigger map camera update and show marker
                     let placeName = lookupDict["place"]?.stringValue ?? result.title
@@ -205,25 +216,36 @@ extension TestMainView {
                 print("✅ Geocoded '\(completion.title)' to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
                 #endif
                 
-                // Construct lookup place dictionary and update lookupLocationDetails
+                // Construct lookup place dictionary
                 let placemark = mapItem.placemark
                 let lookupDict = locationManager.constructLookupLocation(
                     location: location,
                     placemark: placemark,
                     mapItemName: mapItem.name
                 )
-                locationManager.lookupLocationDetails = lookupDict
                 
                 #if DEBUG
                 print("📦 Constructed lookup place dict: \(lookupDict)")
-                print("✅ Updated lookupLocationDetails in LocationManager")
                 if let fullAddress = lookupDict["full_address"]?.stringValue {
                     print("   Full address: \(fullAddress)")
                 }
                 #endif
                 
-                // Save lookup location to UserDefaults
-                locationManager.saveLookupLocation(location)
+                // Create location_searched event and add to EventManager
+                // Use NewLocation structure for backend compatibility
+                do {
+                    let newLocationDict = try await locationManager.constructNewLocation(from: location)
+                    let event = UserEventBuilder.build(
+                        evtType: "location_searched",
+                        evtData: newLocationDict,
+                        sessionId: eventManager.sessionId
+                    )
+                    _ = try await eventManager.addEvent(event)
+                } catch {
+                    #if DEBUG
+                    print("⚠️ Failed to add location_searched event with NewLocation structure: \(error.localizedDescription)")
+                    #endif
+                }
                 
                 // Update target location to trigger map camera update and show marker
                 let placeName = lookupDict["place"]?.stringValue
@@ -252,20 +274,32 @@ extension TestMainView {
         // MKPlacemark is a subclass of CLPlacemark, so it can be used where CLPlacemark is expected
         let minimalPlacemark = MKPlacemark(coordinate: location.coordinate)
         
-        // Construct lookup place dictionary and update lookupLocationDetails
+        // Construct lookup place dictionary (for display only)
         let lookupDict = locationManager.constructLookupLocation(
             location: location,
             placemark: minimalPlacemark,
             mapItemName: title
         )
-        locationManager.lookupLocationDetails = lookupDict
         
         #if DEBUG
         print("📦 Constructed lookup place dict with minimal placemark: \(lookupDict)")
         #endif
         
-        // Save lookup location to UserDefaults
-        locationManager.saveLookupLocation(location)
+        // Create location_searched event and add to EventManager
+        // Use NewLocation structure for backend compatibility
+        do {
+            let newLocationDict = try await locationManager.constructNewLocation(from: location)
+            let event = UserEventBuilder.build(
+                evtType: "location_searched",
+                evtData: newLocationDict,
+                sessionId: eventManager.sessionId
+            )
+            _ = try await eventManager.addEvent(event)
+        } catch {
+            #if DEBUG
+            print("⚠️ Failed to add location_searched event with NewLocation structure: \(error.localizedDescription)")
+            #endif
+        }
         
         // Update target location to trigger map camera update and show marker
         let placeName = lookupDict["place"]?.stringValue ?? title

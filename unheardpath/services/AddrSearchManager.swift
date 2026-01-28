@@ -127,6 +127,9 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
     private let geoapifyGateway = GeoapifyGateway()
     private var currentQuery: String = ""
     
+    // EventManager reference (set after initialization)
+    weak var eventManager: EventManager?
+    
     // Logger for error and debug logging
     private let logger: AppLifecycleLogger
     

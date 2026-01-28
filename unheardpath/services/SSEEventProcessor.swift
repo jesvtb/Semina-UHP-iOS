@@ -211,7 +211,6 @@ class SSEEventProcessor {
     
     /// Handles chat events by accumulating content and delegating to handler
     private func handleChatEvent(_ event: SSEEvent, accumulatedData: inout String) async {
-        logger.debug("Processing chat event")
         
         do {
             guard let dataDict = try event.parseJSONData() else {

@@ -434,6 +434,35 @@ enum StorageManager {
     }
     
     #if DEBUG
+    /// Clear all keys stored via StorageManager (all `UHP.`-prefixed UserDefaults keys).
+    /// This is intended for debug tooling only (e.g., cache debug sheet).
+    static func clearAllUHPUserDefaults() {
+        _ = _initialize // Trigger initialization
+        
+        let defaults = sharedUserDefaults
+        let allKeys = defaults.dictionaryRepresentation().keys
+        
+        // Filter to keys we own (UHP-prefixed)
+        let uhpKeys = allKeys.filter { $0.hasPrefix("UHP.") }
+        
+        guard !uhpKeys.isEmpty else {
+            print("🧹 StorageManager.clearAllUHPUserDefaults: No UHP-prefixed keys to clear.")
+            return
+        }
+        
+        // Remove each key safely
+        for key in uhpKeys {
+            defaults.removeObject(forKey: key)
+        }
+        
+        // Attempt to synchronize, but don't crash if it fails
+        if !defaults.synchronize() {
+            print("⚠️ StorageManager.clearAllUHPUserDefaults: synchronize() returned false – values should still be removed in memory.")
+        }
+        
+        print("🧹 StorageManager.clearAllUHPUserDefaults: Cleared \(uhpKeys.count) UHP-prefixed UserDefaults key(s).")
+    }
+    
     /// Print storage usage summary
     static func printStorageSummary() {
         _ = _initialize // Trigger initialization

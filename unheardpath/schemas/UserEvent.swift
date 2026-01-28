@@ -7,6 +7,7 @@ struct UserEvent: Codable, Sendable {
     let evt_timezone: String?  // IANA timezone identifier
     let evt_type: String  // Event type (e.g., "location_detected", "chat_sent")
     let evt_data: [String: JSONValue]  // Event data (structure depends on evt_type)
+    let session_id: String?  // Session identifier
     
     /// Converts UserEvent to JSONValue dictionary for API calls
     func toJSONDict() -> [String: JSONValue] {
@@ -18,6 +19,9 @@ struct UserEvent: Codable, Sendable {
         if let timezone = evt_timezone {
             dict["evt_timezone"] = .string(timezone)
         }
+        if let sessionId = session_id {
+            dict["session_id"] = .string(sessionId)
+        }
         return dict
     }
 }
@@ -28,8 +32,9 @@ enum UserEventBuilder {
     /// - Parameters:
     ///   - evtType: Event type (e.g., "location_detected", "chat_sent")
     ///   - evtData: Event data dictionary
+    ///   - sessionId: Optional session identifier (default: nil)
     /// - Returns: UserEvent instance with current UTC time and device timezone
-    nonisolated static func build(evtType: String, evtData: [String: JSONValue]) -> UserEvent {
+    nonisolated static func build(evtType: String, evtData: [String: JSONValue], sessionId: String? = nil) -> UserEvent {
         let now = Date()
         
         // Create formatter - lightweight enough to create per call
@@ -45,7 +50,8 @@ enum UserEventBuilder {
             evt_utc: evtUTC,
             evt_timezone: evtTimezone,
             evt_type: evtType,
-            evt_data: evtData
+            evt_data: evtData,
+            session_id: sessionId
         )
     }
 }

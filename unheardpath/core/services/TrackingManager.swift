@@ -43,6 +43,12 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
     
+    // EventManager reference (set after initialization)
+    weak var eventManager: EventManager?
+    
+    // LocationManager reference (set after initialization, for constructing NewLocation dicts)
+    weak var locationManager: LocationManager?
+    
     // Use AppLifecycleManager's state as single source of truth
     // Removes duplicate state tracking
     private var isAppInBackground: Bool {
@@ -205,7 +211,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             let accuracy = location.horizontalAccuracy
             self.logger.debug("Location updated (\(updateType)): \(location.coordinate.latitude), \(location.coordinate.longitude) (accuracy: ±\(Int(accuracy))m)")
             
-            // Update deviceLocation property
+            // Update deviceLocation property immediately (for UI)
             self.deviceLocation = location
         }
     }

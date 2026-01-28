@@ -123,6 +123,8 @@ struct unheardpathApp: App {
     @StateObject private var mapFeaturesManager = MapFeaturesManager()
     @StateObject private var toastManager = ToastManager()
     @StateObject private var contentManager = ContentManager()
+    @StateObject private var eventManager = EventManager()
+    @StateObject private var addressSearchManager = AddressSearchManager()  // Moved to app-level for dependency injection
     
     // Logger for app initialization logging
     private var logger: AppLifecycleLogger {
@@ -160,7 +162,9 @@ struct unheardpathApp: App {
                 appLifecycleManager: appLifecycleManager,
                 mapFeaturesManager: mapFeaturesManager,
                 toastManager: toastManager,
-                contentManager: contentManager
+                contentManager: contentManager,
+                eventManager: eventManager,
+                addressSearchManager: addressSearchManager
             )
             .id("app-content-view") // Stable identity ensures @StateObject persists
         }
@@ -228,6 +232,8 @@ private struct AppContentView: View {
     let mapFeaturesManager: MapFeaturesManager
     let toastManager: ToastManager
     let contentManager: ContentManager
+    let eventManager: EventManager
+    let addressSearchManager: AddressSearchManager
     let sseEventRouter: SSEEventRouter
     
     // Create ChatViewModel as @StateObject with proper dependencies
@@ -244,7 +250,9 @@ private struct AppContentView: View {
         appLifecycleManager: AppLifecycleManager,
         mapFeaturesManager: MapFeaturesManager,
         toastManager: ToastManager,
-        contentManager: ContentManager
+        contentManager: ContentManager,
+        eventManager: EventManager,
+        addressSearchManager: AddressSearchManager
     ) {
         self.authManager = authManager
         self.apiClient = apiClient
@@ -257,6 +265,8 @@ private struct AppContentView: View {
         self.mapFeaturesManager = mapFeaturesManager
         self.toastManager = toastManager
         self.contentManager = contentManager
+        self.eventManager = eventManager
+        self.addressSearchManager = addressSearchManager
         
         // Initialize ChatViewModel (no manager dependencies)
         _chatViewModel = StateObject(wrappedValue: ChatViewModel(
@@ -287,6 +297,8 @@ private struct AppContentView: View {
             .environmentObject(mapFeaturesManager) // Pass map features manager to all views
             .environmentObject(toastManager) // Pass toast manager to all views
             .environmentObject(contentManager) // Pass content manager to all views
+            .environmentObject(eventManager) // Pass event manager to all views
+            .environmentObject(addressSearchManager) // Pass address search manager to all views
             .environmentObject(sseEventRouter) // Pass SSE event router to all views
             .withScaledSpacing() // Inject scaled spacing values into environment
             .onAppear {
@@ -296,6 +308,20 @@ private struct AppContentView: View {
                 
                 // Set ChatViewModel reference in router after @StateObject is initialized
                 sseEventRouter.setChatViewModel(chatViewModel)
+                
+                // Wire up EventManager dependencies (delayed injection pattern)
+                eventManager.uhpGateway = uhpGateway
+                eventManager.locationManager = locationManager
+                
+                // Wire up TrackingManager dependencies
+                trackingManager.eventManager = eventManager
+                trackingManager.locationManager = locationManager
+                
+                // Wire up AddressSearchManager dependencies
+                addressSearchManager.eventManager = eventManager
+                
+                // Wire up ChatViewModel dependencies
+                chatViewModel.eventManager = eventManager
             }
             .onOpenURL { url in
                 Task {

@@ -21,6 +21,9 @@ class ChatViewModel: ObservableObject {
     // Router reference set by AppContentView after initialization
     weak var sseEventRouter: SSEEventRouter?
     
+    // EventManager reference (set after initialization, for event tracking)
+    weak var eventManager: EventManager?
+    
     // MARK: - Callbacks (for cross-view coordination)
     var onDismissKeyboard: (() -> Void)?
     var onShowInfoSheet: (() -> Void)?
@@ -85,12 +88,31 @@ class ChatViewModel: ObservableObject {
                 "device_lang": .string(device_lang)
             ]
             
-            // Use streamUserEvent convenience method
-            let stream = try await uhpGateway.streamUserEvent(
-                endpoint: "/v1/chat",
+            // Create chat_sent event for EventManager tracking
+            let chatSentEvent = UserEventBuilder.build(
                 evtType: "chat_sent",
-                evtData: evtData
+                evtData: evtData,
+                sessionId: eventManager?.sessionId
             )
+            
+            // Track event in EventManager and get SSE stream
+            // EventManager handles persistence and backend sending, returns stream for SSE processing
+            let stream: AsyncThrowingStream<SSEEvent, Error>
+            let returnedStream = try await eventManager?.addEvent(chatSentEvent)
+            guard let stream = returnedStream else {
+                #if DEBUG
+                print("⚠️ sendMessage: No stream returned from EventManager")
+                #endif
+                return
+            }
+            // } else {
+            //     // Fallback: send directly if EventManager not available or doesn't return stream
+            //     stream = try await uhpGateway.streamUserEvent(
+            //         endpoint: "/v1/chat",
+            //         evtType: "chat_sent",
+            //         evtData: evtData
+            //     )
+            // }
             
             // Process SSE events using unified router
             guard let router = sseEventRouter else {
@@ -218,6 +240,42 @@ class ChatViewModel: ObservableObject {
         
         if let lastMsg = messages.last, !lastMsg.isUser {
             updateLastMsg(lastMsg)
+            
+            // Create chat_received event after streaming completes
+            // Get device_lang for event data
+            var device_lang = "en"
+            if let user = userManager.currentUser {
+                device_lang = user.device_lang
+            } else {
+                if #available(iOS 16.0, *) {
+                    device_lang = Locale.current.language.languageCode?.identifier ?? device_lang
+                } else {
+                    device_lang = Locale.current.languageCode ?? device_lang
+                }
+            }
+            
+            // Create chat_received event with final message content
+            let chatReceivedEventData: [String: JSONValue] = [
+                "message": .string(lastMsg.text),
+                "device_lang": .string(device_lang)
+            ]
+            
+            let chatReceivedEvent = UserEventBuilder.build(
+                evtType: "chat_received",
+                evtData: chatReceivedEventData,
+                sessionId: eventManager?.sessionId
+            )
+            
+            // Track event in EventManager (persist only, backend already has it)
+            if let eventManager = eventManager {
+                do {
+                    try await eventManager.addEvent(chatReceivedEvent)
+                } catch {
+                    #if DEBUG
+                    print("⚠️ Failed to add chat_received event: \(error.localizedDescription)")
+                    #endif
+                }
+            }
         }
     }
 }

@@ -83,17 +83,6 @@ struct LocationManagerTests {
                 #expect(!subs.isEmpty, "Subdivisions should not be empty if present")
             }
         }
-        
-        // Print the result for debugging
-        print("✅ Constructed NewLocation structure:")
-        print("   Coordinate: (\(lat), \(lng))")
-        print("   Timezone: \(timezone)")
-        if case .string(let countryCode) = newLocationDict["country_code"] {
-            print("   Country Code: \(countryCode)")
-        }
-        if case .string(let countryName) = newLocationDict["country_name"] {
-            print("   Country Name: \(countryName)")
-        }
     }
     
     /// Test constructing NewLocation with a location that has no altitude

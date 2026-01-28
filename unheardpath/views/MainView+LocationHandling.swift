@@ -106,9 +106,6 @@ extension TestMainView {
             // Use LocationManager helper to construct NewLocation structure
             let newLocationDict = try await locationManager.constructNewLocation(from: location)
             
-            // Save NewLocation structure to UserDefaults (single key-value pair)
-            locationManager.saveDeviceLocation(newLocationDict, location: location)
-            
             // Extract location information for locationDetail content
             var placeName: String?
             var subdivisions: String?
@@ -138,20 +135,30 @@ extension TestMainView {
                 data: .locationDetail(data: locationDetailData)
             )
             
-            // Send to /v1/orchestor endpoint using streamUserEvent
-            logger.debug("Sending location update event to /v1/orchestor")
-            
-            let stream = try await uhpGateway.streamUserEvent(
-                endpoint: "/v1/orchestor",
+            // Create location_detected event and add to EventManager
+            // EventManager handles persistence, deduplication, and backend sending
+            let event = UserEventBuilder.build(
                 evtType: "location_detected",
-                evtData: newLocationDict
+                evtData: newLocationDict,
+                sessionId: eventManager.sessionId
             )
-
-            // Process SSE events using unified router
+            
+            // Add event to EventManager (handles backend sending)
+            // Note: EventManager sends to backend but doesn't process SSE stream
+            // If SSE processing is needed, it should be handled separately
+            // try await eventManager.addEvent(event)
+            let stream: AsyncThrowingStream<SSEEvent, Error>
+            let returnedStream = try await eventManager.addEvent(event)
+            guard let stream = returnedStream else {
+                #if DEBUG
+                print("⚠️ Failed to add location_detected event to EventManager")
+                #endif
+                return
+            }
             let processor = SSEEventProcessor(handler: router)
             try await processor.processStream(stream)
             
-            logger.debug("Successfully sent location update to /v1/orchestor")
+            logger.debug("Successfully added location_detected event to EventManager")
         } catch {
             logger.error("Failed to update location to UHP", handlerType: "updateLocationToUHP", error: error)
         }
