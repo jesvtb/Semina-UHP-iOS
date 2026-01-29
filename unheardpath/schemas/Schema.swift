@@ -35,6 +35,88 @@ enum JSONValue: Sendable, Codable {
     
 }
 
+// MARK: - JSONValue Codable (standard JSON, no type wrapper)
+extension JSONValue {
+    /// Encodes as standard JSON (e.g. .double(114.11) → 114.11, not {"double":{"_0":114.11}}).
+    func encode(to encoder: Encoder) throws {
+        switch self {
+        case .string(let value):
+            var container = encoder.singleValueContainer()
+            try container.encode(value)
+        case .int(let value):
+            var container = encoder.singleValueContainer()
+            try container.encode(value)
+        case .double(let value):
+            var container = encoder.singleValueContainer()
+            try container.encode(value)
+        case .bool(let value):
+            var container = encoder.singleValueContainer()
+            try container.encode(value)
+        case .null:
+            var container = encoder.singleValueContainer()
+            try container.encodeNil()
+        case .array(let value):
+            var container = encoder.unkeyedContainer()
+            for element in value {
+                try container.encode(element)
+            }
+        case .dictionary(let value):
+            var container = encoder.container(keyedBy: DynamicCodingKey.self)
+            for (key, val) in value {
+                try container.encode(val, forKey: DynamicCodingKey(stringValue: key))
+            }
+        }
+    }
+
+    /// Decodes from standard JSON (e.g. 114.11 → .double(114.11)).
+    init(from decoder: Decoder) throws {
+        if let container = try? decoder.singleValueContainer() {
+            if container.decodeNil() {
+                self = .null
+                return
+            }
+            if let value = try? container.decode(Bool.self) {
+                self = .bool(value)
+                return
+            }
+            if let value = try? container.decode(Int.self) {
+                self = .int(value)
+                return
+            }
+            if let value = try? container.decode(Double.self) {
+                self = .double(value)
+                return
+            }
+            if let value = try? container.decode(String.self) {
+                self = .string(value)
+                return
+            }
+        }
+        if var container = try? decoder.unkeyedContainer() {
+            var arr: [JSONValue] = []
+            while !container.isAtEnd {
+                arr.append(try container.decode(JSONValue.self))
+            }
+            self = .array(arr)
+            return
+        }
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        var dict: [String: JSONValue] = [:]
+        for key in container.allKeys {
+            dict[key.stringValue] = try container.decode(JSONValue.self, forKey: key)
+        }
+        self = .dictionary(dict)
+    }
+}
+
+/// CodingKey for dynamic dictionary keys when encoding/decoding JSONValue.
+private struct DynamicCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int? { nil }
+    init(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
+}
+
 // MARK: - JSONValue Conversion Extension
 extension JSONValue {
     /// Convert from Any (from JSONSerialization) to JSONValue

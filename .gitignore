@@ -113,3 +113,5 @@ Config.xcconfig
 # Provisioning profiles (should not be committed)
 *.mobileprovision
 secrets/
+unheardpathTests/TestResults/**/*
+unheardpathTests/TestResults.xcresult/**/*
