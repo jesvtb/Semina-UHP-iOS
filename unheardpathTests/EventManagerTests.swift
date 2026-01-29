@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @testable import unheardpath
 
-
 @Suite("Event Manager Tests")
 struct EventManagerTests {
     
@@ -20,8 +19,6 @@ struct EventManagerTests {
 
         _ = try await eventManager.addEvent(event, skipBackendSend: true)
 
-        print("Event Manager This Session: \(eventManager.thisSession)")
-
         try check(
             eventManager.thisSession.count == originalCount + 1, 
             success: "Event is added to current session", 
@@ -35,4 +32,19 @@ struct EventManagerTests {
             success: "Event data matched", 
             failure: "Event data not matched: \(eventManager.thisSession.first?.evt_data["message"]?.stringValue ?? "nil")")
     }
+
+    @Test("Test loading events from UserDefaults")
+    @MainActor func testLoadEvents() async throws {
+        let eventManager = EventManager()
+        eventManager.loadEvents()
+        try check(
+            eventManager.thisSession.count > 0, 
+            success: "Events are loaded from UserDefaults", 
+            failure: "Events are not loaded from UserDefaults")
+        try check(
+            eventManager.pastSessions.count > 0, 
+            success: "Past sessions are loaded from UserDefaults", 
+            failure: "Past sessions are not loaded from UserDefaults")
+    }
 }
+
