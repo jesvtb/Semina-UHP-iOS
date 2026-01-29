@@ -436,7 +436,7 @@ class EventManager: ObservableObject {
         let sortedEvents = allEvents.sorted { $0.evt_utc > $1.evt_utc }
         let totalCount = sortedEvents.count
         let lastEvents = sortedEvents.prefix(count)
-        
+        logger.debug("Last \(count) events:\n=====================")
         for (relativeIndex, event) in lastEvents.enumerated() {
             let position = relativeIndex + 1
             let sessionLastDigits = event.session_id?.suffix(4) ?? "nil"

@@ -219,7 +219,7 @@ extension JSONValue {
             return "{}"
         }
         // print(jsonString)
-        return jsonString
+        return "\n\(jsonString)\n"
     }
     
     /// Decodes a JSON string to a JSONValue dictionary

@@ -2,9 +2,9 @@ import Testing
 import Foundation
 @testable import unheardpath
 
+
 @Suite("JSON Tests")
 struct JSONTests {
-
     
     @Test("Test JSON Value")
     func testJSONValue() {
@@ -17,20 +17,9 @@ struct JSONTests {
             "address": .dictionary(["street": .string("123 Main St"), "city": .string("Anytown")]),
             "pets": .null
         ]
-        // guard let jsonString = JSONValue.encodeToString(json) else {
-        //     return
-        // }
-        // print(jsonString)
-        let jsonDict = json.mapValues { $0.asAny }
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: jsonDict, options: .prettyPrinted),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            print("Failed to encode JSON")
-            return
-        }
-        print("JSON String: \n\(jsonString)")
-
-        let encodedJSONStr = JSONValue.encodeToString(json)
-        print("Encoded JSON String: \n\(encodedJSONStr ?? "Failed to encode JSON")")
-
+        let prettyDict = JSONValue.prettyDict(json)
+        let stringDic = JSONValue.encodeToString(json)
+        print("Pretty Dict: \(prettyDict)")
+        print("Json String: \n\(stringDic ?? "Failed to encode JSON")")
     }
 }
