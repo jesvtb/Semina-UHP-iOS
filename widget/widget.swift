@@ -288,47 +288,7 @@ struct widgetEntryView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Header with app state indicator
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: entry.isAppInBackground ? "moon.fill" : "sun.max.fill")
-                        .foregroundColor(entry.isAppInBackground ? .blue : .orange)
-                    Text(entry.isAppInBackground ? "BACKGROUND MODE" : "FOREGROUND MODE")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(entry.isAppInBackground ? .blue : .orange)
-                }
-                
-                #if DEBUG
-                // Debug info: show raw value being read and key info
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Debug: isInBackground = \(entry.isAppInBackground ? "true" : "false")")
-                        .font(.caption2)
-                        .foregroundColor(.secondary.opacity(0.7))
-                    
-                    // Show what keys are available (for debugging)
-                    let sharedDefaults = UserDefaults(suiteName: "group.com.semina.unheardpath")
-                    if let sharedDefaults = sharedDefaults {
-                        let allKeys = sharedDefaults.dictionaryRepresentation().keys
-                        let uhpKeys = allKeys.filter { $0.hasPrefix("UHP.") && $0.contains("AppState") }
-                        if !uhpKeys.isEmpty {
-                            Text("Keys found: \(uhpKeys.joined(separator: ", "))")
-                                .font(.caption2)
-                                .foregroundColor(.green.opacity(0.7))
-                        } else {
-                            Text("No AppState keys found")
-                                .font(.caption2)
-                                .foregroundColor(.red.opacity(0.7))
-                        }
-                    }
-                }
-                #endif
-            }
-            
-            Divider()
-            
-            // Tracking mode badge
+        VStack(alignment: .leading, spacing: 4) {
             if let trackingMode = entry.trackingMode {
                 HStack {
                     Text("Mode:")
@@ -352,20 +312,23 @@ struct widgetEntryView: View {
             
             if entry.hasLocation, let lat = entry.latitude, let lon = entry.longitude {
                 // Location coordinates
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Latitude:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(String(format: "%.6f", lat))
-                        .font(.system(.body, design: .monospaced))
-                        .fontWeight(.medium)
-                    
-                    Text("Longitude:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(String(format: "%.6f", lon))
-                        .font(.system(.body, design: .monospaced))
-                        .fontWeight(.medium)
+                HStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Latitude:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(String(format: "%.8f", lat))
+                            .font(.system(.body, design: .monospaced))
+                            .fontWeight(.medium)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Longitude:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(String(format: "%.8f", lon))
+                            .font(.system(.body, design: .monospaced))
+                            .fontWeight(.medium)
+                    }
                 }
                 
                 // Timestamp and age
@@ -375,19 +338,31 @@ struct widgetEntryView: View {
                         Text("Last Update:")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(timestamp, style: .time)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                        
-                        // Show age of location with color coding
                         HStack {
+                            Text(timestamp, style: .time)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                            HStack {
                             Circle()
                                 .fill(statusColor)
                                 .frame(width: 8, height: 8)
-                            Text(formatLocationAge(timestamp))
-                                .font(.caption2)
-                                .foregroundColor(statusColor)
+                            let timeSinceUpdate = Date().timeIntervalSince(entry.date)
+                if timeSinceUpdate < 60 {
+                    Text("\(Int(timeSinceUpdate))s ago")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                } else if timeSinceUpdate < 300 {
+                    Text("\(Int(timeSinceUpdate / 60))m ago")
+                        .font(.caption2)
+                        .foregroundColor(.yellow)
+                } else {
+                    Text("\(Int(timeSinceUpdate / 60))m ago")
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                }
                         }
+                        }
+                        
                     }
                 }
             } else {
@@ -402,32 +377,8 @@ struct widgetEntryView: View {
                 }
             }
             
-            Spacer()
             
-            // Widget timeline update info
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Timeline: \(entry.date, style: .time)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                
-                // Show time since last timeline update (helps verify iOS is refreshing)
-                let timeSinceUpdate = Date().timeIntervalSince(entry.date)
-                if timeSinceUpdate < 60 {
-                    Text("Updated \(Int(timeSinceUpdate))s ago")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                } else if timeSinceUpdate < 300 {
-                    Text("Updated \(Int(timeSinceUpdate / 60))m ago")
-                        .font(.caption2)
-                        .foregroundColor(.yellow)
-                } else {
-                    Text("Updated \(Int(timeSinceUpdate / 60))m ago")
-                        .font(.caption2)
-                        .foregroundColor(.red)
-                }
-            }
         }
-        .padding()
     }
 }
 
@@ -451,22 +402,34 @@ struct widget: Widget {
     }
 }
 
-// Preview requires iOS 17.0+ for the 'as:' parameter
-// Deployment target is 16.6, so preview is conditionally available
-// 
-// IMPORTANT: The #Preview macro with 'as:' parameter has a known issue in Swift 6
-// where the macro doesn't properly respect @available annotations.
-// This is a Swift 6/Xcode limitation. The preview is commented out to avoid compilation errors.
-// You can test widgets by running the app on a device or simulator.
-//
-// Uncomment the following when the Swift 6 availability issue is resolved:
-/*
+#if DEBUG
+private extension LocationTrackingEntry {
+    static var previewEntry: LocationTrackingEntry {
+        LocationTrackingEntry(
+            date: Date(),
+            latitude: 37.7749,
+            longitude: -122.4194,
+            timestamp: Date(),
+            isAppInBackground: false,
+            trackingMode: "active",
+            hasLocation: true
+        )
+    }
+}
+
 @available(iOSApplicationExtension 17.0, *)
 #Preview(as: .systemSmall) {
     widget()
 } timeline: {
-    LocationTrackingEntry(date: .now, latitude: 37.7749, longitude: -122.4194, timestamp: .now, isAppInBackground: false, trackingMode: "active", hasLocation: true)
-    LocationTrackingEntry(date: .now, latitude: 37.7749, longitude: -122.4194, timestamp: .now, isAppInBackground: true, trackingMode: "background", hasLocation: true)
-    LocationTrackingEntry(date: .now, latitude: nil, longitude: nil, timestamp: nil, isAppInBackground: true, trackingMode: "stopped", hasLocation: false)
+    LocationTrackingEntry.previewEntry
 }
-*/
+
+@available(iOSApplicationExtension 17.0, *)
+#Preview(as: .systemMedium) {
+    widget()
+} timeline: {
+    LocationTrackingEntry.previewEntry
+}
+#endif
+
+
