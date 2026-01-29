@@ -425,7 +425,7 @@ class EventManager: ObservableObject {
         }
         
         logger.debug("Saved events: \(thisSession.count) in current session, \(pastSessions.count) past sessions")
-        // printLastSavedEvents(count: 5)
+        printLastSavedEvents(count: 5)
     }
     
     /// Logs the last N saved events (by evt_utc, most recent first) for debugging.
@@ -438,23 +438,11 @@ class EventManager: ObservableObject {
         let lastEvents = sortedEvents.prefix(count)
         
         for (relativeIndex, event) in lastEvents.enumerated() {
-            // Position in all events (1-based, most recent = 1)
             let position = relativeIndex + 1
-            
-            logger.debug("Saved Event \(position)/\(totalCount): \(event.evt_utc) | \(event.evt_type) | session: \(event.session_id ?? "nil")")
-            let evtDataPretty = prettyPrintEvtData(event.evt_data)
-            logger.debug("Event Data:\n\(evtDataPretty)")
+            let sessionLastDigits = event.session_id?.suffix(4) ?? "nil"
+            let evtDataPretty = JSONValue.prettyDict(event.evt_data)
+            logger.debug("\n❊ Event \(position)/\(totalCount) | \(event.evt_type) | session: \(sessionLastDigits) \n\(evtDataPretty)\n")
         }
-    }
-    
-    /// Returns pretty-printed standard JSON for evt_data. JSONValue now encodes as standard JSON, so we convert to Any and use JSONSerialization for pretty printing.
-    private func prettyPrintEvtData(_ evtData: [String: JSONValue]) -> String {
-        let anyDict = evtData.mapValues { $0.asAny }
-        guard let data = try? JSONSerialization.data(withJSONObject: anyDict, options: [.prettyPrinted, .sortedKeys]),
-              let string = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return string
     }
     
     /// Load events from UserDefaults

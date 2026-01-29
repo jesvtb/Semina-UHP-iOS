@@ -32,7 +32,7 @@ enum JSONValue: Sendable, Codable {
             return NSNull()
         }
     }
-    
+
 }
 
 // MARK: - JSONValue Codable (standard JSON, no type wrapper)
@@ -208,6 +208,17 @@ extension JSONValue {
               let jsonString = String(data: jsonData, encoding: .utf8) else {
             return nil
         }
+        return jsonString
+    }
+
+    static func prettyDict(_ jsonValue: [String: JSONValue]) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        guard let jsonData = try? encoder.encode(jsonValue),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            return "{}"
+        }
+        // print(jsonString)
         return jsonString
     }
     
