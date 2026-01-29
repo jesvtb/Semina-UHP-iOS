@@ -65,6 +65,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C101296E2F2BAE9200995A1F /* core */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = core; sourceTree = "<group>"; };
 		C1037A842E7126030014D793 /* unheardpath.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = unheardpath.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1037A852E7126030014D793 /* unheardpathTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1037A862E7126030014D793 /* unheardpathUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = unheardpathUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -179,6 +180,7 @@
 		C1CD228B2E6FE5D50057E60C = {
 			isa = PBXGroup;
 			children = (
+				C101296E2F2BAE9200995A1F /* core */,
 				C14133212EE9508400459EE0 /* widgetExtension.entitlements */,
 				C1BC73C12EE51E9C00E51567 /* unheardpath.xctestplan */,
 				C1F7EFA32EDEB79A00A0E271 /* Config.Release.xcconfig */,
