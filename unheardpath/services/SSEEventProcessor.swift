@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import CoreLocation
+import core
 
 /// Type alias for GeoJSON features array
 typealias GeoJSONFeatures = [[String: JSONValue]]

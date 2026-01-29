@@ -1,5 +1,5 @@
 import Foundation
-
+import core
 /// UserEvent model matching Python UserEvent structure
 /// Used for sending events to backend endpoints
 struct UserEvent: Codable, Sendable {

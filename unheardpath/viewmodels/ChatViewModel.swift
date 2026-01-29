@@ -1,5 +1,5 @@
 import SwiftUI
-
+import core
 /// Manages all chat-related state and logic
 /// Consolidates ChatState, chat-related LiveUpdateViewModel properties, and chat actions
 @MainActor

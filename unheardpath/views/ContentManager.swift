@@ -1,6 +1,7 @@
 import SwiftUI
 import MarkdownUI
 import CoreLocation
+import core
 
 // MARK: - Content View Type
 enum ContentViewType: String, CaseIterable, Sendable {

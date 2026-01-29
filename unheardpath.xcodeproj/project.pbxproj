@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C10129702F2BBAC400995A1F /* core in Frameworks */ = {isa = PBXBuildFile; productRef = C101296F2F2BBAC400995A1F /* core */; };
+		C10129722F2BBDF900995A1F /* core in Frameworks */ = {isa = PBXBuildFile; productRef = C10129712F2BBDF900995A1F /* core */; };
 		C1037AB52E71279A0014D793 /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AB42E71279A0014D793 /* MapboxMaps */; };
 		C1037AB92E7185550014D793 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AB82E7185550014D793 /* Auth */; };
 		C1037ABB2E7185550014D793 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = C1037ABA2E7185550014D793 /* Functions */; };
@@ -139,6 +141,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				C141330C2EE9505400459EE0 /* SwiftUI.framework in Frameworks */,
+				C10129722F2BBDF900995A1F /* core in Frameworks */,
 				C141330A2EE9505400459EE0 /* WidgetKit.framework in Frameworks */,
 			);
 		};
@@ -146,6 +149,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				C1037AB52E71279A0014D793 /* MapboxMaps in Frameworks */,
+				C10129702F2BBAC400995A1F /* core in Frameworks */,
 				C1037AC12E7185550014D793 /* Storage in Frameworks */,
 				C1C87F622ED18B2C00A46F12 /* PostHog in Frameworks */,
 				C1084CF22EE8106D00E6EC2C /* MarkdownUI in Frameworks */,
@@ -215,6 +219,9 @@
 				C141330D2EE9505400459EE0 /* widget */,
 			);
 			name = widgetExtension;
+			packageProductDependencies = (
+				C10129712F2BBDF900995A1F /* core */,
+			);
 			productName = widgetExtension;
 			productReference = C14133082EE9505400459EE0 /* widgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -238,6 +245,9 @@
 				C1CD22962E6FE5D50057E60C /* unheardpath */,
 			);
 			name = unheardpath;
+			packageProductDependencies = (
+				C101296F2F2BBAC400995A1F /* core */,
+			);
 			productName = unheardpath;
 			productReference = C1037A842E7126030014D793 /* unheardpath.app */;
 			productType = "com.apple.product-type.application";
@@ -889,6 +899,14 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C101296F2F2BBAC400995A1F /* core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = core;
+		};
+		C10129712F2BBDF900995A1F /* core */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = core;
+		};
 		C1037AB42E71279A0014D793 /* MapboxMaps */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C1037AB32E71279A0014D793 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */;

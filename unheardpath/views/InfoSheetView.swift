@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import core
 
 // MARK: - Scroll Offset Tracker
 struct ScrollOffsetTracker: View {

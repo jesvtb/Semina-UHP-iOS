@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import core
 
 #if DEBUG
 /// Debug view for testing SSE content events in InfoSheet

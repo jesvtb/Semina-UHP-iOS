@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import core
 
 
 // MARK: - API Test Configuration

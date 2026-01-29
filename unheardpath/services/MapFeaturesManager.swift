@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import core
 
 /// Shared manager for managing GeoJSON map features
 /// Ensures both chat and orchestrator endpoints update the same map state

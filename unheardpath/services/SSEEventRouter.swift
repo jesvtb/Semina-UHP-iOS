@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import CoreLocation
+import core
 
 /// Centralized router for SSE events from both /v1/chat and /v1/orchestrator endpoints
 /// Routes events to appropriate managers based on event type

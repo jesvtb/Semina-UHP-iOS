@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import core
 
 /// Session data structure for archived sessions
 struct SessionData: Codable, Sendable {

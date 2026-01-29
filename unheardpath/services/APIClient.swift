@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import core
 
 struct APIError: Codable, Error {
     let message: String

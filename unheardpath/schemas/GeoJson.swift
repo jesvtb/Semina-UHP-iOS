@@ -1,6 +1,6 @@
 import Foundation
 import CoreLocation
-
+import core
 // MARK: - GeoJSON
 /// A type-safe representation of a GeoJSON FeatureCollection
 /// Supports setting, updating, and removing features individually or in bulk

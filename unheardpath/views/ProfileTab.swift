@@ -1,6 +1,6 @@
 import SwiftUI
 @preconcurrency import ActivityKit
-
+import core
 // MARK: - LiveActivity Attributes (must match widget extension)
 // This type must be identical to widgetAttributes in widget/widgetLiveActivity.swift
 // for LiveActivities to work properly

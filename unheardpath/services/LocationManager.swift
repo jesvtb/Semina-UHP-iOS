@@ -10,6 +10,7 @@ import CoreLocation
 import SwiftUI
 import UIKit
 import WidgetKit
+import core
 
 // struct LocationDetails
 

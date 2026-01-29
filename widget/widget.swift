@@ -9,6 +9,7 @@ import WidgetKit
 import SwiftUI
 import CoreLocation
 import Foundation
+import core
 
 // Location tracking data structure for widget
 struct LocationTrackingEntry: TimelineEntry {

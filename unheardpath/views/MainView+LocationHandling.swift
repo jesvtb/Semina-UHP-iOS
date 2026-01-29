@@ -1,6 +1,6 @@
 import SwiftUI
 @preconcurrency import MapKit
-
+import core
 // MARK: - Standalone refreshPOIList Function
 @MainActor
 func refreshPOIList(
