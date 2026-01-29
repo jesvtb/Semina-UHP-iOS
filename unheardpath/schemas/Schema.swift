@@ -222,15 +222,6 @@ extension JSONValue {
         return "\n\(jsonString)\n"
     }
     
-    /// Decodes a JSON string to a JSONValue dictionary
-    /// - Parameter jsonString: JSON string to decode
-    /// - Returns: Dictionary representation, or nil if decoding fails
-    static func decodeFromString(_ jsonString: String) -> [String: JSONValue]? {
-        guard let jsonData = jsonString.data(using: .utf8) else { return nil }
-        let decoder = JSONDecoder()
-        return try? decoder.decode([String: JSONValue].self, from: jsonData)
-    }
-    
     /// Encodes a single JSONValue to a JSON string
     /// - Returns: JSON string representation, or nil if encoding fails
     func encodeToString() -> String? {
@@ -245,7 +236,7 @@ extension JSONValue {
     /// Decodes a JSON string to a JSONValue
     /// - Parameter jsonString: JSON string to decode
     /// - Returns: JSONValue representation, or nil if decoding fails
-    static func decodeValueFromString(_ jsonString: String) -> JSONValue? {
+    static func decode(_ jsonString: String) -> JSONValue? {
         guard let jsonData = jsonString.data(using: .utf8) else { return nil }
         let decoder = JSONDecoder()
         return try? decoder.decode(JSONValue.self, from: jsonData)

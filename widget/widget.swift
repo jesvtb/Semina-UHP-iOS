@@ -169,7 +169,7 @@ struct Provider: TimelineProvider {
         #endif
         
         guard let locationString = newLocationString ?? sharedDefaults?.string(forKey: locationKey),
-              let newLocationDict = JSONValue.decodeFromString(locationString) else {
+              let newLocationDict = JSONValue.decode(locationString) else {
             #if DEBUG
             print("⚠️ Widget: Location data not found or invalid JSON")
             if let locationString = newLocationString ?? sharedDefaults?.string(forKey: locationKey) {

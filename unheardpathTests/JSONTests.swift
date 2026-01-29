@@ -6,8 +6,9 @@ import Foundation
 @Suite("JSON Tests")
 struct JSONTests {
     
+    // Approved
     @Test("Test JSON Value")
-    func testJSONValue() {
+    func testJSONValue() throws {
         let json: [String: JSONValue] = [
             "name": .string("John"),
             "age": .int(30),
@@ -18,8 +19,20 @@ struct JSONTests {
             "pets": .null
         ]
         let prettyDict = JSONValue.prettyDict(json)
-        let stringDic = JSONValue.encodeToString(json)
         print("Pretty Dict: \(prettyDict)")
-        print("Json String: \n\(stringDic ?? "Failed to encode JSON")")
+        
+        let stringJson = JSONValue.encodeToString(json)
+        print("Json String: \n\(stringJson ?? "Failed to encode JSON")")
+
+        let decodedValues = JSONValue.decode(stringJson ?? "")
+        print("Decoded Values: \(decodedValues?.dictionaryValue ?? [:])")
+        
+        let name = decodedValues?["name"]
+        print("Decoded Values Name: \(name?.stringValue ?? "Failed to decode name")")
+
+        try check(
+            name?.stringValue == "John", 
+            success: "Name is John", 
+            failure: "Name is not John: \(name?.stringValue ?? "nil")")
     }
 }
