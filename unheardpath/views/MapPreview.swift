@@ -2,6 +2,7 @@ import SwiftUI
 import MapboxMaps
 import CoreLocation
 import Foundation
+import core
 
 #Preview {
 //    MapboxDirectionsView()
@@ -72,7 +73,7 @@ struct MapViewGeoJSONPreview: View {
             print("📍 Converted to \(pointFeatures.count) PointFeature objects")
             if let firstFeature = pointFeatures.first {
                 print("   First feature:")
-                firstFeature.prettyPrint()
+                firstFeature.prettyPrintApp()
             }
             #endif
         } catch {

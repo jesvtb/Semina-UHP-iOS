@@ -2,6 +2,7 @@ import SwiftUI
 @preconcurrency import MapKit
 import Combine
 import CoreLocation
+import core
 
 // MARK: - Search Source
 enum SearchSource: Sendable {
@@ -196,7 +197,7 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
             var geoapifyResults: [AddressSearchResult] = []
             for feature in features {
                 guard let pointFeature = PointFeature(from: feature),
-                      let coordinate = pointFeature.coordinate else {
+                      let coordinate = pointFeature.clCoordinate else {
                     logger.warning("Skipping feature - not a valid PointFeature or missing coordinate", handlerType: "AddrSearchManager")
                     continue
                 }

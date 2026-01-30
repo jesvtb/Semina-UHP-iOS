@@ -549,7 +549,7 @@ struct ContentPoiItemView: View {
                     .bodyParagraph(color: Color("onBkgTextColor30"))
             }
             
-            if let coordinate = feature.coordinate {
+            if let coordinate = feature.clCoordinate {
                 Text("📍 \(coordinate.latitude, specifier: "%.6f"), \(coordinate.longitude, specifier: "%.6f")")
                     .bodyText(size: .articleMinus1)
                     .foregroundColor(Color("onBkgTextColor30"))

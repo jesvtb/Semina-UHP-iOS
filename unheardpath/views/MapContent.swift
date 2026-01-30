@@ -2,6 +2,7 @@ import SwiftUI
 import MapboxMaps
 import CoreLocation
 import Foundation
+import core
 
 #if DEBUG
 // MARK: - Geofence Debug Circle MapContent
@@ -117,7 +118,7 @@ struct GeoJSONMapContent: MapboxMaps.MapContent {
         // Following Mapbox documentation pattern: https://docs.mapbox.com/ios/maps/api/11.2.0/documentation/mapboxmaps/forevery
         // Only display features that have an "idx" key in their properties
         MapboxMaps.ForEvery(Array(pointFeatures.enumerated()), id: \.offset) { index, pointFeature in
-            if let coordinate = pointFeature.coordinate {
+            if let coordinate = pointFeature.clCoordinate {
                 MapboxMaps.MapViewAnnotation(coordinate: coordinate) {
     MainActor.assumeIsolated {
         PlaceView(feature: pointFeature)  // ✅ @State works fine

@@ -1,7 +1,7 @@
 import SwiftUI
 import MapboxMaps
 import CoreLocation
-
+import core
 
 
 // MARK: - Target Location Model
@@ -260,7 +260,7 @@ struct MapboxMapView: View {
     /// Uses Mapbox SDK's camera(for:...) method following the recommended workflow
     /// Applies the same geographic offset south as the initial camera to keep content toward the top of the viewport
     private func fitCameraToGeoJSON(proxy: MapboxMaps.MapProxy, geoJSON: GeoJSON) {
-        let coordinates = geoJSON.extractCoordinates()
+        let coordinates = geoJSON.extractCLCoordinates()
         
         guard !coordinates.isEmpty else {
             logger.warning("No coordinates found in GeoJSON features to fit camera", handlerType: "MapboxMapView")

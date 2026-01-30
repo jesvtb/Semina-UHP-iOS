@@ -1,0 +1,31 @@
+---
+description: Use test helpers and patterns from core package tests when writing Swift tests in this app
+---
+
+# Core Test Helpers and Patterns
+
+When writing or editing Swift tests in this project, follow the patterns and use the helpers defined in **core/Tests/coreTests/**.
+
+## Reference: core/Tests/coreTests/coreTests.swift
+
+- **`require(_ condition: Bool, success: String, failure: String) throws`**  
+  Use in throwing tests for assertions. Prints success/failure and calls `#require(condition, Comment(stringLiteral: failure))`. Use when the test function `throws`.
+
+- **`expect(_ condition: Bool, success: String, failure: String)`**  
+  Use in non-throwing tests for assertions. Prints success/failure and calls `#expect(condition, Comment(stringLiteral: failure))`. Use when the test function does not throw.
+
+Both helpers make failure messages visible in test output and in the Testing framework’s failure report.
+
+## Usage
+
+- **In core package tests (core/Tests/coreTests/):**  
+  Use `require` and `expect` directly; they are defined in `coreTests.swift` in the same target. Prefer them over raw `#expect` when you want a clear success/failure message (e.g. `expect(loaded == expected, success: "Loaded value matches", failure: "Loaded value is not \"\(expected)\": \(String(describing: loaded))")`).
+
+- **In app tests (e.g. unheardpathTests):**  
+  Follow the same style: use Swift Testing (`@Suite`, `@Test`), and for assertions either use `#expect(condition, Comment(stringLiteral: "failure message"))` for a clear failure message, or introduce local `require`/`expect` helpers patterned after core/Tests/coreTests/coreTests.swift if you want the same printed success/failure output.
+
+## Structure
+
+- Group tests in `@Suite("Suite name")` structs.
+- Mark test functions with `@Test("Human-readable test description")`.
+- Use `@testable import core` (or the module under test) and `import Testing`; add `import Foundation` when needed.

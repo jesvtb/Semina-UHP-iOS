@@ -444,10 +444,12 @@ extension TestMainView {
                     showCacheDebugSheet = false
                 }
             )
+            .environmentObject(eventManager)
         }
     }
     
     private struct CacheDebugContentView: View {
+        @EnvironmentObject var eventManager: EventManager
         let onClearCache: () -> Void
         let onDismiss: () -> Void
         
@@ -456,79 +458,98 @@ extension TestMainView {
         }
         
         var body: some View {
-            VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
-                // Cache statistics
-                VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
-                    Text("Cache Statistics")
-                        .bodyText(size: .article1)
-                        .fontWeight(.semibold)
-                    
-                    HStack {
-                        Text("Cache Entries:")
-                        Spacer()
-                        Text("\(cacheInfo.entryCount)")
-                            .foregroundColor(Color("onBkgTextColor30"))
-                    }
-                    .bodyText()
-                    
-                    HStack {
-                        Text("Total Size:")
-                        Spacer()
-                        Text(cacheInfo.formattedSize)
-                            .foregroundColor(Color("onBkgTextColor30"))
-                    }
-                    .bodyText()
-                    
-                    if cacheInfo.entryCount > 0 {
-                        Divider()
-                            .padding(.vertical, Spacing.current.space2xs)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+                    // Cache statistics
+                    VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
+                        Text("Cache Statistics")
+                            .bodyText(size: .article1)
+                            .fontWeight(.semibold)
                         
-                        // Cache entry breakdown
-                        VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
-                            Text("Cache Breakdown")
-                                .bodyText(size: .articleMinus1)
-                                .fontWeight(.semibold)
-                                .padding(.bottom, Spacing.current.space3xs)
+                        HStack {
+                            Text("Cache Entries:")
+                            Spacer()
+                            Text("\(cacheInfo.entryCount)")
+                                .foregroundColor(Color("onBkgTextColor30"))
+                        }
+                        .bodyText()
+                        
+                        HStack {
+                            Text("Total Size:")
+                            Spacer()
+                            Text(cacheInfo.formattedSize)
+                                .foregroundColor(Color("onBkgTextColor30"))
+                        }
+                        .bodyText()
+                        
+                        if cacheInfo.entryCount > 0 {
+                            Divider()
+                                .padding(.vertical, Spacing.current.space2xs)
                             
-                            ForEach(cacheInfo.breakdown, id: \.key) { item in
-                                HStack {
-                                    Text(item.key)
-                                        .bodyText(size: .articleMinus1)
-                                    Spacer()
-                                    Text(item.formattedSize)
-                                        .bodyText(size: .articleMinus1)
-                                        .foregroundColor(Color("onBkgTextColor30"))
+                            // Cache entry breakdown
+                            VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
+                                Text("Cache Breakdown")
+                                    .bodyText(size: .articleMinus1)
+                                    .fontWeight(.semibold)
+                                    .padding(.bottom, Spacing.current.space3xs)
+                                
+                                ForEach(cacheInfo.breakdown, id: \.key) { item in
+                                    HStack {
+                                        Text(item.key)
+                                            .bodyText(size: .articleMinus1)
+                                        Spacer()
+                                        Text(item.formattedSize)
+                                            .bodyText(size: .articleMinus1)
+                                            .foregroundColor(Color("onBkgTextColor30"))
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                .padding(Spacing.current.spaceS)
-                .background(
-                    Color("onBkgTextColor30")
-                        .opacity(0.1)
-                        .cornerRadius(Spacing.current.spaceXs)
-                )
-                
-                Spacer()
-                
-                // Clear cache button
-                Button(action: onClearCache) {
-                    HStack {
-                        Spacer()
-                        Text("Clear Cache")
-                            .bodyText()
-                            .foregroundColor(.white)
-                        Spacer()
-                    }
-                    .padding(.vertical, Spacing.current.space2xs)
+                    .padding(Spacing.current.spaceS)
                     .background(
-                        Color.red
+                        Color("onBkgTextColor30")
+                            .opacity(0.1)
                             .cornerRadius(Spacing.current.spaceXs)
                     )
+                    
+                    // EventManager.thisSession events
+                    VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+                        Text("This Session Events")
+                            .bodyText(size: .article1)
+                            .fontWeight(.semibold)
+                        
+                        if eventManager.thisSession.isEmpty {
+                            Text("No events in this session")
+                                .bodyText(size: .articleMinus1)
+                                .foregroundColor(Color("onBkgTextColor30"))
+                                .padding(Spacing.current.spaceS)
+                        } else {
+                            let totalCount = eventManager.thisSession.count
+                            ForEach(Array(eventManager.thisSession.reversed().enumerated()), id: \.offset) { index, event in
+                                thisSessionEventSection(index: totalCount - index, event: event)
+                            }
+                        }
+                    }
+                    
+                    // Clear cache button
+                    Button(action: onClearCache) {
+                        HStack {
+                            Spacer()
+                            Text("Clear Cache")
+                                .bodyText()
+                                .foregroundColor(.white)
+                            Spacer()
+                        }
+                        .padding(.vertical, Spacing.current.space2xs)
+                        .background(
+                            Color.red
+                                .cornerRadius(Spacing.current.spaceXs)
+                        )
+                    }
                 }
+                .padding(Spacing.current.spaceS)
             }
-            .padding(Spacing.current.spaceS)
             .navigationTitle("Debug Cache")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -537,6 +558,67 @@ extension TestMainView {
                         onDismiss()
                     }
                 }
+            }
+        }
+        
+        private func thisSessionEventSection(index: Int, event: UserEvent) -> some View {
+            VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
+                Text("Event \(index)")
+                    .bodyText(size: .articleMinus1)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color("onBkgTextColor30"))
+                
+                // Structured keys (non–evt_data)
+                VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
+                    structuredRow(label: "evt_utc", value: event.evt_utc)
+                    if let tz = event.evt_timezone {
+                        structuredRow(label: "evt_timezone", value: tz)
+                    }
+                    structuredRow(label: "evt_type", value: event.evt_type)
+                    if let sid = event.session_id {
+                        let sidDisplay = sid.count >= 6 ? String(sid.suffix(6)) : sid
+                        structuredRow(label: "session_id", value: sidDisplay)
+                    }
+                }
+                
+                // evt_data as JSON
+                Text("evt_data")
+                    .bodyText(size: .articleMinus1)
+                    .fontWeight(.medium)
+                Text(JSONValue.prettyDict(event.evt_data))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(Color("onBkgTextColor30"))
+                    .padding(Spacing.current.space2xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        Color("onBkgTextColor30")
+                            .opacity(0.06)
+                            .cornerRadius(Spacing.current.space3xs)
+                    )
+            }
+            .padding(Spacing.current.spaceS)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Color("onBkgTextColor30")
+                    .opacity(0.08)
+                    .cornerRadius(Spacing.current.spaceXs)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Spacing.current.spaceXs)
+                    .stroke(Color("onBkgTextColor30").opacity(0.2), lineWidth: 1)
+            )
+        }
+        
+        private func structuredRow(label: String, value: String) -> some View {
+            HStack(alignment: .top) {
+                Text("\(label):")
+                    .bodyText(size: .articleMinus1)
+                    .fontWeight(.medium)
+                Text(value)
+                    .bodyText(size: .articleMinus1)
+                    .foregroundColor(Color("onBkgTextColor30"))
+                    .lineLimit(3)
+                Spacer(minLength: 0)
             }
         }
         

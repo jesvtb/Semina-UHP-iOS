@@ -1,6 +1,7 @@
 import SwiftUI
 import SafariServices
 import CoreLocation
+import core
 
 // MARK: - Custom Annotation View
 /// Custom SwiftUI view for GeoJSON feature annotations

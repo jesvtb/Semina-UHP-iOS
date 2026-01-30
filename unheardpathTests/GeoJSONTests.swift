@@ -1,39 +1,30 @@
 import Testing
 import Foundation
-import CoreLocation
+import core
 @testable import unheardpath
 
 struct GeoJSONTests {
-    
+
     // MARK: - Helper Methods
-    
+
     /// Loads the mock JSON file from the bundle
-    /// Uses the same approach as the app code (Bundle.main)
     private func loadMockJSON() throws -> [String: Any] {
-        // Try to find the file in the bundle (same approach as MapView.swift)
-        // First try with subdirectory
         var url = Bundle.main.url(forResource: "around_me_example", withExtension: "json", subdirectory: "mock")
-        
-        // If not found, try without subdirectory
         if url == nil {
             url = Bundle.main.url(forResource: "around_me_example", withExtension: "json")
         }
-        
         guard let fileURL = url else {
             throw TestError.missingFile
         }
-        
         let data = try Data(contentsOf: fileURL)
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw TestError.invalidJSON
         }
-        
         return json
     }
-    
-    
-    /// Extracts coordinates from a feature
-    private func extractCoordinates(from feature: [String: JSONValue]) -> (lon: CLLocationDegrees, lat: CLLocationDegrees)? {
+
+    /// Extracts coordinates from a feature (for assertion helpers; core uses Coordinate2D)
+    private func extractCoordinates(from feature: [String: JSONValue]) -> (lon: Double, lat: Double)? {
         guard let geometryValue = feature["geometry"],
               case .dictionary(let geometry) = geometryValue,
               let coordinatesValue = geometry["coordinates"],
@@ -41,40 +32,33 @@ struct GeoJSONTests {
               coordinates.count >= 2 else {
             return nil
         }
-        
-        let lon: CLLocationDegrees?
-        let lat: CLLocationDegrees?
-        
+        let lon: Double?
+        let lat: Double?
         if case .double(let value) = coordinates[0] {
-            lon = CLLocationDegrees(value)
+            lon = value
         } else if case .int(let value) = coordinates[0] {
-            lon = CLLocationDegrees(value)
+            lon = Double(value)
         } else {
             lon = nil
         }
-        
         if case .double(let value) = coordinates[1] {
-            lat = CLLocationDegrees(value)
+            lat = value
         } else if case .int(let value) = coordinates[1] {
-            lat = CLLocationDegrees(value)
+            lat = Double(value)
         } else {
             lat = nil
         }
-        
         guard let longitude = lon, let latitude = lat else {
             return nil
         }
-        
         return (lon: longitude, lat: latitude)
     }
-    
-    /// Rounds a number to 4 decimal places (for comparison)
-    private func roundTo4Decimals(_ value: CLLocationDegrees) -> CLLocationDegrees {
-        return round(value * 10000) / 10000
+
+    private func roundTo4Decimals(_ value: Double) -> Double {
+        round(value * 10000) / 10000
     }
-    
-    /// Counts decimal places in a number
-    private func decimalPlaces(_ value: CLLocationDegrees) -> Int {
+
+    private func decimalPlaces(_ value: Double) -> Int {
         let string = String(value)
         guard let dotIndex = string.firstIndex(of: ".") else {
             return 0

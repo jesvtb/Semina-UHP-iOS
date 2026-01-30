@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CoreLocation
 import Combine
 
 // MARK: - JSON Value Type (Sendable)
@@ -188,7 +187,16 @@ public extension JSONValue {
         }
         return nil
     }
-    
+
+    /// Extract numeric value as Double (for .double and .int cases)
+    var doubleValue: Double? {
+        switch self {
+        case .double(let value): return value
+        case .int(let value): return Double(value)
+        default: return nil
+        }
+    }
+
     /// Extract dictionary value if this is a dictionary case
     var dictionaryValue: [String: JSONValue]? {
         if case .dictionary(let value) = self {
