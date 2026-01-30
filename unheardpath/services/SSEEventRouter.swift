@@ -15,6 +15,9 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
     private let mapFeaturesManager: MapFeaturesManager?
     private let toastManager: ToastManager?
     
+    // Logger for routing and debug
+    private let logger: Logger
+    
     // Callbacks for actions that need view coordination
     var onShowInfoSheet: (() -> Void)?
     var onDismissKeyboard: (() -> Void)?
@@ -23,12 +26,14 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
         chatViewModel: ChatViewModel? = nil,
         contentManager: ContentManager? = nil,
         mapFeaturesManager: MapFeaturesManager? = nil,
-        toastManager: ToastManager? = nil
+        toastManager: ToastManager? = nil,
+        logger: Logger = AppLifecycleManager.sharedLogger
     ) {
         self.chatViewModel = chatViewModel
         self.contentManager = contentManager
         self.mapFeaturesManager = mapFeaturesManager
         self.toastManager = toastManager
+        self.logger = logger
     }
     
     /// Set ChatViewModel reference after initialization
@@ -40,10 +45,8 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
     // MARK: - SSEEventHandler Implementation
     
     func onToast(_ toast: ToastData) async {
-        #if DEBUG
-        print("📬 SSEEventRouter: Routing toast to ToastManager")
-        #endif
         toastManager?.show(toast)
+        logger.debug("Routing toast to ToastManager")
     }
     
     func onChatChunk(content: String, isStreaming: Bool) async {
@@ -51,34 +54,26 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
     }
     
     func onStop() async {
-        #if DEBUG
-        print("🛑 SSEEventRouter: Routing stop to ChatViewModel")
-        #endif
         await chatViewModel?.handleStop()
+        logger.debug("Routing stop to ChatViewModel")
     }
     
     func onMap(features: [[String: JSONValue]]) async {
-        #if DEBUG
-        print("🗺️ SSEEventRouter: Routing map features to MapFeaturesManager")
-        #endif
+        logger.debug("Routing map features to MapFeaturesManager")
         mapFeaturesManager?.apply(features: features)
         // Also dismiss keyboard when map arrives (UX improvement)
         onDismissKeyboard?()
     }
     
     func onHook(action: String) async {
-        #if DEBUG
-        print("🪝 SSEEventRouter: Routing hook action: \(action)")
-        #endif
+        logger.debug("Routing hook action: \(action)")
         if action.lowercased() == "show info sheet" {
             onShowInfoSheet?()
         }
     }
     
     func onContent(type: ContentViewType, data: ContentSection.ContentSectionData) async {
-        #if DEBUG
-        print("📄 SSEEventRouter: Routing content (\(type.rawValue)) to ContentManager")
-        #endif
+        logger.debug("Routing content (\(type.rawValue)) to ContentManager")
         contentManager?.setContent(type: type, data: data)
     }
 }

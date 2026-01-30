@@ -453,7 +453,11 @@ extension TestMainView {
         let onClearCache: () -> Void
         let onDismiss: () -> Void
         
-        private var cacheInfo: (entryCount: Int, totalSize: Int, formattedSize: String, breakdown: [(key: String, size: Int, formattedSize: String)]) {
+        @State private var isThisSessionEventsExpanded = false
+        @State private var isLastDeviceLocationExpanded = false
+        @State private var isLastSearchLocationExpanded = false
+        
+        private var cacheInfo: (entryCount: Int, totalSize: Int, formattedSize: String, breakdown: [(key: String, size: Int, formattedSize: String, value: Any?)]) {
             getCacheInfo()
         }
         
@@ -494,14 +498,7 @@ extension TestMainView {
                                     .padding(.bottom, Spacing.current.space3xs)
                                 
                                 ForEach(cacheInfo.breakdown, id: \.key) { item in
-                                    HStack {
-                                        Text(item.key)
-                                            .bodyText(size: .articleMinus1)
-                                        Spacer()
-                                        Text(item.formattedSize)
-                                            .bodyText(size: .articleMinus1)
-                                            .foregroundColor(Color("onBkgTextColor30"))
-                                    }
+                                    cacheBreakdownRow(item: item)
                                 }
                             }
                         }
@@ -513,22 +510,42 @@ extension TestMainView {
                             .cornerRadius(Spacing.current.spaceXs)
                     )
                     
-                    // EventManager.thisSession events
-                    VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
-                        Text("This Session Events")
-                            .bodyText(size: .article1)
-                            .fontWeight(.semibold)
-                        
-                        if eventManager.thisSession.isEmpty {
-                            Text("No events in this session")
-                                .bodyText(size: .articleMinus1)
-                                .foregroundColor(Color("onBkgTextColor30"))
-                                .padding(Spacing.current.spaceS)
-                        } else {
+                    // EventManager.thisSession events - expandable
+                    expandableSection(
+                        title: "This Session Events",
+                        isExpanded: $isThisSessionEventsExpanded,
+                        isEmpty: eventManager.thisSession.isEmpty,
+                        emptyMessage: "No events in this session"
+                    ) {
+                        if !eventManager.thisSession.isEmpty {
                             let totalCount = eventManager.thisSession.count
                             ForEach(Array(eventManager.thisSession.reversed().enumerated()), id: \.offset) { index, event in
                                 thisSessionEventSection(index: totalCount - index, event: event)
                             }
+                        }
+                    }
+                    
+                    // LastDeviceLocation - expandable
+                    expandableSection(
+                        title: "LastDeviceLocation",
+                        isExpanded: $isLastDeviceLocationExpanded,
+                        isEmpty: eventManager.latestDeviceLocation == nil,
+                        emptyMessage: "No device location available"
+                    ) {
+                        if let deviceLocation = eventManager.latestDeviceLocation {
+                            locationJsonView(json: deviceLocation)
+                        }
+                    }
+                    
+                    // LastSearchLocation - expandable
+                    expandableSection(
+                        title: "LastSearchLocation",
+                        isExpanded: $isLastSearchLocationExpanded,
+                        isEmpty: eventManager.latestSearchLocation == nil,
+                        emptyMessage: "No search location available"
+                    ) {
+                        if let searchLocation = eventManager.latestSearchLocation {
+                            locationJsonView(json: searchLocation)
                         }
                     }
                     
@@ -558,6 +575,91 @@ extension TestMainView {
                         onDismiss()
                     }
                 }
+            }
+        }
+        
+        private func expandableSection<Content: View>(
+            title: String,
+            isExpanded: Binding<Bool>,
+            isEmpty: Bool,
+            emptyMessage: String,
+            @ViewBuilder content: () -> Content
+        ) -> some View {
+            VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+                Button(action: {
+                    withAnimation {
+                        isExpanded.wrappedValue.toggle()
+                    }
+                }) {
+                    HStack {
+                        Text(title)
+                            .bodyText(size: .article1)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color("onBkgTextColor30"))
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                if isExpanded.wrappedValue {
+                    if isEmpty {
+                        Text(emptyMessage)
+                            .bodyText(size: .articleMinus1)
+                            .foregroundColor(Color("onBkgTextColor30"))
+                            .padding(Spacing.current.spaceS)
+                    } else {
+                        content()
+                    }
+                }
+            }
+            .padding(Spacing.current.spaceS)
+            .background(
+                Color("onBkgTextColor30")
+                    .opacity(0.1)
+                    .cornerRadius(Spacing.current.spaceXs)
+            )
+        }
+        
+        private func locationJsonView(json: [String: JSONValue]) -> some View {
+            Text(JSONValue.prettyDict(json))
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(Color("onBkgTextColor30"))
+                .padding(Spacing.current.space2xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    Color("onBkgTextColor30")
+                        .opacity(0.06)
+                        .cornerRadius(Spacing.current.space3xs)
+                )
+        }
+        
+        private func cacheBreakdownRow(item: (key: String, size: Int, formattedSize: String, value: Any?)) -> some View {
+            HStack {
+                Text(item.key)
+                    .bodyText(size: .articleMinus1)
+                Spacer()
+                
+                // Show simple values inline
+                if let value = item.value {
+                    if let boolValue = value as? Bool {
+                        Text("\(boolValue)")
+                            .bodyText(size: .articleMinus1)
+                            .foregroundColor(Color("onBkgTextColor30"))
+                            .padding(.trailing, Spacing.current.space2xs)
+                    } else if let stringValue = value as? String, stringValue.count < 50 {
+                        Text(stringValue)
+                            .bodyText(size: .articleMinus1)
+                            .foregroundColor(Color("onBkgTextColor30"))
+                            .lineLimit(1)
+                            .padding(.trailing, Spacing.current.space2xs)
+                    }
+                }
+                
+                Text(item.formattedSize)
+                    .bodyText(size: .articleMinus1)
+                    .foregroundColor(Color("onBkgTextColor30"))
             }
         }
         
@@ -622,10 +724,10 @@ extension TestMainView {
             }
         }
         
-        private func getCacheInfo() -> (entryCount: Int, totalSize: Int, formattedSize: String, breakdown: [(key: String, size: Int, formattedSize: String)]) {
+        private func getCacheInfo() -> (entryCount: Int, totalSize: Int, formattedSize: String, breakdown: [(key: String, size: Int, formattedSize: String, value: Any?)]) {
             let prefixedKeysDict = Storage.allUserDefaultsKeysWithPrefix()
             
-            var breakdown: [(key: String, size: Int, formattedSize: String)] = []
+            var breakdown: [(key: String, size: Int, formattedSize: String, value: Any?)] = []
             var totalSize = 0
             let prefix = Storage.keyPrefix
             
@@ -636,7 +738,7 @@ extension TestMainView {
                 
                 let keyWithoutPrefix = prefix.isEmpty ? key : (key.hasPrefix(prefix) ? String(key.dropFirst(prefix.count)) : key)
                 let formattedSize = formatBytes(size)
-                breakdown.append((key: keyWithoutPrefix, size: size, formattedSize: formattedSize))
+                breakdown.append((key: keyWithoutPrefix, size: size, formattedSize: formattedSize, value: value))
             }
             
             return (
