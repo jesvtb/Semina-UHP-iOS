@@ -17,12 +17,25 @@ struct StorageTests {
         Storage.configure(userDefaults: .standard, keyPrefix: prefix)
 
         Storage.saveToUserDefaults("hello", forKey: "key1")
+        
         let loaded: String? = Storage.loadFromUserDefaults(forKey: "key1", as: String.self)
-        expect(loaded == "hello", success: "Loaded value equals saved \"hello\"", failure: "Loaded value is not \"hello\": \(String(describing: loaded))")
+        
+        expect(
+            loaded == "hello", 
+            success: "Loaded value equals saved \"hello\"", 
+            failure: "Loaded value is not \"hello\": \(String(describing: loaded))")
 
-        expect(Storage.existsInUserDefaults(forKey: "key1") == true, success: "key1 exists in UserDefaults", failure: "key1 does not exist in UserDefaults")
+        expect(
+            Storage.existsInUserDefaults(forKey: "key1") == true, 
+            success: "key1 exists in UserDefaults", 
+            failure: "key1 does not exist in UserDefaults")
+        
         Storage.removeFromUserDefaults(forKey: "key1")
-        expect(Storage.existsInUserDefaults(forKey: "key1") == false, success: "key1 removed from UserDefaults", failure: "key1 still exists in UserDefaults after remove")
+        
+        expect(
+            Storage.existsInUserDefaults(forKey: "key1") == false, 
+            success: "key1 removed from UserDefaults", 
+            failure: "key1 still exists in UserDefaults after remove")
 
         Storage.saveToUserDefaults("value", forKey: "mykey")
         let loadedMykey: String? = Storage.loadFromUserDefaults(forKey: "mykey", as: String.self)
