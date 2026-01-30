@@ -35,7 +35,7 @@ extension TestMainView {
                 
                 if let placemark = placemarks.first {
                     // Construct lookup place dictionary
-                    let lookupDict = locationManager.constructLookupLocation(
+                    let lookupDict = Geocode.constructLookupLocation(
                         location: location,
                         placemark: placemark,
                         mapItemName: result.title
@@ -44,7 +44,8 @@ extension TestMainView {
                     // Create location_searched event and add to EventManager
                     // Use NewLocation structure for backend compatibility
                     do {
-                        let newLocationDict = try await locationManager.constructNewLocation(from: location)
+                        let placemarksForNewLocation = try await locationManager.reverseGeocodeLocation(location)
+                        let newLocationDict = Geocode.buildNewLocationDict(location: location, placemark: placemarksForNewLocation.first)
                         let event = UserEventBuilder.build(
                             evtType: "location_searched",
                             evtData: newLocationDict,
@@ -93,7 +94,7 @@ extension TestMainView {
                 
                 // Construct lookup place dictionary
                 let placemark = mapItem.placemark
-                let lookupDict = locationManager.constructLookupLocation(
+                let lookupDict = Geocode.constructLookupLocation(
                     location: location,
                     placemark: placemark,
                     mapItemName: mapItem.name
@@ -102,7 +103,8 @@ extension TestMainView {
                 // Create location_searched event and add to EventManager
                 // Use NewLocation structure for backend compatibility
                 do {
-                    let newLocationDict = try await locationManager.constructNewLocation(from: location)
+                    let placemarksForNewLocation = try await locationManager.reverseGeocodeLocation(location)
+                    let newLocationDict = Geocode.buildNewLocationDict(location: location, placemark: placemarksForNewLocation.first)
                     let event = UserEventBuilder.build(
                         evtType: "location_searched",
                         evtData: newLocationDict,
@@ -139,7 +141,7 @@ extension TestMainView {
         let minimalPlacemark = MKPlacemark(coordinate: location.coordinate)
         
         // Construct lookup place dictionary (for display only)
-        let lookupDict = locationManager.constructLookupLocation(
+        let lookupDict = Geocode.constructLookupLocation(
             location: location,
             placemark: minimalPlacemark,
             mapItemName: title
@@ -148,7 +150,8 @@ extension TestMainView {
         // Create location_searched event and add to EventManager
         // Use NewLocation structure for backend compatibility
         do {
-            let newLocationDict = try await locationManager.constructNewLocation(from: location)
+            let placemarksForNewLocation = try await locationManager.reverseGeocodeLocation(location)
+            let newLocationDict = Geocode.buildNewLocationDict(location: location, placemark: placemarksForNewLocation.first)
             let event = UserEventBuilder.build(
                 evtType: "location_searched",
                 evtData: newLocationDict,

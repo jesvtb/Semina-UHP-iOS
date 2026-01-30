@@ -103,8 +103,9 @@ extension TestMainView {
         logger.debug("updateLocationToUHP called for location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         
         do {
-            // Use LocationManager helper to construct NewLocation structure
-            let newLocationDict = try await locationManager.constructNewLocation(from: location)
+            // Reverse geocode to get placemark, then construct NewLocation structure
+            let placemarks = try await locationManager.reverseGeocodeLocation(location)
+            let newLocationDict = Geocode.buildNewLocationDict(location: location, placemark: placemarks.first)
             
             // Extract location information for locationDetail content
             var placeName: String?
@@ -147,7 +148,6 @@ extension TestMainView {
             // Note: EventManager sends to backend but doesn't process SSE stream
             // If SSE processing is needed, it should be handled separately
             // try await eventManager.addEvent(event)
-            let stream: AsyncThrowingStream<SSEEvent, Error>
             let returnedStream = try await eventManager.addEvent(event)
             guard let stream = returnedStream else {
                 #if DEBUG
