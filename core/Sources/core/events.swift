@@ -1,16 +1,24 @@
 import Foundation
-import core
-/// UserEvent model matching Python UserEvent structure
-/// Used for sending events to backend endpoints
-struct UserEvent: Codable, Sendable {
-    let evt_utc: String  // ISO8601 UTC datetime string
-    let evt_timezone: String?  // IANA timezone identifier
-    let evt_type: String  // Event type (e.g., "location_detected", "chat_sent")
-    let evt_data: [String: JSONValue]  // Event data (structure depends on evt_type)
-    let session_id: String?  // Session identifier
-    
+
+/// Generic event model for analytics/event tracking.
+/// Used for sending events to backend endpoints (evt_utc, evt_timezone, evt_type, evt_data, session_id).
+public struct UserEvent: Codable, Sendable {
+    public let evt_utc: String  // ISO8601 UTC datetime string
+    public let evt_timezone: String?  // IANA timezone identifier
+    public let evt_type: String  // Event type (app-specific)
+    public let evt_data: [String: JSONValue]  // Event data (structure depends on evt_type)
+    public let session_id: String?  // Session identifier
+
+    public init(evt_utc: String, evt_timezone: String?, evt_type: String, evt_data: [String: JSONValue], session_id: String?) {
+        self.evt_utc = evt_utc
+        self.evt_timezone = evt_timezone
+        self.evt_type = evt_type
+        self.evt_data = evt_data
+        self.session_id = session_id
+    }
+
     /// Converts UserEvent to JSONValue dictionary for API calls
-    func toJSONDict() -> [String: JSONValue] {
+    public func toJSONDict() -> [String: JSONValue] {
         var dict: [String: JSONValue] = [
             "evt_utc": .string(evt_utc),
             "evt_type": .string(evt_type),
@@ -27,25 +35,25 @@ struct UserEvent: Codable, Sendable {
 }
 
 /// Builder for creating UserEvent instances with auto-generated UTC and timezone
-enum UserEventBuilder {
+public enum UserEventBuilder {
     /// Creates a UserEvent with auto-generated UTC datetime and timezone
     /// - Parameters:
-    ///   - evtType: Event type (e.g., "location_detected", "chat_sent")
+    ///   - evtType: Event type (app-specific)
     ///   - evtData: Event data dictionary
     ///   - sessionId: Optional session identifier (default: nil)
     /// - Returns: UserEvent instance with current UTC time and device timezone
-    nonisolated static func build(evtType: String, evtData: [String: JSONValue], sessionId: String? = nil) -> UserEvent {
+    public nonisolated static func build(evtType: String, evtData: [String: JSONValue], sessionId: String? = nil) -> UserEvent {
         let now = Date()
-        
+
         // Create formatter - lightweight enough to create per call
         // This avoids concurrency issues with static shared state
         let utcFormatter = ISO8601DateFormatter()
         utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
         utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-        
+
         let evtUTC = utcFormatter.string(from: now)
         let evtTimezone = TimeZone.current.identifier
-        
+
         return UserEvent(
             evt_utc: evtUTC,
             evt_timezone: evtTimezone,

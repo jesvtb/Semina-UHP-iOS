@@ -1,5 +1,6 @@
 import SwiftUI
 @preconcurrency import MapKit
+import core
 
 // MARK: - Autocomplete Management
 extension TestMainView {
