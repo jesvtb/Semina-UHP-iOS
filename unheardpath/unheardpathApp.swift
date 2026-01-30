@@ -114,7 +114,7 @@ struct unheardpathApp: App {
     // Similar to React Context Providers - these are created once and shared throughout the app
     @StateObject private var userManager = UserManager()
     @StateObject private var authManager = AuthManager()
-    @StateObject private var apiClient = APIClient()
+    @State private var apiClient = APIClient(logger: AppLifecycleManager.sharedLogger)
     @StateObject private var uhpGateway = UHPGateway()
     @StateObject private var geoapifyGateway = GeoapifyGateway()
     @StateObject private var trackingManager = TrackingManager()
@@ -287,7 +287,7 @@ private struct AppContentView: View {
     var body: some View {
         ContentView()
             .environmentObject(authManager) // Pass auth state to all views (like React Context)
-            .environmentObject(apiClient) // Pass shared API service to all views
+            // apiClient passed via AppContentView init (core.APIClient is not ObservableObject)
             .environmentObject(trackingManager) // Pass tracking manager to all views (GPS tracking)
             .environmentObject(locationManager) // Pass location manager to all views (geocoding/geofencing)
             .environmentObject(uhpGateway) // Pass UHP Gateway to all views

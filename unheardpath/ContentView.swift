@@ -31,7 +31,6 @@ struct ContentView: View {
  #Preview("Unauthenticated") {
    ContentView()
      .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: false))
-     .environmentObject(APIClient())
      .environmentObject(UHPGateway())
      .environmentObject(TrackingManager())
      .environmentObject(LocationManager())  // Still needed for geocoding/geofencing
@@ -41,7 +40,6 @@ struct ContentView: View {
  #Preview("Authenticated") {
    ContentView()
      .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
-     .environmentObject(APIClient())
      .environmentObject(UHPGateway())
      .environmentObject(TrackingManager())
      .environmentObject(LocationManager())  // Still needed for geocoding/geofencing
@@ -51,7 +49,6 @@ struct ContentView: View {
  #Preview("Loading") {
    ContentView()
      .environmentObject(AuthManager.preview(isAuthenticated: false, isLoading: true))
-     .environmentObject(APIClient())
      .environmentObject(UHPGateway())
      .environmentObject(TrackingManager())
      .environmentObject(LocationManager())  // Still needed for geocoding/geofencing

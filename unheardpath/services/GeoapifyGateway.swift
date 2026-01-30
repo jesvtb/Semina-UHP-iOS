@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import core
 
 // MARK: - Geoapify Error Types
 enum GeoapifyError: Error, Sendable {
@@ -17,7 +18,7 @@ enum GeoapifyError: Error, Sendable {
 // MARK: - Geoapify Gateway
 @MainActor
 class GeoapifyGateway: ObservableObject {
-    private let apiClient: APIClient
+    private let apiClient: core.APIClient
     private let baseURL: String
     private let apiKey: String
     
@@ -31,7 +32,7 @@ class GeoapifyGateway: ObservableObject {
         
         self.apiKey = apiKey
         self.baseURL = "https://api.geoapify.com/v1/geocode/autocomplete"
-        self.apiClient = APIClient()
+        self.apiClient = core.APIClient(logger: AppLifecycleManager.sharedLogger)
     }
     
     /// Searches for cities, localities, states, and countries using Geoapify autocomplete API

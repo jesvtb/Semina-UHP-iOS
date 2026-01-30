@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import WidgetKit
+import core
 
 /// Simple logger protocol for app-wide logging
 /// Allows injection of custom logging implementations for testing
@@ -39,7 +40,8 @@ struct LogEntry: Sendable {
 /// DEBUG builds: verbose logging + in-memory storage
 /// RELEASE builds: minimal/silent logging (can still store for crash reporting)
 /// Made internal (not private) to allow test access and use across services
-class DefaultAppLifecycleLogger: AppLifecycleLogger, @unchecked Sendable {
+// Conform to core.Logger so core.APIClient can use this logger
+class DefaultAppLifecycleLogger: AppLifecycleLogger, Logger, @unchecked Sendable {
     /// Shared singleton instance for app-wide use
     static let shared = DefaultAppLifecycleLogger()
     

@@ -600,7 +600,6 @@ extension TestMainView {
     
     TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
         .environmentObject(authManager)
-        .environmentObject(APIClient())
         .environmentObject(uhpGateway)
         .environmentObject(trackingManager)
         .environmentObject(locationManager)
@@ -621,7 +620,6 @@ extension TestMainView {
     
     TestMainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
         .environmentObject(authManager)
-        .environmentObject(APIClient())
         .environmentObject(uhpGateway)
         .environmentObject(trackingManager)
         .environmentObject(locationManager)

@@ -21,3 +21,11 @@ public enum LogLevel: String, Sendable {
     case warning
 }
 
+/// No-op logger for use when logging is not required (e.g. default for APIClient).
+public struct NoOpLogger: Logger {
+    public init() {}
+    public func debug(_ message: String) {}
+    public func error(_ message: String, handlerType: String?, error: Error?) {}
+    public func warning(_ message: String, handlerType: String?) {}
+}
+
