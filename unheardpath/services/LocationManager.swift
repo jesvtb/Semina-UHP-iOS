@@ -174,9 +174,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     /// Saves device POIs geofence info to UserDefaults for persistence across app launches
     private func saveDevicePOIsGeofence(centerLat: CLLocationDegrees, centerLon: CLLocationDegrees, radius: CLLocationDistance) {
-        StorageManager.saveToUserDefaults(centerLat, forKey: devicePOIsGeofenceLatKey)
-        StorageManager.saveToUserDefaults(centerLon, forKey: devicePOIsGeofenceLonKey)
-        StorageManager.saveToUserDefaults(radius, forKey: devicePOIsGeofenceRadiusKey)
+        Storage.saveToUserDefaults(centerLat, forKey: devicePOIsGeofenceLatKey)
+        Storage.saveToUserDefaults(centerLon, forKey: devicePOIsGeofenceLonKey)
+        Storage.saveToUserDefaults(radius, forKey: devicePOIsGeofenceRadiusKey)
     }
     
     /// Restores device POIs geofence from UserDefaults if valid and authorization allows
@@ -189,18 +189,18 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             return false
         }
         
-        guard StorageManager.existsInUserDefaults(forKey: devicePOIsGeofenceLatKey),
-              StorageManager.existsInUserDefaults(forKey: devicePOIsGeofenceLonKey),
-              StorageManager.existsInUserDefaults(forKey: devicePOIsGeofenceRadiusKey) else {
+        guard Storage.existsInUserDefaults(forKey: devicePOIsGeofenceLatKey),
+              Storage.existsInUserDefaults(forKey: devicePOIsGeofenceLonKey),
+              Storage.existsInUserDefaults(forKey: devicePOIsGeofenceRadiusKey) else {
             #if DEBUG
             print("ℹ️ No saved geofence found in UserDefaults")
             #endif
             return false
         }
         
-        guard let savedLat = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceLatKey, as: Double.self),
-              let savedLon = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceLonKey, as: Double.self),
-              let savedRadius = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceRadiusKey, as: Double.self) else {
+        guard let savedLat = Storage.loadFromUserDefaults(forKey: devicePOIsGeofenceLatKey, as: Double.self),
+              let savedLon = Storage.loadFromUserDefaults(forKey: devicePOIsGeofenceLonKey, as: Double.self),
+              let savedRadius = Storage.loadFromUserDefaults(forKey: devicePOIsGeofenceRadiusKey, as: Double.self) else {
             #if DEBUG
             print("ℹ️ Failed to load saved geofence from UserDefaults")
             #endif
@@ -228,8 +228,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Gets the saved geofence center coordinates from UserDefaults
     /// Returns a tuple (latitude, longitude) if found, nil otherwise
     func getSavedGeofenceCenter() -> (latitude: Double, longitude: Double)? {
-        guard let savedLat = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceLatKey, as: Double.self),
-              let savedLon = StorageManager.loadFromUserDefaults(forKey: devicePOIsGeofenceLonKey, as: Double.self) else {
+        guard let savedLat = Storage.loadFromUserDefaults(forKey: devicePOIsGeofenceLatKey, as: Double.self),
+              let savedLon = Storage.loadFromUserDefaults(forKey: devicePOIsGeofenceLonKey, as: Double.self) else {
             return nil
         }
         
@@ -247,9 +247,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         devicePOIsRefreshRegion = nil
         
         // Clear persisted geofence info
-        StorageManager.removeFromUserDefaults(forKey: devicePOIsGeofenceLatKey)
-        StorageManager.removeFromUserDefaults(forKey: devicePOIsGeofenceLonKey)
-        StorageManager.removeFromUserDefaults(forKey: devicePOIsGeofenceRadiusKey)
+        Storage.removeFromUserDefaults(forKey: devicePOIsGeofenceLatKey)
+        Storage.removeFromUserDefaults(forKey: devicePOIsGeofenceLonKey)
+        Storage.removeFromUserDefaults(forKey: devicePOIsGeofenceRadiusKey)
     }
     
     /// Checks if device POIs geofencing is available and active
@@ -921,7 +921,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("Total keys in UserDefaults: \(dict.count)")
         print("---")
         
-        // Filter to only our app's keys (StorageManager adds "UHP." prefix)
+        // Filter to only our app's keys (Storage uses configured prefix, e.g. "UHP.")
         let appKeys = dict.keys.filter { key in
             key.hasPrefix("UHP.")
         }
@@ -969,21 +969,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("   Estimated limit: ~1-2 MB (you're using \(String(format: "%.1f", Double(totalSize) / 1024 / 1024 * 100))% of 1 MB)")
     }
     
-    /// Debug function to clear all cached location data
+    /// Debug function to clear all cached location data (Storage-backed UserDefaults keys).
     func debugClearAllCache() {
-        // Use shared UserDefaults suite (same as StorageManager) to find keys
-        let sharedDefaults = UserDefaults(suiteName: "group.com.semina.unheardpath") ?? UserDefaults.standard
-        // StorageManager adds "UHP." prefix, so we need to look for keys with that prefix
-        let keys = sharedDefaults.dictionaryRepresentation().keys.filter { key in
-            key.hasPrefix("UHP.")
-        }
-
-        let count = keys.count
-        // Remove the "UHP." prefix when calling StorageManager.removeFromUserDefaults
-        keys.forEach { fullKey in
-            let keyWithoutPrefix = fullKey.hasPrefix("UHP.") ? String(fullKey.dropFirst(4)) : fullKey
-            StorageManager.removeFromUserDefaults(forKey: keyWithoutPrefix)
-        }
+        let count = Storage.allUserDefaultsKeysWithPrefix().count
+        Storage.clearUserDefaultsKeysWithPrefix()
         print("🗑️ Cleared \(count) cache entries")
     }
     #endif

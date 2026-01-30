@@ -24,11 +24,11 @@ struct LocationTrackingEntry: TimelineEntry {
 
 struct Provider: TimelineProvider {
     // UserDefaults keys (matching LocationManager)
-    // Note: StorageManager automatically adds "UHP." prefix, so we use keys without prefix
+    // Note: Storage adds "UHP." prefix via configure(), so we use keys without prefix
     private let lastDeviceLocationKey = "LastDeviceLocation"
     private let appStateIsInBackgroundKey = "AppState.isInBackground"
     private let trackingModeKey = "TrackingMode.current"
-    
+
     func placeholder(in context: Context) -> LocationTrackingEntry {
         LocationTrackingEntry(
             date: Date(),
@@ -76,19 +76,25 @@ struct Provider: TimelineProvider {
     }
     
     // Helper function to load location and app state from UserDefaults
-    // Uses StorageManager for consistent key prefixing and shared UserDefaults suite
+    // Uses Storage (core) for consistent key prefixing and shared UserDefaults suite
     private func loadLocationTrackingEntry() -> LocationTrackingEntry {
+        // Configure Storage once per timeline read (idempotent; core uses a lock)
+        Storage.configure(
+            userDefaults: UserDefaults(suiteName: "group.com.semina.unheardpath") ?? .standard,
+            keyPrefix: "UHP.",
+            documentsURL: nil,
+            cachesURL: nil,
+            appSupportURL: nil
+        )
         let currentDate = Date()
         
-        // Read app state using StorageManager with fallback to direct UserDefaults access
-        // This ensures we can read the value even if StorageManager has issues
+        // Read app state using Storage with fallback to direct UserDefaults access
         let fullKey = "UHP.\(appStateIsInBackgroundKey)"
         let sharedDefaults = UserDefaults(suiteName: "group.com.semina.unheardpath")
         
-        // Try StorageManager first
-        var isAppInBackground = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
+        var isAppInBackground = Storage.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
         
-        // Fallback to direct UserDefaults access if StorageManager returns nil
+        // Fallback to direct UserDefaults access if Storage returns nil
         if isAppInBackground == nil {
             isAppInBackground = sharedDefaults?.object(forKey: fullKey) as? Bool
         }
@@ -98,7 +104,7 @@ struct Provider: TimelineProvider {
         
         #if DEBUG
         // Enhanced debugging to see what's happening
-        let storageManagerValue = StorageManager.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
+        let storageManagerValue = Storage.loadFromUserDefaults(forKey: appStateIsInBackgroundKey, as: Bool.self)
         let directValue = sharedDefaults?.object(forKey: fullKey) as? Bool
         
         // Debug: List all keys in shared UserDefaults to see what's actually stored
@@ -109,7 +115,7 @@ struct Provider: TimelineProvider {
             
             print("📱 Widget: Reading app state...")
             print("   Key: \(fullKey)")
-            print("   StorageManager result: \(storageManagerValue?.description ?? "nil")")
+            print("   Storage result: \(storageManagerValue?.description ?? "nil")")
             print("   Direct UserDefaults result: \(directValue?.description ?? "nil")")
             print("   Final value used: \(finalValue)")
             print("   Total keys in shared suite: \(allKeys.count)")
@@ -145,17 +151,17 @@ struct Provider: TimelineProvider {
         }
         #endif
         
-        // Read tracking mode using StorageManager
-        let trackingMode = StorageManager.loadFromUserDefaults(forKey: trackingModeKey, as: String.self)
+        // Read tracking mode using Storage
+        let trackingMode = Storage.loadFromUserDefaults(forKey: trackingModeKey, as: String.self)
         
         // Read location data from new format (single key with NewLocation structure)
         let locationKey = "UHP.\(lastDeviceLocationKey)"
-        let newLocationString = StorageManager.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self)
+        let newLocationString = Storage.loadFromUserDefaults(forKey: lastDeviceLocationKey, as: String.self)
         
         #if DEBUG
         print("📍 Widget: Reading location data...")
         print("   Key: \(locationKey)")
-        print("   StorageManager result: \(newLocationString != nil ? "Found (\(newLocationString!.count) chars)" : "nil")")
+        print("   Storage result: \(newLocationString != nil ? "Found (\(newLocationString!.count) chars)" : "nil")")
         
         // Also try direct UserDefaults access
         let directLocationString = sharedDefaults?.string(forKey: locationKey)

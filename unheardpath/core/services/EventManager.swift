@@ -70,11 +70,11 @@ class EventManager: ObservableObject {
         self.logger = logger
         
         // Generate or load session ID
-        if let savedSessionId = StorageManager.loadFromUserDefaults(forKey: sessionIdKey, as: String.self) {
+        if let savedSessionId = Storage.loadFromUserDefaults(forKey: sessionIdKey, as: String.self) {
             self.sessionId = savedSessionId
         } else {
             self.sessionId = UUID().uuidString
-            StorageManager.saveToUserDefaults(sessionId, forKey: sessionIdKey)
+            Storage.saveToUserDefaults(sessionId, forKey: sessionIdKey)
         }
         
         // Load events on init
@@ -391,17 +391,17 @@ class EventManager: ObservableObject {
         // Encode thisSession
         if let thisSessionData = try? JSONEncoder().encode(thisSession),
            let thisSessionString = String(data: thisSessionData, encoding: .utf8) {
-            StorageManager.saveToUserDefaults(thisSessionString, forKey: thisSessionKey)
+            Storage.saveToUserDefaults(thisSessionString, forKey: thisSessionKey)
         }
         
         // Encode pastSessions
         if let pastSessionsData = try? JSONEncoder().encode(pastSessions),
            let pastSessionsString = String(data: pastSessionsData, encoding: .utf8) {
-            StorageManager.saveToUserDefaults(pastSessionsString, forKey: pastSessionsKey)
+            Storage.saveToUserDefaults(pastSessionsString, forKey: pastSessionsKey)
         }
         
         // Save session metadata
-        StorageManager.saveToUserDefaults(sessionId, forKey: sessionIdKey)
+        Storage.saveToUserDefaults(sessionId, forKey: sessionIdKey)
         
         var metadata: [String: String] = [:]
         if let startedAt = sessionStartedAt {
@@ -411,18 +411,18 @@ class EventManager: ObservableObject {
             metadata["lastActivityAt"] = lastActivity.ISO8601Format()
         }
         if !metadata.isEmpty {
-            StorageManager.saveToUserDefaults(metadata, forKey: sessionMetadataKey)
+            Storage.saveToUserDefaults(metadata, forKey: sessionMetadataKey)
         }
         
         // Save derived locations for widget and app-level use
         if let deviceLocation = latestDeviceLocation,
            let locationString = JSONValue.encodeToString(deviceLocation) {
-            StorageManager.saveToUserDefaults(locationString, forKey: lastDeviceLocationKey)
+            Storage.saveToUserDefaults(locationString, forKey: lastDeviceLocationKey)
         }
         
         if let searchLocation = latestSearchLocation,
            let searchLocationString = JSONValue.encodeToString(searchLocation) {
-            StorageManager.saveToUserDefaults(searchLocationString, forKey: lastSearchLocationKey)
+            Storage.saveToUserDefaults(searchLocationString, forKey: lastSearchLocationKey)
         }
         
         logger.debug("Saved events: \(thisSession.count) in current session, \(pastSessions.count) past sessions")
@@ -449,25 +449,25 @@ class EventManager: ObservableObject {
     /// Load events from UserDefaults
     func loadEvents() {
         // Load thisSession
-        if let thisSessionString = StorageManager.loadFromUserDefaults(forKey: thisSessionKey, as: String.self),
+        if let thisSessionString = Storage.loadFromUserDefaults(forKey: thisSessionKey, as: String.self),
            let thisSessionData = thisSessionString.data(using: .utf8),
            let loadedSession = try? JSONDecoder().decode([UserEvent].self, from: thisSessionData) {
             thisSession = loadedSession
         }
         
         // Load pastSessions
-        if let pastSessionsString = StorageManager.loadFromUserDefaults(forKey: pastSessionsKey, as: String.self),
+        if let pastSessionsString = Storage.loadFromUserDefaults(forKey: pastSessionsKey, as: String.self),
            let pastSessionsData = pastSessionsString.data(using: .utf8),
            let loadedPastSessions = try? JSONDecoder().decode([String: SessionData].self, from: pastSessionsData) {
             pastSessions = loadedPastSessions
         }
         
         // Load session metadata
-        if let loadedSessionId = StorageManager.loadFromUserDefaults(forKey: sessionIdKey, as: String.self) {
+        if let loadedSessionId = Storage.loadFromUserDefaults(forKey: sessionIdKey, as: String.self) {
             sessionId = loadedSessionId
         }
         
-        if let metadata = StorageManager.loadFromUserDefaults(forKey: sessionMetadataKey, as: [String: String].self) {
+        if let metadata = Storage.loadFromUserDefaults(forKey: sessionMetadataKey, as: [String: String].self) {
             if let startedAtString = metadata["sessionStartedAt"],
                let startedAt = ISO8601DateFormatter().date(from: startedAtString) {
                 sessionStartedAt = startedAt

@@ -9,6 +9,7 @@ import Foundation
 import CoreLocation
 import SwiftUI
 import WidgetKit
+import core
 
 /// Manages location tracking functionality including permissions, foreground/background tracking modes,
 /// and high accuracy mode. Handles only location tracking - excludes geofencing and lookup location management.
@@ -129,7 +130,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         
         // Save tracking mode to UserDefaults for widget
-        StorageManager.saveToUserDefaults("foreground", forKey: trackingModeKey)
+        Storage.saveToUserDefaults("foreground", forKey: trackingModeKey)
         
         // Reload widget timeline to reflect tracking mode change
         WidgetCenter.shared.reloadTimelines(ofKind: "widget")
@@ -148,7 +149,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Check authorization - iOS will prevent significant changes without "Always" permission
         // but we need to update widget state accordingly
         guard authorizationStatus == .authorizedAlways else {
-            StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
+            Storage.saveToUserDefaults("stopped", forKey: trackingModeKey)
             WidgetCenter.shared.reloadTimelines(ofKind: "widget")
             logger.warning("Background tracking requires 'Always' permission", handlerType: "TrackingManager")
             return
@@ -157,7 +158,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Start significant location changes if available
         guard CLLocationManager.significantLocationChangeMonitoringAvailable() else {
             logger.warning("Significant location change monitoring not available", handlerType: "TrackingManager")
-            StorageManager.saveToUserDefaults("stopped", forKey: trackingModeKey)
+            Storage.saveToUserDefaults("stopped", forKey: trackingModeKey)
             WidgetCenter.shared.reloadTimelines(ofKind: "widget")
             return
         }
@@ -168,7 +169,7 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             logger.debug("Switching to significant location change monitoring")
         }
         
-        StorageManager.saveToUserDefaults("background", forKey: trackingModeKey)
+        Storage.saveToUserDefaults("background", forKey: trackingModeKey)
         
         // Reload widget timeline to reflect tracking mode change
         WidgetCenter.shared.reloadTimelines(ofKind: "widget")

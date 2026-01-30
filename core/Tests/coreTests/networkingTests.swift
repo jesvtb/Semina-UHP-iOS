@@ -80,7 +80,7 @@ struct NetworkingTests {
                 headers: testCase.headers,
                 jsonDict: testCase.jsonDict
             )
-            try check(
+            try require(
                 !data.isEmpty,
                 success: "Returned response from \(testCase.url)",
                 failure: "Failed to return response from \(testCase.url)"
@@ -93,7 +93,7 @@ struct NetworkingTests {
             } else {
                 print("response: \(data.count) bytes (JSON decode failed or non-JSON)")
             }
-            try check(
+            try require(
                 jsonValue != nil,
                 success: "Response from \(testCase.url) is valid JSON",
                 failure: "Response from \(testCase.url) is not valid JSON"
@@ -107,19 +107,19 @@ struct NetworkingTests {
                     headers: testCase.headers,
                     jsonDict: testCase.jsonDict
                 )
-                try check(
+                try require(
                     false,
                     success: "",
                     failure: "Expected APIError with status \(expectedCode) from \(testCase.url)"
                 )
             } catch let error as APIError {
-                try check(
+                try require(
                     error.code == expectedCode,
                     success: "Received expected status \(expectedCode) from \(testCase.url)",
                     failure: "Expected status \(expectedCode) but got \(error.code ?? -1) from \(testCase.url)"
                 )
             } catch {
-                try check(
+                try require(
                     false,
                     success: "",
                     failure: "Expected APIError from \(testCase.url), got \(error)"

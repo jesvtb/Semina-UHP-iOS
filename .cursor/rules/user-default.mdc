@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+When proposing to save data to UserDefaults, always use the Storage API from the core module (Storage.swift). Storage is configured at app/widget launch with a key prefix (e.g. "UHP."). Saving and loading via Storage.saveToUserDefaults / Storage.loadFromUserDefaults automatically uses the configured prefix. No need to add the prefix manually.

@@ -11,6 +11,7 @@ import PostHog
 import UIKit
 @preconcurrency import UserNotifications
 import ActivityKit
+import core
 
 /// AppDelegate to handle remote notification registration and LiveActivity push notifications
 /// According to Apple documentation: https://developer.apple.com/documentation/UIKit/UIApplication/registerForRemoteNotifications()
@@ -132,6 +133,14 @@ struct unheardpathApp: App {
     }
     
     init() {
+        // Configure shared storage (App Group + UHP prefix) for app and widget
+        Storage.configure(
+            userDefaults: UserDefaults(suiteName: "group.com.semina.unheardpath") ?? .standard,
+            keyPrefix: "UHP.",
+            documentsURL: nil,
+            cachesURL: nil,
+            appSupportURL: nil
+        )
         // Log app startup configuration
         logger.debug("🚀 Starting App")
         #if DEBUG

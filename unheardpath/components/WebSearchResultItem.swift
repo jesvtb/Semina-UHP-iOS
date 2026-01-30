@@ -1,6 +1,7 @@
 import SwiftUI
 import Foundation
 import SafariServices
+import core
 
 // MARK: - Bookmarked Web Search Result
 /// Extended WebSearchResult with bookmark context
@@ -93,7 +94,7 @@ enum BookmarkManager {
         // Save to UserDefaults - direct encoding to string
         if let jsonData = try? JSONEncoder().encode(bookmarks),
            let jsonString = String(data: jsonData, encoding: .utf8) {
-            StorageManager.saveToUserDefaults(jsonString, forKey: bookmarksKey)
+            Storage.saveToUserDefaults(jsonString, forKey: bookmarksKey)
         }
     }
     
@@ -105,13 +106,13 @@ enum BookmarkManager {
         // Save updated list - direct encoding to string
         if let jsonData = try? JSONEncoder().encode(bookmarks),
            let jsonString = String(data: jsonData, encoding: .utf8) {
-            StorageManager.saveToUserDefaults(jsonString, forKey: bookmarksKey)
+            Storage.saveToUserDefaults(jsonString, forKey: bookmarksKey)
         }
     }
     
     /// Load all bookmarks from cache
     static func loadAllBookmarks() -> [BookmarkedWebSearchResult] {
-        guard let jsonString = StorageManager.loadFromUserDefaults(forKey: bookmarksKey, as: String.self),
+        guard let jsonString = Storage.loadFromUserDefaults(forKey: bookmarksKey, as: String.self),
               let jsonData = jsonString.data(using: .utf8),
               let bookmarks = try? JSONDecoder().decode([BookmarkedWebSearchResult].self, from: jsonData) else {
             return []

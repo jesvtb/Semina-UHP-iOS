@@ -100,7 +100,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				schemas/Schema.swift,
-				services/StorageManager.swift,
 			);
 			target = C14133072EE9505400459EE0 /* widgetExtension */;
 		};

@@ -256,8 +256,8 @@ class AppLifecycleManager: ObservableObject {
     @Published var isAppInBackground: Bool = false {
         didSet {
             // Persist app state to UserDefaults for widget access
-            // Note: StorageManager will automatically add "UHP." prefix
-            StorageManager.saveToUserDefaults(isAppInBackground, forKey: appStateIsInBackgroundKey)
+            // Storage adds configured prefix (e.g. "UHP.") automatically
+            Storage.saveToUserDefaults(isAppInBackground, forKey: appStateIsInBackgroundKey)
             
             // Reload widget timeline immediately to reflect app state change
             WidgetCenter.shared.reloadTimelines(ofKind: "widget")
@@ -275,8 +275,7 @@ class AppLifecycleManager: ObservableObject {
     /// Defaults to shared logger instance for app-wide consistency
     private let logger: AppLifecycleLogger
     
-    // UserDefaults key for widget state
-    // Note: StorageManager will automatically add "UHP." prefix
+    // UserDefaults key for widget state (Storage adds configured prefix automatically)
     private let appStateIsInBackgroundKey = "AppState.isInBackground"
     
     /// Shared logger instance accessible from AppLifecycleManager
@@ -292,8 +291,8 @@ class AppLifecycleManager: ObservableObject {
         self.logger = logger
         // Initialize app state in UserDefaults (defaults to foreground)
         // This ensures widget always has a valid value to read
-        if !StorageManager.existsInUserDefaults(forKey: appStateIsInBackgroundKey) {
-            StorageManager.saveToUserDefaults(false, forKey: appStateIsInBackgroundKey)
+        if !Storage.existsInUserDefaults(forKey: appStateIsInBackgroundKey) {
+            Storage.saveToUserDefaults(false, forKey: appStateIsInBackgroundKey)
         }
         setupAppLifecycleObservers()
     }

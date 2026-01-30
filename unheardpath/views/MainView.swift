@@ -1,5 +1,6 @@
 import SwiftUI
 @preconcurrency import MapKit
+import core
 
 // MARK: - Input Tab Selection
 enum PreviewTabSelection: Int, CaseIterable {
@@ -540,25 +541,24 @@ extension TestMainView {
         }
         
         private func getCacheInfo() -> (entryCount: Int, totalSize: Int, formattedSize: String, breakdown: [(key: String, size: Int, formattedSize: String)]) {
-            // Get all UHP keys using StorageManager
-            let uhpKeysDict = StorageManager.getAllUHPKeys()
+            let prefixedKeysDict = Storage.allUserDefaultsKeysWithPrefix()
             
             var breakdown: [(key: String, size: Int, formattedSize: String)] = []
             var totalSize = 0
+            let prefix = Storage.keyPrefix
             
-            for (key, value) in uhpKeysDict.sorted(by: { $0.key < $1.key }) {
+            for (key, value) in prefixedKeysDict.sorted(by: { $0.key < $1.key }) {
                 let valueString = "\(value)"
                 let size = valueString.data(using: .utf8)?.count ?? 0
                 totalSize += size
                 
-                // Remove "UHP." prefix for display
-                let keyWithoutPrefix = key.hasPrefix("UHP.") ? String(key.dropFirst(4)) : key
+                let keyWithoutPrefix = prefix.isEmpty ? key : (key.hasPrefix(prefix) ? String(key.dropFirst(prefix.count)) : key)
                 let formattedSize = formatBytes(size)
                 breakdown.append((key: keyWithoutPrefix, size: size, formattedSize: formattedSize))
             }
             
             return (
-                entryCount: uhpKeysDict.count,
+                entryCount: prefixedKeysDict.count,
                 totalSize: totalSize,
                 formattedSize: formatBytes(totalSize),
                 breakdown: breakdown
@@ -577,9 +577,7 @@ extension TestMainView {
     }
     
     private func clearCache() {
-        // Clear all StorageManager-backed UserDefaults entries (UHP-prefixed),
-        // then run location-specific cache cleanup for any legacy keys.
-        StorageManager.clearAllUHPUserDefaults()
+        // Clear Storage-backed UserDefaults (and any location-specific cache cleanup).
         locationManager.debugClearAllCache()
         #if DEBUG
         print("✅ Cache cleared from debug button")

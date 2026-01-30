@@ -16,10 +16,5 @@ struct widgetBundle: WidgetBundle {
         if #available(iOSApplicationExtension 16.1, *) {
             widgetLiveActivity()
         }
-        // widgetControl is conditionally included - it's marked with @available(iOSApplicationExtension 18.0, *)
-        // so it will only be available on iOS 18+ devices
-        if #available(iOSApplicationExtension 18.0, *) {
-            widgetControl()
-        }
     }
 }
