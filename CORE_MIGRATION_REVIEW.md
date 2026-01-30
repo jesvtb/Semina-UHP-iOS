@@ -126,6 +126,8 @@ These could be moved but require refactoring to remove app-specific dependencies
 
 **Dependencies:** Foundation only (remove SwiftUI, UIKit, WidgetKit) ⚠️
 
+**Status:** ✅ **COMPLETED** - Logger implementation has been migrated to `core/logger.swift` as `InMemoryLogger`. The `AppLifecycleLogger` protocol has been merged with `core.Logger`, and `LogEntry`/`LogLevel` now use core types. All app code has been updated to use `core.Logger`. See `LoggerUsage.md` for usage documentation.
+
 ---
 
 ### ❌ **KEEP IN APP** - App-Specific Code

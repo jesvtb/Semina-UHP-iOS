@@ -128,7 +128,7 @@ struct unheardpathApp: App {
     @StateObject private var addressSearchManager = AddressSearchManager()  // Moved to app-level for dependency injection
     
     // Logger for app initialization logging
-    private var logger: AppLifecycleLogger {
+    private var logger: Logger {
         AppLifecycleManager.sharedLogger
     }
     

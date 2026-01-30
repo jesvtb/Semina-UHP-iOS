@@ -62,11 +62,11 @@ class EventManager: ObservableObject {
     
     // MARK: - Logger
     
-    private let logger: AppLifecycleLogger
+    private let logger: Logger
     
     // MARK: - Initialization
     
-    init(logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger) {
+    init(logger: Logger = AppLifecycleManager.sharedLogger) {
         self.logger = logger
         
         // Generate or load session ID

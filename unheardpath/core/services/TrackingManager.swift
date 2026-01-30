@@ -63,9 +63,9 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let trackingModeKey = "TrackingMode.current"
     
     // Logger for error and debug logging
-    private let logger: AppLifecycleLogger
+    private let logger: Logger
     
-    init(logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger) {
+    init(logger: Logger = AppLifecycleManager.sharedLogger) {
         self.logger = logger
         super.init()
         coreLocationManager.delegate = self

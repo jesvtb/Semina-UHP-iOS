@@ -138,9 +138,9 @@ extension SSEEventHandler {
 class SSEEventProcessor {
     weak var handler: SSEEventHandler?
     // Store logger for MainActor methods, but use shared logger directly in nonisolated methods
-    private let logger: AppLifecycleLogger
+    private let logger: Logger
     
-    init(handler: SSEEventHandler, logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger) {
+    init(handler: SSEEventHandler, logger: Logger = AppLifecycleManager.sharedLogger) {
         self.handler = handler
         self.logger = logger
     }

@@ -5,7 +5,7 @@ import core
 // MARK: - Autocomplete Management
 extension TestMainView {
     /// Logger for error and debug logging
-    private var logger: AppLifecycleLogger {
+    private var logger: Logger {
         AppLifecycleManager.sharedLogger
     }
     

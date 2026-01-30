@@ -2,7 +2,7 @@
 
 ## Overview
 
-All services now use a **shared logger instance** from `AppLifecycleManager` for consistent logging across the app. The logger stores all log entries in memory for retrieval.
+All services now use a **shared logger instance** from `AppLifecycleManager` for consistent logging across the app. The logger stores all log entries in memory for retrieval. The logger implementation is provided by `core.InMemoryLogger` from the core module.
 
 ## Why Shared Logger?
 
@@ -60,15 +60,27 @@ struct DebugLogView: View {
 
 ### Log Entry Structure
 
+The logger uses `core.LogEntry` and `core.LogLevel` from the core module:
+
 ```swift
-struct LogEntry {
+// From core module
+public struct LogEntry {
     let timestamp: Date      // When the log was created
-    let level: LogLevel      // .debug, .warning, or .error
+    let level: LogLevel      // .debug, .info, .warning, or .error
     let message: String       // The log message
     let handlerType: String?  // Which service logged it (e.g., "TrackingManager")
     let error: String?       // Error description if applicable
 }
+
+public enum LogLevel {
+    case debug
+    case info
+    case warning
+    case error
+}
 ```
+
+Note: `AppLifecycleManager.sharedLogger` returns `core.InMemoryLogger.shared`, which provides the log storage functionality.
 
 ### Filter Logs
 
@@ -95,11 +107,13 @@ let recentLogs = AppLifecycleManager.sharedLogger.allLogs
 
 ## Custom Logger for Testing
 
-You can still inject a custom logger for testing:
+You can still inject a custom logger for testing. Custom loggers must conform to `core.Logger`:
 
 ```swift
 // In tests
-class MockLogger: AppLifecycleLogger {
+import core
+
+class MockLogger: Logger {
     var debugMessages: [String] = []
     var errorMessages: [String] = []
     
@@ -112,6 +126,10 @@ class MockLogger: AppLifecycleLogger {
     }
     
     func warning(_ message: String, handlerType: String?) {
+        // ...
+    }
+    
+    func info(_ message: String) {
         // ...
     }
 }

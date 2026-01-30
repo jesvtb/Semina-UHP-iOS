@@ -35,12 +35,12 @@ struct MapboxMapView: View {
     @State private var longPressLocation: CGPoint?
     
     // Logger for error and debug logging
-    private let logger: AppLifecycleLogger
+    private let logger: Logger
     
     init(
         targetLocation: Binding<TargetLocation?>,
         selectedLocation: Binding<CLLocation?>,
-        logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger
+        logger: Logger = AppLifecycleManager.sharedLogger
     ) {
         self._targetLocation = targetLocation
         self._selectedLocation = selectedLocation
@@ -347,11 +347,11 @@ struct MapboxMapView: View {
 // MARK: - Location Manager Delegate
 class LocationManagerDelegate: NSObject, CLLocationManagerDelegate {
     private let onLocationUpdate: (CLLocation) -> Void
-    private let logger: AppLifecycleLogger
+    private let logger: Logger
     
     init(
         onLocationUpdate: @escaping (CLLocation) -> Void,
-        logger: AppLifecycleLogger = AppLifecycleManager.sharedLogger
+        logger: Logger = AppLifecycleManager.sharedLogger
     ) {
         self.onLocationUpdate = onLocationUpdate
         self.logger = logger
