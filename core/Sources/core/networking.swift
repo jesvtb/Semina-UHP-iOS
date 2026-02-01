@@ -29,6 +29,16 @@ public struct SSEEvent: Sendable {
         self.data = data
         self.id = id
     }
+    
+    /// Parses the data field as JSON and returns it as a JSONValue (object, array, or scalar).
+    public var dataValue: JSONValue? {
+        JSONValue.decode(data)
+    }
+
+    /// Parses the data field as JSON and returns it as a [String: JSONValue] dictionary when the payload is a JSON object; otherwise nil.
+    public var dataDictionary: [String: JSONValue]? {
+        dataValue?.dictionaryValue
+    }
 
     /// Parses the data field as JSON and returns it as a dictionary
     public func parseJSONData() throws -> [String: Any]? {
@@ -164,7 +174,7 @@ public final class APIClient: Sendable {
         logger: Logger
     ) async throws {
         var currentEvent: String?
-        var currentData = ""
+        var currentData = "" 
         var currentId: String?
         var hasEventType = false
         var hasData = false
@@ -174,7 +184,9 @@ public final class APIClient: Sendable {
         func yieldEventIfComplete(force: Bool = false) {
             if hasEventType && hasData && !currentData.isEmpty {
                 let dataChanged = currentData != lastYieldedData
-                if !hasYielded || dataChanged || force {
+                // Only yield if we have not already yielded this event (avoid double yield when
+                // we yielded on "data" line but stream ends without a trailing blank line).
+                if !hasYielded || dataChanged {
                     let event = SSEEvent(
                         event: currentEvent,
                         data: currentData,
@@ -192,6 +204,15 @@ public final class APIClient: Sendable {
                         hasYielded = false
                         lastYieldedData = ""
                     }
+                } else if force {
+                    // Flush state without yielding again (already yielded this event).
+                    currentEvent = nil
+                    currentData = ""
+                    currentId = nil
+                    hasEventType = false
+                    hasData = false
+                    hasYielded = false
+                    lastYieldedData = ""
                 }
             }
         }

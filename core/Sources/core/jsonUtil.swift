@@ -39,6 +39,10 @@ public enum JSONValue: Sendable, Codable {
         }
     }
 
+    enum JSONError: Error, Sendable {
+        case invalidJSON(message: String)
+    }
+
 }
 
 // MARK: - JSONValue Codable (standard JSON, no type wrapper)
@@ -236,7 +240,6 @@ public extension JSONValue {
         // print(jsonString)
         return "\n\(jsonString)\n"
     }
-    
     /// Encodes a single JSONValue to a JSON string
     /// - Returns: JSON string representation, or nil if encoding fails
     func encodeToString() -> String? {

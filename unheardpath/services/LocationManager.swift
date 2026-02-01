@@ -18,7 +18,7 @@ import core
 // AppLifecycleHandler conformance is in a nonisolated extension with proper MainActor bridging
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
-    private let geocoder = CLGeocoder()
+    private let geocodingService = GeocodingService.shared
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     
     // Geocoding state
@@ -283,72 +283,65 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             completion(nil, error)
             return
         }
-        
-        // Cancel any ongoing geocoding request
-        geocoder.cancelGeocode()
-        
+
         isGeocoding = true
         geocodingError = nil
-        
+
         #if DEBUG
         print("🔍 Geocoding address: \(addressString)")
         #endif
-        
-        geocoder.geocodeAddressString(addressString) { [weak self] placemarks, error in
-            guard let self else { return }
-            
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                
-                self.isGeocoding = false
-                
-                if let error = error {
+
+        Task {
+            do {
+                let placemark = try await geocodingService.geocodeAddress(addressString)
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.isGeocoding = false
+                    #if DEBUG
+                    if let location = placemark.location {
+                        print("✅ Geocoded '\(addressString)' to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                    }
+                    #endif
+                    completion(placemark, nil)
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.isGeocoding = false
                     self.geocodingError = error
                     #if DEBUG
                     print("❌ Geocoding failed: \(error.localizedDescription)")
                     #endif
                     completion(nil, error)
-                    return
                 }
-                
-                guard let placemark = placemarks?.first else {
-                    let noResultsError = NSError(domain: "LocationManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No results found for address"])
-                    self.geocodingError = noResultsError
-                    #if DEBUG
-                    print("⚠️ No geocoding results found for: \(addressString)")
-                    #endif
-                    completion(nil, noResultsError)
-                    return
-                }
-                
-                #if DEBUG
-                if let location = placemark.location {
-                    print("✅ Geocoded '\(addressString)' to: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-                }
-                #endif
-                
-                completion(placemark, nil)
             }
         }
     }
     
     func geocodeAddress(_ addressString: String) async throws -> CLPlacemark {
-        return try await withCheckedThrowingContinuation { continuation in
-            geocodeAddress(addressString) { placemark, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let placemark = placemark {
-                    continuation.resume(returning: placemark)
-                } else {
-                    let unknownError = NSError(domain: "LocationManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "Unknown geocoding error"])
-                    continuation.resume(throwing: unknownError)
-                }
-            }
+        isGeocoding = true
+        geocodingError = nil
+        defer { isGeocoding = false }
+        do {
+            let placemark = try await geocodingService.geocodeAddress(addressString)
+            return placemark
+        } catch {
+            geocodingError = error
+            throw error
         }
     }
-    
+
     func reverseGeocodeLocation(_ location: CLLocation) async throws -> [CLPlacemark] {
-        return try await geocoder.reverseGeocodeLocation(location)
+        isGeocoding = true
+        geocodingError = nil
+        defer { isGeocoding = false }
+        do {
+            let placemarks = try await geocodingService.reverseGeocodeLocation(location)
+            return placemarks
+        } catch {
+            geocodingError = error
+            throw error
+        }
     }
     
     private func constructDeviceLocation(location: CLLocation, placemark: CLPlacemark?) -> [String: JSONValue] {
@@ -362,8 +355,15 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// - Returns: A dictionary matching the NewLocation schema with coordinate and location details
     /// - Throws: Error if geocoding fails
     func constructNewLocation(from location: CLLocation) async throws -> [String: JSONValue] {
-        let placemarks = try await reverseGeocodeLocation(location)
-        return Geocode.buildNewLocationDict(location: location, placemark: placemarks.first)
+        isGeocoding = true
+        geocodingError = nil
+        defer { isGeocoding = false }
+        do {
+            return try await geocodingService.constructNewLocation(from: location)
+        } catch {
+            geocodingError = error
+            throw error
+        }
     }
     
     /// Reverse geocodes a given location and returns a JSON dictionary
@@ -375,187 +375,103 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         print("🔍 reverseGeocodeUserLocation() called")
         print("   Coordinates: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         #endif
-        
-        // Cancel any ongoing geocoding request
-        geocoder.cancelGeocode()
-        
+
         isGeocoding = true
         geocodingError = nil
-        
+
         #if DEBUG
         print("🌐 Starting reverse geocoding request...")
         #endif
-        
-        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
-            guard let self else { return }
-            
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                
-                self.isGeocoding = false
-                
-                #if DEBUG
-                let latitude = location.coordinate.latitude
-                let longitude = location.coordinate.longitude
-                
-                print("\n" + String(repeating: "=", count: 80))
-                print("📍 REVERSE GEOCODING USER LOCATION")
-                print(String(repeating: "=", count: 80))
-                print("Coordinates: \(latitude), \(longitude)")
-                print("Accuracy: ±\(Int(location.horizontalAccuracy))m")
-                print("Timestamp: \(location.timestamp)")
-                print(String(repeating: "-", count: 80))
-                #endif
-                
-                if let error = error {
+
+        Task {
+            do {
+                let placemarks = try await geocodingService.reverseGeocodeLocation(location)
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.isGeocoding = false
+
+                    #if DEBUG
+                    let latitude = location.coordinate.latitude
+                    let longitude = location.coordinate.longitude
+                    print("\n" + String(repeating: "=", count: 80))
+                    print("📍 REVERSE GEOCODING USER LOCATION")
+                    print(String(repeating: "=", count: 80))
+                    print("Coordinates: \(latitude), \(longitude)")
+                    print("Accuracy: ±\(Int(location.horizontalAccuracy))m")
+                    print("Timestamp: \(location.timestamp)")
+                    print(String(repeating: "-", count: 80))
+                    if !placemarks.isEmpty {
+                        print("✅ Found \(placemarks.count) placemark(s):\n")
+                        for (index, placemark) in placemarks.enumerated() {
+                            print(String(repeating: "-", count: 80))
+                            print("📍 PLACEMARK #\(index + 1)")
+                            print(String(repeating: "-", count: 80))
+                            if let placemarkLocation = placemark.location {
+                                print("Coordinates: \(placemarkLocation.coordinate.latitude), \(placemarkLocation.coordinate.longitude)")
+                                print("Accuracy: ±\(Int(placemarkLocation.horizontalAccuracy))m")
+                            }
+                            print("\n📋 Address Components:")
+                            if let name = placemark.name { print("  • Name: \(name)") }
+                            if let thoroughfare = placemark.thoroughfare { print("  • Street: \(thoroughfare)") }
+                            if let subThoroughfare = placemark.subThoroughfare { print("  • Street Number: \(subThoroughfare)") }
+                            if let subLocality = placemark.subLocality { print("  • Sub-locality: \(subLocality)") }
+                            if let locality = placemark.locality { print("  • City/Locality: \(locality)") }
+                            if let subAdministrativeArea = placemark.subAdministrativeArea { print("  • Sub-administrative Area: \(subAdministrativeArea)") }
+                            if let administrativeArea = placemark.administrativeArea { print("  • State/Province: \(administrativeArea)") }
+                            if let postalCode = placemark.postalCode { print("  • Postal Code: \(postalCode)") }
+                            if let country = placemark.country { print("  • Country: \(country)") }
+                            if let countryCode = placemark.isoCountryCode { print("  • Country Code: \(countryCode)") }
+                            if let inlandWater = placemark.inlandWater { print("  • Inland Water: \(inlandWater)") }
+                            if let ocean = placemark.ocean { print("  • Ocean: \(ocean)") }
+                            if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty { print("  • Areas of Interest: \(areasOfInterest.joined(separator: ", "))") }
+                            if let region = placemark.region {
+                                print("\n🌍 Region: \(region.identifier)")
+                                if let circularRegion = region as? CLCircularRegion {
+                                    print("  • Center: \(circularRegion.center.latitude), \(circularRegion.center.longitude), Radius: \(Int(circularRegion.radius))m")
+                                }
+                            }
+                            if let timeZone = placemark.timeZone { print("\n🕐 Timezone: \(timeZone.identifier)") }
+                            print()
+                        }
+                        print(String(repeating: "=", count: 80))
+                        print("✅ Reverse geocoding complete")
+                        print(String(repeating: "=", count: 80) + "\n")
+                    } else {
+                        print("⚠️ No placemarks found")
+                        print(String(repeating: "=", count: 80) + "\n")
+                    }
+                    #endif
+                    let dict = self.constructDeviceLocation(location: location, placemark: placemarks.first)
+                    #if DEBUG
+                    if let locationString = dict["location"]?.stringValue { print("📦 Location string: \(locationString)") }
+                    if let countryName = dict["country"]?.stringValue { print("   Country: \(countryName)") }
+                    #endif
+                    completion(dict, nil)
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.isGeocoding = false
                     self.geocodingError = error
                     #if DEBUG
                     print("❌ Reverse Geocoding Error:")
                     print("   Description: \(error.localizedDescription)")
-                    if let nsError = error as NSError? {
-                        print("   Domain: \(nsError.domain)")
-                        print("   Code: \(nsError.code)")
-                        print("   UserInfo: \(nsError.userInfo)")
-                        
-                        // Map CoreLocation error codes to human-readable descriptions
-                        if nsError.domain == "kCLErrorDomain" {
-                            switch nsError.code {
-                            case 0:
-                                print("   Error Type: kCLErrorLocationUnknown - Location could not be determined")
-                            case 1:
-                                print("   Error Type: kCLErrorDenied - Location services denied")
-                            case 2:
-                                print("   Error Type: kCLErrorNetwork - Network error or service unavailable")
-                            case 3:
-                                print("   Error Type: kCLErrorHeadingFailure - Heading could not be determined")
-                            case 4:
-                                print("   Error Type: kCLErrorRegionMonitoringDenied - Region monitoring denied")
-                            case 5:
-                                print("   Error Type: kCLErrorRegionMonitoringFailure - Region monitoring failed")
-                            case 6:
-                                print("   Error Type: kCLErrorRegionMonitoringSetupDelayed - Region monitoring setup delayed")
-                            case 7:
-                                print("   Error Type: kCLErrorRegionMonitoringResponseDelayed - Region monitoring response delayed")
-                            case 8:
-                                print("   Error Type: kCLErrorGeocodeFoundNoResult - Geocode found no result")
-                            case 9:
-                                print("   Error Type: kCLErrorGeocodeFoundPartialResult - Geocode found partial result")
-                            case 10:
-                                print("   Error Type: kCLErrorGeocodeCanceled - Geocode request canceled")
-                            default:
-                                print("   Error Type: Unknown CoreLocation error code")
-                            }
+                    if let nsError = error as NSError?, nsError.domain == "kCLErrorDomain" {
+                        switch nsError.code {
+                        case 0: print("   Error Type: kCLErrorLocationUnknown")
+                        case 1: print("   Error Type: kCLErrorDenied")
+                        case 2: print("   Error Type: kCLErrorNetwork")
+                        case 8: print("   Error Type: kCLErrorGeocodeFoundNoResult")
+                        case 9: print("   Error Type: kCLErrorGeocodeFoundPartialResult")
+                        case 10: print("   Error Type: kCLErrorGeocodeCanceled")
+                        default: print("   Error Type: CoreLocation error code \(nsError.code)")
                         }
                     }
                     print(String(repeating: "=", count: 80) + "\n")
                     #endif
-                    // Still return dict with location data even if geocoding fails
                     let dict = self.constructDeviceLocation(location: location, placemark: nil)
                     completion(dict, error)
-                    return
                 }
-                
-                // Use first placemark if available
-                let placemark = placemarks?.first
-                
-                #if DEBUG
-                if let placemarks = placemarks, !placemarks.isEmpty {
-                    print("✅ Found \(placemarks.count) placemark(s):\n")
-                    
-                    for (index, placemark) in placemarks.enumerated() {
-                        print(String(repeating: "-", count: 80))
-                        print("📍 PLACEMARK #\(index + 1)")
-                        print(String(repeating: "-", count: 80))
-                        
-                        // Location coordinates
-                        if let placemarkLocation = placemark.location {
-                            print("Coordinates: \(placemarkLocation.coordinate.latitude), \(placemarkLocation.coordinate.longitude)")
-                            print("Accuracy: ±\(Int(placemarkLocation.horizontalAccuracy))m")
-                        }
-                        
-                        // Address components
-                        print("\n📋 Address Components:")
-                        if let name = placemark.name {
-                            print("  • Name: \(name)")
-                        }
-                        if let thoroughfare = placemark.thoroughfare {
-                            print("  • Street: \(thoroughfare)")
-                        }
-                        if let subThoroughfare = placemark.subThoroughfare {
-                            print("  • Street Number: \(subThoroughfare)")
-                        }
-                        if let subLocality = placemark.subLocality {
-                            print("  • Sub-locality: \(subLocality)")
-                        }
-                        if let locality = placemark.locality {
-                            print("  • City/Locality: \(locality)")
-                        }
-                        if let subAdministrativeArea = placemark.subAdministrativeArea {
-                            print("  • Sub-administrative Area: \(subAdministrativeArea)")
-                        }
-                        if let administrativeArea = placemark.administrativeArea {
-                            print("  • State/Province: \(administrativeArea)")
-                        }
-                        if let postalCode = placemark.postalCode {
-                            print("  • Postal Code: \(postalCode)")
-                        }
-                        if let country = placemark.country {
-                            print("  • Country: \(country)")
-                        }
-                        if let countryCode = placemark.isoCountryCode {
-                            print("  • Country Code: \(countryCode)")
-                        }
-                        if let inlandWater = placemark.inlandWater {
-                            print("  • Inland Water: \(inlandWater)")
-                        }
-                        if let ocean = placemark.ocean {
-                            print("  • Ocean: \(ocean)")
-                        }
-                        if let areasOfInterest = placemark.areasOfInterest, !areasOfInterest.isEmpty {
-                            print("  • Areas of Interest: \(areasOfInterest.joined(separator: ", "))")
-                        }
-                        
-                        // Region
-                        if let region = placemark.region {
-                            print("\n🌍 Region:")
-                            print("  • Identifier: \(region.identifier)")
-                            if let circularRegion = region as? CLCircularRegion {
-                                print("  • Center: \(circularRegion.center.latitude), \(circularRegion.center.longitude)")
-                                print("  • Radius: \(Int(circularRegion.radius))m")
-                            }
-                        }
-                        
-                        // Timezone
-                        if let timeZone = placemark.timeZone {
-                            print("\n🕐 Timezone: \(timeZone.identifier)")
-                        }
-                        
-                        print()
-                    }
-                    
-                    print(String(repeating: "=", count: 80))
-                    print("✅ Reverse geocoding complete")
-                    print(String(repeating: "=", count: 80) + "\n")
-                } else {
-                    print("⚠️ No placemarks found")
-                    print(String(repeating: "=", count: 80) + "\n")
-                }
-                #endif
-                
-                // Construct and return the dictionary
-                let dict = self.constructDeviceLocation(location: location, placemark: placemark)
-                
-                #if DEBUG
-                print("📦 Constructed location dict: \(dict)")
-                if let locationString = dict["location"]?.stringValue {
-                  print("   Location string: \(locationString)")
-                }
-                if let countryName = dict["country_name"]?.stringValue {
-                  print("   Country name: \(countryName)")
-                }
-                #endif
-                
-                completion(dict, nil)
             }
         }
     }

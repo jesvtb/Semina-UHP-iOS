@@ -282,6 +282,31 @@ public struct PointFeature: Sendable, Identifiable {
         return url
     }
 
+    /// Subtitle string from properties (city, state/region, country)
+    /// e.g. "City, State, Country"
+    public var subtitle: String {
+        guard let properties = properties else {
+            return ""
+        }
+        var components: [String] = []
+        if let cityValue = properties["city"],
+           let city = cityValue.stringValue,
+           !city.isEmpty {
+            components.append(city)
+        }
+        if let stateValue = properties["state"] ?? properties["region"],
+           let state = stateValue.stringValue,
+           !state.isEmpty {
+            components.append(state)
+        }
+        if let countryValue = properties["country"],
+           let country = countryValue.stringValue,
+           !country.isEmpty {
+            components.append(country)
+        }
+        return components.joined(separator: ", ")
+    }
+
     /// Convert back to dictionary format
     public func toDictionary() -> [String: JSONValue] {
         feature

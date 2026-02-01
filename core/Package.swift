@@ -25,7 +25,7 @@ let package = Package(
         .testTarget(
             name: "coreTests",
             dependencies: ["core"],
-            resources: [.process("Resources")]
+            resources: [.copy("Resources")]
         ),
     ]
 )

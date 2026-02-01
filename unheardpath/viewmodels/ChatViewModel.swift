@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import core
 /// Manages all chat-related state and logic
@@ -23,6 +24,9 @@ class ChatViewModel: ObservableObject {
     
     // EventManager reference (set after initialization, for event tracking)
     weak var eventManager: EventManager?
+    
+    /// Last assistant message id we already persisted as chat_received. Avoids duplicate UserDefaults writes when SSE sends multiple stop events.
+    private var lastPersistedChatReceivedMessageId: String?
     
     // MARK: - Callbacks (for cross-view coordination)
     var onDismissKeyboard: (() -> Void)?
@@ -62,6 +66,7 @@ class ChatViewModel: ObservableObject {
         
         // Create assistant message placeholder for streaming
         messages.append(ChatMessage(text: "", isUser: false, isStreaming: true))
+        lastPersistedChatReceivedMessageId = nil
         
         do {
             // Prepare request data using UserEvent structure
@@ -97,22 +102,12 @@ class ChatViewModel: ObservableObject {
             
             // Track event in EventManager and get SSE stream
             // EventManager handles persistence and backend sending, returns stream for SSE processing
-            let stream: AsyncThrowingStream<SSEEvent, Error>
-            let returnedStream = try await eventManager?.addEvent(chatSentEvent)
-            guard let stream = returnedStream else {
+            guard let stream = try await eventManager?.addEvent(chatSentEvent) else {
                 #if DEBUG
                 print("⚠️ sendMessage: No stream returned from EventManager")
                 #endif
                 return
             }
-            // } else {
-            //     // Fallback: send directly if EventManager not available or doesn't return stream
-            //     stream = try await uhpGateway.streamUserEvent(
-            //         endpoint: "/v1/chat",
-            //         evtType: "chat_sent",
-            //         evtData: evtData
-            //     )
-            // }
             
             // Process SSE events using unified router
             guard let router = sseEventRouter else {
@@ -240,6 +235,13 @@ class ChatViewModel: ObservableObject {
         
         if let lastMsg = messages.last, !lastMsg.isUser {
             updateLastMsg(lastMsg)
+            
+            // Persist chat_received only once per assistant message (SSE may send multiple stop events)
+            let messageIdString = lastMsg.id.uuidString
+            if lastPersistedChatReceivedMessageId == messageIdString {
+                return
+            }
+            lastPersistedChatReceivedMessageId = messageIdString
             
             // Create chat_received event after streaming completes
             // Get device_lang for event data

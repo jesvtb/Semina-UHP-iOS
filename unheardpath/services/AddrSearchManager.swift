@@ -203,7 +203,7 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
                 }
                 
                 // Build subtitle from PointFeature properties
-                let subtitle = buildSubtitle(from: pointFeature)
+                let subtitle = pointFeature.subtitle
                 
                 geoapifyResults.append(.geoapify(pointFeature, coordinate: coordinate, subtitle: subtitle))
             }
@@ -248,40 +248,6 @@ class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDe
             logger.error("Geoapify search failed", handlerType: "AddrSearchManager", error: error)
             // On error, keep existing MapKit results only
         }
-    }
-    
-    /// Builds subtitle string from PointFeature properties (city, state, country)
-    /// - Parameter pointFeature: The PointFeature to extract properties from
-    /// - Returns: Formatted subtitle string (e.g., "City, State, Country")
-    private func buildSubtitle(from pointFeature: PointFeature) -> String {
-        guard let properties = pointFeature.properties else {
-            return ""
-        }
-        
-        var components: [String] = []
-        
-        // Extract city
-        if let cityValue = properties["city"],
-           let city = cityValue.stringValue,
-           !city.isEmpty {
-            components.append(city)
-        }
-        
-        // Extract state/region (try both "state" and "region" keys)
-        if let stateValue = properties["state"] ?? properties["region"],
-           let state = stateValue.stringValue,
-           !state.isEmpty {
-            components.append(state)
-        }
-        
-        // Extract country
-        if let countryValue = properties["country"],
-           let country = countryValue.stringValue,
-           !country.isEmpty {
-            components.append(country)
-        }
-        
-        return components.joined(separator: ", ")
     }
     
     /// Clears all search results

@@ -127,4 +127,61 @@ struct NetworkingTests {
             }
         }
     }
+
+    @Test
+    func testCallUHPAPI() async throws {
+        let client = APIClient()
+        let data = try await client.asyncCallAPI(
+            url: "http://192.168.50.171:1031/v1/test/connection",
+            method: "GET",
+            headers: ["Content-Type": "application/json"],
+            // params: ["simulate_data": "geojson"],
+            params: ["simulate_data": "sse_map"],
+        )
+       try require(
+           data is Data,
+           success: "data is Data type",
+           failure: "data is not Data type"
+       )
+       let jsonValue = try data.shapeIntoJsonValue()
+       try require(
+           jsonValue["status"]?.stringValue == "success",
+           success: "status is success",
+           failure: "status is not success"
+       )
+   
+    }
+
+    @Test(
+        "Test streaming API",
+        arguments: ["sse_map"]
+    )
+    func testStreamAPI(testCase: String) async throws {
+        let client = APIClient()
+        let stream = try await client.streamAPI(
+            url: "http://192.168.50.171:1031/v1/test/stream",
+            method: "POST",
+            headers: ["Content-Type": "application/json"],
+            params: ["simulate_data": testCase],
+        )
+        var chunkIndex = 0
+        for try await chunk in stream {
+            chunkIndex += 1
+            // print("--- testCase: \(testCase), chunk #\(chunkIndex), event: \(chunk.event ?? "nil") ---")
+            printItem(item: chunk)
+            if chunk.event == "map" {
+                let jsonValue = chunk.dataValue
+                printItem(item: jsonValue)
+            }
+            // if chunk.event == "content" {
+            //     let jsonValue = try chunk.parseJSONData()
+            //     print("jsonValue: \(jsonValue)")
+            //     // try require(
+            //     //     jsonValue["type"]?.stringValue == "regionalCuisine",
+            //     //     success: "type is regionalCuisine",
+            //     //     failure: "type is not regionalCuisine"
+            //     // )
+            // }
+        }
+    }
 }
