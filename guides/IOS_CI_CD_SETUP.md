@@ -68,13 +68,25 @@ The workflow uses **self-hosted** runners. The "Select Xcode version" step runs 
 
 **Fix:** On the Mac that hosts the runner, allow passwordless sudo for `xcode-select` for the runner user.
 
-1. Identify the user that runs the Actions runner (e.g. the account used to install/run the runner service).
-2. Edit sudoers: `sudo visudo`.
-3. Add a line (replace `RUNNER_USER` with that username):
-   ```text
-   RUNNER_USER ALL=(ALL) NOPASSWD: /usr/bin/xcode-select
+1. **Identify the runner user**  
+   On the runner Mac, the user that runs the workflow is the one who will need NOPASSWD. If you run the runner from your own account, use your macOS username. To see it: open Terminal and run `whoami`.
+
+2. **Edit sudoers** (you will need to enter your password once for this):  
+   ```bash
+   sudo visudo
    ```
-4. Save and exit. Subsequent workflow runs should complete the "Select Xcode version" step in seconds.
+
+3. **Add one line** at the end of the file (replace `YOUR_USERNAME` with the output of `whoami`):  
+   ```text
+   YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/xcode-select
+   ```  
+   Save and exit (`Ctrl+O`, Enter, then `Ctrl+X` if using nano; or `:wq` in vim).
+
+4. **Verify** — from Terminal, run (no password should be asked):  
+   ```bash
+   sudo -n xcode-select -s /Applications/Xcode.app
+   ```  
+   If it runs without asking for a password, the fix is in place. Then re-run the workflow.
 
 **Optional:** Ensure `/Applications/Xcode.app` is the correct path for the Xcode version you want. The workflow uses this path; if you use a versioned path (e.g. `Xcode_26.1.1.app`), update the step in `.github/workflows/iosapp.yml` to match.
 
