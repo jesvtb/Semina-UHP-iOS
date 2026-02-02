@@ -9,6 +9,9 @@ import Foundation
 import CoreLocation
 import MapKit
 
+/// NewLocation-style dictionary (coordinate, place_name, subdivisions, country_name, etc.) used for events and content.
+public typealias LocationDict = [String: JSONValue]
+
 // MARK: - MapSearchResult
 
 /// Unified parsed result of a map search (MKLocalSearch or GeoJSON) with common fields.
@@ -22,8 +25,16 @@ public struct MapSearchResult: @unchecked Sendable {
     public let address: String
     /// Coordinate when available (Point geometry or placemark).
     public let coordinate: CLLocationCoordinate2D?
+
+    /// Result type (e.g. Geoapify result_type). Nil for MapKit results.
+    public let type: String?
+    /// Subdivisions in order from smaller to larger (e.g. suburb, city, state), comma-separated. Nil for MapKit results.
+    public let subdivisions: String?
+    /// ISO country code (e.g. "US"). Nil when not provided.
+    public let countryCode: String?
     /// Extra key-value data: GeoJSON feature "properties", or MKMapItem fields not used for name/address/coordinate.
     public let properties: [String: Any]
+
 
     public init(_ mapItem: MKMapItem) {
         source = "mapkit"
@@ -32,17 +43,33 @@ public struct MapSearchResult: @unchecked Sendable {
         address = MapSearchResult.normalizeAddress(rawAddress, name: name, postalCode: mapItem.placemark.postalCode)
         coordinate = mapItem.placemark.coordinate
         properties = MapSearchResult.properties(from: mapItem)
+        type = nil
+        subdivisions = nil
+        countryCode = nil
     }
 
     public init(_ feature: MKGeoJSONFeature) {
         source = "geojson"
         let props = MapSearchResult.decodeProperties(from: feature.properties)
-        name = (props["name"] as? String) ?? (props["title"] as? String) ?? ""
-        let rawAddress = (props["formatted"] as? String) ?? (props["address"] as? String) ?? ""
+        let nameFromLine1 = (props["address_line1"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var nameValue = nameFromLine1 ?? (props["name"] as? String) ?? (props["title"] as? String) ?? ""
+        if nameValue.isEmpty, (props["result_type"] as? String) == "city", let city = props["city"] as? String, !city.isEmpty {
+            nameValue = city
+        }
+        name = nameValue
+        let addressFromLine2 = (props["address_line2"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawAddress = addressFromLine2 ?? (props["formatted"] as? String) ?? (props["address"] as? String) ?? ""
         let postalCode = (props["postcode"] as? String) ?? (props["postal_code"] as? String)
         address = MapSearchResult.normalizeAddress(rawAddress, name: name, postalCode: postalCode)
-        coordinate = (feature.geometry.first as? MKAnnotation)?.coordinate
+        coordinate = feature.geometry.first?.coordinate
         properties = props
+        type = props["result_type"] as? String ?? props["type"] as? String
+        let suburb = (props["suburb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let city = (props["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let state = (props["state"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subdivisionParts = [suburb, city, state].compactMap { $0 }.filter { !$0.isEmpty }
+        subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
+        countryCode = props["country_code"] as? String
     }
 
     /// Builds a single address string from placemark components (excludes postal code).

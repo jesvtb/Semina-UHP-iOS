@@ -189,33 +189,36 @@ struct LocationDetailContentType: ContentTypeDefinition {
     static var type: ContentViewType { .locationDetail }
     
     static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
-        guard let locationDict = dataValue as? [String: Any],
-              let lat = locationDict["latitude"] as? Double,
-              let lon = locationDict["longitude"] as? Double else {
+        guard let raw = dataValue as? [String: Any] else { return nil }
+        let locationDict: LocationDict
+        if let coord = raw["coordinate"] as? [String: Any], let lat = coord["lat"] as? Double, let lng = coord["lng"] as? Double {
+            var coordDict: [String: JSONValue] = ["lat": .double(lat), "lng": .double(lng)]
+            if let alt = coord["alt"] as? Double { coordDict["alt"] = .double(alt) }
+            locationDict = [
+                "coordinate": .dictionary(coordDict),
+                "place_name": (raw["place_name"] as? String).map { .string($0) } ?? .string(""),
+                "subdivisions": (raw["subdivisions"] as? String).map { .string($0) } ?? .string(""),
+                "country_name": (raw["country_name"] as? String).map { .string($0) } ?? .string(""),
+            ]
+        } else if let lat = raw["latitude"] as? Double, let lon = raw["longitude"] as? Double {
+            let altitude = raw["altitude"] as? Double ?? 0
+            var coordDict: [String: JSONValue] = ["lat": .double(lat), "lng": .double(lon)]
+            if altitude != 0 { coordDict["alt"] = .double(altitude) }
+            locationDict = [
+                "coordinate": .dictionary(coordDict),
+                "place_name": (raw["place_name"] as? String).map { .string($0) } ?? .string(""),
+                "subdivisions": (raw["subdivisions"] as? String).map { .string($0) } ?? .string(""),
+                "country_name": (raw["country_name"] as? String).map { .string($0) } ?? .string(""),
+            ]
+        } else {
             return nil
         }
-        let altitude = locationDict["altitude"] as? Double ?? 0
-        let location = CLLocation(
-            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-            altitude: altitude,
-            horizontalAccuracy: 0,
-            verticalAccuracy: 0,
-            timestamp: Date()
-        )
-        let placeName = locationDict["place_name"] as? String
-        let subdivisions = locationDict["subdivisions"] as? String
-        let countryName = locationDict["country_name"] as? String
-        let locationDetailData = LocationDetailData(
-            location: location,
-            placeName: placeName,
-            subdivisions: subdivisions,
-            countryName: countryName
-        )
-        return .locationDetail(data: locationDetailData)
+        return .locationDetail(dict: locationDict)
     }
     
     static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
-        if case .locationDetail(let locationData) = data {
+        if case .locationDetail(let locationDict) = data,
+           let locationData = LocationDetailData(locationDict: locationDict) {
             return AnyView(LocationDetailView(location: locationData.location))
         }
         return AnyView(EmptyView())
@@ -288,13 +291,54 @@ struct RegionalCuisineContentType: ContentTypeDefinition {
     }
 }
 
+/// Builds a minimal LocationDict from CLLocation and optional display strings (for previews and tests).
+func makeLocationDict(location: CLLocation, placeName: String?, subdivisions: String?, countryName: String?) -> LocationDict {
+    var coordDict: [String: JSONValue] = [
+        "lat": .double(location.coordinate.latitude),
+        "lng": .double(location.coordinate.longitude),
+    ]
+    if location.verticalAccuracy > 0 { coordDict["alt"] = .double(location.altitude) }
+    var dict: LocationDict = [
+        "coordinate": .dictionary(coordDict),
+        "place_name": .string(placeName ?? ""),
+        "subdivisions": .string(subdivisions ?? ""),
+        "country_name": .string(countryName ?? ""),
+        "timezone": .string(TimeZone.current.identifier),
+        "timestamp": .double(location.timestamp.timeIntervalSince1970),
+    ]
+    return dict
+}
+
 // MARK: - Location Detail Data
 struct LocationDetailData {
     let location: CLLocation
     let placeName: String?
     let subdivisions: String?
     let countryName: String?
-    
+
+    /// Builds LocationDetailData from a LocationDict (NewLocation schema from core).
+    init?(locationDict: LocationDict) {
+        guard let coordVal = locationDict["coordinate"],
+              let coord = coordVal.dictionaryValue,
+              let latVal = coord["lat"],
+              let lat = latVal.doubleValue,
+              let lngVal = coord["lng"],
+              let lng = lngVal.doubleValue else {
+            return nil
+        }
+        let alt = coord["alt"]?.doubleValue ?? 0
+        location = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng),
+            altitude: alt,
+            horizontalAccuracy: 0,
+            verticalAccuracy: 0,
+            timestamp: Date()
+        )
+        placeName = locationDict["place_name"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+        subdivisions = locationDict["subdivisions"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+        countryName = locationDict["country_name"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     /// Parsed subdivisions array (split by comma and trimmed)
     private var subdivisionsParts: [String] {
         subdivisions?
@@ -371,7 +415,7 @@ struct ContentSection: Identifiable {
     enum ContentSectionData {
         case regionalCuisine(data: RegionalCuisineData)
         case overview(markdown: String)
-        case locationDetail(data: LocationDetailData)
+        case locationDetail(dict: LocationDict)
         case pointsOfInterest(features: [PointFeature])
     }
     
@@ -394,11 +438,11 @@ class ContentManager: ObservableObject {
         }
     }
     
-    /// Returns LocationDetailData if available, for header view construction
+    /// Returns LocationDetailData if available, for header view construction (derived from stored LocationDict).
     var locationDetailData: LocationDetailData? {
         if let locationSection = sections[.locationDetail],
-           case .locationDetail(let locationData) = locationSection.data {
-            return locationData
+           case .locationDetail(let locationDict) = locationSection.data {
+            return LocationDetailData(locationDict: locationDict)
         }
         return nil
     }

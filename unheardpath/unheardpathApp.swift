@@ -13,6 +13,17 @@ import UIKit
 import ActivityKit
 import core
 
+/// Environment key for injecting Geocoder so views can use reverse geocoding (location → LocationDict).
+private struct GeocoderEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Geocoder = Geocoder(geoapifyApiKey: "")
+}
+extension EnvironmentValues {
+    var geocoder: Geocoder {
+        get { self[GeocoderEnvironmentKey.self] }
+        set { self[GeocoderEnvironmentKey.self] = newValue }
+    }
+}
+
 /// AppDelegate to handle remote notification registration and LiveActivity push notifications
 /// According to Apple documentation: https://developer.apple.com/documentation/UIKit/UIApplication/registerForRemoteNotifications()
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -119,13 +130,14 @@ struct unheardpathApp: App {
     @StateObject private var uhpGateway = UHPGateway()
     @StateObject private var geoapifyGateway = GeoapifyGateway()
     @StateObject private var trackingManager = TrackingManager()
-    @StateObject private var locationManager = LocationManager()  // Still needed for geocoding/geofencing
+    @StateObject private var locationManager = LocationManager()  // Still needed for geocoding
     @StateObject private var appLifecycleManager = AppLifecycleManager()
     @StateObject private var mapFeaturesManager = MapFeaturesManager()
     @StateObject private var toastManager = ToastManager()
     @StateObject private var contentManager = ContentManager()
     @StateObject private var eventManager = EventManager()
     @StateObject private var autocompleteManager: AutocompleteManager
+    private let geocoder: Geocoder
 
     // Logger for app initialization logging
     private var logger: Logger {
@@ -135,6 +147,7 @@ struct unheardpathApp: App {
     init() {
         let geoapifyApiKey = Bundle.main.infoDictionary?["GEOAPIFY_API_KEY"] as? String ?? ""
         _autocompleteManager = StateObject(wrappedValue: AutocompleteManager(geoapifyApiKey: geoapifyApiKey))
+        geocoder = Geocoder(geoapifyApiKey: geoapifyApiKey)
 
         // Configure shared storage (App Group + UHP prefix) for app and widget
         Storage.configure(
@@ -174,7 +187,8 @@ struct unheardpathApp: App {
                 toastManager: toastManager,
                 contentManager: contentManager,
                 eventManager: eventManager,
-                autocompleteManager: autocompleteManager
+                autocompleteManager: autocompleteManager,
+                geocoder: geocoder
             )
             .id("app-content-view") // Stable identity ensures @StateObject persists
         }
@@ -234,7 +248,7 @@ private struct AppContentView: View {
     let authManager: AuthManager
     let apiClient: APIClient
     let trackingManager: TrackingManager
-    let locationManager: LocationManager  // Still needed for geocoding/geofencing
+    let locationManager: LocationManager  // Still needed for geocoding
     let uhpGateway: UHPGateway
     let geoapifyGateway: GeoapifyGateway
     let userManager: UserManager
@@ -244,6 +258,7 @@ private struct AppContentView: View {
     let contentManager: ContentManager
     let eventManager: EventManager
     let autocompleteManager: AutocompleteManager
+    let geocoder: Geocoder
     let sseEventRouter: SSEEventRouter
 
     // Create ChatViewModel as @StateObject with proper dependencies
@@ -262,7 +277,8 @@ private struct AppContentView: View {
         toastManager: ToastManager,
         contentManager: ContentManager,
         eventManager: EventManager,
-        autocompleteManager: AutocompleteManager
+        autocompleteManager: AutocompleteManager,
+        geocoder: Geocoder
     ) {
         self.authManager = authManager
         self.apiClient = apiClient
@@ -277,6 +293,7 @@ private struct AppContentView: View {
         self.contentManager = contentManager
         self.eventManager = eventManager
         self.autocompleteManager = autocompleteManager
+        self.geocoder = geocoder
 
         // Initialize ChatViewModel (no manager dependencies)
         _chatViewModel = StateObject(wrappedValue: ChatViewModel(
@@ -299,7 +316,7 @@ private struct AppContentView: View {
             .environmentObject(authManager) // Pass auth state to all views (like React Context)
             // apiClient passed via AppContentView init (core.APIClient is not ObservableObject)
             .environmentObject(trackingManager) // Pass tracking manager to all views (GPS tracking)
-            .environmentObject(locationManager) // Pass location manager to all views (geocoding/geofencing)
+            .environmentObject(locationManager) // Pass location manager to all views (geocoding)
             .environmentObject(uhpGateway) // Pass UHP Gateway to all views
             .environmentObject(geoapifyGateway) // Pass Geoapify Gateway to all views
             .environmentObject(userManager) // Pass user manager to all views
@@ -309,6 +326,7 @@ private struct AppContentView: View {
             .environmentObject(contentManager) // Pass content manager to all views
             .environmentObject(eventManager) // Pass event manager to all views
             .environmentObject(autocompleteManager) // Pass autocomplete manager to all views
+            .environment(\.geocoder, geocoder) // Pass geocoder for reverse geocoding (location → LocationDict)
             .environmentObject(sseEventRouter) // Pass SSE event router to all views
             .withScaledSpacing() // Inject scaled spacing values into environment
             .onAppear {

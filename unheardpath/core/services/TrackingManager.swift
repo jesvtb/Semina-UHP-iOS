@@ -12,7 +12,7 @@ import WidgetKit
 import core
 
 /// Manages location tracking functionality including permissions, foreground/background tracking modes,
-/// and high accuracy mode. Handles only location tracking - excludes geofencing and lookup location management.
+/// and high accuracy mode. Handles only location tracking - excludes lookup location management.
 @MainActor
 class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let coreLocationManager = CLLocationManager()

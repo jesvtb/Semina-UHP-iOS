@@ -1,4 +1,6 @@
 import SwiftUI
+import MapKit
+import Contacts
 import core
 
 struct AddrSearchResultItem: View {
@@ -10,7 +12,7 @@ struct AddrSearchResultItem: View {
         Button(action: {
             onSelect(result)
         }) {
-            HStack(alignment: .top, spacing: Spacing.current.spaceXs) {
+            HStack(alignment: .top, spacing: Spacing.current.space2xs) {
                 Image(systemName: "mappin.circle.fill")
                     .bodyText(size: .article1)
                     .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
@@ -25,6 +27,7 @@ struct AddrSearchResultItem: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                         #if DEBUG
+                        Spacer()
                         Text(sourceIndicator)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(sourceColor)
@@ -46,7 +49,7 @@ struct AddrSearchResultItem: View {
 
                 Spacer()
             }
-            .padding(.horizontal, Spacing.current.spaceXs)
+            .padding(.horizontal, Spacing.current.space2xs)
             .padding(.vertical, Spacing.current.space2xs)
             .cornerRadius(Spacing.current.spaceS)
         }
@@ -63,6 +66,38 @@ struct AddrSearchResultItem: View {
     #endif
 }
 
+/// Builds the display list: dedupes by (name, address) preferring geojson, then orders so the most relevant (first city if any, else last) is at the bottom.
+private func buildDisplayResults(from searchResults: [MapSearchResult]) -> [MapSearchResult] {
+    var keyToPreferred: [String: MapSearchResult] = [:]
+    for result in searchResults {
+        let key = "\(result.name)|\(result.address)"
+        if let existing = keyToPreferred[key] {
+            if result.source == "geojson", existing.source != "geojson" {
+                keyToPreferred[key] = result
+            }
+        } else {
+            keyToPreferred[key] = result
+        }
+    }
+    var keysInOrder: [String] = []
+    var seen = Set<String>()
+    for result in searchResults {
+        let key = "\(result.name)|\(result.address)"
+        if !seen.contains(key) {
+            seen.insert(key)
+            keysInOrder.append(key)
+        }
+    }
+    var ordered = keysInOrder.compactMap { keyToPreferred[$0] }
+    if !ordered.isEmpty {
+        let mostRelevantIndex = ordered.firstIndex(where: { $0.type == "city" }) ?? (ordered.count - 1)
+        let mostRelevant = ordered[mostRelevantIndex]
+        ordered.remove(at: mostRelevantIndex)
+        ordered.append(mostRelevant)
+    }
+    return ordered
+}
+
 // MARK: - Address Search Results List
 struct AddrSearchResultsList: View {
     let searchResults: [MapSearchResult]
@@ -72,12 +107,13 @@ struct AddrSearchResultsList: View {
     let onClearResults: () -> Void
 
     var body: some View {
-        let lastIndex = searchResults.count - 1
+        let displayResults = buildDisplayResults(from: searchResults)
+        let lastIndex = displayResults.count - 1
 
         VStack {
             Spacer()
             VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
-                ForEach(Array(searchResults.enumerated()), id: \.offset) { index, result in
+                ForEach(Array(displayResults.enumerated()), id: \.offset) { index, result in
                     let isMostRelevant = index == lastIndex
 
                     AddrSearchResultItem(
@@ -95,13 +131,67 @@ struct AddrSearchResultsList: View {
                 }
             }
             .padding(.top, Spacing.current.spaceXs)
-            .padding(.horizontal, Spacing.current.spaceXs)
+            .padding(.horizontal, Spacing.current.space3xs)
             .background(Color("AppBkgColor"))
         }
     }
 }
 
 #if DEBUG
+private func mockSearchResults(count: Int = 6) -> [MapSearchResult] {
+    let places: [(name: String, street: String, city: String, state: String, zip: String)] = [
+        ("Central Park", "59th to 110th St", "New York", "NY", "10022"),
+        ("Central Park Zoo", "830 5th Ave", "New York", "NY", "10065"),
+        ("Metropolitan Museum of Art", "1000 5th Ave", "New York", "NY", "10028"),
+        ("American Museum of Natural History", "200 Central Park W", "New York", "NY", "10024"),
+        ("Lincoln Center", "10 Lincoln Center Plaza", "New York", "NY", "10023"),
+        ("Columbus Circle", "59th St & 8th Ave", "New York", "NY", "10019")
+    ]
+    return (0..<min(count, places.count)).map { i in
+        let p = places[i]
+        let coord = CLLocationCoordinate2D(latitude: 40.78 + Double(i) * 0.01, longitude: -73.97 - Double(i) * 0.01)
+        let addressDict: [String: Any] = [
+            CNPostalAddressStreetKey: p.street,
+            CNPostalAddressCityKey: p.city,
+            CNPostalAddressStateKey: p.state,
+            CNPostalAddressPostalCodeKey: p.zip,
+            CNPostalAddressCountryKey: "United States"
+        ]
+        let placemark = MKPlacemark(coordinate: coord, addressDictionary: addressDict)
+        let mapItem = MKMapItem(placemark: placemark)
+        mapItem.name = p.name
+        return MapSearchResult(mapItem)
+    }
+}
+
+private struct AddrSearchResultsListPreviewContainer: View {
+    @State private var inputLocation = "Central Park"
+    @State private var draftMessage = ""
+    @FocusState private var isTextFieldFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            AddrSearchResultsList(
+                searchResults: mockSearchResults(count: 6),
+                inputLocation: $inputLocation,
+                isTextFieldFocused: $isTextFieldFocused,
+                onResultSelected: { _ in },
+                onClearResults: { }
+            )
+            ChatInputBar(
+                selectedTab: .map,
+                draftMessage: $draftMessage,
+                inputLocation: $inputLocation,
+                isTextFieldFocused: $isTextFieldFocused,
+                isAuthenticated: true,
+                isLoading: false,
+                onSendMessage: { },
+                onSwitchToChat: { }
+            )
+        }
+    }
+}
+
 private struct AddrSearchResultItemPreview: View {
     let title: String
     let subtitle: String
@@ -113,15 +203,15 @@ private struct AddrSearchResultItemPreview: View {
                 Image(systemName: "mappin.circle.fill")
                     .bodyText(size: .article1)
                     .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
-                    .padding(.top, 2)
-
+                    .padding(.top, 2) // Align icon with first line of text
+                
                 VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
                     Text(title)
                         .heading(size: .article0)
                         .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
-
+                    
                     if !subtitle.isEmpty {
                         Text(subtitle)
                             .bodyText(size: .articleMinus1)
@@ -130,7 +220,7 @@ private struct AddrSearchResultItemPreview: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-
+                
                 Spacer()
             }
             .padding(.horizontal, Spacing.current.spaceXs)
@@ -161,5 +251,10 @@ private struct AddrSearchResultItemPreview: View {
             .background(Color("AppBkgColor"))
         }
     }
+}
+
+#Preview("Address Search Results List") {
+    AddrSearchResultsListPreviewContainer()
+        .background(.white)
 }
 #endif

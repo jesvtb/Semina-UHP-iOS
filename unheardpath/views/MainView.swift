@@ -13,7 +13,7 @@ enum PreviewTabSelection: Int, CaseIterable {
 struct TestMainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var trackingManager: TrackingManager
-    @EnvironmentObject var locationManager: LocationManager  // Still needed for geocoding/geofencing
+    @EnvironmentObject var locationManager: LocationManager  // Still needed for geocoding
     @EnvironmentObject var userManager: UserManager
     @EnvironmentObject var chatViewModel: ChatViewModel
     @EnvironmentObject var authManager: AuthManager
@@ -46,6 +46,7 @@ struct TestMainView: View {
     // Event manager for event-driven location tracking
     @EnvironmentObject var eventManager: EventManager
     @EnvironmentObject var autocompleteManager: AutocompleteManager
+    @Environment(\.geocoder) var geocoder: Geocoder
     // Debug cache overlay state
     #if DEBUG
     @State private var showCacheDebugSheet: Bool = false
@@ -304,31 +305,6 @@ struct TestMainView: View {
             if trackingManager.isLocationPermissionGranted, let existingLocation = trackingManager.deviceLocation {
                 await updateLocationToUHP(location: existingLocation, router: sseEventRouter)
             }
-            
-            // Initial load: Check if geofence exists and is valid
-            // If geofence is restored and valid, don't fetch data until user exits region
-            // Use a small delay to avoid race condition with location initialization
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
-            
-            // Try to restore geofence from UserDefaults
-            let geofenceRestored = locationManager.restoreDevicePOIsGeofenceIfValid()
-            
-            if geofenceRestored {
-                #if DEBUG
-                print("✅ Geofence restored from UserDefaults, skipping initial data load")
-                #endif
-                // Geofence should already be set up, but ensure it exists
-                if let geofenceCenter = locationManager.getSavedGeofenceCenter() {
-                    let userLat = geofenceCenter.latitude
-                    let userLon = geofenceCenter.longitude
-                    if !locationManager.isDevicePOIsGeofencingActive {
-                        locationManager.setupDevicePOIsRefreshGeofence(centerLat: userLat, centerLon: userLon)
-                    }
-                }
-            } else if trackingManager.deviceLocation != nil {
-                // No valid geofence, load data from cache or API
-                // await loadLocationFromGeofenceExit()
-            }
         }
     }
 }
@@ -466,7 +442,7 @@ extension TestMainView {
                         HStack {
                             Text("Cache Entries:")
                             Spacer()
-                            Text("\(cacheInfo.entryCount)")
+                            Text(verbatim: String(cacheInfo.entryCount))
                                 .foregroundColor(Color("onBkgTextColor30"))
                         }
                         .bodyText()
@@ -637,7 +613,7 @@ extension TestMainView {
                 // Show simple values inline
                 if let value = item.value {
                     if let boolValue = value as? Bool {
-                        Text("\(boolValue)")
+                        Text(verbatim: boolValue ? "true" : "false")
                             .bodyText(size: .articleMinus1)
                             .foregroundColor(Color("onBkgTextColor30"))
                             .padding(.trailing, Spacing.current.space2xs)
@@ -658,7 +634,7 @@ extension TestMainView {
         
         private func thisSessionEventSection(index: Int, event: UserEvent) -> some View {
             VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
-                Text("Event \(index)")
+                Text(verbatim: "Event \(index)")
                     .bodyText(size: .articleMinus1)
                     .fontWeight(.semibold)
                     .foregroundColor(Color("onBkgTextColor30"))
@@ -706,7 +682,7 @@ extension TestMainView {
         
         private func structuredRow(label: String, value: String) -> some View {
             HStack(alignment: .top) {
-                Text("\(label):")
+                Text(verbatim: "\(label):")
                     .bodyText(size: .articleMinus1)
                     .fontWeight(.medium)
                 Text(value)
@@ -765,14 +741,13 @@ extension TestMainView {
 #Preview("Map Tab with last user message") {
     let uhpGateway = UHPGateway()
     let trackingManager = TrackingManager()
-    let locationManager = LocationManager()  // Still needed for geocoding/geofencing
+    let locationManager = LocationManager()  // Still needed for geocoding
     let userManager = UserManager()
     let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
     let chatViewModel = ChatViewModel(
         uhpGateway: uhpGateway,
         userManager: userManager
     )
-    
     TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
         .environmentObject(authManager)
         .environmentObject(uhpGateway)
@@ -780,19 +755,19 @@ extension TestMainView {
         .environmentObject(locationManager)
         .environmentObject(userManager)
         .environmentObject(chatViewModel)
+        .environment(\.geocoder, Geocoder(geoapifyApiKey: ""))
 }
 
 #Preview("Journey Tab with last assistant message") {
     let uhpGateway = UHPGateway()
     let trackingManager = TrackingManager()
-    let locationManager = LocationManager()  // Still needed for geocoding/geofencing
+    let locationManager = LocationManager()  // Still needed for geocoding
     let userManager = UserManager()
     let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
     let chatViewModel = ChatViewModel(
         uhpGateway: uhpGateway,
         userManager: userManager
     )
-    
     TestMainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
         .environmentObject(authManager)
         .environmentObject(uhpGateway)
@@ -800,6 +775,7 @@ extension TestMainView {
         .environmentObject(locationManager)
         .environmentObject(userManager)
         .environmentObject(chatViewModel)
+        .environment(\.geocoder, Geocoder(geoapifyApiKey: ""))
 }
 #endif
 

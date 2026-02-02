@@ -17,7 +17,7 @@ public final class GeocodingService {
     /// nonisolated(unsafe) so static `shared` initializer can set it; all method use is on MainActor.
     nonisolated(unsafe) private let geocoder: CLGeocoder
 
-    public static nonisolated(unsafe) let shared: GeocodingService = GeocodingService()
+    public static let shared: GeocodingService = GeocodingService()
 
     /// Nonisolated so static `shared` can be initialized; method calls remain MainActor-isolated.
     nonisolated public init(geocoder: CLGeocoder = CLGeocoder()) {

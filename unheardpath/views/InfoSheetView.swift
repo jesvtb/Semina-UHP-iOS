@@ -440,13 +440,9 @@ struct InfoSheet: View {
 
 #Preview("Full Height") {
     let contentManager = ContentManager()
-    let locationData = LocationDetailData(
-        location: CLLocation(latitude: 41.9028, longitude: 12.4964),
-        placeName: "Colosseum",
-        subdivisions: "Rome, Lazio",
-        countryName: "Italy"
-    )
-    contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
+    let location = CLLocation(latitude: 41.9028, longitude: 12.4964)
+    let locationDict = makeLocationDict(location: location, placeName: "Colosseum", subdivisions: "Rome, Lazio", countryName: "Italy")
+    contentManager.setContent(type: .locationDetail, data: .locationDetail(dict: locationDict))
     
     return InfoSheet(
         selectedTab: .constant(.journey),
@@ -462,13 +458,9 @@ struct InfoSheet: View {
 #Preview("Standard Content") {
     let sections = loadStandardContentFromJSON()
     let contentManager = ContentManager()
-    let locationData = LocationDetailData(
-        location: CLLocation(latitude: 41.9028, longitude: 12.4964),
-        placeName: "Ancient Rome",
-        subdivisions: "Lazio",
-        countryName: "Italy"
-    )
-    contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
+    let location = CLLocation(latitude: 41.9028, longitude: 12.4964)
+    let locationDict = makeLocationDict(location: location, placeName: "Ancient Rome", subdivisions: "Lazio", countryName: "Italy")
+    contentManager.setContent(type: .locationDetail, data: .locationDetail(dict: locationDict))
     
     // Add sections from JSON to contentManager
     for section in sections {
@@ -489,13 +481,9 @@ struct InfoSheet: View {
 #Preview("Mixed Content") {
     let sections = loadStandardContentFromJSON()
     let contentManager = ContentManager()
-    let locationData = LocationDetailData(
-        location: CLLocation(latitude: 40.7128, longitude: -74.0060),
-        placeName: nil,
-        subdivisions: "Mixed Content Location",
-        countryName: nil
-    )
-    contentManager.setContent(type: .locationDetail, data: .locationDetail(data: locationData))
+    let location = CLLocation(latitude: 40.7128, longitude: -74.0060)
+    let locationDict = makeLocationDict(location: location, placeName: nil, subdivisions: "Mixed Content Location", countryName: nil)
+    contentManager.setContent(type: .locationDetail, data: .locationDetail(dict: locationDict))
     
     // Add sections from JSON to contentManager
     for section in sections {
@@ -531,10 +519,10 @@ private func loadStandardContentFromJSON() -> [ContentSection] {
     }
     
     // Load location detail if available
-    if let locationDict = json["locationDetail"] as? [String: Any],
-       let lat = locationDict["latitude"] as? Double,
-       let lon = locationDict["longitude"] as? Double {
-        let altitude = locationDict["altitude"] as? Double ?? 0
+    if let locationDictRaw = json["locationDetail"] as? [String: Any],
+       let lat = locationDictRaw["latitude"] as? Double,
+       let lon = locationDictRaw["longitude"] as? Double {
+        let altitude = locationDictRaw["altitude"] as? Double ?? 0
         let location = CLLocation(
             coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
             altitude: altitude,
@@ -542,18 +530,13 @@ private func loadStandardContentFromJSON() -> [ContentSection] {
             verticalAccuracy: 0,
             timestamp: Date()
         )
-        let placeName = locationDict["place_name"] as? String
-        let subdivisions = locationDict["subdivisions"] as? String
-        let countryName = locationDict["country_name"] as? String
-        let locationDetailData = LocationDetailData(
-            location: location,
-            placeName: placeName,
-            subdivisions: subdivisions,
-            countryName: countryName
-        )
+        let placeName = locationDictRaw["place_name"] as? String
+        let subdivisions = locationDictRaw["subdivisions"] as? String
+        let countryName = locationDictRaw["country_name"] as? String
+        let locationDict = makeLocationDict(location: location, placeName: placeName, subdivisions: subdivisions, countryName: countryName)
         sections.append(ContentSection(
             type: .locationDetail,
-            data: .locationDetail(data: locationDetailData)
+            data: .locationDetail(dict: locationDict)
         ))
     }
     

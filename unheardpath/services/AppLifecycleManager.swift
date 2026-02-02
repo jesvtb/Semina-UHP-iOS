@@ -285,13 +285,7 @@ class AppLifecycleManager: ObservableObject {
             let startTime = CFAbsoluteTimeGetCurrent()
             #endif
             
-            // Defensive error catching (handlers should not throw, but catch just in case)
-            do {
-                action(weakHandler.callbacks)
-            } catch {
-                let handlerType = String(describing: type(of: object))
-                logger.error("Handler error", handlerType: handlerType, error: error)
-            }
+            action(weakHandler.callbacks)
             
             #if DEBUG
             let duration = CFAbsoluteTimeGetCurrent() - startTime

@@ -11,7 +11,6 @@ import core
 
 struct MapboxMapView: View {
     @EnvironmentObject var trackingManager: TrackingManager
-    @EnvironmentObject var locationManager: LocationManager  // Still needed for geofencing debug info
     @EnvironmentObject var mapFeaturesManager: MapFeaturesManager
     @State private var mapProxy: MapboxMaps.MapProxy?
     @State private var defaultPitch: Double = 60
@@ -72,17 +71,6 @@ struct MapboxMapView: View {
                         }
                         .allowOverlap(true)
                     }
-                    
-                    #if DEBUG
-                    // Add geofence visualization for debugging
-                    if let geofenceInfo = locationManager.devicePOIsGeofenceDebugInfo {
-                        GeofenceDebugCircleContent(
-                            center: geofenceInfo.center,
-                            radius: geofenceInfo.radius,
-                            isMonitoring: geofenceInfo.isMonitoring
-                        )
-                    }
-                    #endif
                 }
                 // .mapStyle(MapboxMaps.MapStyle(uri: StyleURI.standard)) // Use standard Mapbox style
                 .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
@@ -161,13 +149,13 @@ struct MapboxMapView: View {
         
         // Configure Mapbox's location provider to match TrackingManager's settings
         // This ensures consistent behavior and reduces battery usage
-        let mapboxProvider = AppleLocationProvider()
-        mapboxProvider.options.activityType = .otherNavigation
+        var options = AppleLocationProvider.Options()
+        options.activityType = .otherNavigation
         // Match TrackingManager's accuracy setting (kCLLocationAccuracyHundredMeters)
-        mapboxProvider.options.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        options.desiredAccuracy = kCLLocationAccuracyHundredMeters
         
-        // Override the map's location provider
-        proxy.location?.override(provider: mapboxProvider)
+        // Set the map's location data model (replaces deprecated override(provider:))
+        proxy.location?.dataModel = LocationDataModel.createDefault(options)
         
         // Configure location puck options
         proxy.location?.options.puckType = .puck2D()

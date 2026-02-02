@@ -147,8 +147,11 @@ You can test different content types using the buttons below.
         switch section.data {
         case .overview(let markdown):
             return "Markdown: \(markdown.prefix(50))..."
-        case .locationDetail(let locationData):
-            return "Location: \(locationData.location.coordinate.latitude), \(locationData.location.coordinate.longitude)"
+        case .locationDetail(let locationDict):
+            if let detail = LocationDetailData(locationDict: locationDict) {
+                return "Location: \(detail.location.coordinate.latitude), \(detail.location.coordinate.longitude)"
+            }
+            return "Location: (invalid dict)"
         case .pointsOfInterest(let features):
             return "POIs: \(features.count) features"
         case .regionalCuisine(let data):
@@ -177,13 +180,8 @@ You can test different content types using the buttons below.
                     verticalAccuracy: 0,
                     timestamp: Date()
                 )
-                let locationDetailData = LocationDetailData(
-                    location: location,
-                    placeName: nil,
-                    subdivisions: nil,
-                    countryName: nil
-                )
-                let data: ContentSection.ContentSectionData = .locationDetail(data: locationDetailData)
+                let locationDict = makeLocationDict(location: location, placeName: nil, subdivisions: nil, countryName: nil)
+                let data: ContentSection.ContentSectionData = .locationDetail(dict: locationDict)
                 await sseEventRouter.onContent(type: .locationDetail, data: data)
                 
             case .pointsOfInterest:
@@ -277,13 +275,8 @@ struct SSEContentTestHelpers {
             verticalAccuracy: 0,
             timestamp: Date()
         )
-        let locationDetailData = LocationDetailData(
-            location: location,
-            placeName: "Test Location",
-            subdivisions: "Test City, Test State",
-            countryName: "Test Country"
-        )
-        let data: ContentSection.ContentSectionData = .locationDetail(data: locationDetailData)
+        let locationDict = makeLocationDict(location: location, placeName: "Test Location", subdivisions: "Test City, Test State", countryName: "Test Country")
+        let data: ContentSection.ContentSectionData = .locationDetail(dict: locationDict)
         await router.onContent(type: .locationDetail, data: data)
     }
     
