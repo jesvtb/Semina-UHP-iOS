@@ -62,7 +62,23 @@ Go to GitHub repository > **Settings** > **Secrets and variables** > **Actions**
 
 **Note**: With Admin API key and automatic signing, Xcode will automatically create/use certificates and profiles. Manual certificate/profile creation is optional.
 
-### Step 4: Test the Workflow
+### Step 4: Self-hosted runner (macOS) – required if using self-hosted
+
+The workflow uses **self-hosted** runners. The "Select Xcode version" step runs `sudo xcode-select -s /Applications/Xcode.app`. If the runner user does not have **passwordless sudo** for that command, `sudo` will wait for a password (there is no TTY in CI), and the step will **hang** (e.g. 8+ minutes) until the job times out.
+
+**Fix:** On the Mac that hosts the runner, allow passwordless sudo for `xcode-select` for the runner user.
+
+1. Identify the user that runs the Actions runner (e.g. the account used to install/run the runner service).
+2. Edit sudoers: `sudo visudo`.
+3. Add a line (replace `RUNNER_USER` with that username):
+   ```text
+   RUNNER_USER ALL=(ALL) NOPASSWD: /usr/bin/xcode-select
+   ```
+4. Save and exit. Subsequent workflow runs should complete the "Select Xcode version" step in seconds.
+
+**Optional:** Ensure `/Applications/Xcode.app` is the correct path for the Xcode version you want. The workflow uses this path; if you use a versioned path (e.g. `Xcode_26.1.1.app`), update the step in `.github/workflows/iosapp.yml` to match.
+
+### Step 5: Test the Workflow
 
 1. Make a small change to iOS app code
 2. Commit and push to `main` or `master` branch
@@ -114,6 +130,11 @@ Go to GitHub repository > **Settings** > **Secrets and variables** > **Actions**
 - Up to 10,000 external testers
 
 ## Troubleshooting
+
+### "Select Xcode version" step hangs (e.g. 8+ minutes)
+**Cause:** On self-hosted macOS runners, `sudo xcode-select` waits for a password when the runner user does not have passwordless sudo. There is no TTY in CI, so the step blocks until the job times out.
+
+**Solution:** On the runner Mac, add passwordless sudo for the runner user. See **Step 4: Self-hosted runner (macOS)** above. After adding the sudoers line, the step should finish in seconds.
 
 ### "Cloud signing permission error"
 **Solution**: Verify API key has **Admin** access level (not App Manager or Developer)
@@ -168,12 +189,16 @@ Go to GitHub repository > **Settings** > **Secrets and variables** > **Actions**
 - [ ] "Sign in with Apple" capability enabled
 - [ ] Changes saved and propagated (wait 2-3 minutes)
 
-### Step 4: Workflow Verification
+### Step 4 (self-hosted only): Runner passwordless sudo
+- [ ] Runner user has NOPASSWD for `/usr/bin/xcode-select` in sudoers
+- [ ] Path `/Applications/Xcode.app` exists on runner (or workflow step updated to your Xcode path)
+
+### Step 5: Workflow Verification
 - [ ] Workflow file exists: `.github/workflows/iosapp.yml`
 - [ ] Workflow configured for automatic signing
 - [ ] Build number auto-increment configured
 
-### Step 5: Test Workflow
+### Step 6: Test Workflow
 - [ ] Make small change to iOS app code
 - [ ] Commit and push to `main` or `master` branch
 - [ ] Go to GitHub > Actions tab
