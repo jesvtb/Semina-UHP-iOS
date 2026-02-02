@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ChatInputBar: View {
+struct InputBar: View {
     let selectedTab: PreviewTabSelection
     @Binding var draftMessage: String
     @Binding var inputLocation: String

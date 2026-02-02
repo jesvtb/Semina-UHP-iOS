@@ -159,7 +159,7 @@ struct MainView: View {
         // Input bar pinned to bottom; moves with keyboard
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
-                ChatInputBar(
+                InputBar(
                     selectedTab: selectedTab,
                     draftMessage: $chatViewModel.draftMessage,
                     inputLocation: $liveUpdateViewModel.inputLocation,
@@ -314,20 +314,20 @@ extension MainView {
         UIScreen.main.bounds.height + 1
     }
     
-    /// Calculates the exact height of the bottom safe area inset (chatInputBar + TabsBarView)
+    /// Calculates the exact height of the bottom safe area inset (InputBar + TabsBarView)
     private var bottomSafeAreaInsetHeight: CGFloat {
-        // chatInputBar components:
+        // InputBar components:
         // - HStack vertical padding: 8 top + 8 bottom = 16 points
         // - TextField vertical padding: 10 top + 10 bottom = 20 points
         // - TextField content height (single line, system font ~17pt): ~20 points
-        let chatInputBarHeight: CGFloat = 16 + 20 + 20 // 56 points minimum
+        let InputBarHeight: CGFloat = 16 + 20 + 20 // 56 points minimum
         
         // TabsBarView:
         // - Uses tabBarHeight constant = 49 points
         let tabSelectorHeight: CGFloat = 49
         
         // VStack spacing: 0 (no spacing between components)
-        return chatInputBarHeight + tabSelectorHeight // 105 points total
+        return InputBarHeight + tabSelectorHeight // 105 points total
     }
 }
 

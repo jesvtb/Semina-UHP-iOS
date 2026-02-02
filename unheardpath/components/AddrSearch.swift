@@ -178,7 +178,7 @@ private struct AddrSearchResultsListPreviewContainer: View {
                 onResultSelected: { _ in },
                 onClearResults: { }
             )
-            ChatInputBar(
+            InputBar(
                 selectedTab: .map,
                 draftMessage: $draftMessage,
                 inputLocation: $inputLocation,

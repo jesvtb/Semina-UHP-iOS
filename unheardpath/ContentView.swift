@@ -9,7 +9,6 @@ import SwiftUI
 
 // MARK: - Content View
 struct ContentView: View {
-  // @EnvironmentObject is like React's useContext - gets the AuthManager from parent
   @EnvironmentObject var authManager: AuthManager
   
   var body: some View {
@@ -17,7 +16,6 @@ struct ContentView: View {
       if authManager.isLoading {
           ProgressView("Checking authentication...")
       } else if authManager.isAuthenticated {
-        // MainView()
          MainView()
       } else {
         AuthView()
