@@ -333,6 +333,7 @@ private struct AppContentView: View {
 
                 // Wire up ChatManager dependencies
                 chatManager.eventManager = eventManager
+                chatManager.loadHistory()
             }
             .onOpenURL { url in
                 Task {

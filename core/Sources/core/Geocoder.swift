@@ -72,7 +72,7 @@ public final class Geocoder: Sendable {
     /// Reverse geocodes a location using Geoapify reverse geocode API.
     /// Parses the API response (query + results) into a LocationDict. Geoapify returns { "query": { lat, lon }, "results": [ { address fields } ] }, not GeoJSON.
     /// - Parameter location: The CLLocation to reverse geocode.
-    /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone, timestamp.
+    /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone.
     /// - Throws: Error if the API call or parsing fails.
     public func geocodeReverseGeoapify(location: CLLocation) async throws -> LocationDict {
         let params: [String: String] = [
@@ -105,7 +105,6 @@ public final class Geocoder: Sendable {
         }
         var dict: LocationDict = [
             "coordinate": .dictionary(coordinateDict),
-            "timestamp": .double(location.timestamp.timeIntervalSince1970),
             "timezone": .string(TimeZone.current.identifier),
         ]
 
@@ -116,7 +115,7 @@ public final class Geocoder: Sendable {
         }
 
         if let code = first["country_code"] as? String {
-            dict["country_code"] = .string(code)
+            dict["country_code"] = .string(code.uppercased())
         }
         let suburb = (first["suburb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let city = (first["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -140,7 +139,7 @@ public final class Geocoder: Sendable {
 
     /// Reverse geocodes a location using Geoapify and returns a LocationDict (NewLocation schema) for events and content.
     /// - Parameter location: The CLLocation to reverse geocode.
-    /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone, timestamp.
+    /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone.
     /// - Throws: Error if the API call or parsing fails.
     public func geocodeReverse(location: CLLocation) async throws -> LocationDict {
         try await geocodeReverseGeoapify(location: location)

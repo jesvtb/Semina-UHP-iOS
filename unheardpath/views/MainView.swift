@@ -212,6 +212,14 @@ struct MainView: View {
                 await updateLocationToUHP(location: location, router: sseEventRouter)
             }
         }
+        .onChange(of: mapFeaturesManager.flyToLocation) { newFlyTo in
+            guard let flyTo = newFlyTo else {
+                return
+            }
+            Task {
+                await updateLookupLocationToUHP(flyTo: flyTo, router: sseEventRouter)
+            }
+        }
         .onChange(of: mapFeaturesManager.geoJSONUpdateTrigger) { _ in
             // Update content manager with POIs when GeoJSON changes
             let pois = extractPOIs(from: mapFeaturesManager.poisGeoJSON)

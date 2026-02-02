@@ -42,6 +42,19 @@ class ChatManager: ObservableObject {
         self.userManager = userManager
     }
     
+    /// Restores chat messages from EventManager's persisted events (UserDefaults).
+    /// Call once at app launch after eventManager is set so the Chat view shows past sent and received messages.
+    func loadHistory() {
+        guard let eventManager = eventManager else { return }
+        let chatEvents = eventManager.chatEventsInOrder()
+        messages = chatEvents.map { event in
+            let text = event.evt_data["message"]?.stringValue ?? ""
+            let isUser = event.evt_type == "chat_sent"
+            return ChatMessage(text: text, isUser: isUser, isStreaming: false)
+        }
+        lastMessage = messages.last
+    }
+    
     // MARK: - Message Actions
     
     /// Validates, sends message, and handles streaming response

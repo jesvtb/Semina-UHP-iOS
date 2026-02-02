@@ -205,6 +205,15 @@ class EventManager: ObservableObject {
         return allEvents
     }
     
+    /// Returns all chat_sent and chat_received events from current and past sessions, sorted by evt_utc ascending.
+    /// Used to restore chat history on app relaunch.
+    func chatEventsInOrder() -> [UserEvent] {
+        let allEvents = consolidateEvents()
+        return allEvents
+            .filter { $0.evt_type == "chat_sent" || $0.evt_type == "chat_received" }
+            .sorted { $0.evt_utc < $1.evt_utc }
+    }
+    
     // MARK: - Deduplication
     
     /// Deduplication check (for location events only)

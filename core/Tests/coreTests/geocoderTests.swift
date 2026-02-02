@@ -149,11 +149,6 @@ struct GeocoderTests {
             success: "LocationDict has coordinate",
             failure: "LocationDict missing coordinate"
         )
-        try require(
-            locationDict["timestamp"] != nil,
-            success: "LocationDict has timestamp",
-            failure: "LocationDict missing timestamp"
-        )
         expect(
             locationDict["timezone"] != nil,
             success: "LocationDict has timezone",
