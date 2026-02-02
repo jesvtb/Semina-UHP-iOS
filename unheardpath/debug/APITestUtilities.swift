@@ -75,6 +75,70 @@ class APITestUtilities {
         ),
         
     ]
-    
-    
 }
+
+// MARK: - Debug Visualizer
+/// Owns debug responsibilities for Storage/UserDefaults inspection and cache clearing.
+/// Use from debug UI or Xcode console (e.g. `DebugVisualizer.printAllUserDefaults()`).
+#if DEBUG
+enum DebugVisualizer {
+
+    /// Prints all UserDefaults data stored by this app (Storage prefix, e.g. "UHP.").
+    /// Call from Xcode debug console: `po DebugVisualizer.printAllUserDefaults()`
+    static func printAllUserDefaults() {
+        let defaults = UserDefaults.standard
+        let dict = defaults.dictionaryRepresentation()
+
+        print("📦 UserDefaults Contents for Unheard Path:")
+        print("Total keys in UserDefaults: \(dict.count)")
+        print("---")
+
+        let appKeys = dict.keys.filter { $0.hasPrefix("UHP.") }
+
+        print("App-specific keys: \(appKeys.count)")
+        print("---")
+
+        for key in appKeys.sorted() {
+            if let value = dict[key] {
+                let valueString = "\(value)"
+                let size = valueString.data(using: .utf8)?.count ?? 0
+
+                print("🔑 \(key)")
+                print("   Size: \(size) bytes (~\(size / 1024) KB)")
+
+                if size < 500 {
+                    print("   Value: \(valueString.prefix(200))")
+                } else {
+                    if let dictValue = value as? [String: Any] {
+                        print("   Value: [Dictionary with \(dictValue.count) keys]")
+                        if let features = dictValue["features"] as? [[String: Any]] {
+                            print("   Features count: \(features.count)")
+                        }
+                    } else {
+                        print("   Value: [Large object, \(size) bytes]")
+                    }
+                }
+                print("")
+            }
+        }
+
+        let totalSize = appKeys.compactMap { key -> Int? in
+            guard let value = dict[key] else { return nil }
+            return "\(value)".data(using: .utf8)?.count
+        }.reduce(0, +)
+
+        print("---")
+        print("📊 Summary:")
+        print("   Total app keys: \(appKeys.count)")
+        print("   Total size: \(totalSize) bytes (~\(totalSize / 1024) KB)")
+        print("   Estimated limit: ~1-2 MB (you're using \(String(format: "%.1f", Double(totalSize) / 1024 / 1024 * 100))% of 1 MB)")
+    }
+
+    /// Clears all Storage-backed UserDefaults keys (app cache).
+    static func clearAllCache() {
+        let count = Storage.allUserDefaultsKeysWithPrefix().count
+        Storage.clearUserDefaultsKeysWithPrefix()
+        print("🗑️ Cleared \(count) cache entries")
+    }
+}
+#endif

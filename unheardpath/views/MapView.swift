@@ -4,10 +4,8 @@ import CoreLocation
 import core
 
 // MARK: - Custom Location Provider for Mapbox
-/// Custom location provider that bridges the shared LocationManager to Mapbox
-/// This ensures Mapbox uses the same location data as the rest of the app
-/// Note: Mapbox's location system will still track location internally for the puck,
-/// but we configure it to match LocationManager's settings and avoid duplicate permission requests
+/// Custom location provider that bridges TrackingManager's location to Mapbox.
+/// Mapbox's location system tracks location internally for the puck; we configure it to avoid duplicate permission requests.
 
 struct MapboxMapView: View {
     @EnvironmentObject var trackingManager: TrackingManager

@@ -23,8 +23,7 @@ struct LocationTrackingEntry: TimelineEntry {
 }
 
 struct Provider: TimelineProvider {
-    // UserDefaults keys (matching LocationManager)
-    // Note: Storage adds "UHP." prefix via configure(), so we use keys without prefix
+    // UserDefaults keys (Storage prefix "UHP." is added via configure() in app)
     private let lastDeviceLocationKey = "LastDeviceLocation"
     private let appStateIsInBackgroundKey = "AppState.isInBackground"
     private let trackingModeKey = "TrackingMode.current"

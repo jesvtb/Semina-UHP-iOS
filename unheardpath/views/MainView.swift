@@ -13,7 +13,6 @@ enum PreviewTabSelection: Int, CaseIterable {
 struct TestMainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var trackingManager: TrackingManager
-    @EnvironmentObject var locationManager: LocationManager  // Still needed for geocoding
     @EnvironmentObject var userManager: UserManager
     @EnvironmentObject var chatViewModel: ChatViewModel
     @EnvironmentObject var authManager: AuthManager
@@ -730,9 +729,8 @@ extension TestMainView {
     }
     
     private func clearCache() {
-        // Clear Storage-backed UserDefaults (and any location-specific cache cleanup).
-        locationManager.debugClearAllCache()
         #if DEBUG
+        DebugVisualizer.clearAllCache()
         print("✅ Cache cleared from debug button")
         #endif
     }
@@ -741,7 +739,6 @@ extension TestMainView {
 #Preview("Map Tab with last user message") {
     let uhpGateway = UHPGateway()
     let trackingManager = TrackingManager()
-    let locationManager = LocationManager()  // Still needed for geocoding
     let userManager = UserManager()
     let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
     let chatViewModel = ChatViewModel(
@@ -752,7 +749,6 @@ extension TestMainView {
         .environmentObject(authManager)
         .environmentObject(uhpGateway)
         .environmentObject(trackingManager)
-        .environmentObject(locationManager)
         .environmentObject(userManager)
         .environmentObject(chatViewModel)
         .environment(\.geocoder, Geocoder(geoapifyApiKey: ""))
@@ -761,7 +757,6 @@ extension TestMainView {
 #Preview("Journey Tab with last assistant message") {
     let uhpGateway = UHPGateway()
     let trackingManager = TrackingManager()
-    let locationManager = LocationManager()  // Still needed for geocoding
     let userManager = UserManager()
     let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
     let chatViewModel = ChatViewModel(
@@ -772,7 +767,6 @@ extension TestMainView {
         .environmentObject(authManager)
         .environmentObject(uhpGateway)
         .environmentObject(trackingManager)
-        .environmentObject(locationManager)
         .environmentObject(userManager)
         .environmentObject(chatViewModel)
         .environment(\.geocoder, Geocoder(geoapifyApiKey: ""))

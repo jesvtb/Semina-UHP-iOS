@@ -43,7 +43,6 @@ class EventManager: ObservableObject {
     // MARK: - Dependencies (set after init)
     
     weak var uhpGateway: UHPGateway?
-    weak var locationManager: LocationManager?
     
     // MARK: - Persistence Keys
     

@@ -7,7 +7,6 @@ import core
 #Preview {
     MapboxMapView()
         .environmentObject(TrackingManager())
-        .environmentObject(LocationManager())
         .environmentObject(MapFeaturesManager())
 }
 

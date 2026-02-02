@@ -130,7 +130,6 @@ struct unheardpathApp: App {
     @StateObject private var uhpGateway = UHPGateway()
     @StateObject private var geoapifyGateway = GeoapifyGateway()
     @StateObject private var trackingManager = TrackingManager()
-    @StateObject private var locationManager = LocationManager()  // Still needed for geocoding
     @StateObject private var appLifecycleManager = AppLifecycleManager()
     @StateObject private var mapFeaturesManager = MapFeaturesManager()
     @StateObject private var toastManager = ToastManager()
@@ -178,7 +177,6 @@ struct unheardpathApp: App {
                 authManager: authManager,
                 apiClient: apiClient,
                 trackingManager: trackingManager,
-                locationManager: locationManager,
                 uhpGateway: uhpGateway,
                 geoapifyGateway: geoapifyGateway,
                 userManager: userManager,
@@ -248,7 +246,6 @@ private struct AppContentView: View {
     let authManager: AuthManager
     let apiClient: APIClient
     let trackingManager: TrackingManager
-    let locationManager: LocationManager  // Still needed for geocoding
     let uhpGateway: UHPGateway
     let geoapifyGateway: GeoapifyGateway
     let userManager: UserManager
@@ -268,7 +265,6 @@ private struct AppContentView: View {
         authManager: AuthManager,
         apiClient: APIClient,
         trackingManager: TrackingManager,
-        locationManager: LocationManager,
         uhpGateway: UHPGateway,
         geoapifyGateway: GeoapifyGateway,
         userManager: UserManager,
@@ -283,7 +279,6 @@ private struct AppContentView: View {
         self.authManager = authManager
         self.apiClient = apiClient
         self.trackingManager = trackingManager
-        self.locationManager = locationManager
         self.uhpGateway = uhpGateway
         self.geoapifyGateway = geoapifyGateway
         self.userManager = userManager
@@ -316,7 +311,6 @@ private struct AppContentView: View {
             .environmentObject(authManager) // Pass auth state to all views (like React Context)
             // apiClient passed via AppContentView init (core.APIClient is not ObservableObject)
             .environmentObject(trackingManager) // Pass tracking manager to all views (GPS tracking)
-            .environmentObject(locationManager) // Pass location manager to all views (geocoding)
             .environmentObject(uhpGateway) // Pass UHP Gateway to all views
             .environmentObject(geoapifyGateway) // Pass Geoapify Gateway to all views
             .environmentObject(userManager) // Pass user manager to all views
@@ -339,11 +333,9 @@ private struct AppContentView: View {
                 
                 // Wire up EventManager dependencies (delayed injection pattern)
                 eventManager.uhpGateway = uhpGateway
-                eventManager.locationManager = locationManager
                 
                 // Wire up TrackingManager dependencies
                 trackingManager.eventManager = eventManager
-                trackingManager.locationManager = locationManager
 
                 // Wire up ChatViewModel dependencies
                 chatViewModel.eventManager = eventManager

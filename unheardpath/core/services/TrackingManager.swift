@@ -47,9 +47,6 @@ class TrackingManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // EventManager reference (set after initialization)
     weak var eventManager: EventManager?
     
-    // LocationManager reference (set after initialization, for constructing NewLocation dicts)
-    weak var locationManager: LocationManager?
-    
     // Use AppLifecycleManager's state as single source of truth
     // Removes duplicate state tracking
     private var isAppInBackground: Bool {

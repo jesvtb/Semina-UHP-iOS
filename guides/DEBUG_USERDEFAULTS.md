@@ -92,7 +92,7 @@ func debugPrintAllUserDefaults() {
 ### Usage in Debug Console
 ```
 # In Xcode debug console (pause execution, then type):
-po LocationManager().debugPrintAllUserDefaults()
+po DebugVisualizer.printAllUserDefaults()
 
 # Or for any UserDefaults key:
 po UserDefaults.standard.dictionaryRepresentation()["LocationManager.lastLocation.latitude"]
