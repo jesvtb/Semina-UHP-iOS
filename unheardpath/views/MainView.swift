@@ -10,7 +10,7 @@ enum PreviewTabSelection: Int, CaseIterable {
     case profile = 3
 }
 
-struct TestMainView: View {
+struct MainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var trackingManager: TrackingManager
     @EnvironmentObject var userManager: UserManager
@@ -140,7 +140,7 @@ struct TestMainView: View {
                     inputLocation: $liveUpdateViewModel.inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
                     onResultSelected: { result in
-                        await geocodeAndFlyToLocation(result: result)
+                        await flyToLocation(result: result)
                     },
                     onClearResults: {
                         autocompleteManager.clearSearchResults()
@@ -308,8 +308,8 @@ struct TestMainView: View {
     }
 }
 
-// MARK: - TestMainView: Computed Properties
-extension TestMainView {
+// MARK: - MainView: Computed Properties
+extension MainView {
     private var sheetFullHeight: CGFloat {
         UIScreen.main.bounds.height + 1
     }
@@ -332,8 +332,8 @@ extension TestMainView {
 }
 
 
-// MARK: - TestMainView: Actions
-extension TestMainView {
+// MARK: - MainView: Actions
+extension MainView {
     func handleLogout() {
         Task {
             do {
@@ -351,7 +351,7 @@ extension TestMainView {
 
 // MARK: - Debug Cache Components
 #if DEBUG
-extension TestMainView {
+extension MainView {
     private var debugCacheButton: some View {
         VStack {
             HStack {
@@ -745,7 +745,7 @@ extension TestMainView {
         uhpGateway: uhpGateway,
         userManager: userManager
     )
-    TestMainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
+    MainView(previewTab: .map, previewLastMessage: ChatMessage(text: "Hello, world!", isUser: true, isStreaming: false))
         .environmentObject(authManager)
         .environmentObject(uhpGateway)
         .environmentObject(trackingManager)
@@ -763,7 +763,7 @@ extension TestMainView {
         uhpGateway: uhpGateway,
         userManager: userManager
     )
-    TestMainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
+    MainView(previewTab: .journey, previewLastMessage: ChatMessage(text: "Maximus morbi habitasse dictumst curae aenean fermentum senectus nunc elementum quis pretium, dui feugiat gravida sem ad tempor conubia vehicula tortor volutpat, facilisis pulvinar nam fusce praesent ac commodo himenaeos donec lorem. Quis ullamcorper porttitor vitae placerat ad dis eu habitasse venenatis, rhoncus cursus suspendisse in adipiscing posuere mattis tristique donec, rutrum nostra congue velit mauris malesuada montes consequat. Mus est natoque nibh torquent hendrerit scelerisque phasellus consequat auctor praesent, diam neque venenatis quisque cursus vestibulum taciti curae congue, lorem etiam proin accumsan potenti montes tincidunt donec magna.", isUser: false, isStreaming: false))
         .environmentObject(authManager)
         .environmentObject(uhpGateway)
         .environmentObject(trackingManager)

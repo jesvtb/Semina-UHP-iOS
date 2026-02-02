@@ -3,7 +3,7 @@ import CoreLocation
 import core
 
 // MARK: - Autocomplete Management
-extension TestMainView {
+extension MainView {
     /// Updates autocomplete query
     func updateAutocomplete(query: String) {
         autocompleteManager.updateQuery(query)
@@ -11,7 +11,7 @@ extension TestMainView {
 
     /// Sets flyToLocation from selected MapSearchResult and clears autocomplete. No reverse geocode.
     @MainActor
-    func geocodeAndFlyToLocation(result: MapSearchResult) async {
+    func flyToLocation(result: MapSearchResult) async {
         guard let coordinate = result.coordinate else {
             return
         }
