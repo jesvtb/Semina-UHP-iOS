@@ -12,7 +12,8 @@ import MapKit
 // MARK: - MapSearchResult
 
 /// Unified parsed result of a map search (MKLocalSearch or GeoJSON) with common fields.
-public struct MapSearchResult {
+/// Marked @unchecked Sendable so it can be passed from MKLocalSearch callback across continuation; properties dict is read-only after creation.
+public struct MapSearchResult: @unchecked Sendable {
     /// Source identifier: `"mapkit"` or `"geojson"`.
     public let source: String
     /// Display name of the place.

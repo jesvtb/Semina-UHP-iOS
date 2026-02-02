@@ -1,11 +1,11 @@
 import SwiftUI
-@preconcurrency import MapKit
+import core
 
 struct AddrSearchResultItem: View {
-    let result: AddressSearchResult
+    let result: MapSearchResult
     let isMostRelevant: Bool
-    let onSelect: (AddressSearchResult) -> Void
-    
+    let onSelect: (MapSearchResult) -> Void
+
     var body: some View {
         Button(action: {
             onSelect(result)
@@ -14,18 +14,17 @@ struct AddrSearchResultItem: View {
                 Image(systemName: "mappin.circle.fill")
                     .bodyText(size: .article1)
                     .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
-                    .padding(.top, 2) // Align icon with first line of text
-                
+                    .padding(.top, 2)
+
                 VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
                     HStack(alignment: .top) {
-                        Text(result.title)
+                        Text(result.name)
                             .heading(size: .article0)
                             .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        
+
                         #if DEBUG
-                        // Debug-only source indicator
                         Text(sourceIndicator)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(sourceColor)
@@ -35,16 +34,16 @@ struct AddrSearchResultItem: View {
                             .cornerRadius(4)
                         #endif
                     }
-                    
-                    if !result.subtitle.isEmpty {
-                        Text(result.subtitle)
+
+                    if !result.address.isEmpty {
+                        Text(result.address)
                             .bodyText(size: .articleMinus1)
                             .foregroundColor(isMostRelevant ? Color("onBkgTextColor20") : Color("onBkgTextColor20").opacity(0.5))
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                
+
                 Spacer()
             }
             .padding(.horizontal, Spacing.current.spaceXs)
@@ -52,57 +51,42 @@ struct AddrSearchResultItem: View {
             .cornerRadius(Spacing.current.spaceS)
         }
     }
-    
+
     #if DEBUG
-    /// Debug-only source indicator text
     private var sourceIndicator: String {
-        switch result.source {
-        case .geoapify:
-            return "GA"
-        case .mapkit:
-            return "MK"
-        }
+        result.source == "geojson" ? "GA" : "MK"
     }
-    
-    /// Debug-only source indicator color
+
     private var sourceColor: Color {
-        switch result.source {
-        case .geoapify:
-            return .blue
-        case .mapkit:
-            return .orange
-        }
+        result.source == "geojson" ? .blue : .orange
     }
     #endif
 }
 
 // MARK: - Address Search Results List
 struct AddrSearchResultsList: View {
-    let searchResults: [AddressSearchResult]
+    let searchResults: [MapSearchResult]
     @Binding var inputLocation: String
     @FocusState.Binding var isTextFieldFocused: Bool
-    let onResultSelected: (AddressSearchResult) async -> Void
+    let onResultSelected: (MapSearchResult) async -> Void
     let onClearResults: () -> Void
-    
+
     var body: some View {
         let lastIndex = searchResults.count - 1
-        
+
         VStack {
             Spacer()
             VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
                 ForEach(Array(searchResults.enumerated()), id: \.offset) { index, result in
                     let isMostRelevant = index == lastIndex
-                    
+
                     AddrSearchResultItem(
                         result: result,
                         isMostRelevant: isMostRelevant,
                         onSelect: { selectedResult in
-                            // Handle selection - geocode and update map
-                            inputLocation = selectedResult.title
+                            inputLocation = selectedResult.name
                             onClearResults()
                             isTextFieldFocused = false
-                            
-                            // Geocode the selected location and fly to it
                             Task {
                                 await onResultSelected(selectedResult)
                             }
@@ -118,29 +102,26 @@ struct AddrSearchResultsList: View {
 }
 
 #if DEBUG
-// MARK: - Preview Helper Component
-/// Preview-only component that displays the same UI as AddrSearchResultItem
-/// but takes data directly instead of requiring MKLocalSearchCompletion
 private struct AddrSearchResultItemPreview: View {
     let title: String
     let subtitle: String
     let isMostRelevant: Bool
-    
+
     var body: some View {
         Button(action: {}) {
             HStack(alignment: .top, spacing: Spacing.current.spaceXs) {
                 Image(systemName: "mappin.circle.fill")
                     .bodyText(size: .article1)
                     .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
-                    .padding(.top, 2) // Align icon with first line of text
-                
+                    .padding(.top, 2)
+
                 VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
                     Text(title)
                         .heading(size: .article0)
                         .foregroundColor(isMostRelevant ? Color("onBkgTextColor10") : Color("onBkgTextColor20").opacity(0.5))
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    
+
                     if !subtitle.isEmpty {
                         Text(subtitle)
                             .bodyText(size: .articleMinus1)
@@ -149,7 +130,7 @@ private struct AddrSearchResultItemPreview: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                
+
                 Spacer()
             }
             .padding(.horizontal, Spacing.current.spaceXs)
@@ -178,9 +159,7 @@ private struct AddrSearchResultItemPreview: View {
                 isMostRelevant: false
             )
             .background(Color("AppBkgColor"))
-            }
+        }
     }
 }
-
 #endif
-

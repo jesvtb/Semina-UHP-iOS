@@ -3,21 +3,6 @@ import MapboxMaps
 import CoreLocation
 import core
 
-
-// MARK: - Target Location Model
-/// Represents a target location with its coordinates and place name
-/// Used for autocomplete selections to update map camera and show marker
-struct TargetLocation: Equatable {
-    let location: CLLocation
-    let name: String?
-    
-    static func == (lhs: TargetLocation, rhs: TargetLocation) -> Bool {
-        return lhs.location.coordinate.latitude == rhs.location.coordinate.latitude &&
-               lhs.location.coordinate.longitude == rhs.location.coordinate.longitude &&
-               lhs.name == rhs.name
-    }
-}
-
 // MARK: - Custom Location Provider for Mapbox
 /// Custom location provider that bridges the shared LocationManager to Mapbox
 /// This ensures Mapbox uses the same location data as the rest of the app
@@ -28,22 +13,14 @@ struct MapboxMapView: View {
     @EnvironmentObject var trackingManager: TrackingManager
     @EnvironmentObject var locationManager: LocationManager  // Still needed for geofencing debug info
     @EnvironmentObject var mapFeaturesManager: MapFeaturesManager
-    @Binding var targetLocation: TargetLocation?
-    @Binding var selectedLocation: CLLocation?
     @State private var mapProxy: MapboxMaps.MapProxy?
     @State private var defaultPitch: Double = 60
     @State private var longPressLocation: CGPoint?
-    
+
     // Logger for error and debug logging
     private let logger: Logger
-    
-    init(
-        targetLocation: Binding<TargetLocation?>,
-        selectedLocation: Binding<CLLocation?>,
-        logger: Logger = AppLifecycleManager.sharedLogger
-    ) {
-        self._targetLocation = targetLocation
-        self._selectedLocation = selectedLocation
+
+    init(logger: Logger = AppLifecycleManager.sharedLogger) {
         self.logger = logger
     }
     
@@ -88,19 +65,10 @@ struct MapboxMapView: View {
                     // Use mapFeaturesManager.poisGeoJSON directly
                     GeoJSONMapContent(geoJSON: mapFeaturesManager.poisGeoJSON)
                     
-                    // Add lookup location marker when autocomplete selection is made
-                    if let targetLocation = targetLocation {
-                        MapboxMaps.MapViewAnnotation(coordinate: targetLocation.location.coordinate) {
-                            LookupLocation(targetLocation: targetLocation)
-                        }
-                        .allowOverlap(true)
-                    }
-                    
-                    // Add marker for manually selected location (long press)
-                    if let selectedLocation = selectedLocation {
-                        let manualTargetLocation = TargetLocation(location: selectedLocation, name: nil)
-                        MapboxMaps.MapViewAnnotation(coordinate: selectedLocation.coordinate) {
-                            LookupLocation(targetLocation: manualTargetLocation)
+                    // Add lookup marker when flyToLocation is set (autocomplete selection or long press)
+                    if let flyToLocation = mapFeaturesManager.flyToLocation {
+                        MapboxMaps.MapViewAnnotation(coordinate: flyToLocation.location.coordinate) {
+                            LookupLocation(flyToLocation: flyToLocation)
                         }
                         .allowOverlap(true)
                     }
@@ -141,12 +109,10 @@ struct MapboxMapView: View {
                     // When GeoJSON data updates, fit camera to show all features
                     fitCameraToGeoJSON(proxy: proxy, geoJSON: mapFeaturesManager.poisGeoJSON)
                 }
-                .onChange(of: targetLocation) { newTargetLocation in
-                    // When target location is set (from autocomplete selection), fly to it and show marker
-                    if let target = newTargetLocation {
-                        updateMapCamera(proxy: proxy, location: target.location, isDeviceLocation: false)
-                        // Note: We don't reset targetLocation to nil here because it's needed to display the marker
-                        // The marker will persist until a new targetLocation is set (replacing the old one)
+                .onChange(of: mapFeaturesManager.flyToLocation) { newFlyToLocation in
+                    // When flyToLocation is set (autocomplete selection or long press), fly to it and show marker
+                    if let flyTo = newFlyToLocation {
+                        updateMapCamera(proxy: proxy, location: flyTo.location, isDeviceLocation: false)
                     }
                 }
                 .simultaneousGesture(
@@ -330,16 +296,11 @@ struct MapboxMapView: View {
         )
         
         logger.debug("Manual location selected: \(coordinate.latitude), \(coordinate.longitude)")
-        
-        // First, set the marker to show immediate visual feedback
+
         Task { @MainActor in
-            selectedLocation = location
-            
-            // Then, after a brief delay, move the camera to the selected location
-            // This creates a more user-friendly flow: marker appears first, then camera moves
+            mapFeaturesManager.flyToLocation = FlyToLocation(location: location, name: nil)
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds delay
-            // Move camera to selected location with south offset (same as initial viewport)
-            updateMapCamera(proxy: proxy, location: location, isDeviceLocation: true)
+            updateMapCamera(proxy: proxy, location: location, isDeviceLocation: false)
         }
     }
 }

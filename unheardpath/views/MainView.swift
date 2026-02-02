@@ -45,11 +45,7 @@ struct TestMainView: View {
     @EnvironmentObject var sseEventRouter: SSEEventRouter
     // Event manager for event-driven location tracking
     @EnvironmentObject var eventManager: EventManager
-    // Address search manager (moved to app-level for dependency injection)
-    @EnvironmentObject var addressSearchManager: AddressSearchManager
-    @State var targetLocation: TargetLocation?
-    @State private var selectedLocation: CLLocation?
-    
+    @EnvironmentObject var autocompleteManager: AutocompleteManager
     // Debug cache overlay state
     #if DEBUG
     @State private var showCacheDebugSheet: Bool = false
@@ -81,10 +77,7 @@ struct TestMainView: View {
 
     var body: some View {
         ZStack {
-            MapboxMapView(
-                targetLocation: $targetLocation,
-                selectedLocation: $selectedLocation
-            )
+            MapboxMapView()
                 .ignoresSafeArea(.container)
                 .ignoresSafeArea(.keyboard)
                 .contentShape(Rectangle())
@@ -141,16 +134,16 @@ struct TestMainView: View {
             }
             
             // Show autocomplete results in map tab
-            if selectedTab == .map && !addressSearchManager.results.isEmpty && !liveUpdateViewModel.inputLocation.isEmpty {
+            if selectedTab == .map && !autocompleteManager.searchResults.isEmpty && !liveUpdateViewModel.inputLocation.isEmpty {
                 AddrSearchResultsList(
-                    searchResults: addressSearchManager.results,
+                    searchResults: autocompleteManager.searchResults,
                     inputLocation: $liveUpdateViewModel.inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
                     onResultSelected: { result in
                         await geocodeAndFlyToLocation(result: result)
                     },
                     onClearResults: {
-                        addressSearchManager.clearResults()
+                        autocompleteManager.clearSearchResults()
                     }
                 )
                     .opacity(shouldHideTabBar ? 0 : 1)
@@ -240,7 +233,7 @@ struct TestMainView: View {
         .onChange(of: selectedTab) { newTab in
             // Clear autocomplete results when switching away from map tab
             if newTab != .map {
-                addressSearchManager.clearResults()
+                autocompleteManager.clearSearchResults()
             }
         }
         .onAppear {

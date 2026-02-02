@@ -317,4 +317,19 @@ struct NetworkingTests {
         let mapSearchResult = MapSearchResult(results[0])
         printItem(item: mapSearchResult)
     }
+
+    @Test(
+        "Geocoder.search returns results when API key is set",
+        arguments: ["Hagia Sophi", "ista"]
+    )
+    func testGeocoderSearch(query: String) async throws {
+        let apiKey = ProcessInfo.processInfo.environment["GEOAPIFY_API_KEY"] ?? ""
+        guard !apiKey.isEmpty else { return }
+        let geocoder = Geocoder(geoapifyApiKey: apiKey)
+        let results = try await geocoder.search(query: query)
+        #expect(!results.isEmpty)
+        let first = results[0]
+        #expect(first.coordinate != nil)
+        #expect(!first.name.isEmpty || !first.address.isEmpty)
+    }
 }

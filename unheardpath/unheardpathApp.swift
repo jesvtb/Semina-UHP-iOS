@@ -125,14 +125,17 @@ struct unheardpathApp: App {
     @StateObject private var toastManager = ToastManager()
     @StateObject private var contentManager = ContentManager()
     @StateObject private var eventManager = EventManager()
-    @StateObject private var addressSearchManager = AddressSearchManager()  // Moved to app-level for dependency injection
-    
+    @StateObject private var autocompleteManager: AutocompleteManager
+
     // Logger for app initialization logging
     private var logger: Logger {
         AppLifecycleManager.sharedLogger
     }
     
     init() {
+        let geoapifyApiKey = Bundle.main.infoDictionary?["GEOAPIFY_API_KEY"] as? String ?? ""
+        _autocompleteManager = StateObject(wrappedValue: AutocompleteManager(geoapifyApiKey: geoapifyApiKey))
+
         // Configure shared storage (App Group + UHP prefix) for app and widget
         Storage.configure(
             userDefaults: UserDefaults(suiteName: "group.com.semina.unheardpath") ?? .standard,
@@ -148,12 +151,10 @@ struct unheardpathApp: App {
         #else
         logger.debug("Configuration: RELEASE (Production)")
         #endif
-        
+
         // CRITICAL: Set UserManager reference BEFORE AuthManager checks session
-        // This ensures userManager is available when session check completes
-        // and sets currentUser, preventing race conditions
         authManager.setUserManager(userManager)
-        
+
         setupMapboxToken()
         setupPostHog()
     }
@@ -173,7 +174,7 @@ struct unheardpathApp: App {
                 toastManager: toastManager,
                 contentManager: contentManager,
                 eventManager: eventManager,
-                addressSearchManager: addressSearchManager
+                autocompleteManager: autocompleteManager
             )
             .id("app-content-view") // Stable identity ensures @StateObject persists
         }
@@ -242,12 +243,12 @@ private struct AppContentView: View {
     let toastManager: ToastManager
     let contentManager: ContentManager
     let eventManager: EventManager
-    let addressSearchManager: AddressSearchManager
+    let autocompleteManager: AutocompleteManager
     let sseEventRouter: SSEEventRouter
-    
+
     // Create ChatViewModel as @StateObject with proper dependencies
     @StateObject private var chatViewModel: ChatViewModel
-    
+
     init(
         authManager: AuthManager,
         apiClient: APIClient,
@@ -261,7 +262,7 @@ private struct AppContentView: View {
         toastManager: ToastManager,
         contentManager: ContentManager,
         eventManager: EventManager,
-        addressSearchManager: AddressSearchManager
+        autocompleteManager: AutocompleteManager
     ) {
         self.authManager = authManager
         self.apiClient = apiClient
@@ -275,8 +276,8 @@ private struct AppContentView: View {
         self.toastManager = toastManager
         self.contentManager = contentManager
         self.eventManager = eventManager
-        self.addressSearchManager = addressSearchManager
-        
+        self.autocompleteManager = autocompleteManager
+
         // Initialize ChatViewModel (no manager dependencies)
         _chatViewModel = StateObject(wrappedValue: ChatViewModel(
             uhpGateway: uhpGateway,
@@ -307,7 +308,7 @@ private struct AppContentView: View {
             .environmentObject(toastManager) // Pass toast manager to all views
             .environmentObject(contentManager) // Pass content manager to all views
             .environmentObject(eventManager) // Pass event manager to all views
-            .environmentObject(addressSearchManager) // Pass address search manager to all views
+            .environmentObject(autocompleteManager) // Pass autocomplete manager to all views
             .environmentObject(sseEventRouter) // Pass SSE event router to all views
             .withScaledSpacing() // Inject scaled spacing values into environment
             .onAppear {
@@ -325,10 +326,7 @@ private struct AppContentView: View {
                 // Wire up TrackingManager dependencies
                 trackingManager.eventManager = eventManager
                 trackingManager.locationManager = locationManager
-                
-                // Wire up AddressSearchManager dependencies
-                addressSearchManager.eventManager = eventManager
-                
+
                 // Wire up ChatViewModel dependencies
                 chatViewModel.eventManager = eventManager
             }

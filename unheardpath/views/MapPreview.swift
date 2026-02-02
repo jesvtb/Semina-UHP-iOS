@@ -5,16 +5,10 @@ import Foundation
 import core
 
 #Preview {
-//    MapboxDirectionsView()
-    MapboxMapView(
-        targetLocation: .constant(nil),
-        selectedLocation: .constant(nil)
-    )
+    MapboxMapView()
         .environmentObject(TrackingManager())
-        .environmentObject(LocationManager())  // Still needed for geofencing debug info
+        .environmentObject(LocationManager())
         .environmentObject(MapFeaturesManager())
-    // MapView()
-    // MapLibreMapViewWrapper()
 }
 
 // MARK: - GeoJSON Preview
