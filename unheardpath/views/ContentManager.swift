@@ -298,7 +298,7 @@ func makeLocationDict(location: CLLocation, placeName: String?, subdivisions: St
         "lng": .double(location.coordinate.longitude),
     ]
     if location.verticalAccuracy > 0 { coordDict["alt"] = .double(location.altitude) }
-    var dict: LocationDict = [
+    let locationDict: LocationDict = [
         "coordinate": .dictionary(coordDict),
         "place_name": .string(placeName ?? ""),
         "subdivisions": .string(subdivisions ?? ""),
@@ -306,7 +306,7 @@ func makeLocationDict(location: CLLocation, placeName: String?, subdivisions: St
         "timezone": .string(TimeZone.current.identifier),
         "timestamp": .double(location.timestamp.timeIntervalSince1970),
     ]
-    return dict
+    return locationDict
 }
 
 // MARK: - Location Detail Data
