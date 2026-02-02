@@ -204,34 +204,10 @@ The current services architecture has **12 service classes** that mix multiple c
 
 ---
 
-### 9. **GeoapifyGateway** (171 lines)
-**Responsibilities**:
-- Geoapify API client wrapper
-- City search with parallel requests
-- Response merging
-
-**Dependencies**:
-- `core.APIClient` ✅
-- `SwiftUI` (ObservableObject - not needed)
-- `core.Logger` ✅
-
-**Can Move to Core**:
-- ✅ Geoapify response parsing
-- ✅ Search result merging logic
-- ✅ Error types
-
-**Can Extract**:
-- ✅ Gateway protocol (for testability)
-- ✅ API key configuration (environment-based)
-
-**Note**: Doesn't need `ObservableObject` - it's stateless.
-
----
-
-### 10. **AddrSearchManager** (387 lines)
+### 9. **AddrSearchManager** (387 lines)
 **Responsibilities**:
 - MKLocalSearchCompleter integration
-- Geoapify search coordination
+- Geocoder (core) for Geoapify + MapKit search coordination
 - Result interleaving and merging
 - MapKit delegate handling
 
@@ -239,7 +215,7 @@ The current services architecture has **12 service classes** that mix multiple c
 - `MapKit` (platform-specific)
 - `SwiftUI` (ObservableObject, @Published)
 - `CoreLocation`
-- `GeoapifyGateway`
+- `core.Geocoder` ✅
 - `core.Logger` ✅
 - `core.GeoJSON` ✅
 
@@ -504,25 +480,16 @@ The current services architecture has **12 service classes** that mix multiple c
 
 **Impact**: ⭐⭐⭐ (High - pure parsing logic, heavily used)
 
-#### 4. **GeoapifyGateway** → Extract Response Parsing
-- Move response merging logic to `core/`
-- Remove `ObservableObject` (not needed)
-- Create gateway protocol
-
-**Impact**: ⭐⭐ (Medium - smaller service, but good pattern)
-
----
-
 ### Medium Priority (Architectural Improvements)
 
-#### 5. **AuthManager** → Extract Analytics
+#### 4. **AuthManager** → Extract Analytics
 - Create `AnalyticsService` protocol
 - Move PostHog calls to separate service
 - Keep only auth state in AuthManager
 
 **Impact**: ⭐⭐ (Medium - improves testability, allows analytics swapping)
 
-#### 6. **AppLifecycleManager** → Extract Handler Pattern
+#### 5. **AppLifecycleManager** → Extract Handler Pattern
 - Move handler protocol to `core/`
 - Keep platform-specific (UIKit) in service
 - Create lifecycle event types in core
@@ -533,13 +500,13 @@ The current services architecture has **12 service classes** that mix multiple c
 
 ### Low Priority (Nice to Have)
 
-#### 7. **AddrSearchManager** → Extract Search Utilities
+#### 6. **AddrSearchManager** → Extract Search Utilities
 - Move `interleaveResults`, `buildSubtitle` to `core/`
 - Create search result models in core
 
 **Impact**: ⭐ (Low - smaller impact, but good for consistency)
 
-#### 8. **Supabase/Mapbox** → Extract Configuration
+#### 7. **Supabase/Mapbox** → Extract Configuration
 - Move config validation to `core/`
 - Create config models in core
 

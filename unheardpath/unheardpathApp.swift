@@ -128,7 +128,6 @@ struct unheardpathApp: App {
     @StateObject private var authManager = AuthManager()
     @State private var apiClient = APIClient(logger: AppLifecycleManager.sharedLogger)
     @StateObject private var uhpGateway = UHPGateway()
-    @StateObject private var geoapifyGateway = GeoapifyGateway()
     @StateObject private var trackingManager = TrackingManager()
     @StateObject private var appLifecycleManager = AppLifecycleManager()
     @StateObject private var mapFeaturesManager = MapFeaturesManager()
@@ -178,7 +177,6 @@ struct unheardpathApp: App {
                 apiClient: apiClient,
                 trackingManager: trackingManager,
                 uhpGateway: uhpGateway,
-                geoapifyGateway: geoapifyGateway,
                 userManager: userManager,
                 appLifecycleManager: appLifecycleManager,
                 mapFeaturesManager: mapFeaturesManager,
@@ -247,7 +245,6 @@ private struct AppContentView: View {
     let apiClient: APIClient
     let trackingManager: TrackingManager
     let uhpGateway: UHPGateway
-    let geoapifyGateway: GeoapifyGateway
     let userManager: UserManager
     let appLifecycleManager: AppLifecycleManager
     let mapFeaturesManager: MapFeaturesManager
@@ -266,7 +263,6 @@ private struct AppContentView: View {
         apiClient: APIClient,
         trackingManager: TrackingManager,
         uhpGateway: UHPGateway,
-        geoapifyGateway: GeoapifyGateway,
         userManager: UserManager,
         appLifecycleManager: AppLifecycleManager,
         mapFeaturesManager: MapFeaturesManager,
@@ -280,7 +276,6 @@ private struct AppContentView: View {
         self.apiClient = apiClient
         self.trackingManager = trackingManager
         self.uhpGateway = uhpGateway
-        self.geoapifyGateway = geoapifyGateway
         self.userManager = userManager
         self.appLifecycleManager = appLifecycleManager
         self.mapFeaturesManager = mapFeaturesManager
@@ -312,7 +307,6 @@ private struct AppContentView: View {
             // apiClient passed via AppContentView init (core.APIClient is not ObservableObject)
             .environmentObject(trackingManager) // Pass tracking manager to all views (GPS tracking)
             .environmentObject(uhpGateway) // Pass UHP Gateway to all views
-            .environmentObject(geoapifyGateway) // Pass Geoapify Gateway to all views
             .environmentObject(userManager) // Pass user manager to all views
             .environmentObject(chatViewModel) // Pass chat view model to all views
             .environmentObject(mapFeaturesManager) // Pass map features manager to all views

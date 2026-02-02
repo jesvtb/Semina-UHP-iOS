@@ -3,11 +3,8 @@ import SwiftUI
 import CoreLocation
 import core
 
-/// Type alias for GeoJSON features array
-typealias GeoJSONFeatures = [[String: JSONValue]]
-
 /// Helper function to parse GeoJSON features (can be called from Task.detached)
-private func parseGeoJSONFeatures(from dataString: String) -> GeoJSONFeatures? {
+private func parseGeoJSONFeatures(from dataString: String) -> [[String: JSONValue]]? {
     let trimmedData = dataString.trimmingCharacters(in: .whitespacesAndNewlines)
     
     guard !trimmedData.isEmpty,

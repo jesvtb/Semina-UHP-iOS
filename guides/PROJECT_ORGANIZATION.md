@@ -56,8 +56,7 @@ unheardpath/
 │   │   ├── SSEEventRouter.swift
 │   │   └── StorageManager.swift
 │   ├── networking/
-│   │   ├── UHPGateway.swift
-│   │   └── GeoapifyGateway.swift
+│   │   └── UHPGateway.swift
 │   └── models/                 # Shared data models
 │       ├── Schema.swift
 │       ├── GeoJson.swift
@@ -173,8 +172,7 @@ core/services/
 **Example**:
 ```
 core/networking/
-├── UHPGateway.swift          # Backend API gateway
-└── GeoapifyGateway.swift     # Geoapify API client
+└── UHPGateway.swift          # Backend API gateway
 ```
 
 #### 2.3 Core Models (`core/models/`)

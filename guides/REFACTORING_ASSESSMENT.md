@@ -367,7 +367,7 @@ Create view models for complex views:
 ### 5.1 Limited Test Coverage
 
 **Current State:**
-- Only 4 test files (APIClientTests, GeoapifyGatewayTests, GeoJSONTests, MainViewTests)
+- Only 3 test files (APIClientTests, GeoJSONTests, MainViewTests)
 - No tests for LocationManager, AuthManager, or view models
 - Difficult to test due to tight coupling
 

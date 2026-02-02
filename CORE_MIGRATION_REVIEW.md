@@ -210,16 +210,7 @@ These contain business logic, UI dependencies, or third-party integrations speci
 
 ---
 
-#### 8. **GeoapifyGateway.swift**
-**Status:** ❌ Keep in app
-- Third-party API integration (Geoapify)
-- App-specific search logic
-
-**Reason:** Third-party service integration.
-
----
-
-#### 9. **ToastManager.swift**
+#### 8. **ToastManager.swift**
 **Status:** ❌ Keep in app
 - SwiftUI ObservableObject
 - UI-specific toast display logic
@@ -228,7 +219,7 @@ These contain business logic, UI dependencies, or third-party integrations speci
 
 ---
 
-#### 10. **AddrSearchManager.swift**
+#### 9. **AddrSearchManager.swift**
 **Status:** ❌ Keep in app
 - MapKit integration
 - Geoapify integration
@@ -239,7 +230,7 @@ These contain business logic, UI dependencies, or third-party integrations speci
 
 ---
 
-#### 11. **Supabase.swift** & **Mapbox.swift**
+#### 10. **Supabase.swift** & **Mapbox.swift**
 **Status:** ❌ Keep in app
 - Third-party SDK initialization
 - App-specific configuration
@@ -248,7 +239,7 @@ These contain business logic, UI dependencies, or third-party integrations speci
 
 ---
 
-#### 12. **MapFeaturesManager.swift**
+#### 11. **MapFeaturesManager.swift**
 **Status:** ❌ Keep in app
 - SwiftUI ObservableObject
 - App-specific map state management
@@ -257,7 +248,7 @@ These contain business logic, UI dependencies, or third-party integrations speci
 
 ---
 
-#### 13. **Schema.swift**
+#### 12. **Schema.swift**
 **Status:** ❌ Keep in app
 - App-specific models (ChatMessage, ToastData, TabSelection, User, UserManager)
 - SwiftUI dependencies
@@ -266,7 +257,7 @@ These contain business logic, UI dependencies, or third-party integrations speci
 
 ---
 
-#### 14. **TrackingManager.swift** & **EventManager.swift** (in `unheardpath/core/services/`)
+#### 13. **TrackingManager.swift** & **EventManager.swift** (in `unheardpath/core/services/`)
 **Status:** ❌ Keep in app
 - Already in app-specific location
 - Business logic for tracking and events
@@ -385,7 +376,6 @@ unheardpath/
 │   ├── LocationManager.swift      (keep)
 │   ├── TrackingManager.swift     (keep)
 │   ├── EventManager.swift         (keep)
-│   ├── GeoapifyGateway.swift     (keep)
 │   ├── ToastManager.swift         (keep)
 │   ├── AddrSearchManager.swift   (keep)
 │   ├── Supabase.swift             (keep)
