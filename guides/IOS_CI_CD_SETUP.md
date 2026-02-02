@@ -66,27 +66,25 @@ Go to GitHub repository > **Settings** > **Secrets and variables** > **Actions**
 
 The workflow uses **self-hosted** runners. The "Select Xcode version" step runs `sudo xcode-select -s /Applications/Xcode.app`. If the runner user does not have **passwordless sudo** for that command, `sudo` will wait for a password (there is no TTY in CI), and the step will **hang** (e.g. 8+ minutes) until the job times out.
 
-**Fix:** On the Mac that hosts the runner, allow passwordless sudo for `xcode-select` for the runner user.
+**Fix:** On the Mac that hosts the runner, allow passwordless sudo for `xcode-select` for the **user the runner runs as** — this is often **not** your login username.
 
 1. **Identify the runner user**  
-   On the runner Mac, the user that runs the workflow is the one who will need NOPASSWD. If you run the runner from your own account, use your macOS username. To see it: open Terminal and run `whoami`.
+   The workflow has a step "Show runner user (for sudoers)" that prints the effective user (e.g. `_runner`, `runner`, or your username). **Use that exact user in sudoers.** If you added your login user (e.g. `jessicaluo`) but the runner runs as another user, the NOPASSWD line will not apply and the step will still fail with "sudo: a password is required".
 
-2. **Edit sudoers** (you will need to enter your password once for this):  
+2. **Run the workflow once** (or check a recent run). In the "Show runner user (for sudoers)" step, note the printed user (e.g. `_runner` or `runner`). That is the user that needs the NOPASSWD line.
+
+3. **Edit sudoers** on the runner Mac (log in as an admin and run):  
    ```bash
    sudo visudo
    ```
 
-3. **Add one line** at the end of the file (replace `YOUR_USERNAME` with the output of `whoami`):  
+4. **Add one line** at the end (replace `RUNNER_USER` with the user from step 2, e.g. `_runner`):  
    ```text
-   YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/xcode-select
+   RUNNER_USER ALL=(ALL) NOPASSWD: /usr/bin/xcode-select
    ```  
    Save and exit (`Ctrl+O`, Enter, then `Ctrl+X` if using nano; or `:wq` in vim).
 
-4. **Verify** — from Terminal, run (no password should be asked):  
-   ```bash
-   sudo -n xcode-select -s /Applications/Xcode.app
-   ```  
-   If it runs without asking for a password, the fix is in place. Then re-run the workflow.
+5. **Re-run the workflow.** The "Select Xcode version" step should then succeed. To verify on the Mac as that user: `sudo -n xcode-select -s /Applications/Xcode.app` should run without a password.
 
 **Optional:** Ensure `/Applications/Xcode.app` is the correct path for the Xcode version you want. The workflow uses this path; if you use a versioned path (e.g. `Xcode_26.1.1.app`), update the step in `.github/workflows/iosapp.yml` to match.
 
