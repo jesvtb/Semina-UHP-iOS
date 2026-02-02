@@ -84,7 +84,7 @@ The workflow uses **self-hosted** runners. The "Select Xcode version" step runs 
    ```  
    Save and exit (`Ctrl+O`, Enter, then `Ctrl+X` if using nano; or `:wq` in vim).
 
-5. **Re-run the workflow.** The "Select Xcode version" step should then succeed. To verify on the Mac as that user: `sudo -n xcode-select -s /Applications/Xcode.app` should run without a password.
+5. **Re-run the workflow.** The workflow invokes `sudo -n /usr/bin/xcode-select -s /Applications/Xcode.app` (full path so sudo matches the sudoers entry). The step should then succeed. To verify on the Mac as that user: `sudo -n /usr/bin/xcode-select -s /Applications/Xcode.app` should run without a password.
 
 **Optional:** Ensure `/Applications/Xcode.app` is the correct path for the Xcode version you want. The workflow uses this path; if you use a versioned path (e.g. `Xcode_26.1.1.app`), update the step in `.github/workflows/iosapp.yml` to match.
 
@@ -141,10 +141,13 @@ The workflow uses **self-hosted** runners. The "Select Xcode version" step runs 
 
 ## Troubleshooting
 
-### "Select Xcode version" step hangs (e.g. 8+ minutes)
-**Cause:** On self-hosted macOS runners, `sudo xcode-select` waits for a password when the runner user does not have passwordless sudo. There is no TTY in CI, so the step blocks until the job times out.
+### "Select Xcode version" step hangs or fails with "sudo: a password is required"
+**Cause:** On self-hosted macOS runners, `sudo xcode-select` needs passwordless sudo for the **user the runner runs as**. If the user is wrong or the command path doesn't match sudoers, the step hangs (no `-n`) or fails with "a password is required" (with `-n`).
 
-**Solution:** On the runner Mac, add passwordless sudo for the runner user. See **Step 4: Self-hosted runner (macOS)** above. After adding the sudoers line, the step should finish in seconds.
+**Solution:**
+1. Check **"Show runner user (for sudoers)"** in the workflow log — add a sudoers line for **that** user (e.g. `_runner` or `runner`), not necessarily your login user.
+2. The sudoers line must be exactly: `RUNNER_USER ALL=(ALL) NOPASSWD: /usr/bin/xcode-select` (full path).
+3. The workflow uses `sudo -n /usr/bin/xcode-select -s /Applications/Xcode.app` so the command path matches. See **Step 4: Self-hosted runner (macOS)** above.
 
 ### "Cloud signing permission error"
 **Solution**: Verify API key has **Admin** access level (not App Manager or Developer)
