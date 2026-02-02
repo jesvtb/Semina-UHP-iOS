@@ -8,9 +8,9 @@ import core
 @MainActor
 class SSEEventRouter: ObservableObject, SSEEventHandler {
     // Optional manager references - not all endpoints need all managers
-    // Note: Strong reference is safe here because ChatViewModel only weakly references SSEEventRouter,
+    // Note: Strong reference is safe here because ChatManager only weakly references SSEEventRouter,
     // and both are managed by SwiftUI (as @StateObject and environmentObject), preventing retain cycles
-    private var chatViewModel: ChatViewModel?
+    private var chatManager: ChatManager?
     private let contentManager: ContentManager?
     private let mapFeaturesManager: MapFeaturesManager?
     private let toastManager: ToastManager?
@@ -23,23 +23,23 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
     var onDismissKeyboard: (() -> Void)?
     
     init(
-        chatViewModel: ChatViewModel? = nil,
+        chatManager: ChatManager? = nil,
         contentManager: ContentManager? = nil,
         mapFeaturesManager: MapFeaturesManager? = nil,
         toastManager: ToastManager? = nil,
         logger: Logger = AppLifecycleManager.sharedLogger
     ) {
-        self.chatViewModel = chatViewModel
+        self.chatManager = chatManager
         self.contentManager = contentManager
         self.mapFeaturesManager = mapFeaturesManager
         self.toastManager = toastManager
         self.logger = logger
     }
     
-    /// Set ChatViewModel reference after initialization
+    /// Set ChatManager reference after initialization
     /// Called from AppContentView.onAppear after @StateObject is initialized
-    func setChatViewModel(_ viewModel: ChatViewModel) {
-        self.chatViewModel = viewModel
+    func setChatManager(_ manager: ChatManager) {
+        self.chatManager = manager
     }
     
     // MARK: - SSEEventHandler Implementation
@@ -50,12 +50,12 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
     }
     
     func onChatChunk(content: String, isStreaming: Bool) async {
-        await chatViewModel?.handleChatChunk(content: content, isStreaming: isStreaming)
+        await chatManager?.handleChatChunk(content: content, isStreaming: isStreaming)
     }
     
     func onStop() async {
-        await chatViewModel?.handleStop()
-        logger.debug("Routing stop to ChatViewModel")
+        await chatManager?.handleStop()
+        logger.debug("Routing stop to ChatManager")
     }
     
     func onMap(features: [[String: JSONValue]]) async {

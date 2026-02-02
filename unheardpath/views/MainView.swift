@@ -14,7 +14,7 @@ struct MainView: View {
     @EnvironmentObject var uhpGateway: UHPGateway
     @EnvironmentObject var trackingManager: TrackingManager
     @EnvironmentObject var userManager: UserManager
-    @EnvironmentObject var chatViewModel: ChatViewModel
+    @EnvironmentObject var chatManager: ChatManager
     @EnvironmentObject var authManager: AuthManager
     
     // Preview values for preview purposes
@@ -87,7 +87,7 @@ struct MainView: View {
             // Main content (messages list)
             if selectedTab == .chat {
                 ChatTabView(
-                    messages: chatViewModel.messages,
+                    messages: chatManager.messages,
                     isTextFieldFocused: $isTextFieldFocused
                 )
             }
@@ -119,13 +119,13 @@ struct MainView: View {
             }
 
             
-            if let lastMessage = chatViewModel.lastMessage, selectedTab != .chat {
+            if let lastMessage = chatManager.lastMessage, selectedTab != .chat {
                 LiveUpdateStack(
                     message: lastMessage,
                     currentToastData: $toastManager.currentToastData,
-                    isExpanded: $chatViewModel.isMessageExpanded,
+                    isExpanded: $chatManager.isMessageExpanded,
                     onDismiss: {
-                        chatViewModel.dismissLastMsg()
+                        chatManager.dismissLastMsg()
                     }
                 )
                 .opacity(shouldHideTabBar ? 0 : 1)
@@ -161,14 +161,14 @@ struct MainView: View {
             VStack(spacing: 0) {
                 InputBar(
                     selectedTab: selectedTab,
-                    draftMessage: $chatViewModel.draftMessage,
+                    draftMessage: $chatManager.draftMessage,
                     inputLocation: $liveUpdateViewModel.inputLocation,
                     isTextFieldFocused: $isTextFieldFocused,
                     isAuthenticated: authManager.isAuthenticated,
                     isLoading: authManager.isLoading,
                     onSendMessage: {
                         Task { @MainActor in
-                            await chatViewModel.sendMessage()
+                            await chatManager.sendMessage()
                         }
                     },
                     onSwitchToChat: {
@@ -237,8 +237,8 @@ struct MainView: View {
             }
         }
         .onAppear {
-            // Set up callbacks for ChatViewModel
-            chatViewModel.onDismissKeyboard = {
+            // Set up callbacks for ChatManager
+            chatManager.onDismissKeyboard = {
                 shouldDismissKeyboard = true
                 // Reset the flag after a brief delay to allow the change to be detected
                 Task {
@@ -248,12 +248,12 @@ struct MainView: View {
                     }
                 }
             }
-            chatViewModel.onShowInfoSheet = {
+            chatManager.onShowInfoSheet = {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     sheetSnapPoint = .full
                 }
             }
-            chatViewModel.onTextFieldFocusChange = { isFocused in
+            chatManager.onTextFieldFocusChange = { isFocused in
                 isTextFieldFocused = isFocused
             }
             
@@ -267,10 +267,10 @@ struct MainView: View {
                 isTextFieldFocused = false
             }
             
-            // Set router reference in ChatViewModel
-            chatViewModel.sseEventRouter = sseEventRouter
-            // Also set ChatViewModel reference in router (bidirectional connection)
-            sseEventRouter.setChatViewModel(chatViewModel)
+            // Set router reference in ChatManager
+            chatManager.sseEventRouter = sseEventRouter
+            // Also set ChatManager reference in router (bidirectional connection)
+            sseEventRouter.setChatManager(chatManager)
         }
         .task { @MainActor in
             
@@ -279,7 +279,7 @@ struct MainView: View {
                 selectedTab = previewTab
             }
             if let previewMessages = previewMessages {
-                chatViewModel.messages = previewMessages
+                chatManager.messages = previewMessages
             }
             if let previewGeoJSONData = previewGeoJSONData {
                 // Extract features from preview data and set to mapFeaturesManager
@@ -293,7 +293,7 @@ struct MainView: View {
                 }
             }
             if let previewLastMessage = previewLastMessage {
-                chatViewModel.lastMessage = previewLastMessage
+                chatManager.lastMessage = previewLastMessage
             }
             if let previewCurrentToastData = previewCurrentToastData {
                 toastManager.show(previewCurrentToastData)
@@ -741,7 +741,7 @@ extension MainView {
     let trackingManager = TrackingManager()
     let userManager = UserManager()
     let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
-    let chatViewModel = ChatViewModel(
+    let chatManager = ChatManager(
         uhpGateway: uhpGateway,
         userManager: userManager
     )
@@ -750,7 +750,7 @@ extension MainView {
         .environmentObject(uhpGateway)
         .environmentObject(trackingManager)
         .environmentObject(userManager)
-        .environmentObject(chatViewModel)
+        .environmentObject(chatManager)
         .environment(\.geocoder, Geocoder(geoapifyApiKey: ""))
 }
 
@@ -759,7 +759,7 @@ extension MainView {
     let trackingManager = TrackingManager()
     let userManager = UserManager()
     let authManager = AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7")
-    let chatViewModel = ChatViewModel(
+    let chatManager = ChatManager(
         uhpGateway: uhpGateway,
         userManager: userManager
     )
@@ -768,7 +768,7 @@ extension MainView {
         .environmentObject(uhpGateway)
         .environmentObject(trackingManager)
         .environmentObject(userManager)
-        .environmentObject(chatViewModel)
+        .environmentObject(chatManager)
         .environment(\.geocoder, Geocoder(geoapifyApiKey: ""))
 }
 #endif

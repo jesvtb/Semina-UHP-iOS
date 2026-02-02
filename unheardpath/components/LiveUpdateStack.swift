@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Manages state for the LiveUpdateStack overlay component
-/// Note: Chat-related state (lastMessage, currentToastData, isMessageExpanded) has been moved to ChatViewModel
+/// Note: Chat-related state (lastMessage, currentToastData, isMessageExpanded) has been moved to ChatManager
 /// Only inputLocation remains here temporarily - will move to MapViewModel in future refactoring
 @MainActor
 class LiveUpdateViewModel: ObservableObject {

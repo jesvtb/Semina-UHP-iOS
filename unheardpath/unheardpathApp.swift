@@ -238,8 +238,8 @@ struct unheardpathApp: App {
     }
 }
 
-/// Helper view that initializes ChatViewModel with dependencies and sets up app-level configuration
-/// ChatViewModel requires other @StateObject dependencies, so it must be created here where they're available
+/// Helper view that initializes ChatManager with dependencies and sets up app-level configuration
+/// ChatManager requires other @StateObject dependencies, so it must be created here where they're available
 private struct AppContentView: View {
     let authManager: AuthManager
     let apiClient: APIClient
@@ -255,8 +255,8 @@ private struct AppContentView: View {
     let geocoder: Geocoder
     let sseEventRouter: SSEEventRouter
 
-    // Create ChatViewModel as @StateObject with proper dependencies
-    @StateObject private var chatViewModel: ChatViewModel
+    // Create ChatManager as @StateObject with proper dependencies
+    @StateObject private var chatManager: ChatManager
 
     init(
         authManager: AuthManager,
@@ -285,16 +285,16 @@ private struct AppContentView: View {
         self.autocompleteManager = autocompleteManager
         self.geocoder = geocoder
 
-        // Initialize ChatViewModel (no manager dependencies)
-        _chatViewModel = StateObject(wrappedValue: ChatViewModel(
+        // Initialize ChatManager (no manager dependencies)
+        _chatManager = StateObject(wrappedValue: ChatManager(
             uhpGateway: uhpGateway,
             userManager: userManager
         ))
         
         // Create SSEEventRouter with all managers
-        // Note: chatViewModel will be set in onAppear after StateObject is initialized
+        // Note: chatManager will be set in onAppear after StateObject is initialized
         self.sseEventRouter = SSEEventRouter(
-            chatViewModel: nil, // Will be set in onAppear
+            chatManager: nil, // Will be set in onAppear
             contentManager: contentManager,
             mapFeaturesManager: mapFeaturesManager,
             toastManager: toastManager
@@ -308,7 +308,7 @@ private struct AppContentView: View {
             .environmentObject(trackingManager) // Pass tracking manager to all views (GPS tracking)
             .environmentObject(uhpGateway) // Pass UHP Gateway to all views
             .environmentObject(userManager) // Pass user manager to all views
-            .environmentObject(chatViewModel) // Pass chat view model to all views
+            .environmentObject(chatManager) // Pass chat manager to all views
             .environmentObject(mapFeaturesManager) // Pass map features manager to all views
             .environmentObject(toastManager) // Pass toast manager to all views
             .environmentObject(contentManager) // Pass content manager to all views
@@ -322,8 +322,8 @@ private struct AppContentView: View {
                 // TrackingManager automatically registers itself when appLifecycleManager is set
                 trackingManager.appLifecycleManager = appLifecycleManager
                 
-                // Set ChatViewModel reference in router after @StateObject is initialized
-                sseEventRouter.setChatViewModel(chatViewModel)
+                // Set ChatManager reference in router after @StateObject is initialized
+                sseEventRouter.setChatManager(chatManager)
                 
                 // Wire up EventManager dependencies (delayed injection pattern)
                 eventManager.uhpGateway = uhpGateway
@@ -331,8 +331,8 @@ private struct AppContentView: View {
                 // Wire up TrackingManager dependencies
                 trackingManager.eventManager = eventManager
 
-                // Wire up ChatViewModel dependencies
-                chatViewModel.eventManager = eventManager
+                // Wire up ChatManager dependencies
+                chatManager.eventManager = eventManager
             }
             .onOpenURL { url in
                 Task {
