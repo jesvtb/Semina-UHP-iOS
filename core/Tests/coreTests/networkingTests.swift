@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+@preconcurrency import MapKit
 @testable import core
 
 // MARK: - Test Cases (mirrors param_call_api API_CONNECTION_CASES and error-code tests)
@@ -58,6 +59,44 @@ struct AsyncCallAPICase: CustomStringConvertible, Sendable {
     }
 
     static let allCases: [AsyncCallAPICase] = connectionCases + errorCodeCases
+}
+
+// MARK: - MapKit Completer Integration Test Helper
+
+/// Sendable snapshot of a completion (title/subtitle only) for crossing isolation in tests.
+private struct MapKitCompletionSnapshot: Sendable {
+    let title: String
+    let subtitle: String
+}
+
+/// Captures MKLocalSearchCompleter results and resumes a continuation once (used for async test wait).
+/// Resumes with Sendable snapshots (title/subtitle) to avoid sending non-Sendable MKLocalSearchCompletion.
+private final class MapKitCompleterTestDelegate: NSObject, MKLocalSearchCompleterDelegate, @unchecked Sendable {
+    private let continuation: CheckedContinuation<[MapKitCompletionSnapshot], Never>
+    private let lock = NSLock()
+    private var fulfilled = false
+
+    init(continuation: CheckedContinuation<[MapKitCompletionSnapshot], Never>) {
+        self.continuation = continuation
+    }
+
+    /// Call from delegate or timeout; resumes the continuation exactly once.
+    func deliver(_ results: [MapKitCompletionSnapshot]) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !fulfilled else { return }
+        fulfilled = true
+        continuation.resume(returning: results)
+    }
+
+    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let snapshots = completer.results.map { MapKitCompletionSnapshot(title: $0.title, subtitle: $0.subtitle) }
+        deliver(snapshots)
+    }
+
+    nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        deliver([])
+    }
 }
 
 // MARK: - Suite
@@ -183,5 +222,99 @@ struct NetworkingTests {
             //     // )
             // }
         }
+    }
+
+    @Test(
+        "Test streaming API",
+        arguments: ["ista", "shen", "apple par"]
+    )
+    func testGeocodeAPI(testCase: String) async throws {
+        let client = APIClient()
+        let baseURL = "https://api.geoapify.com/v1/geocode/autocomplete"
+        let params = [
+            "text": testCase,
+            "apiKey": "e810e0454fda45acbf6b3fbaa7bebe15",
+            "limit": "5",
+            // "type": "city",
+            // "filter": "countrycode:US"
+        ]
+        let data = try await client.asyncCallAPI(
+            url: baseURL,
+            method: "GET",
+            headers: nil,
+            params: params,
+            jsonDict: [:],
+            timeout: false,
+            filesDict: [:]
+        )
+        // print("data: \(data)")
+        let jsonValue = try data.shapeIntoJsonValue()
+        let features = try data.extractFeatures()
+        // printItem(item: jsonValue)
+        // let geojson = Data
+        // printItem(item: features[0])
+        // printItem(item: features[0].properties)
+        let mapSearchResult = MapSearchResult(features[0])
+        printItem(item: mapSearchResult)
+    }
+
+    @Test(
+        "MapKit local search completer returns results for query",
+        // arguments: ["Hagia", "Istan", "London"]
+        arguments: ["Hagia Sophi", "Istan"]
+    )
+    @MainActor
+    func testMapKitCompleterAPI(query: String) async throws {
+        let completer = MKLocalSearchCompleter()
+        completer.resultTypes = [.address, .pointOfInterest, .query]
+        let globalCenter = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+        completer.region = MKCoordinateRegion(
+            center: globalCenter,
+            latitudinalMeters: 200_000_000,
+            longitudinalMeters: 200_000_000
+        )
+
+        let results: [MapKitCompletionSnapshot] = await withCheckedContinuation { continuation in
+            let delegate = MapKitCompleterTestDelegate(continuation: continuation)
+            completer.delegate = delegate
+            completer.queryFragment = query
+            Task {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                delegate.deliver([])
+            }
+        }
+
+        printItem(item: results[0])
+    }
+
+    @Test(
+        "MKLocalSearch.Request returns map items with coordinates",
+        arguments: ["Hagia Sophi"]
+    )
+    @MainActor
+    func testMKLocalSearchRequest(query: String) async throws {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        let search = MKLocalSearch(request: request)
+
+        let results: [MKMapItem] = await withCheckedContinuation { continuation in
+            search.start { response, error in
+                if let error = error {
+                    print("MKLocalSearch error for '\(query)': \(error.localizedDescription)")
+                    continuation.resume(returning: [])
+                    return
+                }
+                guard let response = response else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                continuation.resume(returning: Array(response.mapItems.prefix(5)))
+            }
+        }
+
+        printItem(item: results[0])
+        // printItem(item: results[1].placemark.coordinate)
+        let mapSearchResult = MapSearchResult(results[0])
+        printItem(item: mapSearchResult)
     }
 }

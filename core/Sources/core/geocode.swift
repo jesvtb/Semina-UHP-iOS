@@ -7,6 +7,88 @@
 
 import Foundation
 import CoreLocation
+import MapKit
+
+// MARK: - MapSearchResult
+
+/// Unified parsed result of a map search (MKLocalSearch or GeoJSON) with common fields.
+public struct MapSearchResult {
+    /// Source identifier: `"mapkit"` or `"geojson"`.
+    public let source: String
+    /// Display name of the place.
+    public let name: String
+    /// Full or formatted address string.
+    public let address: String
+    /// Coordinate when available (Point geometry or placemark).
+    public let coordinate: CLLocationCoordinate2D?
+    /// Extra key-value data: GeoJSON feature "properties", or MKMapItem fields not used for name/address/coordinate.
+    public let properties: [String: Any]
+
+    public init(_ mapItem: MKMapItem) {
+        source = "mapkit"
+        name = mapItem.name ?? mapItem.placemark.name ?? ""
+        let rawAddress = MapSearchResult.address(from: mapItem.placemark)
+        address = MapSearchResult.normalizeAddress(rawAddress, name: name, postalCode: mapItem.placemark.postalCode)
+        coordinate = mapItem.placemark.coordinate
+        properties = MapSearchResult.properties(from: mapItem)
+    }
+
+    public init(_ feature: MKGeoJSONFeature) {
+        source = "geojson"
+        let props = MapSearchResult.decodeProperties(from: feature.properties)
+        name = (props["name"] as? String) ?? (props["title"] as? String) ?? ""
+        let rawAddress = (props["formatted"] as? String) ?? (props["address"] as? String) ?? ""
+        let postalCode = (props["postcode"] as? String) ?? (props["postal_code"] as? String)
+        address = MapSearchResult.normalizeAddress(rawAddress, name: name, postalCode: postalCode)
+        coordinate = (feature.geometry.first as? MKAnnotation)?.coordinate
+        properties = props
+    }
+
+    /// Builds a single address string from placemark components (excludes postal code).
+    private static func address(from placemark: CLPlacemark) -> String {
+        let street = streetFromPlacemark(placemark)
+        let location = locationStringFromPlacemark(placemark)
+        let country = placemark.country ?? ""
+        return [street, location, country].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    /// Removes exact name from the start of address and removes postal/zip code.
+    private static func normalizeAddress(_ address: String, name: String, postalCode: String?) -> String {
+        var result = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty, result.hasPrefix(name) {
+            result = String(result.dropFirst(name.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if result.hasPrefix(",") {
+                result = String(result.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        if let code = postalCode, !code.isEmpty {
+            result = result.replacingOccurrences(of: code, with: "")
+            result = result.replacingOccurrences(of: ", ,", with: ",")
+            result = result.trimmingCharacters(in: CharacterSet(charactersIn: ", "))
+        }
+        return result
+    }
+
+    /// Extracts MKMapItem fields not used for name/address/coordinate into a properties dictionary.
+    private static func properties(from mapItem: MKMapItem) -> [String: Any] {
+        var props: [String: Any] = [:]
+        if let phone = mapItem.phoneNumber { props["phone_number"] = phone }
+        if let url = mapItem.url { props["url"] = url.absoluteString }
+        if let category = mapItem.pointOfInterestCategory { props["point_of_interest_category"] = category.rawValue }
+        if let tz = mapItem.timeZone { props["time_zone_identifier"] = tz.identifier }
+        props["is_current_location"] = mapItem.isCurrentLocation
+        return props
+    }
+
+    /// Decodes GeoJSON feature properties Data into [String: Any].
+    private static func decodeProperties(from data: Data?) -> [String: Any] {
+        guard let data = data,
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return [:]
+        }
+        return dict
+    }
+}
 
 // MARK: - Shared Helpers (fileprivate)
 
