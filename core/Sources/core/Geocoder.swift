@@ -10,6 +10,9 @@ import Foundation
 import CoreLocation
 import MapKit
 
+/// NewLocation-style dictionary (coordinate, place_name, subdivisions, country_name, etc.) used for events and content. Built by geocodeReverse.
+public typealias LocationDict = [String: JSONValue]
+
 /// Stateless geocoder that runs Geoapify autocomplete and MKLocalSearch in parallel,
 /// merges and caps results. Used by app-level AutocompleteManager.
 public final class Geocoder: Sendable {
