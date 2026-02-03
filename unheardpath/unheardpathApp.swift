@@ -238,8 +238,9 @@ struct unheardpathApp: App {
     }
 }
 
-/// Helper view that initializes ChatManager with dependencies and sets up app-level configuration
-/// ChatManager requires other @StateObject dependencies, so it must be created here where they're available
+/// Helper view that receives app-level managers and sets up content configuration.
+/// ChatManager is created here (not in the root App) because creating it in the App init would require
+/// reading self (uhpGateway, userManager) before all stored properties are set, which Swift disallows.
 private struct AppContentView: View {
     let authManager: AuthManager
     let apiClient: APIClient
@@ -255,7 +256,6 @@ private struct AppContentView: View {
     let geocoder: Geocoder
     let sseEventRouter: SSEEventRouter
 
-    // Create ChatManager as @StateObject with proper dependencies
     @StateObject private var chatManager: ChatManager
 
     init(
@@ -284,17 +284,10 @@ private struct AppContentView: View {
         self.eventManager = eventManager
         self.autocompleteManager = autocompleteManager
         self.geocoder = geocoder
-
-        // Initialize ChatManager (no manager dependencies)
-        _chatManager = StateObject(wrappedValue: ChatManager(
-            uhpGateway: uhpGateway,
-            userManager: userManager
-        ))
-        
-        // Create SSEEventRouter with all managers
-        // Note: chatManager will be set in onAppear after StateObject is initialized
+        let chatManager = ChatManager(uhpGateway: uhpGateway, userManager: userManager)
+        _chatManager = StateObject(wrappedValue: chatManager)
         self.sseEventRouter = SSEEventRouter(
-            chatManager: nil, // Will be set in onAppear
+            chatManager: chatManager,
             contentManager: contentManager,
             mapFeaturesManager: mapFeaturesManager,
             toastManager: toastManager
@@ -304,7 +297,6 @@ private struct AppContentView: View {
     var body: some View {
         ContentView()
             .environmentObject(authManager) // Pass auth state to all views (like React Context)
-            // apiClient passed via AppContentView init (core.APIClient is not ObservableObject)
             .environmentObject(trackingManager) // Pass tracking manager to all views (GPS tracking)
             .environmentObject(uhpGateway) // Pass UHP Gateway to all views
             .environmentObject(userManager) // Pass user manager to all views
@@ -321,9 +313,6 @@ private struct AppContentView: View {
                 // Set appLifecycleManager reference - auto-registration happens in didSet
                 // TrackingManager automatically registers itself when appLifecycleManager is set
                 trackingManager.appLifecycleManager = appLifecycleManager
-                
-                // Set ChatManager reference in router after @StateObject is initialized
-                sseEventRouter.setChatManager(chatManager)
                 
                 // Wire up EventManager dependencies (delayed injection pattern)
                 eventManager.uhpGateway = uhpGateway

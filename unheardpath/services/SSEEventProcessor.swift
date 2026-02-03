@@ -24,6 +24,8 @@ class SSEEventProcessor {
 
         do {
             let event: SSEEvent
+            // Map events carry GeoJSON: full JSON decode + feature extraction is CPU-heavy.
+            // Parse off the main thread to avoid blocking the UI; other event types are lightweight.
             if eventType == .map {
                 event = try await Task.detached(priority: .userInitiated) {
                     try eventType.parse(event: eventString, data: dataString, id: id)
@@ -32,7 +34,7 @@ class SSEEventProcessor {
                 event = try eventType.parse(event: eventString, data: dataString, id: id)
             }
 
-            await MainActor.run {
+            _ = await MainActor.run {
                 Task { @MainActor in
                     await self.router?.route(event)
                 }
@@ -45,7 +47,7 @@ class SSEEventProcessor {
     /// Process a stream of parsed SSE events (stream yields SSEEvent directly from core).
     nonisolated func processStream(_ stream: AsyncThrowingStream<SSEEvent, Error>) async throws {
         for try await event in stream {
-            await MainActor.run {
+            _ = await MainActor.run {
                 Task { @MainActor in
                     await self.router?.route(event)
                 }

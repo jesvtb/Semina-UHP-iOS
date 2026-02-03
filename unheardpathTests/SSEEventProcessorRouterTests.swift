@@ -6,11 +6,15 @@ import core
 @Suite("SSEEventProcessor and SSEEventRouter tests")
 struct SSEEventProcessorRouterTests {
 
+    private static func makeTestChatManager() -> ChatManager {
+        ChatManager(uhpGateway: UHPGateway(), userManager: UserManager())
+    }
+
     @Test("SSEEventRouter.route toast updates ToastManager")
     @MainActor func routeToastUpdatesToastManager() async throws {
         let toastManager = ToastManager()
         let router = SSEEventRouter(
-            chatManager: nil,
+            chatManager: makeTestChatManager(),
             contentManager: nil,
             mapFeaturesManager: nil,
             toastManager: toastManager
@@ -21,23 +25,23 @@ struct SSEEventProcessorRouterTests {
         #expect(toastManager.currentToastData?.type == "info")
     }
 
-    @Test("SSEEventRouter.route stop with nil chatManager does not throw")
-    @MainActor func routeStopWithNilChatManager() async throws {
+    @Test("SSEEventRouter.route stop calls ChatManager")
+    @MainActor func routeStopCallsChatManager() async throws {
         let router = SSEEventRouter(
-            chatManager: nil,
+            chatManager: makeTestChatManager(),
             contentManager: nil,
             mapFeaturesManager: nil,
             toastManager: nil
         )
         await router.route(SSEEvent.stop)
-        // No throw when chatManager is nil
+        // No throw; router routes stop to chatManager
     }
 
     @Test("SSEEventRouter.route map updates MapFeaturesManager")
     @MainActor func routeMapUpdatesMapFeaturesManager() async throws {
         let mapFeaturesManager = MapFeaturesManager()
         let router = SSEEventRouter(
-            chatManager: nil,
+            chatManager: makeTestChatManager(),
             contentManager: nil,
             mapFeaturesManager: mapFeaturesManager,
             toastManager: nil
@@ -60,7 +64,7 @@ struct SSEEventProcessorRouterTests {
     @MainActor func routeHookInvokesCallback() async throws {
         var callbackInvoked = false
         let router = SSEEventRouter(
-            chatManager: nil,
+            chatManager: makeTestChatManager(),
             contentManager: nil,
             mapFeaturesManager: nil,
             toastManager: nil
@@ -74,7 +78,7 @@ struct SSEEventProcessorRouterTests {
     @MainActor func processEventToastParsesAndRoutes() async throws {
         let toastManager = ToastManager()
         let router = SSEEventRouter(
-            chatManager: nil,
+            chatManager: makeTestChatManager(),
             contentManager: nil,
             mapFeaturesManager: nil,
             toastManager: toastManager
@@ -88,20 +92,20 @@ struct SSEEventProcessorRouterTests {
     @Test("SSEEventProcessor.processEvent stop parses and routes")
     @MainActor func processEventStopParsesAndRoutes() async throws {
         let router = SSEEventRouter(
-            chatManager: nil,
+            chatManager: makeTestChatManager(),
             contentManager: nil,
             mapFeaturesManager: nil,
             toastManager: nil
         )
         let processor = SSEEventProcessor(router: router)
         await processor.processEvent(event: "stop", data: "", id: nil)
-        // No throw; router.route(.stop) was called (no-op when chatManager is nil)
+        // No throw; router.route(.stop) was called
     }
 
     @Test("SSEEventProcessor.processEvent unknown type logs and does not throw")
     @MainActor func processEventUnknownTypeNoThrow() async throws {
         let router = SSEEventRouter(
-            chatManager: nil,
+            chatManager: makeTestChatManager(),
             contentManager: nil,
             mapFeaturesManager: nil,
             toastManager: nil

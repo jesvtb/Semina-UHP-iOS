@@ -136,7 +136,107 @@ struct TestBody: View {
     }
 }
 
-// MARK: - Test Info Sheet
+// MARK: - Info Sheet Section Tab Bar
+/// Upper bar with tabs for switching between content sections (Overview, Location, Cuisine, Points of Interest).
+struct InfoSheetSectionTabBar: View {
+    let sections: [ContentSection]
+    @Binding var selectedIndex: Int
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                    let isSelected = index == selectedIndex
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedIndex = index
+                        }
+                    } label: {
+                        Text(section.type.sectionTabTitle)
+                            .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
+                            .foregroundColor(isSelected ? Color("onBkgTextColor20") : Color("onBkgTextColor30"))
+                            .padding(.horizontal, Spacing.current.spaceS)
+                            .padding(.vertical, Spacing.current.spaceXs)
+                            .background {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(Color("onBkgTextColor30").opacity(0.12))
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .background(Color("AppBkgColor"))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color("onBkgTextColor30").opacity(0.15))
+                .frame(height: 1)
+        }
+    }
+}
+
+// MARK: - Section Paged Scroll View (Option 2: custom horizontal paging, iOS 17+)
+/// Replaces TabView with ScrollView + scrollPosition/scrollTargetLayout so we avoid UICollectionView and layout warnings.
+@available(iOS 17.0, *)
+struct SectionPagedScrollView: View {
+    let sections: [ContentSection]
+    @Binding var selectedIndex: Int
+    /// When true, disables both horizontal paging and vertical scroll so drag-up-to-expand wins.
+    var isScrollDisabled: Bool = false
+
+    @State private var scrollPositionId: ContentViewType?
+
+    var body: some View {
+        GeometryReader { geo in
+            let pageWidth = geo.size.width
+            let pageHeight = max(1, geo.size.height - geo.safeAreaInsets.bottom)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(sections) { section in
+                        ScrollView {
+                            ContentViewRegistry.view(for: section)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, Spacing.current.spaceS)
+                                .padding(.bottom, 100)
+                        }
+                        .scrollDisabled(isScrollDisabled)
+                        .frame(width: pageWidth, height: pageHeight)
+                        .id(section.type)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollDisabled(isScrollDisabled) // Disable horizontal paging when not at full height so drag-up wins
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $scrollPositionId)
+            .onAppear {
+                if scrollPositionId == nil, sections.indices.contains(selectedIndex) {
+                    scrollPositionId = sections[selectedIndex].type
+                }
+            }
+            .onChange(of: selectedIndex) { _, newIndex in
+                if sections.indices.contains(newIndex) {
+                    let type = sections[newIndex].type
+                    if type != scrollPositionId {
+                        scrollPositionId = type
+                    }
+                }
+            }
+            .onChange(of: scrollPositionId) { _, newId in
+                guard let newId else { return }
+                if let idx = sections.firstIndex(where: { $0.type == newId }), idx != selectedIndex {
+                    selectedIndex = idx
+                }
+            }
+        }
+        .frame(maxHeight: .infinity)
+    }
+}
+
+// MARK: - Info Sheet
 struct InfoSheet: View {
     @Binding var selectedTab: PreviewTabSelection
     @Binding var shouldHideTabBar: Bool
@@ -177,6 +277,7 @@ struct InfoSheet: View {
     @State private var scrollViewContentOffset: CGFloat = 0
     @State private var isScrolling: Bool = false
     @State private var scrollSettleTask: Task<Void, Never>?
+    @State private var selectedSectionIndex: Int = 0
     
     // Offset adjustment for sheet positioning (bottom safe area + optional padding)
     private var positionOffsetAdjustment: CGFloat {
@@ -231,77 +332,126 @@ struct InfoSheet: View {
                     .padding(.top, 12)
                     .padding(.bottom, 8)
                 
-                // Content
-                ScrollView {
-                    VStack(spacing: 0) {
-                        // Scroll offset tracker with visual top edge marker
-                        // This must be at the very top of the scroll content
-                        ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: sheetSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
-                        
-                        // Content rendering
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Header - only shown when not at full (at full, it's sticky via safeAreaInset)
-                            if sheetSnapPoint != .full {
-                                InfoSheetHeaderView(locationData: locationDetailData)
-                                    .padding(.top, Spacing.current.spaceXs)
-                                    .padding(.bottom, Spacing.current.spaceXs)
-                            }
-                            
-                            // Render standard content sections
-                            if !contentManager.orderedSections.isEmpty {
-                                ForEach(contentManager.orderedSections) { section in
-                                    ContentViewRegistry.view(for: section)
-                                }
-                            }
-                            
-                            TestBody()
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, Spacing.current.spaceS)
-                        .padding(.bottom, 100)
-                    }
-                }
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    // Sticky header bar - only visible when at full snap point
-                    if sheetSnapPoint == .full {
+                // Content: tabbed sections when we have sections, else single scroll
+                Group {
+                    if !contentManager.orderedSections.isEmpty {
                         VStack(spacing: 0) {
-                            InfoSheetHeaderView(locationData: locationDetailData)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if sheetSnapPoint != .full {
+                                VStack(spacing: 0) {
+                                    InfoSheetHeaderView(locationData: locationDetailData)
+                                        .padding(.top, Spacing.current.spaceXs)
+                                        .padding(.bottom, Spacing.current.spaceXs)
+                                        .padding(.horizontal, Spacing.current.spaceS)
+                                    InfoSheetSectionTabBar(sections: contentManager.orderedSections, selectedIndex: $selectedSectionIndex)
+                                }
+                                .transition(.opacity)
+                            }
+                            if #available(iOS 17.0, *) {
+                                SectionPagedScrollView(
+                                    sections: contentManager.orderedSections,
+                                    selectedIndex: $selectedSectionIndex,
+                                    isScrollDisabled: sheetSnapPoint != .full
+                                )
+                            } else {
+                                GeometryReader { tabGeo in
+                                    let bottomInset = tabGeo.safeAreaInsets.bottom
+                                    let pageHeight = max(1, tabGeo.size.height - bottomInset - 1)
+                                    TabView(selection: $selectedSectionIndex) {
+                                        ForEach(Array(contentManager.orderedSections.enumerated()), id: \.element.id) { index, section in
+                                            ScrollView {
+                                                ContentViewRegistry.view(for: section)
+                                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                                    .padding(.horizontal, Spacing.current.spaceS)
+                                                    .padding(.bottom, 100)
+                                            }
+                                            .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
+                                            .frame(width: tabGeo.size.width, height: pageHeight)
+                                            .tag(index)
+                                        }
+                                    }
+                                    .tabViewStyle(.page(indexDisplayMode: .never))
+                                }
+                                .frame(maxHeight: .infinity)
+                            }
+                        }
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            if sheetSnapPoint == .full {
+                                VStack(spacing: 0) {
+                                    InfoSheetHeaderView(locationData: locationDetailData)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, Spacing.current.spaceS)
+                                        .padding(.top, Spacing.current.spaceM)
+                                        .padding(.bottom, Spacing.current.spaceXs)
+                                        .background(Color("AppBkgColor"))
+                                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
+                                    InfoSheetSectionTabBar(sections: contentManager.orderedSections, selectedIndex: $selectedSectionIndex)
+                                        .background(Color("AppBkgColor"))
+                                }
+                                .transition(.opacity)
+                            }
+                        }
+                    } else {
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: sheetSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    if sheetSnapPoint != .full {
+                                        InfoSheetHeaderView(locationData: locationDetailData)
+                                            .padding(.top, Spacing.current.spaceXs)
+                                            .padding(.bottom, Spacing.current.spaceXs)
+                                            .transition(.opacity)
+                                    }
+                                    TestBody()
+                                }
+                                .frame(maxWidth: .infinity)
                                 .padding(.horizontal, Spacing.current.spaceS)
-                                .padding(.top, Spacing.current.spaceM)
-                                .padding(.bottom, Spacing.current.spaceXs)
-                                .background(Color("AppBkgColor"))
-                                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
+                                .padding(.bottom, 100)
+                            }
+                        }
+                        .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            if sheetSnapPoint == .full {
+                                VStack(spacing: 0) {
+                                    InfoSheetHeaderView(locationData: locationDetailData)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, Spacing.current.spaceS)
+                                        .padding(.top, Spacing.current.spaceM)
+                                        .padding(.bottom, Spacing.current.spaceXs)
+                                        .background(Color("AppBkgColor"))
+                                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
+                                }
+                                .transition(.opacity)
+                            }
                         }
                     }
                 }
+                .animation(.spring(response: 0.35, dampingFraction: 0.82), value: sheetSnapPoint)
+                .compositingGroup()
                 .coordinateSpace(name: "scroll")
                 .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
                 .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        // Only allow drag to collapse when at full AND scroll is exactly at top
-                        if sheetSnapPoint == .full && value.translation.height > 0 {
-                            guard isScrollAtTop else {
-                                dragOffset = 0
-                                return
-                            }
-                            dragOffset = value.translation.height
-                        }
-                    }
-                    .onEnded { value in
-                        // Handle swipe from .full to .collapsed (only if scroll is at top)
-                        if sheetSnapPoint == .full && value.translation.height > 0 {
-                            guard isScrollAtTop else {
-                                dragOffset = 0
-                                return
-                            }
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                sheetSnapPoint = .collapsed
-                                dragOffset = 0
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if sheetSnapPoint == .full && value.translation.height > 0 {
+                                guard isScrollAtTop else {
+                                    dragOffset = 0
+                                    return
+                                }
+                                dragOffset = value.translation.height
                             }
                         }
-                    }
+                        .onEnded { value in
+                            if sheetSnapPoint == .full && value.translation.height > 0 {
+                                guard isScrollAtTop else {
+                                    dragOffset = 0
+                                    return
+                                }
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    sheetSnapPoint = .collapsed
+                                    dragOffset = 0
+                                }
+                            }
+                        }
                 )
             }
             
@@ -455,162 +605,72 @@ struct InfoSheet: View {
 }
 
 #if DEBUG
-#Preview("Standard Content") {
-    let sections = loadStandardContentFromJSON()
-    let contentManager = ContentManager()
-    let location = CLLocation(latitude: 41.9028, longitude: 12.4964)
-    let locationDict = makeLocationDict(location: location, placeName: "Ancient Rome", subdivisions: "Lazio", countryName: "Italy")
-    contentManager.setContent(type: .locationDetail, data: .locationDetail(dict: locationDict))
-    
-    // Add sections from JSON to contentManager
-    for section in sections {
-        contentManager.setContent(type: section.type, data: section.data)
-    }
-    
-    return InfoSheet(
-        selectedTab: .constant(.journey),
-        shouldHideTabBar: .constant(false),
-        sheetFullHeight: 1000,
-        bottomSafeAreaInsetHeight: 0,
-        sheetSnapPoint: .constant(.full),
-        contentManager: contentManager
-    )
+/// Preview that loads an array of `{"event": "...", "data": {...}}` from `sse_preview_events.json`,
+/// stringifies each `data` to simulate an SSE stream, and replays via SSEEventProcessor so ContentManager is populated by the router.
+#Preview("SSE Content") {
+    SSEPreviewWrapper()
 }
 
+private struct SSEPreviewWrapper: View {
+    @StateObject private var contentManager = ContentManager()
 
-#Preview("Mixed Content") {
-    let sections = loadStandardContentFromJSON()
-    let contentManager = ContentManager()
-    let location = CLLocation(latitude: 40.7128, longitude: -74.0060)
-    let locationDict = makeLocationDict(location: location, placeName: nil, subdivisions: "Mixed Content Location", countryName: nil)
-    contentManager.setContent(type: .locationDetail, data: .locationDetail(dict: locationDict))
-    
-    // Add sections from JSON to contentManager
-    for section in sections {
-        contentManager.setContent(type: section.type, data: section.data)
-    }
-    
-    return InfoSheet(
-        selectedTab: .constant(.journey),
-        shouldHideTabBar: .constant(false),
-        sheetFullHeight: 1000,
-        bottomSafeAreaInsetHeight: 0,
-        sheetSnapPoint: .constant(.full),
-        contentManager: contentManager
-    )
-}
-
-// Helper function to load standard content from JSON file
-private func loadStandardContentFromJSON() -> [ContentSection] {
-    guard let url = Bundle.main.url(forResource: "standard_content_preview", withExtension: "json"),
-          let data = try? Data(contentsOf: url),
-          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-        return []
-    }
-    
-    var sections: [ContentSection] = []
-    
-    // Load overview if available
-    if let overview = json["overview"] as? String {
-        sections.append(ContentSection(
-            type: .overview,
-            data: .overview(markdown: overview)
-        ))
-    }
-    
-    // Load location detail if available
-    if let locationDictRaw = json["locationDetail"] as? [String: Any],
-       let lat = locationDictRaw["latitude"] as? Double,
-       let lon = locationDictRaw["longitude"] as? Double {
-        let altitude = locationDictRaw["altitude"] as? Double ?? 0
-        let location = CLLocation(
-            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-            altitude: altitude,
-            horizontalAccuracy: 0,
-            verticalAccuracy: 0,
-            timestamp: Date()
+    var body: some View {
+        InfoSheet(
+            selectedTab: .constant(.journey),
+            shouldHideTabBar: .constant(false),
+            sheetFullHeight: 1000,
+            bottomSafeAreaInsetHeight: 0,
+            sheetSnapPoint: .constant(.full),
+            contentManager: contentManager
         )
-        let placeName = locationDictRaw["place_name"] as? String
-        let subdivisions = locationDictRaw["subdivisions"] as? String
-        let countryName = locationDictRaw["country_name"] as? String
-        let locationDict = makeLocationDict(location: location, placeName: placeName, subdivisions: subdivisions, countryName: countryName)
-        sections.append(ContentSection(
-            type: .locationDetail,
-            data: .locationDetail(dict: locationDict)
-        ))
-    }
-    
-    // Load POIs if available
-    if let poisArray = json["pointsOfInterest"] as? [[String: Any]] {
-        let features = poisArray.compactMap { poiDict -> PointFeature? in
-            // Convert dictionary to JSONValue format
-            guard let geometryDict = poiDict["geometry"] as? [String: Any],
-                  let coordinatesArray = geometryDict["coordinates"] as? [Double],
-                  coordinatesArray.count >= 2,
-                  let propertiesDict = poiDict["properties"] as? [String: Any] else {
-                return nil
-            }
-            
-            // Convert to JSONValue format
-            let feature: [String: JSONValue] = [
-                "type": .string("Feature"),
-                "geometry": .dictionary([
-                    "type": .string("Point"),
-                    "coordinates": .array(coordinatesArray.map { .double($0) })
-                ]),
-                "properties": .dictionary(convertToJSONValue(propertiesDict))
-            ]
-            
-            return PointFeature(from: feature)
+        .task {
+            await replaySSEPreviewEvents(into: contentManager)
         }
-        
-        if !features.isEmpty {
-            sections.append(ContentSection(
-                type: .pointsOfInterest,
-                data: .pointsOfInterest(features: features)
-            ))
-        }
-    }
-    
-    return sections
-}
-
-// Helper function to convert [String: Any] to [String: JSONValue]
-private func convertToJSONValue(_ dict: [String: Any]) -> [String: JSONValue] {
-    var result: [String: JSONValue] = [:]
-    
-    for (key, value) in dict {
-        result[key] = convertAnyToJSONValue(value)
-    }
-    
-    return result
-}
-
-private func convertAnyToJSONValue(_ value: Any) -> JSONValue {
-    switch value {
-    case let string as String:
-        return .string(string)
-    case let number as NSNumber:
-        if CFGetTypeID(number) == CFBooleanGetTypeID() {
-            return .bool(number.boolValue)
-        } else if number.isInt {
-            return .int(number.intValue)
-        } else {
-            return .double(number.doubleValue)
-        }
-    case let dict as [String: Any]:
-        return .dictionary(convertToJSONValue(dict))
-    case let array as [Any]:
-        return .array(array.map { convertAnyToJSONValue($0) })
-    default:
-        return .string("\(value)")
     }
 }
 
-extension NSNumber {
-    var isInt: Bool {
-        let type = CFNumberGetType(self as CFNumber)
-        return type == .sInt8Type || type == .sInt16Type || type == .sInt32Type || type == .sInt64Type || type == .intType
+/// Load SSE preview events from JSON: array of `{"event": "<type>", "data": <object or string>}`.
+/// Uses Bundle.main (like coreTests uses Bundle.module for test resources). Tries `config/` subdirectory then bundle root.
+private func loadSSEPreviewEventsFromJSON() -> [[String: Any]]? {
+    var url = Bundle.main.url(forResource: "sse_preview_events", withExtension: "json", subdirectory: "config")
+    if url == nil {
+        url = Bundle.main.url(forResource: "sse_preview_events", withExtension: "json")
+    }
+    guard let url,
+          let data = try? Data(contentsOf: url),
+          let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+        return nil
+    }
+    return array
+}
+
+/// Stringify `data` for SSEEventProcessor.processEvent(event:data:id:) — the data line must be a string.
+private func stringifySSEData(_ value: Any?) -> String {
+    guard let value else { return "{}" }
+    if let string = value as? String { return string }
+    guard let data = try? JSONSerialization.data(withJSONObject: value),
+          let string = String(data: data, encoding: .utf8) else {
+        return "{}"
+    }
+    return string
+}
+
+/// Replay loaded SSE events through SSEEventProcessor so ContentManager is updated via SSEEventRouter.
+@MainActor
+private func replaySSEPreviewEvents(into contentManager: ContentManager) async {
+    guard let events = loadSSEPreviewEventsFromJSON() else { return }
+    let chatManager = ChatManager(uhpGateway: UHPGateway(), userManager: UserManager())
+    let router = SSEEventRouter(
+        chatManager: chatManager,
+        contentManager: contentManager,
+        mapFeaturesManager: nil,
+        toastManager: nil
+    )
+    let processor = SSEEventProcessor(router: router)
+    for item in events {
+        let eventString = item["event"] as? String
+        let dataString = stringifySSEData(item["data"])
+        await processor.processEvent(event: eventString, data: dataString, id: nil)
     }
 }
 #endif

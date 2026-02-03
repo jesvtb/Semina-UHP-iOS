@@ -13,6 +13,20 @@ enum ContentViewType: String, CaseIterable, Sendable {
     case neighborhoodOverview
     case cultureOverview
     case regionalCuisine
+
+    /// Tab bar title for section tabs (Overview, Location, Cuisine, Points of Interest).
+    var sectionTabTitle: String {
+        switch self {
+        case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
+            return "Overview"
+        case .locationDetail:
+            return "Location"
+        case .regionalCuisine:
+            return "Cuisine"
+        case .pointsOfInterest:
+            return "Points of Interest"
+        }
+    }
 }
 
 // MARK: - Content Type Definition Protocol
@@ -107,11 +121,13 @@ extension ContentTypeRegistry {
     }
 }
 
-struct RegionalDish {
+struct RegionalDish: Identifiable {
     let localName: String
     let globalName: String
     let description: String
     let imageURL: URL?
+
+    var id: String { "\(localName)|\(globalName)" }
 }
 
 struct RegionalCuisineData {
@@ -119,46 +135,228 @@ struct RegionalCuisineData {
     let dishes: [RegionalDish]
 }
 
+private let regionalCuisineCardCornerRadius: CGFloat = 12
+private let regionalCuisineCardAspectRatio: CGFloat = 0.85
+private let regionalCuisineCardMinHeight: CGFloat = 140
+
 struct RegionalCuisineView: View {
     let data: RegionalCuisineData
-    
+    @State private var selectedDish: RegionalDish?
+
+    private let gridSpacing = Spacing.current.spaceS
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
+        VStack(alignment: .leading, spacing: gridSpacing) {
             Text(data.introduction)
                 .bodyParagraph(color: Color("onBkgTextColor30"))
-            ForEach(data.dishes, id: \.localName) { dish in
-                Text(dish.localName)
-                    .bodyText()
-                    .foregroundColor(Color("onBkgTextColor30"))
-                Text(dish.globalName)
-                    .bodyText()
-                    .foregroundColor(Color("onBkgTextColor30"))
-                Text(dish.description)
-                    .bodyText()
-                    .foregroundColor(Color("onBkgTextColor30"))
-                if let imageURL = dish.imageURL {
-                    AsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 200)
-                                .clipped()
-                        case .failure:
-                            Image(systemName: "photo")
-                                .foregroundColor(Color("onBkgTextColor30").opacity(0.5))
-                                .frame(height: 200)
-                        @unknown default:
-                            EmptyView()
+
+            GeometryReader { geometry in
+                let availableWidth = max(0, geometry.size.width)
+                let columnWidth = (availableWidth - gridSpacing) / 2
+                let columns = [
+                    GridItem(.fixed(columnWidth), spacing: gridSpacing),
+                    GridItem(.fixed(columnWidth), spacing: gridSpacing)
+                ]
+                LazyVGrid(columns: columns, spacing: gridSpacing) {
+                    ForEach(data.dishes) { dish in
+                        RegionalDishCard(dish: dish) {
+                            selectedDish = dish
                         }
+                        .frame(width: columnWidth, height: columnWidth / regionalCuisineCardAspectRatio)
+                    }
+                }
+                .frame(width: availableWidth)
+                .clipped()
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: gridContentHeight)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipped()
+        .padding(.vertical, Spacing.current.spaceXs)
+        .sheet(item: $selectedDish) { dish in
+            RegionalDishPopupView(dish: dish) {
+                selectedDish = nil
+            }
+        }
+    }
+
+    /// Approximate height so GeometryReader gets a bounded proposal (card height × rows + spacing).
+    private var gridContentHeight: CGFloat {
+        let rowCount = (data.dishes.count + 1) / 2
+        guard rowCount > 0 else { return 0 }
+        let estimatedColumnWidth: CGFloat = 160
+        let rowHeight = estimatedColumnWidth / regionalCuisineCardAspectRatio
+        return CGFloat(rowCount) * rowHeight + CGFloat(rowCount - 1) * gridSpacing
+    }
+}
+
+/// Card with image background and dish name overlay; tappable to show popup.
+struct RegionalDishCard: View {
+    let dish: RegionalDish
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            GeometryReader { geometry in
+                ZStack(alignment: .bottomLeading) {
+                    cardBackground
+                    gradientOverlay
+                    textOverlay(cardWidth: geometry.size.width)
+                }
+            }
+            .aspectRatio(regionalCuisineCardAspectRatio, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: regionalCuisineCardCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: regionalCuisineCardCornerRadius)
+                    .stroke(Color("onBkgTextColor30").opacity(0.15), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var cardBackground: some View {
+        Group {
+            if let imageURL = dish.imageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        Rectangle()
+                            .fill(Color("onBkgTextColor30").opacity(0.15))
+                            .overlay(ProgressView().tint(Color("onBkgTextColor30")))
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .clipped()
+                    case .failure:
+                        Rectangle()
+                            .fill(Color("onBkgTextColor30").opacity(0.15))
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .font(.system(size: 36))
+                                    .foregroundColor(Color("onBkgTextColor30").opacity(0.4))
+                            )
+                    @unknown default:
+                        Rectangle()
+                            .fill(Color("onBkgTextColor30").opacity(0.15))
+                    }
+                }
+            } else {
+                Rectangle()
+                    .fill(Color("onBkgTextColor30").opacity(0.15))
+                    .overlay(
+                        Image(systemName: "photo")
+                            .font(.system(size: 36))
+                            .foregroundColor(Color("onBkgTextColor30").opacity(0.4))
+                    )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: regionalCuisineCardCornerRadius))
+    }
+
+    private var gradientOverlay: some View {
+        LinearGradient(
+            colors: [
+                Color.clear,
+                Color.black.opacity(0.1),
+                Color.black.opacity(0.7)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func textOverlay(cardWidth: CGFloat) -> some View {
+        let horizontalPadding = Spacing.current.spaceXs * 2
+        let maxTextWidth = max(0, cardWidth - horizontalPadding)
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(dish.localName)
+                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article1.baseSize))
+                .foregroundColor(.white)
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .minimumScaleFactor(0.5)
+            if dish.globalName != dish.localName {
+                Text(dish.globalName)
+                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
+                    .foregroundColor(.white.opacity(0.9))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.5)
+            }
+        }
+        .frame(width: maxTextWidth, alignment: .leading)
+        .padding(.horizontal, Spacing.current.spaceXs)
+        .padding(.vertical, Spacing.current.space2xs)
+        .clipped()
+    }
+}
+
+/// Popup presented when a regional dish card is tapped.
+struct RegionalDishPopupView: View {
+    let dish: RegionalDish
+    let onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+                    if let imageURL = dish.imageURL {
+                        AsyncImage(url: imageURL) { phase in
+                            switch phase {
+                            case .empty:
+                                Rectangle()
+                                    .fill(Color("onBkgTextColor30").opacity(0.1))
+                                    .frame(height: 220)
+                                    .overlay(ProgressView().tint(Color("onBkgTextColor30")))
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(maxHeight: 220)
+                                    .clipped()
+                            case .failure:
+                                Rectangle()
+                                    .fill(Color("onBkgTextColor30").opacity(0.1))
+                                    .frame(height: 220)
+                                    .overlay(
+                                        Image(systemName: "photo")
+                                            .foregroundColor(Color("onBkgTextColor30").opacity(0.5))
+                                    )
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: regionalCuisineCardCornerRadius))
+                    }
+
+                    Text(dish.localName)
+                        .bodyText(size: .article2)
+                        .foregroundColor(Color("onBkgTextColor20"))
+                    if dish.globalName != dish.localName {
+                        Text(dish.globalName)
+                            .bodyText(size: .articleMinus1)
+                            .foregroundColor(Color("onBkgTextColor30"))
+                    }
+                    Text(dish.description)
+                        .bodyParagraph(color: Color("onBkgTextColor30"))
+                }
+                .padding(Spacing.current.spaceS)
+            }
+            .navigationTitle(dish.localName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        onDismiss()
                     }
                 }
             }
         }
-        .padding(.vertical, Spacing.current.spaceXs)
     }
 }
 

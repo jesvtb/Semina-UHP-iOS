@@ -275,10 +275,8 @@ struct MainView: View {
                 isTextFieldFocused = false
             }
             
-            // Set router reference in ChatManager
+            // Set router reference in ChatManager (router already holds chatManager from app init)
             chatManager.sseEventRouter = sseEventRouter
-            // Also set ChatManager reference in router (bidirectional connection)
-            sseEventRouter.setChatManager(chatManager)
         }
         .task { @MainActor in
             

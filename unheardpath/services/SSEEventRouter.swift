@@ -7,7 +7,7 @@ import core
 /// Routes parsed payloads to appropriate managers based on event type
 @MainActor
 class SSEEventRouter: ObservableObject {
-    private var chatManager: ChatManager?
+    private let chatManager: ChatManager
     private let contentManager: ContentManager?
     private let mapFeaturesManager: MapFeaturesManager?
     private let toastManager: ToastManager?
@@ -17,7 +17,7 @@ class SSEEventRouter: ObservableObject {
     var onDismissKeyboard: (() -> Void)?
 
     init(
-        chatManager: ChatManager? = nil,
+        chatManager: ChatManager,
         contentManager: ContentManager? = nil,
         mapFeaturesManager: MapFeaturesManager? = nil,
         toastManager: ToastManager? = nil,
@@ -28,11 +28,6 @@ class SSEEventRouter: ObservableObject {
         self.mapFeaturesManager = mapFeaturesManager
         self.toastManager = toastManager
         self.logger = logger
-    }
-
-    /// Set ChatManager reference after initialization
-    func setChatManager(_ manager: ChatManager) {
-        self.chatManager = manager
     }
 
     /// Set content directly (e.g. for testing or when already holding ContentSectionData).
@@ -50,10 +45,10 @@ class SSEEventRouter: ObservableObject {
             logger.debug("Routing toast to ToastManager")
 
         case .chat(let chunk, let isStreaming):
-            await chatManager?.handleChatChunk(content: chunk, isStreaming: isStreaming)
+            await chatManager.handleChatChunk(content: chunk, isStreaming: isStreaming)
 
         case .stop:
-            await chatManager?.handleStop()
+            await chatManager.handleStop()
             logger.debug("Routing stop to ChatManager")
 
         case .map(let features):

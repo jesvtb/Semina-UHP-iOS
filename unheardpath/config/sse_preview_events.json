@@ -1,0 +1,82 @@
+[
+  {
+    "event": "content",
+    "data": {
+      "type": "overview",
+      "data": "# Ancient Rome\n\nA dummy overview for the **SSE Content** preview. This simulates content delivered via the SSE stream and parsed by SSEEventProcessor.\n\n## Key points\n\n- Overview, location detail, and POIs are loaded from this JSON.\n- Each item is stringified and replayed through SSEEventProcessor."
+    }
+  },
+  {
+    "event": "content",
+    "data": {
+      "type": "locationDetail",
+      "data": {
+        "latitude": 41.9028,
+        "longitude": 12.4964,
+        "altitude": 0,
+        "place_name": "Ancient Rome",
+        "subdivisions": "Rome, Lazio",
+        "country_name": "Italy"
+      }
+    }
+  },
+  {
+    "event": "content",
+    "data": {
+      "type": "regionalCuisine",
+      "data": {
+        "introduction": "A taste of regional dishes from the area.",
+        "dishes": [
+          {
+            "local_name": "Shakshuka",
+            "global_name": "Shakshuka",
+            "description": "Shakshuka is a dish of eggs cooked in a sauce of tomatoes, onions, and garlic.",
+            "image_url": "https://i2.wp.com/www.downshiftology.com/wp-content/uploads/2023/12/Shakshuka-main-1.jpg"
+          },
+          {
+            "local_name": "Moussaka",
+            "global_name": "Moussaka",
+            "description": "Moussaka is a dish of eggplant, potatoes, and ground beef.",
+            "image_url": "https://www.giallozafferano.com/images/302-30219/moussaka_1200x800.jpg"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "event": "content",
+    "data": {
+      "type": "pointsOfInterest",
+      "data": {
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [12.4964, 41.9028]
+            },
+            "properties": {
+              "title": "Colosseum",
+              "description": "Ancient Roman amphitheater",
+              "category": "landmark",
+              "img_url": "https://lh3.googleusercontent.com/gps-cs-s/AHVAwep8r-8pOL0AFlvPDaOikN3cRf69Dswx1KNr3Sr47yVOkOJ-JRkecE4D5YULr60WvDH-zPDLhFgvCg-sF9FmHHlhM5EP7gJxgK1zzUZsciB3pesqeI5lJWt_QFCa6bSGsDvWlEZ4=s680-w680-h510-rw"
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [12.4833, 41.9]
+            },
+            "properties": {
+              "title": "Roman Forum",
+              "description": "Ancient Roman public square",
+              "category": "landmark",
+              "img_url": "https://lh3.googleusercontent.com/gps-cs-s/AHVAweot9IkdyGNQvGJfdjn8OEYsc3ZOlZUX-PRm9wPnUSi2EoKuTH4uUngwlVk4XBx4ho99BNV_9fIQ48xVXAgCLVFbxJdcEZqmXGrmOaZL5sEk6AcC9nGKsftOcHbQEN0TK_l-EoBa=s680-w680-h510-rw"
+            }
+          }
+        ]
+      }
+    }
+  }
+]
