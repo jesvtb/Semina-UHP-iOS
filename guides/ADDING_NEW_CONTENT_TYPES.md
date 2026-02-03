@@ -9,24 +9,18 @@ The content flow follows this path:
 ```
 Backend (router_chat.py)
   ↓ (SSE Event with event="content" or "overview")
-SSEEventProcessor.handleContentEvent()
-  ↓ (parses JSON, extracts type and data)
-ContentTypeRegistry.shared().parse() [@MainActor]
-  ↓ (calls ContentTypeDefinition.parse())
-ContentTypeDefinition.parse() → ContentSectionData
-  ↓ (onContent callback with parsed data)
-SSEEventRouter.onContent()
-  ↓ (routes to ContentManager)
-ContentManager.setContent()
+Core: processSSEStream / parse → SSEEvent.content(typeString, dataValue)
+  ↓
+App: SSEEventProcessor.processStream → SSEEventRouter.route(event)
+  ↓ (case .content: ContentTypeRegistry.parse(type, data) → ContentSectionData)
+ContentManager.setContent(type, data)
   ↓ (stores in sections dictionary)
 ContentManager.orderedSections
   ↓ (returns sections in displayOrder)
-InfoSheetView
-  ↓ (ForEach over orderedSections)
+InfoSheet (contentManager)
+  ↓ (ForEach over contentManager.orderedSections)
 ContentViewRegistry.view(for: section)
-  ↓ (calls ContentTypeRegistry.createView())
-ContentTypeDefinition.createView()
-  ↓ (creates SwiftUI view)
+  ↓ (ContentTypeRegistry.createView() → ContentTypeDefinition.createView())
 Custom View Component
 ```
 
@@ -46,7 +40,7 @@ That's it! No need to modify parsing switches, view switches, or multiple files.
 
 ### Step 1: Define the Content Type Enum (if new type)
 
-**File**: `03_apps/iosapp/unheardpath/views/ContentManager.swift`
+**File**: `unheardpath/views/ContentManager.swift`
 
 Add your new content type to the `ContentViewType` enum:
 
@@ -71,7 +65,7 @@ enum ContentViewType: String, CaseIterable, Sendable {
 
 ### Step 2: Define the Data Structure (if new data structure)
 
-**File**: `03_apps/iosapp/unheardpath/views/ContentManager.swift`
+**File**: `unheardpath/views/ContentManager.swift`
 
 Add a new case to the `ContentSection.ContentSectionData` enum:
 
@@ -97,7 +91,7 @@ struct YourNewDataType {
 
 ### Step 3: Create the View Component
 
-**File**: `03_apps/iosapp/unheardpath/views/ContentManager.swift`
+**File**: `unheardpath/views/ContentManager.swift`
 
 Create a SwiftUI view component for your content type:
 
@@ -128,7 +122,7 @@ struct YourNewTypeView: View {
 
 ### Step 4: Create Content Type Definition (THE KEY STEP)
 
-**File**: `03_apps/iosapp/unheardpath/views/ContentManager.swift`
+**File**: `unheardpath/views/ContentManager.swift`
 
 Create a struct that conforms to `ContentTypeDefinition` protocol. This **single struct** contains all the logic for your content type:
 
@@ -174,7 +168,7 @@ struct YourNewTypeContentType: ContentTypeDefinition {
 
 ### Step 5: Register the Content Type
 
-**File**: `03_apps/iosapp/unheardpath/views/ContentManager.swift`
+**File**: `unheardpath/views/ContentManager.swift`
 
 Add your type to the registry's `init()` method in `ContentTypeRegistry`:
 
@@ -202,7 +196,7 @@ fileprivate init() {
 
 ### Step 6: Add to Display Order
 
-**File**: `03_apps/iosapp/unheardpath/views/ContentManager.swift`
+**File**: `unheardpath/views/ContentManager.swift`
 
 Add your type to the `displayOrder` array in `ContentTypeRegistry`:
 
@@ -965,17 +959,10 @@ When adding a new content type, ensure you:
 - **Backend**: `02_package/semina/api/routers/router_chat.py` - SSE event generation
 - **SSE Parsing**: `03_apps/iosapp/unheardpath/services/SSEEventProcessor.swift` - Handles SSE events, calls `ContentTypeRegistry.parse()`
 - **SSE Routing**: `03_apps/iosapp/unheardpath/services/SSEEventRouter.swift` - Routes parsed content to `ContentManager`
-- **Content Management**: `03_apps/iosapp/unheardpath/views/ContentManager.swift` - Contains:
-  - `ContentViewType` enum
-  - `ContentSectionData` enum
-  - `ContentTypeDefinition` protocol
-  - `ContentTypeRegistry` class
-  - `ContentManager` class
-  - `ContentViewRegistry` struct (wrapper for registry)
-  - All content type definitions and views
-- **Display**: `03_apps/iosapp/unheardpath/views/InfoSheetView.swift` - Renders content using `ContentViewRegistry.view(for:)`
+- **Content Management**: `unheardpath/views/ContentManager.swift` — `ContentViewType`, `ContentSectionData`, `ContentTypeDefinition`, `ContentTypeRegistry`, `ContentManager`, `ContentViewRegistry`, and all content type definitions/views.
+- **Display**: `unheardpath/views/InfoSheetView.swift` — InfoSheet renders `contentManager.orderedSections` via `ContentViewRegistry.view(for:)`.
 
 ## See Also
 
-- `INFOSHEET_CONTENT_FLOW.md` - Detailed explanation of existing content types and update mechanisms
-- `TESTING_SSE_CONTENT.md` - Guide for testing SSE content flow
+- `Infosheet_Content_Flow.md` - Detailed explanation of existing content types and update mechanisms
+- `Testing_Sse_Content.md` - Guide for testing SSE content flow

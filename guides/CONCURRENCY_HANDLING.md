@@ -6,7 +6,7 @@ Based on my comprehensive analysis of the project's concurrency patterns, here's
 
 # Swift Concurrency Architecture Assessment
 
-**Document**: `03_apps/iosapp/guides/CONCURRENCY_ASSESSMENT.md`  
+**Document**: `03_apps/iosapp/guides/Concurrency_Handling.md`  
 **Date**: December 5, 2025  
 **Swift Version**: 6.0 (Strict Concurrency Mode Enabled)  
 **Assessment Status**: ✅ Architecture is Sound with Minor Optimizations Needed
@@ -36,7 +36,7 @@ The iOS app demonstrates a **well-architected concurrency model** that properly 
 
 ### ✅ Correctly Isolated Classes
 
-#### 1. **UHPGateway** (`APIClient.swift:90`)
+#### 1. **UHPGateway** (`services/APIClient.swift`)
 ```swift
 @MainActor
 class UHPGateway: ObservableObject {
@@ -55,7 +55,7 @@ class UHPGateway: ObservableObject {
 
 ---
 
-#### 2. **APIClient** (`APIClient.swift:189`)
+#### 2. **APIClient** (`services/APIClient.swift` — app typealias to core.APIClient; UHPGateway in same file)
 ```swift
 @MainActor
 class APIClient: ObservableObject {
@@ -73,7 +73,7 @@ class APIClient: ObservableObject {
 
 ---
 
-#### 3. **LocationManager** (`LocationManager.swift:15`)
+#### 3. **LocationManager** (`services/LocationManager.swift`)
 ```swift
 @MainActor
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
@@ -97,7 +97,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
 ---
 
-#### 4. **AuthManager** (`AuthManager.swift:15`)
+#### 4. **AuthManager** (`services/AuthManager.swift`)
 ```swift
 @MainActor
 class AuthManager: ObservableObject {
@@ -114,7 +114,7 @@ class AuthManager: ObservableObject {
 
 ---
 
-#### 5. **UserManager** (`Schema.swift:219`)
+#### 5. **UserManager** (`schemas/Schema.swift`)
 ```swift
 @MainActor
 class UserManager: ObservableObject {
@@ -128,33 +128,24 @@ class UserManager: ObservableObject {
 
 ---
 
-#### 6. **AddressSearchManager** (`AddrSearchManager.swift:8`)
+#### 6. **AutocompleteManager** (`services/AutocompleteManager.swift`)
 ```swift
 @MainActor
-class AddressSearchManager: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
-    @Published var results: [MKLocalSearchCompletion] = []
-    nonisolated(unsafe) private let completer = MKLocalSearchCompleter()
-    
-    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter)
-    nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error)
+class AutocompleteManager: ObservableObject {
+    @Published var results: ...
+    // Uses core.Geocoder; MKLocalSearchCompleter delegate bridge if present
 }
 ```
 
-**Status**: ✅ **Correct with Acceptable Workaround**  
-**Pattern**: Same delegate bridge pattern as LocationManager  
-**`nonisolated(unsafe)` Usage**: Required because `MKLocalSearchCompleter` isn't `Sendable`  
-**Safety**: Acceptable because:
-- The completer is immutable (`let`)
-- Delegate callbacks are properly bridged to `@MainActor`
-- Apple's MapKit APIs aren't yet Swift 6 compatible
-
-**Recommendation**: Remove `unsafe` when Apple updates MapKit to be `Sendable`-compliant
+**Status**: ✅ **Correct**  
+**Pattern**: Main-actor isolated; delegate bridge used for MapKit completer where applicable  
+**Note**: If using `MKLocalSearchCompleterDelegate`, `nonisolated(unsafe)` for the completer is an acceptable workaround until MapKit is Sendable-compliant.
 
 ---
 
 ### ⚠️ Classes Missing Actor Isolation
 
-#### 7. **AppleSignInCoordinator** (`AuthView.swift:57`)
+#### 7. **AppleSignInCoordinator** (`views/AuthView.swift`)
 ```swift
 class AppleSignInCoordinator: NSObject, ObservableObject, ASAuthorizationControllerDelegate
 ```
@@ -173,12 +164,17 @@ class AppleSignInCoordinator: NSObject, ObservableObject, ASAuthorizationControl
 
 ### ✅ Utility Services (No Actor Isolation Needed)
 
-#### 8. **StorageManager** (`StorageManager.swift:13`)
+#### 8. **Storage** (core package — `core/Sources/core/storage.swift`)
 ```swift
-enum StorageManager {
-    static var documentsURL: URL { ... }
-    static var cachesURL: URL { ... }
-    static func saveToUserDefaults<T>(value: T, key: String)
+public enum Storage {
+    static func configure(keyPrefix: String?, ...)
+    static var keyPrefix: String { get }
+    static func saveToUserDefaults(...)
+    static func loadFromUserDefaults(...)
+    static func allUserDefaultsKeysWithPrefix() -> [String: Any]
+    static func printUserDefaultsKeysWithPrefix()
+    static func clearUserDefaultsKeysWithPrefix()
+    // documentsURL, cachesURL, file/cache helpers
 }
 ```
 
@@ -313,7 +309,7 @@ private struct SpacingKey: EnvironmentKey {
 - **Correctly used**: 20 (91%)
 - **Using `nonisolated(unsafe)`**: 4 instances
   - 3 in `Spacing.swift` (should be `@MainActor`)
-  - 1 in `AddressSearchManager.swift` (acceptable workaround)
+  - 1 in `AutocompleteManager.swift` (acceptable workaround if MKLocalSearchCompleter used)
 
 ### Service Class Distribution
 - **`@MainActor` classes**: 6
@@ -333,13 +329,13 @@ private struct SpacingKey: EnvironmentKey {
 1. **Spacing.swift cache variables** - Replace `nonisolated(unsafe)` with `@MainActor` (3 instances)
    - Risk: Potential data races
    - Effort: 5 minutes
-   - Files: `identity/Spacing.swift` lines 128-129, 161
+   - File: `identity/Spacing.swift`
 
 ### 🟡 Medium Priority (Fix When Convenient)
 2. **AppleSignInCoordinator** - Add `@MainActor` annotation
    - Risk: Low (already happens to run on main thread)
    - Effort: 1 minute
-   - File: `views/AuthView.swift` line 57
+   - File: `views/AuthView.swift`
 
 ### 🟢 Low Priority (Code Quality)
 3. **Remove redundant `@MainActor` in view code** - Simplify `.task` and `Task` blocks
@@ -348,7 +344,7 @@ private struct SpacingKey: EnvironmentKey {
    - Files: `TestMainView.swift`, `ChatDetailView.swift`
 
 ### 📋 Monitor
-4. **`nonisolated(unsafe)` in AddressSearchManager** - Remove when Apple updates MapKit
+4. **`nonisolated(unsafe)` in AutocompleteManager** (if used with MapKit completer) - Remove when Apple updates MapKit
    - Action: Wait for iOS SDK updates
    - Current Status: Acceptable workaround
 
@@ -401,12 +397,11 @@ private struct SpacingKey: EnvironmentKey {
    - Replace 3 instances of `nonisolated(unsafe)` with `@MainActor`
    
 2. ✅ **Add `@MainActor` to AppleSignInCoordinator** (1 min)
-   - Line 57 in `AuthView.swift`
+   - In `views/AuthView.swift`
 
 ### Code Quality Improvements (Next Sprint)
 3. 📝 **Remove redundant `@MainActor` annotations in views** (2 min)
-   - TestMainView line 211
-   - ChatDetailView lines 50, 74
+   - Preview/main view `@MainActor` usage where redundant
 
 4. 📝 **Add concurrency documentation to README**
    - Link to this assessment
@@ -450,12 +445,12 @@ The core architecture—using `@MainActor` for UI classes with `nonisolated` met
 
 ## Related Documentation
 
-- [ASYNC_PATTERNS.md](./ASYNC_PATTERNS.md) - Async/await patterns and JSONValue usage
+- [Async_Patterns.md](./Async_Patterns.md) - Async/await patterns and JSONValue usage
 - [Swift Concurrency Official Docs](https://docs.swift.org/swift-book/LanguageGuide/Concurrency.html)
 - [SwiftUI and Concurrency](https://developer.apple.com/documentation/swiftui/fruta_building_a_feature-rich_app_with_swiftui)
 
 ---
 
-**Last Updated**: December 5, 2025  
+**Last Updated**: February 2026  
 **Reviewed By**: Cursor AI Assistant  
 **Next Review**: Before next major release

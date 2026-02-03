@@ -18,7 +18,7 @@ All services automatically use the shared logger by default:
 ```swift
 // All these use the shared logger automatically
 let trackingManager = TrackingManager()
-let addrSearchManager = AddressSearchManager()
+let autocompleteManager = AutocompleteManager(geoapifyApiKey: "<key>")
 let apiClient = APIClient()
 let processor = SSEEventProcessor(handler: router)
 ```
