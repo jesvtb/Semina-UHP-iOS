@@ -158,35 +158,58 @@ public struct GeoJSON: Sendable, Codable {
 
     // MARK: - Feature Extraction
 
-    /// Extracts features from a GeoJSON response dictionary.
-    /// Handles direct features, nested in data, or result.data.
-    public static func extractFeatures(from jsonDict: Any) throws -> [[String: JSONValue]] {
-        guard let dict = jsonDict as? [String: Any] else {
-            throw GeoJSONError.invalidJSON
+    /// Extracts features from a root-level array of GeoJSON feature objects (backend often sends this shape).
+    public static func extractFeatures(from jsonArray: [[String: Any]]) throws -> [[String: JSONValue]] {
+        try jsonArray.map { featureDict in
+            guard let jsonValueDict = JSONValue.dictionary(from: featureDict) else {
+                throw GeoJSONError.invalidJSON(reason: "feature could not be converted to JSONValue dictionary")
+            }
+            return jsonValueDict
         }
+    }
+
+    /// Extracts features from a GeoJSON object (FeatureCollection or single Feature).
+    /// Handles: features, data.features, result.data.features, single Feature, or data as JSON string.
+    public static func extractFeatures(from jsonDict: [String: Any]) throws -> [[String: JSONValue]] {
+        // data as JSON string (double-encoded)
+        if let dataString = jsonDict["data"] as? String,
+           let data = dataString.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) {
+            if let array = parsed as? [[String: Any]] {
+                return try extractFeatures(from: array)
+            }
+            if let dict = parsed as? [String: Any] {
+                return try extractFeatures(from: dict)
+            }
+            throw GeoJSONError.invalidJSON(reason: "parsed data is not an array of features or a dictionary")
+        }
+
         var features: [[String: Any]]
-        if let directFeatures = dict["features"] as? [[String: Any]] {
+        if let directFeatures = jsonDict["features"] as? [[String: Any]] {
             features = directFeatures
-        } else if let data = dict["data"] as? [String: Any],
+        } else if let data = jsonDict["data"] as? [String: Any],
                   let dataFeatures = data["features"] as? [[String: Any]] {
             features = dataFeatures
-        } else if let result = dict["result"] as? [String: Any],
+        } else if let result = jsonDict["result"] as? [String: Any],
                   let resultData = result["data"] as? [String: Any],
                   let resultFeatures = resultData["features"] as? [[String: Any]] {
             features = resultFeatures
+        } else if let type = jsonDict["type"] as? String, type == "Feature" {
+            features = [jsonDict]
         } else {
-            throw GeoJSONError.invalidJSON
+            let keys = Array(jsonDict.keys).joined(separator: ", ")
+            throw GeoJSONError.invalidJSON(reason: "expected FeatureCollection or Feature; got keys: \(keys)")
         }
         return try features.map { featureDict in
             guard let jsonValueDict = JSONValue.dictionary(from: featureDict) else {
-                throw GeoJSONError.invalidJSON
+                throw GeoJSONError.invalidJSON(reason: "feature could not be converted to JSONValue dictionary")
             }
             return jsonValueDict
         }
     }
 
     public enum GeoJSONError: Error, Sendable {
-        case invalidJSON
+        case invalidJSON(reason: String = "invalid structure")
     }
 
     // MARK: - Codable

@@ -53,10 +53,14 @@ struct MapViewGeoJSONPreview: View {
         do {
             let data = try Data(contentsOf: fileURL)
             let json = try JSONSerialization.jsonObject(with: data)
-            
-            // Use GeoJSON.extractFeatures to parse the JSON structure
-            // This handles different response structures (direct features, nested in data, nested in result.data)
-            let features = try GeoJSON.extractFeatures(from: json)
+            let features: [[String: core.JSONValue]]
+            if let array = json as? [[String: Any]] {
+                features = try GeoJSON.extractFeatures(from: array)
+            } else if let dict = json as? [String: Any] {
+                features = try GeoJSON.extractFeatures(from: dict)
+            } else {
+                throw GeoJSON.GeoJSONError.invalidJSON(reason: "root is not an array of features or a FeatureCollection object")
+            }
             geoJSON.setFeatures(features)
             
             #if DEBUG

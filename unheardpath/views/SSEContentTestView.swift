@@ -164,7 +164,7 @@ You can test different content types using the buttons below.
             switch selectedContentType {
             case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
                 let data: ContentSection.ContentSectionData = .overview(markdown: overviewMarkdown)
-                await sseEventRouter.onContent(type: selectedContentType, data: data)
+                sseEventRouter.setContent(type: selectedContentType, data: data)
                 
             case .locationDetail:
                 guard let lat = Double(locationLatitude),
@@ -182,7 +182,7 @@ You can test different content types using the buttons below.
                 )
                 let locationDict = makeLocationDict(location: location, placeName: nil, subdivisions: nil, countryName: nil)
                 let data: ContentSection.ContentSectionData = .locationDetail(dict: locationDict)
-                await sseEventRouter.onContent(type: .locationDetail, data: data)
+                sseEventRouter.setContent(type: .locationDetail, data: data)
                 
             case .pointsOfInterest:
                 // Use sample POIs
@@ -246,7 +246,7 @@ You can test different content types using the buttons below.
             }
             
             let data: ContentSection.ContentSectionData = .pointsOfInterest(features: features)
-            await sseEventRouter.onContent(type: .pointsOfInterest, data: data)
+            sseEventRouter.setContent(type: .pointsOfInterest, data: data)
         }
     }
     
@@ -262,12 +262,12 @@ You can test different content types using the buttons below.
 /// Quick test functions for common scenarios
 @MainActor
 struct SSEContentTestHelpers {
-    static func testOverview(router: SSEEventRouter, markdown: String = "# Test Overview\n\nThis is a test.") async {
+    static func testOverview(router: SSEEventRouter, markdown: String = "# Test Overview\n\nThis is a test.") {
         let data: ContentSection.ContentSectionData = .overview(markdown: markdown)
-        await router.onContent(type: .overview, data: data)
+        router.setContent(type: .overview, data: data)
     }
-    
-    static func testLocationDetail(router: SSEEventRouter, lat: Double = 41.9028, lon: Double = 12.4964) async {
+
+    static func testLocationDetail(router: SSEEventRouter, lat: Double = 41.9028, lon: Double = 12.4964) {
         let location = CLLocation(
             coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
             altitude: 0,
@@ -277,29 +277,29 @@ struct SSEContentTestHelpers {
         )
         let locationDict = makeLocationDict(location: location, placeName: "Test Location", subdivisions: "Test City, Test State", countryName: "Test Country")
         let data: ContentSection.ContentSectionData = .locationDetail(dict: locationDict)
-        await router.onContent(type: .locationDetail, data: data)
+        router.setContent(type: .locationDetail, data: data)
     }
     
     static func testAllContentTypes(router: SSEEventRouter) async {
         // Test overview
-        await testOverview(router: router, markdown: """
+        testOverview(router: router, markdown: """
         # Complete Test
-        
+
         This tests **all** content types in sequence.
-        
+
         ## Overview Section
         This is the overview content.
         """)
-        
+
         // Wait a bit
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        
+
         // Test location
-        await testLocationDetail(router: router)
-        
+        testLocationDetail(router: router)
+
         // Wait a bit
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        
+
         // Test POIs
         let sampleFeatures: [[String: JSONValue]] = [
             [
@@ -314,11 +314,11 @@ struct SSEContentTestHelpers {
                 ])
             ]
         ]
-        
+
         let features = sampleFeatures.compactMap { PointFeature(from: $0) }
         if !features.isEmpty {
             let data: ContentSection.ContentSectionData = .pointsOfInterest(features: features)
-            await router.onContent(type: .pointsOfInterest, data: data)
+            router.setContent(type: .pointsOfInterest, data: data)
         }
     }
 }

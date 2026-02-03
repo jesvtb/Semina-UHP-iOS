@@ -87,23 +87,37 @@ func printItem(item: JSONValue?) {
     print("================")
 }
 
-/// Pretty-prints an SSEEvent with event/id and the data payload as formatted JSON (like a normal dict).
+/// Pretty-prints an SSEEvent (typed enum) with case and associated values.
 func printItem(item: SSEEvent) {
     print("================")
-    print("🔹 type: SSEEvent")
-    print("   event: \(item.event ?? "nil")")
-    print("   id: \(item.id ?? "nil")")
-    if let value = item.dataValue {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        if let jsonData = try? encoder.encode(value),
+    print("🔹 type: SSEEvent (enum)")
+    switch item {
+    case .toast(let message, let duration, let variant):
+        print("   case: toast")
+        print("   message: \(message)")
+        print("   duration: \(String(describing: duration))")
+        print("   variant: \(String(describing: variant))")
+    case .chat(let chunk, let isStreaming):
+        print("   case: chat")
+        print("   chunk: \(chunk)")
+        print("   isStreaming: \(isStreaming)")
+    case .stop:
+        print("   case: stop")
+    case .map(let features):
+        print("   case: map")
+        print("   features.count: \(features.count)")
+    case .hook(let action):
+        print("   case: hook")
+        print("   action: \(action)")
+    case .content(let typeString, let dataValue):
+        print("   case: content")
+        print("   typeString: \(typeString)")
+        if let jsonData = try? JSONEncoder().encode(dataValue),
            let jsonString = String(data: jsonData, encoding: .utf8) {
-            print("   data:\n\(jsonString)")
+            print("   dataValue:\n\(jsonString)")
         } else {
-            print("   data (raw): \(item.data)")
+            print("   dataValue: \(dataValue)")
         }
-    } else {
-        print("   data (raw): \(item.data)")
     }
     print("================")
 }

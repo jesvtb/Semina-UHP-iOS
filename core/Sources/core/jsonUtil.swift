@@ -208,7 +208,15 @@ public extension JSONValue {
         }
         return nil
     }
-    
+
+    /// Extract bool value if this is a bool case
+    var boolValue: Bool? {
+        if case .bool(let value) = self {
+            return value
+        }
+        return nil
+    }
+
     /// Extract value for a key from dictionary, returns nil if not a dictionary or key not found
     subscript(key: String) -> JSONValue? {
         guard case .dictionary(let dict) = self else { return nil }

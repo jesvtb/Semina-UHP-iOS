@@ -124,7 +124,7 @@ class ChatManager: ObservableObject {
                 logger.debug("sendMessage: SSEEventRouter not available")
                 return
             }
-            let processor = SSEEventProcessor(handler: router)
+            let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
             
             // Safety net: Ensure the final assistant message is marked as not streaming
@@ -187,14 +187,14 @@ class ChatManager: ObservableObject {
     // MARK: - Chat Event Handling (called by SSEEventRouter)
     
     /// Handles chat content chunks from SSE stream
-    /// Called by SSEEventRouter when chat events arrive
+    /// Called by SSEEventRouter when chat events arrive. Accumulates chunks into the current assistant message.
     func handleChatChunk(content: String, isStreaming: Bool) async {
-        
         if let lastIndex = messages.indices.last, !messages[lastIndex].isUser {
             let existingMessage = messages[lastIndex]
+            let accumulatedText = existingMessage.text + content
             messages[lastIndex] = ChatMessage(
                 id: existingMessage.id,
-                text: content,
+                text: accumulatedText,
                 isUser: false,
                 isStreaming: isStreaming
             )

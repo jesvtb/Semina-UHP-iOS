@@ -19,42 +19,95 @@ public struct APIError: Codable, Error, Sendable {
 
 // MARK: - SSE (Server-Sent Events) Models
 
-public struct SSEEvent: Sendable {
-    public let event: String?
-    public let data: String
-    public let id: String?
+public enum ParseError: Error, Sendable {
+    case missingField(String)
+    case invalidFormat(String)
+}
 
-    public init(event: String?, data: String, id: String?) {
-        self.event = event
-        self.data = data
-        self.id = id
-    }
-    
-    /// Parses the data field as JSON and returns it as a JSONValue (object, array, or scalar).
-    public var dataValue: JSONValue? {
-        JSONValue.decode(data)
-    }
+/// Typed SSE event: one case per event kind with parsed payload. Stream and router use this type only.
+public enum SSEEvent: Sendable {
+    case toast(message: String, duration: TimeInterval?, variant: String?)
+    case chat(chunk: String, isStreaming: Bool)
+    case stop
+    case map(features: [[String: JSONValue]])
+    case hook(action: String)
+    case content(typeString: String, dataValue: JSONValue)
+}
 
-    /// Parses the data field as JSON and returns it as a [String: JSONValue] dictionary when the payload is a JSON object; otherwise nil.
-    public var dataDictionary: [String: JSONValue]? {
-        dataValue?.dictionaryValue
-    }
+public enum SSEEventType: String, Sendable {
+    case toast
+    case chat
+    case stop
+    case map
+    case hook
+    case content
+    case overview
 
-    /// Parses the data field as JSON and returns it as a dictionary
-    public func parseJSONData() throws -> [String: Any]? {
-        guard let jsonData = data.data(using: .utf8) else {
-            return nil
+    public init?(from eventString: String?) {
+        guard let normalized = eventString?.lowercased() else { return nil }
+        if normalized == "overview" {
+            self = .content
+            return
         }
-        return try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
+        self.init(rawValue: normalized)
     }
 
-    /// Parses the data field as JSON and returns it as a generic Any type
-    public func parseData() throws -> Any? {
-        guard let jsonData = data.data(using: .utf8) else {
-            return nil
+    /// Parse raw SSE fields into a typed event. Used by the stream and by single-event callers.
+    public func parse(event eventString: String?, data dataString: String, id: String?) throws -> SSEEvent {
+        let dataDict = JSONValue.decode(dataString)?.dictionaryValue
+        switch self {
+        case .toast:
+            guard let dict = dataDict,
+                  let message = dict["message"]?.stringValue else {
+                throw ParseError.missingField("message")
+            }
+            let duration = dict["duration"]?.doubleValue
+            let variant = dict["variant"]?.stringValue
+            return .toast(message: message, duration: duration, variant: variant)
+
+        case .chat:
+            guard let dict = dataDict,
+                  let content = dict["content"]?.stringValue else {
+                throw ParseError.missingField("content")
+            }
+            let isStreaming = dict["is_streaming"]?.boolValue ?? true
+            return .chat(chunk: content, isStreaming: isStreaming)
+
+        case .stop:
+            return .stop
+
+        case .map:
+            guard let data = dataString.data(using: .utf8) else {
+                throw ParseError.invalidFormat("Cannot convert data to UTF-8")
+            }
+            let jsonObject = try JSONSerialization.jsonObject(with: data)
+            let features: [[String: JSONValue]]
+            if let array = jsonObject as? [[String: Any]] {
+                features = try GeoJSON.extractFeatures(from: array)
+            } else if let dict = jsonObject as? [String: Any] {
+                features = try GeoJSON.extractFeatures(from: dict)
+            } else {
+                throw ParseError.invalidFormat("Map data is not an array of features or a FeatureCollection object")
+            }
+            return .map(features: features)
+
+        case .hook:
+            guard let dict = dataDict,
+                  let action = dict["action"]?.stringValue else {
+                throw ParseError.missingField("action")
+            }
+            return .hook(action: action)
+
+        case .content, .overview:
+            guard let dict = dataDict,
+                  let typeString = dict["type"]?.stringValue,
+                  let dataValue = dict["data"] else {
+                throw ParseError.missingField("type or data")
+            }
+            return .content(typeString: typeString, dataValue: dataValue)
         }
-        return try JSONSerialization.jsonObject(with: jsonData)
     }
+
 }
 
 // MARK: - APIClient
@@ -174,38 +227,18 @@ public final class APIClient: Sendable {
         logger: Logger
     ) async throws {
         var currentEvent: String?
-        var currentData = "" 
+        var currentData = ""
         var currentId: String?
         var hasEventType = false
         var hasData = false
         var hasYielded = false
         var lastYieldedData = ""
 
-        func yieldEventIfComplete(force: Bool = false) {
-            if hasEventType && hasData && !currentData.isEmpty {
-                let dataChanged = currentData != lastYieldedData
-                // Only yield if we have not already yielded this event (avoid double yield when
-                // we yielded on "data" line but stream ends without a trailing blank line).
-                if !hasYielded || dataChanged {
-                    let event = SSEEvent(
-                        event: currentEvent,
-                        data: currentData,
-                        id: currentId
-                    )
-                    continuation.yield(event)
-                    lastYieldedData = currentData
-                    hasYielded = true
-                    if force {
-                        currentEvent = nil
-                        currentData = ""
-                        currentId = nil
-                        hasEventType = false
-                        hasData = false
-                        hasYielded = false
-                        lastYieldedData = ""
-                    }
-                } else if force {
-                    // Flush state without yielding again (already yielded this event).
+        func yieldPayloadIfComplete(force: Bool = false) {
+            guard hasEventType, hasData, !currentData.isEmpty else { return }
+            let dataChanged = currentData != lastYieldedData
+            guard !hasYielded || dataChanged else {
+                if force {
                     currentEvent = nil
                     currentData = ""
                     currentId = nil
@@ -214,6 +247,39 @@ public final class APIClient: Sendable {
                     hasYielded = false
                     lastYieldedData = ""
                 }
+                return
+            }
+            guard let eventType = SSEEventType(from: currentEvent) else {
+                logger.warning("Unknown SSE event type: \(currentEvent ?? "nil")", handlerType: "APIClient")
+                lastYieldedData = currentData
+                hasYielded = true
+                if force {
+                    currentEvent = nil
+                    currentData = ""
+                    currentId = nil
+                    hasEventType = false
+                    hasData = false
+                    hasYielded = false
+                    lastYieldedData = ""
+                }
+                return
+            }
+            do {
+                let event = try eventType.parse(event: currentEvent, data: currentData, id: currentId)
+                continuation.yield(event)
+            } catch {
+                logger.error("SSE parse error for \(eventType.rawValue): \(error)", handlerType: "APIClient", error: error)
+            }
+            lastYieldedData = currentData
+            hasYielded = true
+            if force {
+                currentEvent = nil
+                currentData = ""
+                currentId = nil
+                hasEventType = false
+                hasData = false
+                hasYielded = false
+                lastYieldedData = ""
             }
         }
 
@@ -224,7 +290,7 @@ public final class APIClient: Sendable {
                 if hasEventType && hasData && !currentData.isEmpty {
                     let dataChanged = currentData != lastYieldedData
                     if !hasYielded || dataChanged {
-                        yieldEventIfComplete(force: true)
+                        yieldPayloadIfComplete(force: true)
                     } else {
                         currentEvent = nil
                         currentData = ""
@@ -253,7 +319,7 @@ public final class APIClient: Sendable {
                 switch field.lowercased() {
                 case "event":
                     if hasEventType && hasData && !currentData.isEmpty && !hasYielded {
-                        yieldEventIfComplete(force: true)
+                        yieldPayloadIfComplete(force: true)
                     } else {
                         currentEvent = nil
                         currentData = ""
@@ -276,7 +342,7 @@ public final class APIClient: Sendable {
                     }
                     hasData = true
                     if hasEventType && !hasYielded {
-                        yieldEventIfComplete()
+                        yieldPayloadIfComplete()
                     }
 
                 case "id":
@@ -289,7 +355,7 @@ public final class APIClient: Sendable {
             }
         }
 
-        yieldEventIfComplete(force: true)
+        yieldPayloadIfComplete(force: true)
         logger.debug("SSE Stream Completed")
         continuation.finish()
     }

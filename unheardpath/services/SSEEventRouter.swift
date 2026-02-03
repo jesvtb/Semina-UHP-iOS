@@ -4,24 +4,18 @@ import CoreLocation
 import core
 
 /// Centralized router for SSE events from both /v1/chat and /v1/orchestrator endpoints
-/// Routes events to appropriate managers based on event type
+/// Routes parsed payloads to appropriate managers based on event type
 @MainActor
-class SSEEventRouter: ObservableObject, SSEEventHandler {
-    // Optional manager references - not all endpoints need all managers
-    // Note: Strong reference is safe here because ChatManager only weakly references SSEEventRouter,
-    // and both are managed by SwiftUI (as @StateObject and environmentObject), preventing retain cycles
+class SSEEventRouter: ObservableObject {
     private var chatManager: ChatManager?
     private let contentManager: ContentManager?
     private let mapFeaturesManager: MapFeaturesManager?
     private let toastManager: ToastManager?
-    
-    // Logger for routing and debug
     private let logger: Logger
-    
-    // Callbacks for actions that need view coordination
+
     var onShowInfoSheet: (() -> Void)?
     var onDismissKeyboard: (() -> Void)?
-    
+
     init(
         chatManager: ChatManager? = nil,
         contentManager: ContentManager? = nil,
@@ -35,45 +29,55 @@ class SSEEventRouter: ObservableObject, SSEEventHandler {
         self.toastManager = toastManager
         self.logger = logger
     }
-    
+
     /// Set ChatManager reference after initialization
-    /// Called from AppContentView.onAppear after @StateObject is initialized
     func setChatManager(_ manager: ChatManager) {
         self.chatManager = manager
     }
-    
-    // MARK: - SSEEventHandler Implementation
-    
-    func onToast(_ toast: ToastData) async {
-        toastManager?.show(toast)
-        logger.debug("Routing toast to ToastManager")
-    }
-    
-    func onChatChunk(content: String, isStreaming: Bool) async {
-        await chatManager?.handleChatChunk(content: content, isStreaming: isStreaming)
-    }
-    
-    func onStop() async {
-        await chatManager?.handleStop()
-        logger.debug("Routing stop to ChatManager")
-    }
-    
-    func onMap(features: [[String: JSONValue]]) async {
-        logger.debug("Routing map features to MapFeaturesManager")
-        mapFeaturesManager?.apply(features: features)
-        // Also dismiss keyboard when map arrives (UX improvement)
-        onDismissKeyboard?()
-    }
-    
-    func onHook(action: String) async {
-        logger.debug("Routing hook action: \(action)")
-        if action.lowercased() == "show info sheet" {
-            onShowInfoSheet?()
-        }
-    }
-    
-    func onContent(type: ContentViewType, data: ContentSection.ContentSectionData) async {
-        logger.debug("Routing content (\(type.rawValue)) to ContentManager")
+
+    /// Set content directly (e.g. for testing or when already holding ContentSectionData).
+    /// For parsed SSE events use route(.content(typeString:dataValue:)) instead.
+    func setContent(type: ContentViewType, data: ContentSection.ContentSectionData) {
         contentManager?.setContent(type: type, data: data)
+    }
+
+    /// Route a parsed SSE event to the appropriate manager
+    func route(_ event: SSEEvent) async {
+        switch event {
+        case .toast(let message, _, let variant):
+            let toastData = ToastData(type: variant, message: message)
+            toastManager?.show(toastData)
+            logger.debug("Routing toast to ToastManager")
+
+        case .chat(let chunk, let isStreaming):
+            await chatManager?.handleChatChunk(content: chunk, isStreaming: isStreaming)
+
+        case .stop:
+            await chatManager?.handleStop()
+            logger.debug("Routing stop to ChatManager")
+
+        case .map(let features):
+            mapFeaturesManager?.apply(features: features)
+            onDismissKeyboard?()
+            logger.debug("Routed map with \(features.count) features")
+
+        case .hook(let action):
+            logger.debug("Routing hook action: \(action)")
+            if action.lowercased() == "show info sheet" {
+                onShowInfoSheet?()
+            }
+
+        case .content(let typeString, let dataValue):
+            guard let contentType = ContentViewType(rawValue: typeString) else {
+                logger.warning("Unknown content type: \(typeString)", handlerType: "SSEEventRouter")
+                return
+            }
+            guard let contentData = ContentTypeRegistry.shared().parse(type: contentType, dataValue: dataValue.asAny) else {
+                logger.warning("Failed to parse content type: \(typeString)", handlerType: "SSEEventRouter")
+                return
+            }
+            contentManager?.setContent(type: contentType, data: contentData)
+            logger.debug("Routed content: \(typeString)")
+        }
     }
 }

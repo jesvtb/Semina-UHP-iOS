@@ -34,7 +34,7 @@ extension MainView {
                 #endif
                 return
             }
-            let processor = SSEEventProcessor(handler: router)
+            let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
             
             logger.debug("Successfully added location_detected event to EventManager")
@@ -70,7 +70,7 @@ extension MainView {
                 #endif
                 return
             }
-            let processor = SSEEventProcessor(handler: router)
+            let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
 
             logger.debug("Successfully added location_searched event to EventManager")

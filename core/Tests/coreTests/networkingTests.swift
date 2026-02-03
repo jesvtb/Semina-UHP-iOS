@@ -319,3 +319,123 @@ struct NetworkingTests {
         printItem(item: mapSearchResult)
     }
 }
+
+// MARK: - SSEEventType and SSEEvent Tests
+
+@Suite("SSEEventType and SSEEvent tests")
+struct SSEEventTypeTests {
+
+    @Test("SSEEventType.init(from:) returns nil for nil or empty")
+    func initFromNilOrEmpty() throws {
+        try require(SSEEventType(from: nil) == nil, success: "nil returns nil", failure: "nil did not return nil")
+        try require(SSEEventType(from: "") == nil, success: "empty returns nil", failure: "empty did not return nil")
+    }
+
+    @Test("SSEEventType.init(from:) normalizes to lowercase and handles overview alias")
+    func initFromNormalizes() throws {
+        try require(SSEEventType(from: "TOAST") == .toast, success: "TOAST -> toast", failure: "TOAST did not map to toast")
+        try require(SSEEventType(from: "overview") == .content, success: "overview -> content", failure: "overview did not map to content")
+        try require(SSEEventType(from: "chat") == .chat, success: "chat -> chat", failure: "chat did not map")
+    }
+
+    @Test("SSEEventType.parse toast returns event")
+    func parseToast() throws {
+        guard let type = SSEEventType(from: "toast") else {
+            try require(false, success: "", failure: "SSEEventType from toast failed")
+            return
+        }
+        let event = try type.parse(event: "toast", data: "{\"message\":\"Hello\",\"duration\":3.0}", id: nil)
+        if case .toast(let message, let duration, let variant) = event {
+            try require(message == "Hello", success: "message is Hello", failure: "message is \(message)")
+            try require(duration == 3.0, success: "duration is 3.0", failure: "duration is \(String(describing: duration))")
+            try require(variant == nil, success: "variant is nil", failure: "variant is \(String(describing: variant))")
+        } else {
+            try require(false, success: "", failure: "Expected toast event, got \(event)")
+        }
+    }
+
+    @Test("SSEEventType.parse chat returns chunk and isStreaming")
+    func parseChat() throws {
+        guard let type = SSEEventType(from: "chat") else {
+            try require(false, success: "", failure: "SSEEventType from chat failed")
+            return
+        }
+        let event = try type.parse(event: "chat", data: "{\"content\":\"chunk1\",\"is_streaming\":true}", id: nil)
+        if case .chat(let chunk, let isStreaming) = event {
+            try require(chunk == "chunk1", success: "chunk is chunk1", failure: "chunk is \(chunk)")
+            try require(isStreaming == true, success: "isStreaming true", failure: "isStreaming is \(isStreaming)")
+        } else {
+            try require(false, success: "", failure: "Expected chat event, got \(event)")
+        }
+    }
+
+    @Test("SSEEventType.parse stop returns stop event")
+    func parseStop() throws {
+        guard let type = SSEEventType(from: "stop") else {
+            try require(false, success: "", failure: "SSEEventType from stop failed")
+            return
+        }
+        let event = try type.parse(event: "stop", data: "", id: nil)
+        if case .stop = event {
+            try require(true, success: "stop event", failure: "")
+        } else {
+            try require(false, success: "", failure: "Expected stop event, got \(event)")
+        }
+    }
+
+    @Test("SSEEventType.parse hook returns event")
+    func parseHook() throws {
+        guard let type = SSEEventType(from: "hook") else {
+            try require(false, success: "", failure: "SSEEventType from hook failed")
+            return
+        }
+        let event = try type.parse(event: "hook", data: "{\"action\":\"show info sheet\"}", id: nil)
+        if case .hook(let action) = event {
+            try require(action == "show info sheet", success: "action is show info sheet", failure: "action is \(action)")
+        } else {
+            try require(false, success: "", failure: "Expected hook event, got \(event)")
+        }
+    }
+
+    @Test("SSEEventType.parse toast throws missingField when message missing")
+    func parseToastMissingField() throws {
+        guard let type = SSEEventType(from: "toast") else {
+            try require(false, success: "", failure: "SSEEventType from toast failed")
+            return
+        }
+        do {
+            _ = try type.parse(event: "toast", data: "{\"duration\":3.0}", id: nil)
+            try require(false, success: "", failure: "Expected ParseError.missingField")
+        } catch ParseError.missingField(let field) {
+            try require(field == "message", success: "missingField(message)", failure: "missingField(\(field))")
+        } catch {
+            try require(false, success: "", failure: "Expected ParseError.missingField, got \(error)")
+        }
+    }
+
+    @Test("SSEEventType.parse map returns event with GeoJSON features")
+    func parseMap() throws {
+        let featureCollection: [String: Any] = [
+            "type": "FeatureCollection",
+            "features": [
+                [
+                    "type": "Feature",
+                    "geometry": ["type": "Point", "coordinates": [12.5, 41.9]],
+                    "properties": ["title": "Test"] as [String: Any]
+                ] as [String: Any]
+            ] as [[String: Any]]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: featureCollection)
+        let jsonString = String(data: data, encoding: .utf8) ?? ""
+        guard let type = SSEEventType(from: "map") else {
+            try require(false, success: "", failure: "SSEEventType from map failed")
+            return
+        }
+        let event = try type.parse(event: "map", data: jsonString, id: nil)
+        if case .map(let features) = event {
+            try require(features.count == 1, success: "one feature", failure: "got \(features.count) features")
+        } else {
+            try require(false, success: "", failure: "Expected map event, got \(event)")
+        }
+    }
+}
