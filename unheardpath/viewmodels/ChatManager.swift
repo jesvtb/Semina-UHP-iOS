@@ -18,6 +18,7 @@ class ChatManager: ObservableObject {
     // MARK: - Dependencies
     private let uhpGateway: UHPGateway
     private let userManager: UserManager
+    private let logger: Logger
     
     // Router reference set by AppContentView after initialization
     weak var sseEventRouter: SSEEventRouter?
@@ -36,10 +37,12 @@ class ChatManager: ObservableObject {
     // MARK: - Initialization
     init(
         uhpGateway: UHPGateway,
-        userManager: UserManager
+        userManager: UserManager,
+        logger: Logger = AppLifecycleManager.sharedLogger
     ) {
         self.uhpGateway = uhpGateway
         self.userManager = userManager
+        self.logger = logger
     }
     
     /// Restores chat messages from EventManager's persisted events (UserDefaults).
@@ -62,9 +65,7 @@ class ChatManager: ObservableObject {
         // Extract and validate draft message
         let text = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
-            #if DEBUG
-            print("⚠️ sendMessage: Message is empty after trimming, not sending")
-            #endif
+            logger.debug("sendMessage: Message is empty after trimming, not sending")
             return
         }
         
@@ -95,9 +96,7 @@ class ChatManager: ObservableObject {
                 } else {
                     device_lang = Locale.current.languageCode ?? device_lang
                 }
-                #if DEBUG
-                print("⚠️ Using fallback device_lang: \(device_lang) (user not initialized yet)")
-                #endif
+                logger.debug("Using fallback device_lang: \(device_lang) (user not initialized yet)")
             }
             
             // Build evt_data with message and device_lang (no location details)
@@ -116,17 +115,13 @@ class ChatManager: ObservableObject {
             // Track event in EventManager and get SSE stream
             // EventManager handles persistence and backend sending, returns stream for SSE processing
             guard let stream = try await eventManager?.addEvent(chatSentEvent) else {
-                #if DEBUG
-                print("⚠️ sendMessage: No stream returned from EventManager")
-                #endif
+                logger.debug("sendMessage: No stream returned from EventManager")
                 return
             }
             
             // Process SSE events using unified router
             guard let router = sseEventRouter else {
-                #if DEBUG
-                print("⚠️ sendMessage: SSEEventRouter not available")
-                #endif
+                logger.debug("sendMessage: SSEEventRouter not available")
                 return
             }
             let processor = SSEEventProcessor(handler: router)
@@ -145,9 +140,7 @@ class ChatManager: ObservableObject {
                     if existingMessage.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         // Remove empty placeholder if stream ended without content
                         messages.removeLast()
-                        #if DEBUG
-                        print("✅ sendMessage cleanup: Removed empty streaming placeholder after stream completion")
-                        #endif
+                        logger.debug("sendMessage cleanup: Removed empty streaming placeholder after stream completion")
                     } else {
                         // Mark as not streaming
                         let updatedMessage = ChatMessage(
@@ -158,20 +151,16 @@ class ChatManager: ObservableObject {
                         )
                         messages[lastIndex] = updatedMessage
                         updateLastMsg(updatedMessage)
-                        #if DEBUG
-                        print("✅ sendMessage cleanup: Marked message as not streaming after stream completion")
-                        #endif
+                        logger.debug("sendMessage cleanup: Marked message as not streaming after stream completion")
                     }
                 }
             }
             
         } catch {
-            #if DEBUG
-            print("❌ Failed to send chat message: \(error.localizedDescription)")
+            logger.error("Failed to send chat message: \(error.localizedDescription)", handlerType: "ChatManager", error: error)
             if let apiError = error as? APIError {
-                print("   API Error: \(apiError.message) (code: \(apiError.code ?? -1))")
+                logger.debug("API Error: \(apiError.message) (code: \(apiError.code ?? -1))")
             }
-            #endif
             
             // Remove the streaming message placeholder on error
             if let lastIndex = messages.indices.last,
@@ -221,9 +210,7 @@ class ChatManager: ObservableObject {
     /// Called by SSEEventRouter when stop events arrive
     func handleStop() async {
         guard let lastIndex = messages.indices.last, !messages[lastIndex].isUser else {
-            #if DEBUG
-            print("⚠️ handleStop: No assistant message found to stop")
-            #endif
+            logger.debug("handleStop: No assistant message found to stop")
             return
         }
         
@@ -231,9 +218,7 @@ class ChatManager: ObservableObject {
         
         if lastMsg.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             messages.removeLast()
-            #if DEBUG
-            print("✅ handleStop: Removed empty streaming assistant placeholder")
-            #endif
+            logger.debug("handleStop: Removed empty streaming assistant placeholder")
         } else {
             messages[lastIndex] = ChatMessage(
                 id: lastMsg.id,
@@ -241,9 +226,7 @@ class ChatManager: ObservableObject {
                 isUser: lastMsg.isUser,
                 isStreaming: false
             )
-            #if DEBUG
-            print("✅ handleStop: Marked last assistant message as not streaming")
-            #endif
+            logger.debug("handleStop: Marked last assistant message as not streaming")
         }
         
         if let lastMsg = messages.last, !lastMsg.isUser {
@@ -286,9 +269,7 @@ class ChatManager: ObservableObject {
                 do {
                     try await eventManager.addEvent(chatReceivedEvent)
                 } catch {
-                    #if DEBUG
-                    print("⚠️ Failed to add chat_received event: \(error.localizedDescription)")
-                    #endif
+                    logger.error("Failed to add chat_received event: \(error.localizedDescription)", handlerType: "ChatManager", error: error)
                 }
             }
         }
