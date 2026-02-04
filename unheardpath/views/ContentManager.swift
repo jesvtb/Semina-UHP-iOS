@@ -809,11 +809,12 @@ struct ContentPoiListView: View {
         VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
             DisplayText("Points of Interest", scale: .article2, color: Color("onBkgTextColor20"))
             
-            ForEach(features) { feature in
+            // Use index as id so duplicate coordinates (same poi_ lat_lon) don't cause ForEach warnings
+            ForEach(Array(features.enumerated()), id: \.offset) { index, feature in
                 ContentPoiItemView(feature: feature)
                 
                 // Show divider if not the last item
-                if feature.id != features.last?.id {
+                if index < features.count - 1 {
                     Divider()
                         .background(Color("onBkgTextColor30").opacity(0.3))
                 }

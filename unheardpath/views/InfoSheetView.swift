@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import UIKit
 import core
 
 // MARK: - Scroll Offset Tracker
@@ -185,13 +186,21 @@ struct SectionPagedScrollView: View {
     @Binding var selectedIndex: Int
     /// When true, disables both horizontal paging and vertical scroll so drag-up-to-expand wins.
     var isScrollDisabled: Bool = false
+    /// Explicit content height - when provided, uses this instead of GeometryReader inference
+    var contentHeight: CGFloat?
 
     @State private var scrollPositionId: ContentViewType?
 
     var body: some View {
         GeometryReader { geo in
             let pageWidth = geo.size.width
-            let pageHeight = max(1, geo.size.height - geo.safeAreaInsets.bottom)
+            let pageHeight: CGFloat = {
+                if let contentHeight = contentHeight {
+                    return contentHeight
+                } else {
+                    return max(1, geo.size.height - geo.safeAreaInsets.bottom)
+                }
+            }()
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 0) {
@@ -232,7 +241,106 @@ struct SectionPagedScrollView: View {
                 }
             }
         }
-        .frame(maxHeight: .infinity)
+        .frame(height: contentHeight)
+    }
+}
+
+// MARK: - Legacy Paged Scroll View (iOS 16 and below)
+/// Custom UIScrollView paging to avoid TabView's UICollectionViewFlowLayout warnings.
+struct LegacyPagedScrollView: UIViewRepresentable {
+    let sections: [ContentSection]
+    @Binding var selectedIndex: Int
+    var isScrollDisabled: Bool = false
+
+    private func makePageView(for section: ContentSection) -> AnyView {
+        AnyView(
+            ScrollView {
+                ContentViewRegistry.view(for: section)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Spacing.current.spaceS)
+                    .padding(.bottom, 100)
+            }
+            .disabled(isScrollDisabled)
+        )
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(selectedIndex: $selectedIndex)
+    }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.isPagingEnabled = true
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.bounces = false
+        scrollView.delegate = context.coordinator
+        scrollView.isScrollEnabled = !isScrollDisabled
+        return scrollView
+    }
+
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        scrollView.isScrollEnabled = !isScrollDisabled
+
+        let pageWidth = scrollView.bounds.width
+        let pageHeight = scrollView.bounds.height
+        let contentSize = CGSize(width: pageWidth * CGFloat(sections.count), height: pageHeight)
+        scrollView.contentSize = contentSize
+
+        if context.coordinator.hostingControllers.count != sections.count {
+            context.coordinator.hostingControllers.forEach { controller in
+                controller.view.removeFromSuperview()
+            }
+            context.coordinator.hostingControllers = sections.map { section in
+                let controller = UIHostingController(rootView: makePageView(for: section))
+                controller.view.backgroundColor = .clear
+                scrollView.addSubview(controller.view)
+                return controller
+            }
+        } else {
+            for (index, section) in sections.enumerated() {
+                context.coordinator.hostingControllers[index].rootView = makePageView(for: section)
+            }
+        }
+
+        for (index, controller) in context.coordinator.hostingControllers.enumerated() {
+            let originX = CGFloat(index) * pageWidth
+            controller.view.frame = CGRect(x: originX, y: 0, width: pageWidth, height: pageHeight)
+        }
+
+        let targetOffset = CGPoint(x: CGFloat(selectedIndex) * pageWidth, y: 0)
+        if scrollView.contentOffset != targetOffset {
+            scrollView.setContentOffset(targetOffset, animated: false)
+        }
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        @Binding var selectedIndex: Int
+        var hostingControllers: [UIHostingController<AnyView>] = []
+
+        init(selectedIndex: Binding<Int>) {
+            self._selectedIndex = selectedIndex
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            updateSelectedIndex(scrollView)
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            if !decelerate {
+                updateSelectedIndex(scrollView)
+            }
+        }
+
+        private func updateSelectedIndex(_ scrollView: UIScrollView) {
+            let pageWidth = max(scrollView.bounds.width, 1)
+            let newIndex = Int(round(scrollView.contentOffset.x / pageWidth))
+            let maxIndex = max(hostingControllers.count - 1, 0)
+            let clampedIndex = min(max(newIndex, 0), maxIndex)
+            if clampedIndex != selectedIndex {
+                selectedIndex = clampedIndex
+            }
+        }
     }
 }
 
@@ -287,6 +395,26 @@ struct InfoSheet: View {
     // Threshold for hiding tab bar (scrolled down by this amount)
     // Negative values mean scrolled down (content moved up)
     private let hideTabBarThreshold: CGFloat = -20
+    
+    // Fixed UI element heights for content height calculation
+    private let dragHandleHeight: CGFloat = 25 // 5 (height) + 12 (top padding) + 8 (bottom padding)
+    private let estimatedHeaderTabBarHeight: CGFloat = 120 // Estimated combined height of header + tab bar when visible
+    
+    /// Computes explicit paging container height based on current snap point
+    /// This is used for the SectionPagedScrollView (iOS 17+)
+    private var pagingContainerHeight: CGFloat {
+        let currentHeight = sheetSnapPoint.height(fullHeight: fullHeight)
+        
+        if sheetSnapPoint == .full {
+            // At full height, header/tab bar are in safeAreaInset (overlay), so content can use more space
+            // Subtract drag handle and bottom safe area
+            return max(1, currentHeight - dragHandleHeight - bottomSafeAreaInsetHeight)
+        } else {
+            // At partial/collapsed, header and tab bar are in VStack above content
+            // Subtract drag handle and header+tab bar (no bottom safe area needed as sheet doesn't extend to bottom)
+            return max(1, currentHeight - dragHandleHeight - estimatedHeaderTabBarHeight)
+        }
+    }
     
     /// Calculates the vertical offset for a given snap point
     private func offsetForSnapPoint(_ snapPoint: SnapPoint) -> CGFloat {
@@ -350,28 +478,16 @@ struct InfoSheet: View {
                                 SectionPagedScrollView(
                                     sections: contentManager.orderedSections,
                                     selectedIndex: $selectedSectionIndex,
-                                    isScrollDisabled: sheetSnapPoint != .full
+                                    isScrollDisabled: sheetSnapPoint != .full,
+                                    contentHeight: pagingContainerHeight
                                 )
                             } else {
-                                GeometryReader { tabGeo in
-                                    let bottomInset = tabGeo.safeAreaInsets.bottom
-                                    let pageHeight = max(1, tabGeo.size.height - bottomInset - 1)
-                                    TabView(selection: $selectedSectionIndex) {
-                                        ForEach(Array(contentManager.orderedSections.enumerated()), id: \.element.id) { index, section in
-                                            ScrollView {
-                                                ContentViewRegistry.view(for: section)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                                    .padding(.horizontal, Spacing.current.spaceS)
-                                                    .padding(.bottom, 100)
-                                            }
-                                            .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
-                                            .frame(width: tabGeo.size.width, height: pageHeight)
-                                            .tag(index)
-                                        }
-                                    }
-                                    .tabViewStyle(.page(indexDisplayMode: .never))
-                                }
-                                .frame(maxHeight: .infinity)
+                                // Use custom UIScrollView paging to avoid UICollectionViewFlowLayout warnings
+                                LegacyPagedScrollView(
+                                    sections: contentManager.orderedSections,
+                                    selectedIndex: $selectedSectionIndex,
+                                    isScrollDisabled: sheetSnapPoint != .full
+                                )
                             }
                         }
                         .safeAreaInset(edge: .top, spacing: 0) {
