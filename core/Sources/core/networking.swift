@@ -27,7 +27,8 @@ public enum ParseError: Error, Sendable {
 /// Typed SSE event: one case per event kind with parsed payload. Stream and router use this type only.
 public enum SSEEvent: Sendable {
     case toast(message: String, duration: TimeInterval?, variant: String?)
-    case chat(chunk: String, isStreaming: Bool)
+    /// chatId: backend-provided chat UUID string; maps to ChatMessage.id when present.
+    case chat(chatId: String?, chunk: String, isStreaming: Bool)
     case stop
     case map(features: [[String: JSONValue]])
     case hook(action: String)
@@ -71,7 +72,9 @@ public enum SSEEventType: String, Sendable {
                 throw ParseError.missingField("content")
             }
             let isStreaming = dict["is_streaming"]?.boolValue ?? true
-            return .chat(chunk: content, isStreaming: isStreaming)
+            // Prefer chat_id from payload; fall back to SSE id line if present.
+            let chatId = dict["chat_id"]?.stringValue ?? id
+            return .chat(chatId: chatId, chunk: content, isStreaming: isStreaming)
 
         case .stop:
             return .stop

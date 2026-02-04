@@ -354,16 +354,47 @@ struct SSEEventTypeTests {
         }
     }
 
-    @Test("SSEEventType.parse chat returns chunk and isStreaming")
+    @Test("SSEEventType.parse chat returns chatId chunk and isStreaming")
     func parseChat() throws {
         guard let type = SSEEventType(from: "chat") else {
             try require(false, success: "", failure: "SSEEventType from chat failed")
             return
         }
-        let event = try type.parse(event: "chat", data: "{\"content\":\"chunk1\",\"is_streaming\":true}", id: nil)
-        if case .chat(let chunk, let isStreaming) = event {
+        let event = try type.parse(event: "chat", data: "{\"chat_id\":\"E621E1F8-C36C-495A-93FC-0C247A3E6E5F\",\"content\":\"chunk1\",\"is_streaming\":true}", id: nil)
+        if case .chat(let chatId, let chunk, let isStreaming) = event {
+            try require(chatId == "E621E1F8-C36C-495A-93FC-0C247A3E6E5F", success: "chatId from payload", failure: "chatId is \(String(describing: chatId))")
             try require(chunk == "chunk1", success: "chunk is chunk1", failure: "chunk is \(chunk)")
             try require(isStreaming == true, success: "isStreaming true", failure: "isStreaming is \(isStreaming)")
+        } else {
+            try require(false, success: "", failure: "Expected chat event, got \(event)")
+        }
+    }
+
+    @Test("SSEEventType.parse chat without chat_id uses SSE id when present")
+    func parseChatUsesSseId() throws {
+        guard let type = SSEEventType(from: "chat") else {
+            try require(false, success: "", failure: "SSEEventType from chat failed")
+            return
+        }
+        let event = try type.parse(event: "chat", data: "{\"content\":\"chunk1\",\"is_streaming\":true}", id: "A621E1F8-C36C-495A-93FC-0C247A3E6E5F")
+        if case .chat(let chatId, let chunk, _) = event {
+            try require(chatId == "A621E1F8-C36C-495A-93FC-0C247A3E6E5F", success: "chatId from SSE id", failure: "chatId is \(String(describing: chatId))")
+            try require(chunk == "chunk1", success: "chunk is chunk1", failure: "chunk is \(chunk)")
+        } else {
+            try require(false, success: "", failure: "Expected chat event, got \(event)")
+        }
+    }
+
+    @Test("SSEEventType.parse chat without chat_id or id yields nil chatId")
+    func parseChatNilChatId() throws {
+        guard let type = SSEEventType(from: "chat") else {
+            try require(false, success: "", failure: "SSEEventType from chat failed")
+            return
+        }
+        let event = try type.parse(event: "chat", data: "{\"content\":\"chunk1\",\"is_streaming\":true}", id: nil)
+        if case .chat(let chatId, let chunk, _) = event {
+            try require(chatId == nil, success: "chatId is nil", failure: "chatId is \(String(describing: chatId))")
+            try require(chunk == "chunk1", success: "chunk is chunk1", failure: "chunk is \(chunk)")
         } else {
             try require(false, success: "", failure: "Expected chat event, got \(event)")
         }

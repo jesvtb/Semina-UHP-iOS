@@ -7,7 +7,7 @@ This document describes the SSE event types used by the app, their payload shape
 | Type | Payload Fields | SSEEvent case | Router Delivery |
 |------|----------------|---------------|------------------|
 | toast | message (string), duration? (number), variant? (string) | `.toast(message, duration, variant)` | ToastManager.show(ToastData) |
-| chat | content (string), is_streaming? (bool) | `.chat(chunk, isStreaming)` | ChatManager.handleChatChunk(content, isStreaming) — ChatManager accumulates chunks |
+| chat | chat_id? (string), content (string), is_streaming? (bool) | `.chat(chatId, chunk, isStreaming)` | ChatManager.handleChatChunk(chatId, content, isStreaming) — chat_id maps to ChatMessage.id; ChatManager accumulates chunks |
 | stop | (none) | `.stop` | ChatManager.handleStop() |
 | map | GeoJSON object (e.g. FeatureCollection with "features" or nested in "data"/"result.data") | `.map(features: [[String: JSONValue]])` | MapFeaturesManager.apply(features) |
 | hook | action (string) | `.hook(action)` | Router callbacks (e.g. onShowInfoSheet for "show info sheet") |
@@ -16,7 +16,7 @@ This document describes the SSE event types used by the app, their payload shape
 ## Payload JSON Shapes
 
 - **toast**: `{ "message": string, "duration"?: number, "variant"?: string }`
-- **chat**: `{ "content": string, "is_streaming"?: boolean }` — each event carries one chunk; ChatManager appends chunks to the current assistant message.
+- **chat**: `{ "chat_id"?: string, "content": string, "is_streaming"?: boolean }` — each event carries one chunk; when present, `chat_id` (or the SSE `id` line) maps to `ChatMessage.id` so the same response is identified across chunks; ChatManager appends chunks to the current assistant message.
 - **stop**: No payload (event type only).
 - **map**: GeoJSON object. Supports direct `"features"` array, or nested under `"data"` or `"result"` → `"data"`. Parsed via `GeoJSON.extractFeatures(from:)` in core.
 - **hook**: `{ "action": string }`

@@ -97,8 +97,9 @@ func printItem(item: SSEEvent) {
         print("   message: \(message)")
         print("   duration: \(String(describing: duration))")
         print("   variant: \(String(describing: variant))")
-    case .chat(let chunk, let isStreaming):
+    case .chat(let chatId, let chunk, let isStreaming):
         print("   case: chat")
+        print("   chatId: \(String(describing: chatId))")
         print("   chunk: \(chunk)")
         print("   isStreaming: \(isStreaming)")
     case .stop:

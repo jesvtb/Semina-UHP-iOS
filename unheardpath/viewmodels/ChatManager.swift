@@ -188,19 +188,38 @@ class ChatManager: ObservableObject {
     
     /// Handles chat content chunks from SSE stream
     /// Called by SSEEventRouter when chat events arrive. Accumulates chunks into the current assistant message.
-    func handleChatChunk(content: String, isStreaming: Bool) async {
+    /// When the backend sends `chat_id`, it is mapped to ChatMessage.id so the same response is identified across chunks and can be matched for persistence.
+    func handleChatChunk(chatId: String?, content: String, isStreaming: Bool) async {
+        let resolvedId = chatId.flatMap { UUID(uuidString: $0) }
         if let lastIndex = messages.indices.last, !messages[lastIndex].isUser {
             let existingMessage = messages[lastIndex]
-            let accumulatedText = existingMessage.text + content
-            messages[lastIndex] = ChatMessage(
-                id: existingMessage.id,
-                text: accumulatedText,
+            let isSameStream = resolvedId == nil || existingMessage.id == resolvedId
+            if isSameStream {
+                let accumulatedText = existingMessage.text + content
+                messages[lastIndex] = ChatMessage(
+                    id: existingMessage.id,
+                    text: accumulatedText,
+                    isUser: false,
+                    isStreaming: isStreaming
+                )
+                updateLastMsg(messages[lastIndex])
+            } else {
+                let assistantMessage = ChatMessage(
+                    id: resolvedId ?? UUID(),
+                    text: content,
+                    isUser: false,
+                    isStreaming: isStreaming
+                )
+                messages.append(assistantMessage)
+                updateLastMsg(assistantMessage)
+            }
+        } else {
+            let assistantMessage = ChatMessage(
+                id: resolvedId ?? UUID(),
+                text: content,
                 isUser: false,
                 isStreaming: isStreaming
             )
-            updateLastMsg(messages[lastIndex])
-        } else {
-            let assistantMessage = ChatMessage(text: content, isUser: false, isStreaming: isStreaming)
             messages.append(assistantMessage)
             updateLastMsg(assistantMessage)
         }

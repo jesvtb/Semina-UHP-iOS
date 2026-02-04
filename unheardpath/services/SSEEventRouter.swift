@@ -44,8 +44,8 @@ class SSEEventRouter: ObservableObject {
             toastManager?.show(toastData)
             logger.debug("Routing toast to ToastManager")
 
-        case .chat(let chunk, let isStreaming):
-            await chatManager.handleChatChunk(content: chunk, isStreaming: isStreaming)
+        case .chat(let chatId, let chunk, let isStreaming):
+            await chatManager.handleChatChunk(chatId: chatId, content: chunk, isStreaming: isStreaming)
 
         case .stop:
             await chatManager.handleStop()
