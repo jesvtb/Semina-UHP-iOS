@@ -135,9 +135,16 @@ class EventManager: ObservableObject {
                 saveEvents()
                 return stream
             }
+        } else if eventWithSession.evt_type == "chat_liked" || eventWithSession.evt_type == "chat_disliked" || eventWithSession.evt_type == "chat_bookmarked" {
+            // Reaction events: send to backend (same /v1/chat); consume stream so connection closes, no SSE UI processing
+            if let stream = try await sendEventToBackend(eventWithSession) {
+                for try await _ in stream {}
+            }
+            saveEvents()
+            return nil
         } else if eventWithSession.evt_type == "chat_received" {
             // Chat received: persist only (backend creates its own)
-            // No backend send needed
+            doNothing()
         }
         
         // Persist all events automatically
@@ -145,7 +152,10 @@ class EventManager: ObservableObject {
         
         return nil
     }
-    
+
+    /// Placeholder for "do nothing" branches (e.g. chat_received: persist only, no backend send).
+    private func doNothing() {}
+
     // MARK: - Location Derivation
     
     /// Scan events in reverse, set latest locations (mirrors backend logic)
@@ -289,7 +299,7 @@ class EventManager: ObservableObject {
         
         // Determine endpoint based on event type
         let endpoint: String
-        if event.evt_type == "chat_sent" {
+        if event.evt_type == "chat_sent" || event.evt_type == "chat_liked" || event.evt_type == "chat_disliked" || event.evt_type == "chat_bookmarked" {
             endpoint = "/v1/chat"
         } else if event.evt_type == "location_detected" || event.evt_type == "location_searched" {
             endpoint = "/v1/orchestor"

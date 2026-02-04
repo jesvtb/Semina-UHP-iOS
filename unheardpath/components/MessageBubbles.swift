@@ -1,10 +1,80 @@
 import SwiftUI
 import MarkdownUI
+import core
 
+// MARK: - Message Reaction Buttons
+
+/// Right-aligned group of reaction buttons (dislike, like, bookmark) for assistant messages.
+/// Sends chat_liked / chat_disliked / chat_bookmarked events with message_id; toggles to fill icon on tap.
+struct MessageReactions: View {
+    let message: ChatMessage
+    @EnvironmentObject private var eventManager: EventManager
+    @State private var isDisliked = false
+    @State private var isLiked = false
+    @State private var isBookmarked = false
+
+    private func sendChatReaction(evtType: String) {
+        let evtData: [String: JSONValue] = ["message_id": .string(message.id.uuidString)]
+        let event = UserEventBuilder.build(
+            evtType: evtType,
+            evtData: evtData,
+            sessionId: eventManager.sessionId
+        )
+        Task {
+            do {
+                _ = try await eventManager.addEvent(event)
+            } catch {
+                AppLifecycleManager.sharedLogger.error(
+                    "Failed to send \(evtType)",
+                    handlerType: "MessageReactions",
+                    error: error
+                )
+            }
+        }
+    }
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            HStack(spacing: Spacing.current.space2xs) {
+                Button {
+                    isDisliked = true
+                    sendChatReaction(evtType: "chat_disliked")
+                } label: {
+                    Image(systemName: isDisliked ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                        .font(.system(size: Spacing.current.spaceXs))
+                        .foregroundColor(Color("onBkgTextColor30"))
+                }
+                .buttonStyle(.plain)
+                Button {
+                    isLiked = true
+                    sendChatReaction(evtType: "chat_liked")
+                } label: {
+                    Image(systemName: isLiked ? "heart.fill" : "heart")
+                        .font(.system(size: Spacing.current.spaceXs))
+                        .foregroundColor(Color("onBkgTextColor30"))
+                }
+                .buttonStyle(.plain)
+                Button {
+                    isBookmarked = true
+                    sendChatReaction(evtType: "chat_bookmarked")
+                } label: {
+                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: Spacing.current.spaceXs))
+                        .foregroundColor(Color("onBkgTextColor30"))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, Spacing.current.spaceXs)
+    }
+}
+
+// MARK: - Message Bubble
 
 struct MessageBubble: View {
     let message: ChatMessage
-    
+
     private var messageWidth: CGFloat {
         UIScreen.main.bounds.width - Spacing.current.spaceXl
     }
@@ -21,6 +91,7 @@ struct MessageBubble: View {
 
     var body: some View {
         if !message.text.isEmpty {
+        VStack(alignment: message.isUser ? .trailing : .leading, spacing: Spacing.current.space2xs) {
         HStack(spacing: 0) {
             if message.isUser {
                 Spacer()
@@ -130,6 +201,10 @@ struct MessageBubble: View {
                 Spacer()
             }
         }
+        if !message.isUser {
+            MessageReactions(message: message)
+        }
+        }
         .id(message.id)
         
         }
@@ -151,6 +226,7 @@ struct MessageBubble: View {
         MessageBubble(message: ChatMessage(text: "## Ridiculus tellus\n\nplacerat massa euismod arcu amet mus suscipit conubia cubilia nascetur, **taciti iaculis** augue leo curae sagittis laoreet parturient risus orci dictumst praesent\n\n- ut felis nullam ornare aptent aenean magna tempus dolor lectus\n\n- elitatea ac sapien nunc praesent etiam ultricies habitasse nisl habitant\n\n- suscipit vulputate, sed dis lobortis diam ut cubilia blandit aptent aenean quisque placerat.", isUser: false, isStreaming: false))
         MessageBubble(message: ChatMessage(text: "## Ridiculus tellus\n\n**Step 1**: \n\nplacerat massa euismod arcu amet mus suscipit conubia cubilia nascetur\n\n**Step 2**: \n\n**taciti iaculis** augue leo curae sagittis laoreet parturient risus orci dictumst praesent \n\n**Step 3**: \n\nfelis nullam ornare aptent aenean magna tempus dolor lectus", isUser: false, isStreaming: false))
     }
+    .environmentObject(EventManager())
     .background(Color("AppBkgColor"))
     .padding(.horizontal, Spacing.current.space2xs)
 }
