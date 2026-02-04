@@ -23,6 +23,16 @@ enum LocationType: Sendable {
     case search
 }
 
+/// Result of the location send gate: one check decides skip, send same location with new time, or send new location.
+enum LocationSendDecision: Sendable {
+    /// Do nothing: no geocode, no send, no UserDefaults update.
+    case skip
+    /// Send existing latest location dict with new time (device only; no geocode).
+    case sendSameLocationNewTime
+    /// Geocode (if device) and send new location; or send the given location dict (search).
+    case sendNewLocation
+}
+
 /// Manages user events, derives locations from events, handles persistence, and prevents duplicate sends.
 /// Mirrors backend's User model from retail_user.py
 @MainActor
@@ -57,7 +67,10 @@ class EventManager: ObservableObject {
     
     private let inactivityTimeoutMinutes: Int = 30
     private let maxSessionDurationMinutes: Int = 240  // 4 hours
-    private let deviceLocationDistanceThreshold: Double = 50.0  // meters
+    /// Distance threshold (meters) for location send gate; used for both device and search.
+    private let locationDistanceThresholdMeters: Double = 200.0
+    /// Time threshold (seconds) for device location send gate; e.g. 12 hours.
+    private let locationTimeThresholdSeconds: TimeInterval = 12 * 3600
     
     // MARK: - Logger
     
@@ -226,38 +239,61 @@ class EventManager: ObservableObject {
     
     // MARK: - Deduplication
     
-    /// Deduplication check (for location events only)
-    func shouldSendLocation(_ location: [String: JSONValue], type: LocationType) -> Bool {
+    /// Single gate for location events: returns skip, send same location with new time (device only), or send new location.
+    /// - Parameters:
+    ///   - location: Location dict (must contain coordinate.lat/lng); for device can be a minimal dict from CLLocation.
+    ///   - type: .device or .search
+    /// - Returns: .skip = do nothing; .sendSameLocationNewTime = use latest location dict + new time (device, no geocode); .sendNewLocation = geocode and send (device) or send this dict (search).
+    func locationSendDecision(_ location: [String: JSONValue], type: LocationType) -> LocationSendDecision {
         let comparisonLocation: [String: JSONValue]?
-        
         switch type {
         case .device:
             comparisonLocation = latestDeviceLocation
         case .search:
             comparisonLocation = latestSearchLocation
         }
-        
+
         guard let comparison = comparisonLocation else {
-            // No previous location, always send
-            return true
+            return .sendNewLocation
         }
-        
-        // Extract coordinates for comparison
+
         guard let newCoord = extractCoordinate(from: location),
               let oldCoord = extractCoordinate(from: comparison) else {
-            // Can't compare, send to be safe
-            return true
+            return .sendNewLocation
         }
-        
-        // For device locations: check if distance > threshold
-        if type == .device {
-            let distance = calculateDistance(newCoord, oldCoord)
-            return distance > deviceLocationDistanceThreshold
+
+        let distance = calculateDistance(newCoord, oldCoord)
+
+        switch type {
+        case .device:
+            let now = Date()
+            guard let lastSentAt = lastDeviceLocationSentAt() else {
+                return .sendNewLocation
+            }
+            let timeSince = now.timeIntervalSince(lastSentAt)
+            if distance <= locationDistanceThresholdMeters && timeSince < locationTimeThresholdSeconds {
+                return .skip
+            }
+            if distance <= locationDistanceThresholdMeters && timeSince >= locationTimeThresholdSeconds {
+                return .sendSameLocationNewTime
+            }
+            return .sendNewLocation
+        case .search:
+            if distance <= locationDistanceThresholdMeters && newCoord.latitude == oldCoord.latitude && newCoord.longitude == oldCoord.longitude {
+                return .skip
+            }
+            return .sendNewLocation
         }
-        
-        // For search locations: any change is significant
-        return newCoord.latitude != oldCoord.latitude || newCoord.longitude != oldCoord.longitude
     }
+
+    /// Convenience: returns true when we should send (i.e. not skip). Use when only send/skip matters (e.g. search after geocode).
+    func shouldSendLocation(_ location: [String: JSONValue], type: LocationType) -> Bool {
+        switch locationSendDecision(location, type: type) {
+        case .skip: return false
+        case .sendSameLocationNewTime, .sendNewLocation: return true
+        }
+    }
+
     
     /// Extract coordinate from location dictionary
     private func extractCoordinate(from location: [String: JSONValue]) -> (latitude: Double, longitude: Double)? {
@@ -273,20 +309,36 @@ class EventManager: ObservableObject {
     private func calculateDistance(_ coord1: (latitude: Double, longitude: Double),
                                    _ coord2: (latitude: Double, longitude: Double)) -> Double {
         let earthRadius: Double = 6371000  // meters
-        
+
         let lat1Rad = coord1.latitude * .pi / 180
         let lat2Rad = coord2.latitude * .pi / 180
         let deltaLatRad = (coord2.latitude - coord1.latitude) * .pi / 180
         let deltaLngRad = (coord2.longitude - coord1.longitude) * .pi / 180
-        
+
         let a = sin(deltaLatRad / 2) * sin(deltaLatRad / 2) +
                 cos(lat1Rad) * cos(lat2Rad) *
                 sin(deltaLngRad / 2) * sin(deltaLngRad / 2)
         let c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        
+
         return earthRadius * c
     }
-    
+
+    /// Returns the timestamp of the most recent device location (location_detected) event sent, or nil if none.
+    private func lastDeviceLocationSentAt() -> Date? {
+        let allEvents = consolidateEvents()
+        guard let lastEvent = allEvents.filter({ $0.evt_type == "location_detected" }).max(by: { $0.evt_utc < $1.evt_utc }) else {
+            return nil
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        if let date = formatter.date(from: lastEvent.evt_utc) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: lastEvent.evt_utc)
+    }
+
     // MARK: - Backend Communication
     
     /// Send event to backend via uhpGateway
