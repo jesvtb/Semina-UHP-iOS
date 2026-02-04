@@ -241,7 +241,8 @@ struct SectionPagedScrollView: View {
                 }
             }
         }
-        .frame(height: contentHeight)
+        // .frame(maxHeight: contentHeight ?? .infinity)
+        .frame(maxHeight: .infinity)
     }
 }
 
@@ -396,8 +397,18 @@ struct InfoSheet: View {
     // Negative values mean scrolled down (content moved up)
     private let hideTabBarThreshold: CGFloat = -20
     
+    /// Minimum vertical drag (pt) before we treat the gesture as sheet collapse.
+    /// Avoids interpreting a slightly tilted horizontal swipe (paging) as a downward drag.
+    private let minVerticalDragForCollapse: CGFloat = 20
+    
+    /// True when the drag is predominantly vertical (height > width).
+    /// Used so horizontal paging swipes are not interpreted as sheet collapse.
+    private func isPredominantlyVerticalDown(_ translation: CGSize) -> Bool {
+        translation.height > 0 && translation.height > abs(translation.width)
+    }
+    
     // Fixed UI element heights for content height calculation
-    private let dragHandleHeight: CGFloat = 25 // 5 (height) + 12 (top padding) + 8 (bottom padding)
+    private let dragHandleHeight: CGFloat = 21 // 5 (height) + 12 (top padding) + 4 (bottom padding)
     private let estimatedHeaderTabBarHeight: CGFloat = 120 // Estimated combined height of header + tab bar when visible
     
     /// Computes explicit paging container height based on current snap point
@@ -458,52 +469,37 @@ struct InfoSheet: View {
                     .fill(Color.secondary.opacity(0.3))
                     .frame(width: 40, height: 5)
                     .padding(.top, 12)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 4)
                 
                 // Content: tabbed sections when we have sections, else single scroll
+                // Root layout: always drag handle → header → tab bar (when sections) → paging/scroll.
+                // No overlay/safeAreaInset so spacing is explicit and no extra gap.
                 Group {
                     if !contentManager.orderedSections.isEmpty {
                         VStack(spacing: 0) {
-                            if sheetSnapPoint != .full {
-                                VStack(spacing: 0) {
-                                    InfoSheetHeaderView(locationData: locationDetailData)
-                                        .padding(.top, Spacing.current.spaceXs)
-                                        .padding(.bottom, Spacing.current.spaceXs)
-                                        .padding(.horizontal, Spacing.current.spaceS)
-                                    InfoSheetSectionTabBar(sections: contentManager.orderedSections, selectedIndex: $selectedSectionIndex)
-                                }
-                                .transition(.opacity)
+                            // Header and tab bar always in flow (full and non-full)
+                            VStack(spacing: 0) {
+                                InfoSheetHeaderView(locationData: locationDetailData)
+                                    .padding(.top, Spacing.current.space2xs)
+                                    .padding(.bottom, Spacing.current.spaceXs)
+                                    .padding(.horizontal, Spacing.current.spaceS)
+                                InfoSheetSectionTabBar(sections: contentManager.orderedSections, selectedIndex: $selectedSectionIndex)
                             }
                             if #available(iOS 17.0, *) {
                                 SectionPagedScrollView(
                                     sections: contentManager.orderedSections,
                                     selectedIndex: $selectedSectionIndex,
                                     isScrollDisabled: sheetSnapPoint != .full,
-                                    contentHeight: pagingContainerHeight
+                                    // contentHeight: nil
                                 )
+                                // .frame(maxHeight: .infinity)
                             } else {
-                                // Use custom UIScrollView paging to avoid UICollectionViewFlowLayout warnings
                                 LegacyPagedScrollView(
                                     sections: contentManager.orderedSections,
                                     selectedIndex: $selectedSectionIndex,
                                     isScrollDisabled: sheetSnapPoint != .full
                                 )
-                            }
-                        }
-                        .safeAreaInset(edge: .top, spacing: 0) {
-                            if sheetSnapPoint == .full {
-                                VStack(spacing: 0) {
-                                    InfoSheetHeaderView(locationData: locationDetailData)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, Spacing.current.spaceS)
-                                        .padding(.top, Spacing.current.spaceM)
-                                        .padding(.bottom, Spacing.current.spaceXs)
-                                        .background(Color("AppBkgColor"))
-                                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
-                                    InfoSheetSectionTabBar(sections: contentManager.orderedSections, selectedIndex: $selectedSectionIndex)
-                                        .background(Color("AppBkgColor"))
-                                }
-                                .transition(.opacity)
+                                .frame(maxHeight: .infinity)
                             }
                         }
                     } else {
@@ -525,30 +521,17 @@ struct InfoSheet: View {
                             }
                         }
                         .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
-                        .safeAreaInset(edge: .top, spacing: 0) {
-                            if sheetSnapPoint == .full {
-                                VStack(spacing: 0) {
-                                    InfoSheetHeaderView(locationData: locationDetailData)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, Spacing.current.spaceS)
-                                        .padding(.top, Spacing.current.spaceM)
-                                        .padding(.bottom, Spacing.current.spaceXs)
-                                        .background(Color("AppBkgColor"))
-                                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
-                                }
-                                .transition(.opacity)
-                            }
-                        }
                     }
                 }
-                .animation(.spring(response: 0.35, dampingFraction: 0.82), value: sheetSnapPoint)
                 .compositingGroup()
                 .coordinateSpace(name: "scroll")
                 .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            if sheetSnapPoint == .full && value.translation.height > 0 {
+                            if sheetSnapPoint == .full,
+                               value.translation.height > minVerticalDragForCollapse,
+                               isPredominantlyVerticalDown(value.translation) {
                                 guard isScrollAtTop else {
                                     dragOffset = 0
                                     return
@@ -557,7 +540,9 @@ struct InfoSheet: View {
                             }
                         }
                         .onEnded { value in
-                            if sheetSnapPoint == .full && value.translation.height > 0 {
+                            if sheetSnapPoint == .full,
+                               value.translation.height > minVerticalDragForCollapse,
+                               isPredominantlyVerticalDown(value.translation) {
                                 guard isScrollAtTop else {
                                     dragOffset = 0
                                     return
@@ -605,17 +590,21 @@ struct InfoSheet: View {
                         if value.translation.height <= 0 {
                             return
                         }
-                        // CRITICAL: Only allow downward drag if scroll content is exactly at top
-                        // If not at top, completely block any drag behavior
+                        // Only treat as collapse when predominantly vertical and past threshold
+                        // so horizontal paging swipes (slight tilt) are not interpreted as sheet drag
+                        guard value.translation.height > minVerticalDragForCollapse,
+                              isPredominantlyVerticalDown(value.translation) else {
+                            dragOffset = 0
+                            return
+                        }
+                        // Only allow downward drag if scroll content is exactly at top
                         guard isScrollAtTop else {
                             #if DEBUG
                             print("🚫 Collapse blocked - scroll offset: \(scrollViewContentOffset), isAtTop: \(isScrollAtTop)")
                             #endif
-                            // Reset any existing drag offset and prevent further drag
                             dragOffset = 0
                             return
                         }
-                        // Only set drag offset if we're at top
                         dragOffset = value.translation.height
                     } else {
                         // Not at full - handle all drags
@@ -623,8 +612,10 @@ struct InfoSheet: View {
                     }
                 }
                 .onEnded { value in
-                    // Handle swipe from .full to .collapsed (only if scroll is at top)
-                    if sheetSnapPoint == .full && value.translation.height > 0 {
+                    // Handle swipe from .full to .collapsed only when predominantly vertical
+                    if sheetSnapPoint == .full,
+                       value.translation.height > minVerticalDragForCollapse,
+                       isPredominantlyVerticalDown(value.translation) {
                         guard isScrollAtTop else {
                             dragOffset = 0
                             return
@@ -636,12 +627,11 @@ struct InfoSheet: View {
                         return
                     }
                     
-                    // Handle all other swipes
+                    // Handle all other swipes (non-full or non-vertical)
                     let newSnapPoint = determineSnapPoint(
                         dragDistance: value.translation.height
                     )
                     
-                    // Only update if snap point changed
                     if newSnapPoint != sheetSnapPoint {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             sheetSnapPoint = newSnapPoint
