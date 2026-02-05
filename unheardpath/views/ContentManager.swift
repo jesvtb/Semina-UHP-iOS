@@ -388,35 +388,52 @@ struct LocationDetailContentType: ContentTypeDefinition {
     
     static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
         guard let raw = dataValue as? [String: Any] else { return nil }
-        let locationDict: LocationDict
+        
+        let location: CLLocation
+        let altitude: Double
+        
         if let coord = raw["coordinate"] as? [String: Any], let lat = coord["lat"] as? Double, let lng = coord["lng"] as? Double {
-            var coordDict: [String: JSONValue] = ["lat": .double(lat), "lng": .double(lng)]
-            if let alt = coord["alt"] as? Double { coordDict["alt"] = .double(alt) }
-            locationDict = [
-                "coordinate": .dictionary(coordDict),
-                "place_name": (raw["place_name"] as? String).map { .string($0) } ?? .string(""),
-                "subdivisions": (raw["subdivisions"] as? String).map { .string($0) } ?? .string(""),
-                "country_name": (raw["country_name"] as? String).map { .string($0) } ?? .string(""),
-            ]
+            altitude = coord["alt"] as? Double ?? 0
+            location = CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng),
+                altitude: altitude,
+                horizontalAccuracy: 0,
+                verticalAccuracy: altitude != 0 ? 0 : -1,
+                timestamp: Date()
+            )
         } else if let lat = raw["latitude"] as? Double, let lon = raw["longitude"] as? Double {
-            let altitude = raw["altitude"] as? Double ?? 0
-            var coordDict: [String: JSONValue] = ["lat": .double(lat), "lng": .double(lon)]
-            if altitude != 0 { coordDict["alt"] = .double(altitude) }
-            locationDict = [
-                "coordinate": .dictionary(coordDict),
-                "place_name": (raw["place_name"] as? String).map { .string($0) } ?? .string(""),
-                "subdivisions": (raw["subdivisions"] as? String).map { .string($0) } ?? .string(""),
-                "country_name": (raw["country_name"] as? String).map { .string($0) } ?? .string(""),
-            ]
+            altitude = raw["altitude"] as? Double ?? 0
+            location = CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                altitude: altitude,
+                horizontalAccuracy: 0,
+                verticalAccuracy: altitude != 0 ? 0 : -1,
+                timestamp: Date()
+            )
         } else {
             return nil
         }
-        return .locationDetail(dict: locationDict)
+        
+        let locationDetailData = LocationDetailData(
+            location: location,
+            placeName: raw["place_name"] as? String,
+            subdivisions: raw["subdivisions"] as? String,
+            countryName: raw["country_name"] as? String,
+            countryCode: raw["country_code"] as? String,
+            timezone: (raw["timezone"] as? String) ?? TimeZone.current.identifier,
+            adminArea: raw["adminArea"] as? String,
+            subAdminArea: raw["subAdminArea"] as? String,
+            locality: raw["locality"] as? String,
+            subLocality: raw["subLocality"] as? String,
+            iso3166_2: raw["iso3166_2"] as? String,
+            isOcean: raw["isOcean"] as? String
+        )
+        
+        return .locationDetail(locationDetailData: locationDetailData)
     }
     
     static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
-        if case .locationDetail(let locationDict) = data,
-           let locationData = LocationDetailData(locationDict: locationDict) {
+        if case .locationDetail(let locationData) = data {
             return AnyView(LocationDetailView(location: locationData.location))
         }
         return AnyView(EmptyView())
@@ -507,36 +524,9 @@ func makeLocationDict(location: CLLocation, placeName: String?, subdivisions: St
     return locationDict
 }
 
-// MARK: - Location Detail Data
-struct LocationDetailData {
-    let location: CLLocation
-    let placeName: String?
-    let subdivisions: String?
-    let countryName: String?
-
-    /// Builds LocationDetailData from a LocationDict (NewLocation schema from core).
-    init?(locationDict: LocationDict) {
-        guard let coordVal = locationDict["coordinate"],
-              let coord = coordVal.dictionaryValue,
-              let latVal = coord["lat"],
-              let lat = latVal.doubleValue,
-              let lngVal = coord["lng"],
-              let lng = lngVal.doubleValue else {
-            return nil
-        }
-        let alt = coord["alt"]?.doubleValue ?? 0
-        location = CLLocation(
-            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng),
-            altitude: alt,
-            horizontalAccuracy: 0,
-            verticalAccuracy: 0,
-            timestamp: Date()
-        )
-        placeName = locationDict["place_name"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
-        subdivisions = locationDict["subdivisions"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
-        countryName = locationDict["country_name"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
-    }
-
+// MARK: - Location Detail Data Display Extensions
+/// Extends core's LocationDetailData with display helper computed properties for UI
+extension LocationDetailData {
     /// Parsed subdivisions array (split by comma and trimmed)
     private var subdivisionsParts: [String] {
         subdivisions?
@@ -613,7 +603,7 @@ struct ContentSection: Identifiable {
     enum ContentSectionData {
         case regionalCuisine(data: RegionalCuisineData)
         case overview(markdown: String)
-        case locationDetail(dict: LocationDict)
+        case locationDetail(locationDetailData: LocationDetailData)
         case pointsOfInterest(features: [PointFeature])
     }
     
@@ -629,6 +619,9 @@ struct ContentSection: Identifiable {
 class ContentManager: ObservableObject {
     @Published private var sections: [ContentViewType: ContentSection] = [:]
     
+    /// Tracks whether the current location content is from device location (true) or lookup/search location (false)
+    @Published var isContentFromDeviceLocation: Bool = true
+    
     /// Returns sections in display order (from ContentTypeRegistry)
     var orderedSections: [ContentSection] {
         ContentTypeRegistry.shared().displayOrder.compactMap { type in
@@ -636,18 +629,27 @@ class ContentManager: ObservableObject {
         }
     }
     
-    /// Returns LocationDetailData if available, for header view construction (derived from stored LocationDict).
+    /// Returns LocationDetailData if available, for header view construction.
     var locationDetailData: LocationDetailData? {
         if let locationSection = sections[.locationDetail],
-           case .locationDetail(let locationDict) = locationSection.data {
-            return LocationDetailData(locationDict: locationDict)
+           case .locationDetail(let data) = locationSection.data {
+            return data
         }
         return nil
     }
     
     /// Set or update content by type
-    func setContent(type: ContentViewType, data: ContentSection.ContentSectionData) {
+    /// - Parameters:
+    ///   - type: The content view type to set
+    ///   - data: The content section data
+    ///   - isFromDeviceLocation: For locationDetail type, indicates if content is from device location (true) or lookup/search (false)
+    func setContent(type: ContentViewType, data: ContentSection.ContentSectionData, isFromDeviceLocation: Bool? = nil) {
         sections[type] = ContentSection(type: type, data: data)
+        
+        // Update location source tracking when locationDetail content is set
+        if type == .locationDetail, let isDevice = isFromDeviceLocation {
+            isContentFromDeviceLocation = isDevice
+        }
     }
     
     /// Remove content by type

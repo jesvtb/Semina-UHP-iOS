@@ -87,6 +87,14 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
     }
 }
 
+// MARK: - Header Frame Preference Key
+struct HeaderFramePreferenceKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
+}
+
 // MARK: - Snap Point
 enum SnapPoint {
     case collapsed
@@ -103,26 +111,238 @@ enum SnapPoint {
 }
 
 // MARK: - Info Sheet Header View
-/// Intelligently constructs header with DisplayText for smallest regions and body text for larger regions
-/// All header text computation logic is consolidated in LocationDetailData
+/// Displays location hierarchy with adminArea/subAdminArea and locality/subLocality
 struct InfoSheetHeaderView: View {
     let locationData: LocationDetailData?
+    let isFromDeviceLocation: Bool
+    let currentSnapPoint: SnapPoint
+    var isDropdownOpen: Bool
+    var onChangeLocation: (() -> Void)?
     
-    init(locationData: LocationDetailData?) {
+    init(
+        locationData: LocationDetailData?,
+        isFromDeviceLocation: Bool = true,
+        currentSnapPoint: SnapPoint = .collapsed,
+        isDropdownOpen: Bool = false,
+        onChangeLocation: (() -> Void)? = nil
+    ) {
         self.locationData = locationData
+        self.isFromDeviceLocation = isFromDeviceLocation
+        self.currentSnapPoint = currentSnapPoint
+        self.isDropdownOpen = isDropdownOpen
+        self.onChangeLocation = onChangeLocation
+    }
+    
+    /// Caption text indicating location source
+    private var locationSourceCaption: String {
+        isFromDeviceLocation ? "CURRENT LOCATION" : "PLANNED LOCATION"
+    }
+    
+    /// Whether we have any admin area info to display
+    private var hasAdminAreaInfo: Bool {
+        locationData?.adminArea != nil || locationData?.subAdminArea != nil
+    }
+    
+    /// Whether we have any locality info to display
+    private var hasLocalityInfo: Bool {
+        locationData?.locality != nil || locationData?.subLocality != nil
+    }
+    
+    /// Whether the header is in dropdown mode (at full or partial snap point)
+    private var isDropdownMode: Bool {
+        currentSnapPoint == .full || currentSnapPoint == .partial
+    }
+    
+    /// Icon name based on location type
+    private var locationTypeIcon: String {
+        isFromDeviceLocation ? "mappin.and.ellipse" : "magnifyingglass"
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
-            // Body text (larger regions) on top if available
-            if let bodyText = locationData?.bodyText, !bodyText.isEmpty {
-                Text(bodyText)
-                    .bodyText(size: .article0)
-                    .foregroundColor(Color("onBkgTextColor30"))
+        Button {
+            onChangeLocation?()
+        } label: {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
+                    // Location source caption - hidden at full snap point
+                    if !isDropdownMode {
+                        Text(locationSourceCaption)
+                            .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
+                            .foregroundColor(Color("onBkgTextColor30"))
+                    }
+                    
+                    // Locality section
+                    if hasLocalityInfo {
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Admin area at top
+                            // if let adminArea = locationData?.adminArea {
+                            //     Text(adminArea.uppercased())
+                            //         .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
+                            //         .tracking(2)
+                            //         .foregroundColor(Color("onBkgTextColor30"))
+                            // }
+                            // Locality line with icons
+                            HStack(spacing: Spacing.current.spaceXs) {
+                                if let locality = locationData?.locality {
+                                    Text(locality)
+                                        .font(.custom(FontFamily.serifDisplay, size: TypographyScale.article2.baseSize))
+                                        .foregroundColor(Color("onBkgTextColor10"))
+                                }
+                                Image(systemName: locationTypeIcon)
+                                    .font(.system(size: TypographyScale.article0.baseSize, weight: .medium))
+                                    .foregroundColor(Color("onBkgTextColor10"))
+                                // Dropdown chevron when at full or partial snap point - rotates when open
+                                if isDropdownMode {
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: TypographyScale.article0.baseSize, weight: .medium))
+                                        .foregroundColor(Color("onBkgTextColor30"))
+                                        .rotationEffect(.degrees(isDropdownOpen ? -180 : 0))
+                                        .animation(.easeOut(duration: 0.2), value: isDropdownOpen)
+                                }
+                            }
+                            // Sublocality at bottom
+                            if let subLocality = locationData?.subLocality {
+                                Text(subLocality)
+                                    .font(.custom(FontFamily.serifItalic, size: TypographyScale.articleMinus1.baseSize))
+                                    .foregroundColor(Color("onBkgTextColor30"))
+                            }
+                        }
+                    }
+                    
+                    // Fallback if no location data
+                    if !hasAdminAreaInfo && !hasLocalityInfo {
+                        HStack(spacing: Spacing.current.spaceXs) {
+                            // Location type icon
+                            Image(systemName: locationTypeIcon)
+                                .font(.system(size: TypographyScale.article0.baseSize, weight: .medium))
+                                .foregroundColor(Color("onBkgTextColor30"))
+                            
+                            Text("Journey Content")
+                                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article2.baseSize))
+                                .foregroundColor(Color("onBkgTextColor20"))
+                            if isDropdownMode {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: TypographyScale.articleMinus1.baseSize, weight: .medium))
+                                    .foregroundColor(Color("onBkgTextColor30"))
+                                    .rotationEffect(.degrees(isDropdownOpen ? -180 : 0))
+                                    .animation(.easeOut(duration: 0.2), value: isDropdownOpen)
+                            }
+                        }
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing) {
+                    if hasAdminAreaInfo {
+                        if let countryCode = locationData?.countryCode,
+                           let flagImage = CountryFlag.image(for: countryCode) {
+                            flagImage
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(height: Spacing.current.spaceM)
+                        }
+                    }
+                }
             }
+        }
+        .buttonStyle(.plain)
+        .disabled(onChangeLocation == nil)
+    }
+}
+
+// MARK: - Location Dropdown
+/// Dropdown overlay for selecting a different location, appears below the header
+struct LocationDropdown: View {
+    @Binding var isPresented: Bool
+    @State private var searchText: String = ""
+    @FocusState private var isSearchFocused: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Search field
+            HStack(spacing: Spacing.current.spaceXs) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color("onBkgTextColor30"))
+                TextField("Search location...", text: $searchText)
+                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.article0.baseSize))
+                    .focused($isSearchFocused)
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color("onBkgTextColor30"))
+                    }
+                }
+            }
+            .padding(.horizontal, Spacing.current.spaceS)
+            .padding(.vertical, Spacing.current.spaceXs)
+            .background(Color("onBkgTextColor30").opacity(0.08))
+            .cornerRadius(Spacing.current.spaceXs)
+            .padding(.horizontal, Spacing.current.spaceS)
+            .padding(.top, Spacing.current.spaceXs)
             
-            // DisplayText (smallest regions) below
-            DisplayText(locationData?.displayText ?? "Journey Content", scale: .article2, color: Color("onBkgTextColor20"))
+            Divider()
+                .padding(.top, Spacing.current.spaceXs)
+            
+            // Results / Options
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Use current location option
+                    Button {
+                        // TODO: Trigger use current device location
+                        isPresented = false
+                    } label: {
+                        HStack(spacing: Spacing.current.spaceXs) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(Color("AccentColor"))
+                            Text("Use Current Location")
+                                .font(.custom(FontFamily.sansRegular, size: TypographyScale.article0.baseSize))
+                                .foregroundColor(Color("onBkgTextColor10"))
+                            Spacer()
+                        }
+                        .padding(.horizontal, Spacing.current.spaceS)
+                        .padding(.vertical, Spacing.current.spaceS)
+                    }
+                    
+                    Divider()
+                        .padding(.leading, Spacing.current.spaceS)
+                    
+                    if searchText.isEmpty {
+                        // Recent locations placeholder
+                        Text("Recent Locations")
+                            .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
+                            .foregroundColor(Color("onBkgTextColor30"))
+                            .padding(.horizontal, Spacing.current.spaceS)
+                            .padding(.top, Spacing.current.spaceS)
+                            .padding(.bottom, Spacing.current.spaceXs)
+                        
+                        // TODO: Show recent locations from history
+                        Text("No recent locations")
+                            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
+                            .foregroundColor(Color("onBkgTextColor30").opacity(0.6))
+                            .padding(.horizontal, Spacing.current.spaceS)
+                            .padding(.vertical, Spacing.current.spaceXs)
+                    } else {
+                        // TODO: Integrate with AutocompleteManager for search results
+                        Text("Searching for \"\(searchText)\"...")
+                            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
+                            .foregroundColor(Color("onBkgTextColor30"))
+                            .padding(.horizontal, Spacing.current.spaceS)
+                            .padding(.vertical, Spacing.current.spaceS)
+                    }
+                }
+            }
+            .frame(maxHeight: 250)
+        }
+        .background(Color("AppBkgColor"))
+        .cornerRadius(Spacing.current.spaceS)
+        .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: 4)
+        .padding(.horizontal, Spacing.current.spaceS)
+        .onAppear {
+            isSearchFocused = true
         }
     }
 }
@@ -145,7 +365,7 @@ struct InfoSheetSectionTabBar: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
+            HStack(spacing: Spacing.current.spaceXs) {
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     let isSelected = index == selectedIndex
                     Button {
@@ -155,13 +375,14 @@ struct InfoSheetSectionTabBar: View {
                     } label: {
                         Text(section.type.sectionTabTitle)
                             .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
-                            .foregroundColor(isSelected ? Color("onBkgTextColor20") : Color("onBkgTextColor30"))
-                            .padding(.horizontal, Spacing.current.spaceS)
+                            .padding(.horizontal, Spacing.current.space3xs)
+                            .foregroundColor(isSelected ? Color("onBkgTextColor10") : Color("onBkgTextColor30"))
                             .padding(.vertical, Spacing.current.spaceXs)
-                            .background {
+                            .overlay(alignment: .bottom) {
                                 if isSelected {
-                                    Capsule()
-                                        .fill(Color("onBkgTextColor30").opacity(0.12))
+                                    Rectangle()
+                                        .fill(Color("onBkgTextColor10"))
+                                        .frame(height: 2)
                                 }
                             }
                     }
@@ -169,6 +390,7 @@ struct InfoSheetSectionTabBar: View {
                 }
             }
         }
+        .padding(.horizontal, Spacing.current.spaceS)
         .background(Color("AppBkgColor"))
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -387,6 +609,8 @@ struct InfoSheet: View {
     @State private var isScrolling: Bool = false
     @State private var scrollSettleTask: Task<Void, Never>?
     @State private var selectedSectionIndex: Int = 0
+    @State private var isShowingLocationPicker: Bool = false
+    @State private var headerFrame: CGRect = .zero
     
     // Offset adjustment for sheet positioning (bottom safe area + optional padding)
     private var positionOffsetAdjustment: CGFloat {
@@ -479,20 +703,34 @@ struct InfoSheet: View {
                         VStack(spacing: 0) {
                             // Header and tab bar always in flow (full and non-full)
                             VStack(spacing: 0) {
-                                InfoSheetHeaderView(locationData: locationDetailData)
-                                    .padding(.top, Spacing.current.space2xs)
-                                    .padding(.bottom, Spacing.current.spaceXs)
-                                    .padding(.horizontal, Spacing.current.spaceS)
+                                InfoSheetHeaderView(
+                                    locationData: locationDetailData,
+                                    isFromDeviceLocation: contentManager.isContentFromDeviceLocation,
+                                    currentSnapPoint: sheetSnapPoint,
+                                    isDropdownOpen: isShowingLocationPicker,
+                                    onChangeLocation: {
+                                        withAnimation(.easeOut(duration: 0.2)) {
+                                            isShowingLocationPicker.toggle()
+                                        }
+                                    }
+                                )
+                                .padding(.top, Spacing.current.space2xs)
+                                .padding(.bottom, Spacing.current.spaceXs)
+                                .padding(.horizontal, Spacing.current.spaceS)
+                                .background(
+                                    GeometryReader { geo in
+                                        Color.clear.preference(key: HeaderFramePreferenceKey.self, value: geo.frame(in: .named("sheetContent")))
+                                    }
+                                )
                                 InfoSheetSectionTabBar(sections: contentManager.orderedSections, selectedIndex: $selectedSectionIndex)
                             }
+                            
                             if #available(iOS 17.0, *) {
                                 SectionPagedScrollView(
                                     sections: contentManager.orderedSections,
                                     selectedIndex: $selectedSectionIndex,
-                                    isScrollDisabled: sheetSnapPoint != .full,
-                                    // contentHeight: nil
+                                    isScrollDisabled: sheetSnapPoint != .full
                                 )
-                                // .frame(maxHeight: .infinity)
                             } else {
                                 LegacyPagedScrollView(
                                     sections: contentManager.orderedSections,
@@ -502,16 +740,51 @@ struct InfoSheet: View {
                                 .frame(maxHeight: .infinity)
                             }
                         }
+                        .coordinateSpace(name: "sheetContent")
+                        .onPreferenceChange(HeaderFramePreferenceKey.self) { frame in
+                            headerFrame = frame
+                        }
+                        .overlay {
+                            // Dropdown overlay - on top of everything
+                            if isShowingLocationPicker && (sheetSnapPoint == .full || sheetSnapPoint == .partial) {
+                                ZStack(alignment: .top) {
+                                    // Dismiss backdrop
+                                    Color.black.opacity(0.001)
+                                        .onTapGesture {
+                                            withAnimation(.easeOut(duration: 0.15)) {
+                                                isShowingLocationPicker = false
+                                            }
+                                        }
+                                    
+                                    // Dropdown positioned below header
+                                    LocationDropdown(isPresented: $isShowingLocationPicker)
+                                        .padding(.horizontal, Spacing.current.spaceS)
+                                        .padding(.top, headerFrame.maxY + 4)
+                                }
+                                .transition(.opacity)
+                            }
+                        }
+                        .animation(.easeOut(duration: 0.2), value: isShowingLocationPicker)
                     } else {
                         ScrollView {
                             VStack(spacing: 0) {
                                 ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: sheetSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
                                 VStack(alignment: .leading, spacing: 0) {
                                     if sheetSnapPoint != .full {
-                                        InfoSheetHeaderView(locationData: locationDetailData)
-                                            .padding(.top, Spacing.current.spaceXs)
-                                            .padding(.bottom, Spacing.current.spaceXs)
-                                            .transition(.opacity)
+                                        InfoSheetHeaderView(
+                                            locationData: locationDetailData,
+                                            isFromDeviceLocation: contentManager.isContentFromDeviceLocation,
+                                            currentSnapPoint: sheetSnapPoint,
+                                            isDropdownOpen: isShowingLocationPicker,
+                                            onChangeLocation: {
+                                                withAnimation(.easeOut(duration: 0.2)) {
+                                                    isShowingLocationPicker.toggle()
+                                                }
+                                            }
+                                        )
+                                        .padding(.top, Spacing.current.spaceXs)
+                                        .padding(.bottom, Spacing.current.spaceXs)
+                                        .transition(.opacity)
                                     }
                                     TestBody()
                                 }
@@ -667,7 +940,14 @@ struct InfoSheet: View {
             if newSnapPoint != .full {
                 shouldHideTabBar = false
             }
+            // Close dropdown when snap point changes to collapsed
+            if newSnapPoint == .collapsed && isShowingLocationPicker {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    isShowingLocationPicker = false
+                }
+            }
         }
+        .animation(.easeOut(duration: 0.2), value: isShowingLocationPicker)
     }
     
     private func determineSnapPoint(dragDistance: CGFloat) -> SnapPoint {
@@ -694,31 +974,20 @@ struct InfoSheet: View {
     }
 }
 
-#Preview("Full Height") {
-    let contentManager = ContentManager()
-    let location = CLLocation(latitude: 41.9028, longitude: 12.4964)
-    let locationDict = makeLocationDict(location: location, placeName: "Colosseum", subdivisions: "Rome, Lazio", countryName: "Italy")
-    contentManager.setContent(type: .locationDetail, data: .locationDetail(dict: locationDict))
-    
-    return InfoSheet(
-        selectedTab: .constant(.journey),
-        shouldHideTabBar: .constant(false),
-        sheetFullHeight: 1000,
-        bottomSafeAreaInsetHeight: 0,
-        sheetSnapPoint: .constant(.full),
-        contentManager: contentManager
-    )
-}
-
 #if DEBUG
 /// Preview that loads an array of `{"event": "...", "data": {...}}` from `sse_preview_events.json`,
 /// stringifies each `data` to simulate an SSE stream, and replays via SSEEventProcessor so ContentManager is populated by the router.
 #Preview("SSE Content") {
-    SSEPreviewWrapper()
+    SSEPreviewWrapper(snapPoint: .full)
+}
+
+#Preview("SSE Content - Partial") {
+    SSEPreviewWrapper(snapPoint: .partial)
 }
 
 private struct SSEPreviewWrapper: View {
     @StateObject private var contentManager = ContentManager()
+    let snapPoint: SnapPoint
 
     var body: some View {
         InfoSheet(
@@ -726,7 +995,7 @@ private struct SSEPreviewWrapper: View {
             shouldHideTabBar: .constant(false),
             sheetFullHeight: 1000,
             bottomSafeAreaInsetHeight: 0,
-            sheetSnapPoint: .constant(.full),
+            sheetSnapPoint: .constant(snapPoint),
             contentManager: contentManager
         )
         .task {

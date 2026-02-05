@@ -51,11 +51,13 @@ extension MainView {
         }
 
         do {
-            let locationDict = try await geocoder.geocodeReverse(location: location)
+            let locationDetailData = try await geocoder.geocodeReverse(location: location)
+            let locationDict = locationDetailData.toLocationDict()
 
             contentManager.setContent(
                 type: .locationDetail,
-                data: .locationDetail(dict: locationDict)
+                data: .locationDetail(locationDetailData: locationDetailData),
+                isFromDeviceLocation: true
             )
 
             let event = UserEventBuilder.build(
@@ -99,7 +101,14 @@ extension MainView {
         }
 
         do {
-            let locationDict = try await geocoder.geocodeReverse(location: flyTo.location)
+            let locationDetailData = try await geocoder.geocodeReverse(location: flyTo.location)
+            let locationDict = locationDetailData.toLocationDict()
+
+            contentManager.setContent(
+                type: .locationDetail,
+                data: .locationDetail(locationDetailData: locationDetailData),
+                isFromDeviceLocation: false
+            )
 
             let event = UserEventBuilder.build(
                 evtType: "location_searched",

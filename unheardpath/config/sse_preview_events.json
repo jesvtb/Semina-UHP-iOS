@@ -16,7 +16,12 @@
         "altitude": 0,
         "place_name": "Ancient Rome",
         "subdivisions": "Rome, Lazio",
-        "country_name": "Italy"
+        "adminArea": "Guangdong",
+        "subAdminArea": null,
+        "locality": "Shenzhen",
+        "subLocality": "Luohu District",
+        "country_name": "China",
+        "country_code": "CN"
       }
     }
   },

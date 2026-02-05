@@ -13,6 +13,102 @@ import MapKit
 /// NewLocation-style dictionary (coordinate, place_name, subdivisions, country_name, etc.) used for events and content. Built by geocodeReverse.
 public typealias LocationDict = [String: JSONValue]
 
+// MARK: - Location Detail Data
+/// Structured geocoding result with location metadata for display and events.
+/// Built by Geocoder.geocodeReverse from Apple MapKit or Geoapify responses.
+public struct LocationDetailData: Sendable {
+    public let location: CLLocation
+    public let placeName: String?
+    public let subdivisions: String?
+    public let countryName: String?
+    public let countryCode: String?
+    public let timezone: String
+    public let adminArea: String?
+    public let subAdminArea: String?
+    public let locality: String?
+    public let subLocality: String?
+    public let iso3166_2: String?
+    public let isOcean: String?
+    
+    /// Creates LocationDetailData with all geocoding fields.
+    public init(
+        location: CLLocation,
+        placeName: String? = nil,
+        subdivisions: String? = nil,
+        countryName: String? = nil,
+        countryCode: String? = nil,
+        timezone: String = TimeZone.current.identifier,
+        adminArea: String? = nil,
+        subAdminArea: String? = nil,
+        locality: String? = nil,
+        subLocality: String? = nil,
+        iso3166_2: String? = nil,
+        isOcean: String? = nil
+    ) {
+        self.location = location
+        self.placeName = placeName
+        self.subdivisions = subdivisions
+        self.countryName = countryName
+        self.countryCode = countryCode
+        self.timezone = timezone
+        self.adminArea = adminArea
+        self.subAdminArea = subAdminArea
+        self.locality = locality
+        self.subLocality = subLocality
+        self.iso3166_2 = iso3166_2
+        self.isOcean = isOcean
+    }
+    
+    /// Converts to LocationDict format for events and backend communication.
+    public func toLocationDict() -> LocationDict {
+        var coordinateDict: [String: JSONValue] = [
+            "lat": .double(location.coordinate.latitude),
+            "lng": .double(location.coordinate.longitude),
+        ]
+        if location.verticalAccuracy > 0 {
+            coordinateDict["alt"] = .double(location.altitude)
+        }
+        
+        var dict: LocationDict = [
+            "coordinate": .dictionary(coordinateDict),
+            "timezone": .string(timezone),
+        ]
+        
+        if let countryCode = countryCode, !countryCode.isEmpty {
+            dict["country_code"] = .string(countryCode)
+        }
+        if let subdivisions = subdivisions, !subdivisions.isEmpty {
+            dict["subdivisions"] = .string(subdivisions)
+        }
+        if let placeName = placeName, !placeName.isEmpty {
+            dict["place_name"] = .string(placeName)
+        }
+        if let countryName = countryName, !countryName.isEmpty {
+            dict["country_name"] = .string(countryName)
+        }
+        if let iso3166_2 = iso3166_2, !iso3166_2.isEmpty {
+            dict["iso3166_2"] = .string(iso3166_2)
+        }
+        if let isOcean = isOcean, !isOcean.isEmpty {
+            dict["isOcean"] = .string(isOcean)
+        }
+        if let adminArea = adminArea, !adminArea.isEmpty {
+            dict["adminArea"] = .string(adminArea)
+        }
+        if let subAdminArea = subAdminArea, !subAdminArea.isEmpty {
+            dict["subAdminArea"] = .string(subAdminArea)
+        }
+        if let locality = locality, !locality.isEmpty {
+            dict["locality"] = .string(locality)
+        }
+        if let subLocality = subLocality, !subLocality.isEmpty {
+            dict["subLocality"] = .string(subLocality)
+        }
+        
+        return dict
+    }
+}
+
 /// Stateless geocoder that runs Geoapify autocomplete and MKLocalSearch in parallel,
 /// merges and caps results. Used by app-level AutocompleteManager.
 public final class Geocoder: Sendable {
@@ -86,11 +182,11 @@ public final class Geocoder: Sendable {
     }
 
     /// Reverse geocodes a location using Geoapify reverse geocode API.
-    /// Parses the API response (query + results) into a LocationDict. Geoapify returns { "query": { lat, lon }, "results": [ { address fields } ] }, not GeoJSON.
+    /// Parses the API response (query + results) into LocationDetailData. Geoapify returns { "query": { lat, lon }, "results": [ { address fields } ] }, not GeoJSON.
     /// - Parameter location: The CLLocation to reverse geocode.
-    /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone.
-    /// - Throws: Error if the API call or parsing fails.
-    public func geocodeReverseGeoapify(location: CLLocation) async throws -> LocationDict {
+    /// - Returns: LocationDetailData with location, place_name, subdivisions, country_name, timezone, and display fields.
+    /// - Throws: Error if the API call fails.
+    public func geocodeReverseGeoapify(location: CLLocation) async throws -> LocationDetailData {
         let params: [String: String] = [
             "lat": String(location.coordinate.latitude),
             "lon": String(location.coordinate.longitude),
@@ -108,32 +204,18 @@ public final class Geocoder: Sendable {
             filesDict: [:]
         )
         printItem(item: data)
-        return buildLocationDictFromGeoapifyReverseResponse(location: location, data: data)
+        return buildLocationDetailDataFromGeoapifyResponse(location: location, data: data)
     }
 
-    /// Builds a LocationDict from Geoapify reverse API response: { "query": { lat, lon }, "results": [ { state, country_code, city, suburb, ... } ] }.
-    private func buildLocationDictFromGeoapifyReverseResponse(location: CLLocation, data: Data) -> LocationDict {
-        var coordinateDict: [String: JSONValue] = [
-            "lat": .double(location.coordinate.latitude),
-            "lng": .double(location.coordinate.longitude),
-        ]
-        if location.verticalAccuracy > 0 {
-            coordinateDict["alt"] = .double(location.altitude)
-        }
-        var dict: LocationDict = [
-            "coordinate": .dictionary(coordinateDict),
-            "timezone": .string(TimeZone.current.identifier),
-        ]
-
+    /// Builds LocationDetailData from Geoapify reverse API response: { "query": { lat, lon }, "results": [ { state, country_code, city, suburb, ... } ] }.
+    private func buildLocationDetailDataFromGeoapifyResponse(location: CLLocation, data: Data) -> LocationDetailData {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let results = root["results"] as? [[String: Any]],
               let first = results.first else {
-            return dict
+            // Return minimal data if parsing fails
+            return LocationDetailData(location: location)
         }
 
-        if let code = first["country_code"] as? String {
-            dict["country_code"] = .string(code.uppercased())
-        }
         // Extract all possible subdivision levels from Geoapify response
         let neighbourhood = (first["neighbourhood"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let suburb = (first["suburb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -142,50 +224,67 @@ public final class Geocoder: Sendable {
         let city = (first["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let county = (first["county"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let state = (first["state"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
         // Hierarchy order (smallest to largest): neighbourhood → suburb → district → town → city → county → state
         // Remove duplicates while preserving order (e.g., city="Istanbul" and county="Istanbul")
         var seen = Set<String>()
         let subdivisionParts = [neighbourhood, suburb, district, town, city, county, state]
             .compactMap { $0 }
             .filter { !$0.isEmpty && seen.insert($0).inserted }
-        if !subdivisionParts.isEmpty {
-            dict["subdivisions"] = .string(subdivisionParts.joined(separator: ", "))
-        }
-        let placeName = (first["address_line1"] as? String) ?? (first["name"] as? String) ?? (first["city"] as? String)
-        if let name = placeName, !name.isEmpty {
-            dict["place_name"] = .string(name)
-        }
-        if let country = first["country"] as? String {
-            dict["country_name"] = .string(country)
-        }
+        let subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
+        
+        // Place name
+        let placeName = (first["address_line1"] as? String) ?? (first["name"] as? String) ?? city
+        
+        // Timezone
+        let timezone: String
         if let tzObj = first["timezone"] as? [String: Any], let tzName = tzObj["name"] as? String {
-            dict["timezone"] = .string(tzName)
+            timezone = tzName
+        } else {
+            timezone = TimeZone.current.identifier
         }
-        if let iso31_2 = first["iso3166_2"] as? String {
-            dict["iso3166_2"] = .string(iso31_2.uppercased())
-        }
-        // Check for ocean/marine area
+        
+        // Ocean/marine area
+        let isOcean: String?
         if let ocean = first["ocean"] as? String, !ocean.isEmpty {
-            dict["isOcean"] = .string(ocean)
+            isOcean = ocean
         } else if let marineArea = first["marinearea"] as? String, !marineArea.isEmpty {
-            dict["isOcean"] = .string(marineArea)
+            isOcean = marineArea
+        } else {
+            isOcean = nil
         }
-        return dict
+        
+        // subLocality: lowest hierarchy of (neighborhood, suburb, district, town)
+        let subLocality = [neighbourhood, suburb, district, town]
+            .compactMap { $0 }
+            .first { !$0.isEmpty }
+        
+        return LocationDetailData(
+            location: location,
+            placeName: placeName?.isEmpty == true ? nil : placeName,
+            subdivisions: subdivisions,
+            countryName: first["country"] as? String,
+            countryCode: (first["country_code"] as? String)?.uppercased(),
+            timezone: timezone,
+            adminArea: state?.isEmpty == true ? nil : state,
+            subAdminArea: county?.isEmpty == true ? nil : county,
+            locality: city?.isEmpty == true ? nil : city,
+            subLocality: subLocality?.isEmpty == true ? nil : subLocality,
+            iso3166_2: (first["iso3166_2"] as? String)?.uppercased(),
+            isOcean: isOcean
+        )
     }
 
-    /// Reverse geocodes a location using Geoapify and returns a LocationDict (NewLocation schema) for events and content.
-    /// - Parameter location: The CLLocation to reverse geocode.
-    /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone.
-    /// - Throws: Error if the API call or parsing fails.
     /// Composite reverse geocode: tries native MapKit first, falls back to Geoapify.
     /// - Parameter location: The CLLocation to reverse geocode.
-    /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone.
-    public func geocodeReverse(location: CLLocation) async throws -> LocationDict {
+    /// - Returns: LocationDetailData with location, place_name, subdivisions, country_name, timezone, and display fields.
+    /// - Throws: Error if both MapKit and Geoapify fail.
+    public func geocodeReverse(location: CLLocation) async throws -> LocationDetailData {
         // Try native MapKit geocoder first
         do {
             let placemarks = try await geocodeReverseMK(location: location)
             if let placemark = placemarks.first {
-                return buildLocationDictFromPlacemark(location: location, placemark: placemark)
+                return buildLocationDetailDataFromPlacemark(location: location, placemark: placemark)
             }
         } catch {
             // CLGeocoder failed, fall through to Geoapify
@@ -194,34 +293,9 @@ public final class Geocoder: Sendable {
         return try await geocodeReverseGeoapify(location: location)
     }
     
-    /// Builds a LocationDict from a CLPlacemark (from MapKit/CLGeocoder).
-    private func buildLocationDictFromPlacemark(location: CLLocation, placemark: CLPlacemark) -> LocationDict {
-        
-        var coordinateDict: [String: JSONValue] = [
-            "lat": .double(location.coordinate.latitude),
-            "lng": .double(location.coordinate.longitude),
-        ]
-        if location.verticalAccuracy > 0 {
-            coordinateDict["alt"] = .double(location.altitude)
-        }
-        
-        var dict: LocationDict = [
-            "coordinate": .dictionary(coordinateDict),
-        ]
-        
-        // Timezone
-        if let tz = placemark.timeZone {
-            dict["timezone"] = .string(tz.identifier)
-        } else {
-            dict["timezone"] = .string(TimeZone.current.identifier)
-        }
-        
-        // Country code (ISO 3166-1 alpha-2)
-        if let code = placemark.isoCountryCode {
-            dict["country_code"] = .string(code.uppercased())
-        }
-
-        // printItem(item: placemark)
+    /// Builds LocationDetailData from a CLPlacemark (from MapKit/CLGeocoder).
+    private func buildLocationDetailDataFromPlacemark(location: CLLocation, placemark: CLPlacemark) -> LocationDetailData {
+        // Debug logging
         printItem(item: placemark.subLocality, heading: "subLocality")
         printItem(item: placemark.locality, heading: "locality")
         printItem(item: placemark.subAdministrativeArea, heading: "subAdministrativeArea")
@@ -230,7 +304,6 @@ public final class Geocoder: Sendable {
         printItem(item: placemark.isoCountryCode, heading: "isoCountryCode")
         printItem(item: placemark.timeZone, heading: "timeZone")
         printItem(item: placemark.areasOfInterest, heading: "areasOfInterest")
-        printItem(item: placemark.subAdministrativeArea)
         
         // Build subdivisions: subLocality, locality, subAdministrativeArea, administrativeArea
         let subdivisionParts = [
@@ -240,23 +313,33 @@ public final class Geocoder: Sendable {
             placemark.administrativeArea
         ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
          .filter { !$0.isEmpty }
-        if !subdivisionParts.isEmpty {
-            dict["subdivisions"] = .string(subdivisionParts.joined(separator: ", "))
-        }
+        let subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
         
         // Place name: prefer name, then thoroughfare, then locality
-        let placeName = placemark.name ?? placemark.thoroughfare ?? placemark.locality
-        if let name = placeName, !name.isEmpty {
-            dict["place_name"] = .string(name)
-        }
+        let placeName = (placemark.name ?? placemark.thoroughfare ?? placemark.locality)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // Country name
-        if let country = placemark.country {
-            dict["country_name"] = .string(country)
-        }
+        // Timezone
+        let timezone = placemark.timeZone?.identifier ?? TimeZone.current.identifier
         
-        // Debug: print areas of interest if available
-        return dict
+        // Extract display fields
+        let adminArea = placemark.administrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subAdminArea = placemark.subAdministrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let locality = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subLocality = placemark.subLocality?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return LocationDetailData(
+            location: location,
+            placeName: placeName?.isEmpty == true ? nil : placeName,
+            subdivisions: subdivisions,
+            countryName: placemark.country,
+            countryCode: placemark.isoCountryCode?.uppercased(),
+            timezone: timezone,
+            adminArea: adminArea?.isEmpty == true ? nil : adminArea,
+            subAdminArea: subAdminArea?.isEmpty == true ? nil : subAdminArea,
+            locality: locality?.isEmpty == true ? nil : locality,
+            subLocality: subLocality?.isEmpty == true ? nil : subLocality
+        )
     }
 
     func autocompleteGeoapify(query: String) async throws -> [MapSearchResult] {
