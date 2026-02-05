@@ -64,10 +64,24 @@ private let cardCornerRadius: CGFloat = 12
 private let cardAspectRatio: CGFloat = 0.85
 private let cardMinHeight: CGFloat = 140
 
+// MARK: - Environment Key for Catalogue Popup
+/// Controls whether card taps show popups (disabled when sheet is not at full height)
+private struct PopupEnabledKey: EnvironmentKey {
+    static let defaultValue: Bool = true
+}
+
+extension EnvironmentValues {
+    var isPopupEnabled: Bool {
+        get { self[PopupEnabledKey.self] }
+        set { self[PopupEnabledKey.self] = newValue }
+    }
+}
+
 /// View for rendering a section with markdown intro and a collection of cards (dish grid or feature list)
 struct CardsCollection: View {
     let data: CardSectionData
     @State private var selectedDish: Dish?
+    @Environment(\.isPopupEnabled) private var isPopupEnabled
 
     private let gridSpacing = Spacing.current.spaceS
 
@@ -121,7 +135,9 @@ struct CardsCollection: View {
                 ForEach(data.cards) { card in
                     if case .dish(let dish) = card {
                         DishCard(dish: dish) {
-                            selectedDish = dish
+                            if isPopupEnabled {
+                                selectedDish = dish
+                            }
                         }
                         .frame(width: columnWidth, height: columnWidth / cardAspectRatio)
                     }
@@ -728,6 +744,7 @@ struct DishCardGrid: View {
     let cards: [JSONValue]
     let config: JSONValue?
     @State private var selectedDish: Dish?
+    @Environment(\.isPopupEnabled) private var isPopupEnabled
     
     private var aspectRatio: CGFloat {
         config?["aspectRatio"]?.doubleValue.map { CGFloat($0) } ?? 0.85
@@ -748,7 +765,9 @@ struct DishCardGrid: View {
             LazyVGrid(columns: columns, spacing: gridSpacing) {
                 ForEach(parsedDishes) { dish in
                     DishCard(dish: dish) {
-                        selectedDish = dish
+                        if isPopupEnabled {
+                            selectedDish = dish
+                        }
                     }
                     .frame(width: columnWidth, height: columnWidth / aspectRatio)
                 }

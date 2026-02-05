@@ -741,6 +741,7 @@ struct InfoSheet: View {
                             }
                         }
                         .coordinateSpace(name: "sheetContent")
+                        .environment(\.isPopupEnabled, sheetSnapPoint == .full)
                         .onPreferenceChange(HeaderFramePreferenceKey.self) { frame in
                             headerFrame = frame
                         }
