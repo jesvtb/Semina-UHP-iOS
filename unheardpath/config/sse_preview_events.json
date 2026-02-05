@@ -78,7 +78,7 @@
       },
       "content": {
         "cuisine_of_hong_kong": {
-          "wikidata_qid": "Q1036629",
+          "qid": "Q1036629",
           "markdown": "# Cuisine of Hong Kong\n\nHong Kong is a city in China. It is the capital of the Hong Kong Special Administrative Region of China.",
           "cards": [
             {
@@ -96,7 +96,7 @@
           ]
         },
       "Chinese cuisine": {
-        "wikidata_qid": "Q10876842",
+        "qid": "Q10876842",
         "markdown": "# Chinese Cuisine\n\nChinese cuisine is a type of Chinese food. It is a small dish that is served in a small steamer.",
         "cards": [
           {

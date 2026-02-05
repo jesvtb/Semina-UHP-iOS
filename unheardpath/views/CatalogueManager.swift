@@ -723,7 +723,7 @@ struct MarkdownRenderer: View {
 }
 
 // MARK: - Dish Card Grid (render_type: "dish")
-/// Renders dish cards with strict key contract: local_name, global_name, description, image_url
+/// Renders dish cards with strict key contract: local_name, global_name, description, img_url
 struct DishCardGrid: View {
     let cards: [JSONValue]
     let config: JSONValue?
@@ -773,7 +773,7 @@ struct DishCardGrid: View {
                   let description = dict["description"]?.stringValue else {
                 return nil
             }
-            let imageURL = dict["image_url"]?.stringValue.flatMap { URL(string: $0) }
+            let imageURL = dict["img_url"]?.stringValue.flatMap { URL(string: $0) }
             return Dish(localName: localName, globalName: globalName, description: description, imageURL: imageURL)
         }
     }
@@ -923,7 +923,7 @@ struct GenericCard: View {
     /// Image URL: tries image_url, img_url
     private var imageURL: URL? {
         guard case .dictionary(let dict) = data else { return nil }
-        let urlString = dict["image_url"]?.stringValue ?? dict["img_url"]?.stringValue
+        let urlString = dict["img_url"]?.stringValue
         return urlString.flatMap { URL(string: $0) }
     }
     
