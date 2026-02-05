@@ -56,72 +56,7 @@ enum JSONTestCases {
     }
 }
 
-func printItem(item: Any, heading: String) {
-    print("================")
-    print("🔹 \(heading) (\(type(of: item))): \n   \(item)\n")
-    print("================")
-}
 
-func printItem(item: Any) {
-    print("================")
-    print("🔹 type: \(type(of: item)) \n   \(item)")
-    print("================")
-}
-
-/// Pretty-prints JSONValue or Optional<JSONValue>. Labeled as "parsed data" so it’s distinct from printItem(SSEEvent). Handles both JSONValue and JSONValue?.
-func printItem(item: JSONValue?) {
-    guard let value = item else {
-        print("================")
-        print("🔹 parsed data (Optional<JSONValue>) \n   nil")
-        print("================")
-        return
-    }
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = .prettyPrinted
-    guard let jsonData = try? encoder.encode(value),
-          let jsonString = String(data: jsonData, encoding: .utf8) else {
-        return
-    }
-    print("================")
-    print("🔹 parsed data (JSONValue)\n\(jsonString)")
-    print("================")
-}
-
-/// Pretty-prints an SSEEvent (typed enum) with case and associated values.
-func printItem(item: SSEEvent) {
-    print("================")
-    print("🔹 type: SSEEvent (enum)")
-    switch item {
-    case .toast(let message, let duration, let variant):
-        print("   case: toast")
-        print("   message: \(message)")
-        print("   duration: \(String(describing: duration))")
-        print("   variant: \(String(describing: variant))")
-    case .chat(let chatId, let chunk, let isStreaming):
-        print("   case: chat")
-        print("   chatId: \(String(describing: chatId))")
-        print("   chunk: \(chunk)")
-        print("   isStreaming: \(isStreaming)")
-    case .stop:
-        print("   case: stop")
-    case .map(let features):
-        print("   case: map")
-        print("   features.count: \(features.count)")
-    case .hook(let action):
-        print("   case: hook")
-        print("   action: \(action)")
-    case .content(let typeString, let dataValue):
-        print("   case: content")
-        print("   typeString: \(typeString)")
-        if let jsonData = try? JSONEncoder().encode(dataValue),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            print("   dataValue:\n\(jsonString)")
-        } else {
-            print("   dataValue: \(dataValue)")
-        }
-    }
-    print("================")
-}
 
 func require(_ condition: Bool, success: String, failure: String) throws {
 

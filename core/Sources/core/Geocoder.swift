@@ -52,21 +52,37 @@ public final class Geocoder: Sendable {
         return interleave(maxTotal: Self.maxTotalResults, first: geoapify, second: mapKit)
     }
 
-    /// Reverse geocodes a location using CLGeocoder (MapKit/Core Location).
+    /// Reverse geocodes a location using MapKit.
+    /// On macOS 26+/iOS 26+, uses MKReverseGeocodingRequest for better results.
+    /// On older versions, falls back to CLGeocoder.
     /// - Parameter location: The CLLocation to reverse geocode.
     /// - Returns: Array of CLPlacemark from the reverse geocode (may be empty).
     /// - Throws: Error if reverse geocoding fails.
     public func geocodeReverseMK(location: CLLocation) async throws -> [CLPlacemark] {
-        try await withCheckedThrowingContinuation { continuation in
-            let geocoder = CLGeocoder()
-            geocoder.reverseGeocodeLocation(location) { placemarks, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                continuation.resume(returning: placemarks ?? [])
-            }
+        if #available(macOS 26.0, iOS 26.0, *) {
+            return try await geocodeReverseMKNew(location: location)
+        } else {
+            return try await geocodeReverseMKLegacy(location: location)
         }
+    }
+    
+    @available(macOS 26.0, iOS 26.0, *)
+    private func geocodeReverseMKNew(location: CLLocation) async throws -> [CLPlacemark] {
+        logger.info("Geocoding reverse using New Apple Geocoder: \(location)")
+        guard let request = MKReverseGeocodingRequest(location: location) else {
+            return []
+        }
+        let mapItems = try await request.mapItems
+        printItem(item: mapItems)
+        return mapItems.map { $0.placemark }
+    }
+    
+    private func geocodeReverseMKLegacy(location: CLLocation) async throws -> [CLPlacemark] {
+        logger.info("Geocoding reverse using Legacy Apple Geocoder: \(location)")
+        let geocoder = CLGeocoder()
+        let placemarks = try await geocoder.reverseGeocodeLocation(location)
+        printItem(item: placemarks)
+        return placemarks
     }
 
     /// Reverse geocodes a location using Geoapify reverse geocode API.
@@ -91,6 +107,7 @@ public final class Geocoder: Sendable {
             timeout: false,
             filesDict: [:]
         )
+        printItem(item: data)
         return buildLocationDictFromGeoapifyReverseResponse(location: location, data: data)
     }
 
@@ -117,10 +134,20 @@ public final class Geocoder: Sendable {
         if let code = first["country_code"] as? String {
             dict["country_code"] = .string(code.uppercased())
         }
+        // Extract all possible subdivision levels from Geoapify response
+        let neighbourhood = (first["neighbourhood"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let suburb = (first["suburb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let district = (first["district"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let town = (first["town"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let city = (first["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let county = (first["county"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let state = (first["state"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let subdivisionParts = [suburb, city, state].compactMap { $0 }.filter { !$0.isEmpty }
+        // Hierarchy order (smallest to largest): neighbourhood → suburb → district → town → city → county → state
+        // Remove duplicates while preserving order (e.g., city="Istanbul" and county="Istanbul")
+        var seen = Set<String>()
+        let subdivisionParts = [neighbourhood, suburb, district, town, city, county, state]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
         if !subdivisionParts.isEmpty {
             dict["subdivisions"] = .string(subdivisionParts.joined(separator: ", "))
         }
@@ -134,6 +161,15 @@ public final class Geocoder: Sendable {
         if let tzObj = first["timezone"] as? [String: Any], let tzName = tzObj["name"] as? String {
             dict["timezone"] = .string(tzName)
         }
+        if let iso31_2 = first["iso3166_2"] as? String {
+            dict["iso3166_2"] = .string(iso31_2.uppercased())
+        }
+        // Check for ocean/marine area
+        if let ocean = first["ocean"] as? String, !ocean.isEmpty {
+            dict["isOcean"] = .string(ocean)
+        } else if let marineArea = first["marinearea"] as? String, !marineArea.isEmpty {
+            dict["isOcean"] = .string(marineArea)
+        }
         return dict
     }
 
@@ -141,8 +177,86 @@ public final class Geocoder: Sendable {
     /// - Parameter location: The CLLocation to reverse geocode.
     /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone.
     /// - Throws: Error if the API call or parsing fails.
+    /// Composite reverse geocode: tries native MapKit first, falls back to Geoapify.
+    /// - Parameter location: The CLLocation to reverse geocode.
+    /// - Returns: LocationDict with coordinate, place_name, subdivisions, country_name, timezone.
     public func geocodeReverse(location: CLLocation) async throws -> LocationDict {
-        try await geocodeReverseGeoapify(location: location)
+        // Try native MapKit geocoder first
+        do {
+            let placemarks = try await geocodeReverseMK(location: location)
+            if let placemark = placemarks.first {
+                return buildLocationDictFromPlacemark(location: location, placemark: placemark)
+            }
+        } catch {
+            // CLGeocoder failed, fall through to Geoapify
+        }
+        // Fallback to Geoapify
+        return try await geocodeReverseGeoapify(location: location)
+    }
+    
+    /// Builds a LocationDict from a CLPlacemark (from MapKit/CLGeocoder).
+    private func buildLocationDictFromPlacemark(location: CLLocation, placemark: CLPlacemark) -> LocationDict {
+        
+        var coordinateDict: [String: JSONValue] = [
+            "lat": .double(location.coordinate.latitude),
+            "lng": .double(location.coordinate.longitude),
+        ]
+        if location.verticalAccuracy > 0 {
+            coordinateDict["alt"] = .double(location.altitude)
+        }
+        
+        var dict: LocationDict = [
+            "coordinate": .dictionary(coordinateDict),
+        ]
+        
+        // Timezone
+        if let tz = placemark.timeZone {
+            dict["timezone"] = .string(tz.identifier)
+        } else {
+            dict["timezone"] = .string(TimeZone.current.identifier)
+        }
+        
+        // Country code (ISO 3166-1 alpha-2)
+        if let code = placemark.isoCountryCode {
+            dict["country_code"] = .string(code.uppercased())
+        }
+
+        // printItem(item: placemark)
+        printItem(item: placemark.subLocality, heading: "subLocality")
+        printItem(item: placemark.locality, heading: "locality")
+        printItem(item: placemark.subAdministrativeArea, heading: "subAdministrativeArea")
+        printItem(item: placemark.administrativeArea, heading: "administrativeArea")
+        printItem(item: placemark.country, heading: "country")
+        printItem(item: placemark.isoCountryCode, heading: "isoCountryCode")
+        printItem(item: placemark.timeZone, heading: "timeZone")
+        printItem(item: placemark.areasOfInterest, heading: "areasOfInterest")
+        printItem(item: placemark.subAdministrativeArea)
+        
+        // Build subdivisions: subLocality, locality, subAdministrativeArea, administrativeArea
+        let subdivisionParts = [
+            placemark.subLocality,
+            placemark.locality,
+            placemark.subAdministrativeArea,
+            placemark.administrativeArea
+        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+         .filter { !$0.isEmpty }
+        if !subdivisionParts.isEmpty {
+            dict["subdivisions"] = .string(subdivisionParts.joined(separator: ", "))
+        }
+        
+        // Place name: prefer name, then thoroughfare, then locality
+        let placeName = placemark.name ?? placemark.thoroughfare ?? placemark.locality
+        if let name = placeName, !name.isEmpty {
+            dict["place_name"] = .string(name)
+        }
+        
+        // Country name
+        if let country = placemark.country {
+            dict["country_name"] = .string(country)
+        }
+        
+        // Debug: print areas of interest if available
+        return dict
     }
 
     func autocompleteGeoapify(query: String) async throws -> [MapSearchResult] {

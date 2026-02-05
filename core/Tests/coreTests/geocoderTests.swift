@@ -104,19 +104,32 @@ struct GeocoderTests {
         )
     }
 
-    @Test("geocodeReverseMK returns placemarks for a known coordinate")
-    func testGeocodeReverseMK() async throws {
+    @Test(
+        "geocodeReverseMK returns placemarks for a known coordinate",
+        arguments: [
+            // CLLocation(latitude: 22.559623109782347, longitude: 114.11698910372738), // Shenzhen, China
+            // CLLocation(latitude: 41.008590, longitude: 28.978512), // 41.008918°N 28.979900°E Istanbul, Turkey
+            // CLLocation(latitude: 43.235377, longitude: 32.636948), // 43.235377°N 32.636948°E Black Sea, Turkey
+            CLLocation(latitude: 5.416011, longitude: 100.338764), // 5.416011°N 100.338764°E Penang, Malaysia
+        ]
+    )
+    func geocodeReverseMK(location: CLLocation) async throws {
         let geocoder = Geocoder(geoapifyApiKey: "")
-        let location = CLLocation(
-            latitude: 22.559614,
-            longitude: 114.116995
-        )
         let placemarks: [CLPlacemark]
         // printItem(item: location)
         do {
             placemarks = try await geocoder.geocodeReverseMK(location: location)
-            printItem(item: placemarks)
-        } catch is CLError {
+        } catch let error as CLError {
+            print("================")
+            print("⚠️ CLError for location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+            print("   code: \(error.code.rawValue), description: \(error.localizedDescription)")
+            print("================")
+            return
+        } catch let error as MKError {
+            print("================")
+            print("⚠️ MKError for location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+            print("   code: \(error.code.rawValue), description: \(error.localizedDescription)")
+            print("================")
             return
         }
         try require(
@@ -137,13 +150,26 @@ struct GeocoderTests {
         )
     }
 
-    @Test("geocodeReverse returns LocationDict with expected keys when API key is set")
-    func testGeocodeReverse() async throws {
+    @Test(
+        "geocodeReverse returns LocationDict with expected keys when API key is set",
+        arguments: [
+            // CLLocation(latitude: 22.559623109782347, longitude: 114.11698910372738), // Shenzhen, China
+            // CLLocation(latitude: 41.008918, longitude: 28.979900), 
+            // CLLocation(latitude: 5.416011, longitude: 100.338764), // Penang, Malaysia
+            CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
+            // CLLocation(latitude: 30.333000, longitude: 89.051053), // Himlayas
+            
+            // CLLocation(latitude: 42.569393, longitude: 88.465132), // Lake Garda
+            // CLLocation(latitude:30.0, longitude: -40.0),  
+        ]
+    )
+    func geocodeReverse(location: CLLocation) async throws {
         let apiKey = ProcessInfo.processInfo.environment["GEOAPIFY_API_KEY"] ?? "e810e0454fda45acbf6b3fbaa7bebe15"
         guard !apiKey.isEmpty else { return }
         let geocoder = Geocoder(geoapifyApiKey: apiKey)
-        let location = CLLocation(latitude: 52.518_948_879_280_74, longitude: 13.409_808_180_753_316)
         let locationDict = try await geocoder.geocodeReverse(location: location)
+        printItem(item: locationDict)
+
         try require(
             locationDict["coordinate"] != nil,
             success: "LocationDict has coordinate",

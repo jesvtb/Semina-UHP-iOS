@@ -206,11 +206,10 @@ struct NetworkingTests {
         var chunkIndex = 0
         for try await chunk in stream {
             chunkIndex += 1
-            // print("--- testCase: \(testCase), chunk #\(chunkIndex), event: \(chunk.event ?? "nil") ---")
+            // print("--- testCase: \(testCase), chunk #\(chunkIndex), event: \(chunk) ---")
             printItem(item: chunk)
-            if chunk.event == "map" {
-                let jsonValue = chunk.dataValue
-                printItem(item: jsonValue)
+            if case .map(let features) = chunk {
+                printItem(item: features)
             }
             // if chunk.event == "content" {
             //     let jsonValue = try chunk.parseJSONData()
