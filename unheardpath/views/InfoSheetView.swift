@@ -373,7 +373,7 @@ struct InfoSheetSectionTabBar: View {
                             selectedIndex = index
                         }
                     } label: {
-                        Text(section.type.sectionTabTitle)
+                        Text(section.displayTitle)
                             .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
                             .padding(.horizontal, Spacing.current.space3xs)
                             .foregroundColor(isSelected ? Color("onBkgTextColor10") : Color("onBkgTextColor30"))
@@ -411,7 +411,7 @@ struct SectionPagedScrollView: View {
     /// Explicit content height - when provided, uses this instead of GeometryReader inference
     var contentHeight: CGFloat?
 
-    @State private var scrollPositionId: CatalogueSectionType?
+    @State private var scrollPositionId: String?
 
     var body: some View {
         GeometryReader { geo in
@@ -435,7 +435,7 @@ struct SectionPagedScrollView: View {
                         }
                         .scrollDisabled(isScrollDisabled)
                         .frame(width: pageWidth, height: pageHeight)
-                        .id(section.type)
+                        .id(section.sectionType)
                     }
                 }
                 .scrollTargetLayout()
@@ -445,20 +445,20 @@ struct SectionPagedScrollView: View {
             .scrollPosition(id: $scrollPositionId)
             .onAppear {
                 if scrollPositionId == nil, sections.indices.contains(selectedIndex) {
-                    scrollPositionId = sections[selectedIndex].type
+                    scrollPositionId = sections[selectedIndex].sectionType
                 }
             }
             .onChange(of: selectedIndex) { _, newIndex in
                 if sections.indices.contains(newIndex) {
-                    let type = sections[newIndex].type
-                    if type != scrollPositionId {
-                        scrollPositionId = type
+                    let sectionType = sections[newIndex].sectionType
+                    if sectionType != scrollPositionId {
+                        scrollPositionId = sectionType
                     }
                 }
             }
             .onChange(of: scrollPositionId) { _, newId in
                 guard let newId else { return }
-                if let idx = sections.firstIndex(where: { $0.type == newId }), idx != selectedIndex {
+                if let idx = sections.firstIndex(where: { $0.sectionType == newId }), idx != selectedIndex {
                     selectedIndex = idx
                 }
             }

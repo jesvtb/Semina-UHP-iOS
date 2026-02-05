@@ -103,11 +103,12 @@ public enum SSEEventType: String, Sendable {
 
         case .catalogue, .overview:
             guard let dict = dataDict,
-                  let section = dict["section"]?.stringValue,
-                  let content = dict["content"] else {
-                throw ParseError.missingField("section or content")
+                  let section = dict["section"]?.stringValue else {
+                throw ParseError.missingField("section")
             }
-            return .catalogue(typeString: section, dataValue: content)
+            // Pass entire data dict - router extracts action, display_title, config, content
+            let dataValue = JSONValue.decode(dataString) ?? .dictionary([:])
+            return .catalogue(typeString: section, dataValue: dataValue)
         }
     }
 

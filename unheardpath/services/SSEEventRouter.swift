@@ -30,12 +30,6 @@ class SSEEventRouter: ObservableObject {
         self.logger = logger
     }
 
-    /// Set catalogue directly (e.g. for testing or when already holding CatalogueSectionData).
-    /// For parsed SSE events use route(.catalogue(typeString:dataValue:)) instead.
-    func setCatalogue(type: CatalogueSectionType, data: CatalogueSection.CatalogueSectionData) {
-        catalogueManager?.setCatalogue(type: type, data: data)
-    }
-
     /// Route a parsed SSE event to the appropriate manager
     func route(_ event: SSEEvent) async {
         switch event {
@@ -63,16 +57,27 @@ class SSEEventRouter: ObservableObject {
             }
 
         case .catalogue(let typeString, let dataValue):
-            guard let catalogueType = CatalogueSectionType(rawValue: typeString) else {
-                logger.warning("Unknown catalogue type: \(typeString)", handlerType: "SSEEventRouter")
-                return
-            }
-            guard let catalogueData = CatalogueTypeRegistry.shared().parse(type: catalogueType, dataValue: dataValue.asAny) else {
-                logger.warning("Failed to parse catalogue type: \(typeString)", handlerType: "SSEEventRouter")
-                return
-            }
-            catalogueManager?.setCatalogue(type: catalogueType, data: catalogueData)
-            logger.debug("Routed catalogue: \(typeString)")
+            // Extract action (default to "replace")
+            let actionString = dataValue["action"]?.stringValue ?? "replace"
+            let action = CatalogueAction(rawValue: actionString) ?? .replace
+            
+            // Extract display title (from server or derive from type)
+            let displayTitle = dataValue["display_title"]?.stringValue
+                ?? typeString.replacingOccurrences(of: "_", with: " ").capitalized
+            
+            // Extract config and content
+            let config = dataValue["config"]
+            let content = dataValue["content"] ?? .dictionary([:])
+            
+            // Route to CatalogueManager with action
+            catalogueManager?.handleCatalogue(
+                sectionType: typeString,
+                displayTitle: displayTitle,
+                action: action,
+                config: config,
+                content: content
+            )
+            logger.debug("Routed catalogue: \(typeString) with action: \(actionString)")
         }
     }
 }

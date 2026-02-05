@@ -4,12 +4,17 @@ import core
 
 #if DEBUG
 /// Debug view for testing SSE catalogue events in InfoSheet
-/// Allows simulating different catalogue section types (overview, cuisine, architecture)
+/// Allows simulating different catalogue section types dynamically
 struct SSEContentTestView: View {
     @EnvironmentObject var catalogueManager: CatalogueManager
     @EnvironmentObject var sseEventRouter: SSEEventRouter
     
-    @State private var selectedCatalogueType: CatalogueSectionType = .overview
+    // Available section types for testing
+    private let availableSectionTypes = ["overview", "cuisine", "architecture", "custom"]
+    
+    @State private var selectedSectionType: String = "overview"
+    @State private var customSectionType: String = ""
+    @State private var displayTitle: String = "Overview"
     @State private var overviewMarkdown: String = """
 # Welcome to Ancient Rome
 
@@ -30,21 +35,28 @@ You can test different content types using the buttons below.
         NavigationView {
             Form {
                 Section(header: Text("Catalogue Type")) {
-                    Picker("Catalogue Type", selection: $selectedCatalogueType) {
-                        ForEach(CatalogueSectionType.allCases, id: \.self) { type in
-                            Text(type.rawValue.capitalized).tag(type)
+                    Picker("Section Type", selection: $selectedSectionType) {
+                        ForEach(availableSectionTypes, id: \.self) { type in
+                            Text(type.capitalized).tag(type)
                         }
                     }
+                    .onChange(of: selectedSectionType) { newValue in
+                        displayTitle = newValue.replacingOccurrences(of: "_", with: " ").capitalized
+                    }
+                    
+                    if selectedSectionType == "custom" {
+                        TextField("Custom Section Type", text: $customSectionType)
+                    }
+                    
+                    TextField("Display Title", text: $displayTitle)
                 }
                 
                 Section(header: Text("Catalogue Data")) {
-                    switch selectedCatalogueType {
-                    case .overview:
+                    if selectedSectionType == "overview" {
                         TextEditor(text: $overviewMarkdown)
                             .frame(height: 200)
                             .font(.system(.body, design: .monospaced))
-                        
-                    case .cuisine, .architecture:
+                    } else {
                         Text("Card section testing requires structured data. Not yet implemented in test view.")
                             .foregroundColor(.secondary)
                             .font(.caption)
@@ -89,7 +101,7 @@ You can test different content types using the buttons below.
                     } else {
                         ForEach(catalogueManager.orderedSections) { section in
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(section.type.rawValue.capitalized)
+                                Text(section.displayTitle)
                                     .font(.headline)
                                 Text(catalogueDescription(for: section))
                                     .font(.caption)
@@ -105,25 +117,41 @@ You can test different content types using the buttons below.
     }
     
     private func catalogueDescription(for section: CatalogueSection) -> String {
-        switch section.data {
-        case .overview(let markdown):
-            return "Markdown: \(markdown.prefix(50))..."
-        case .cardSection(let data):
-            let cardCount = data.cards.count
-            return "Card Section: \(cardCount) cards"
+        // Check for markdown content
+        if let markdownContent = section.content["markdown"]?.stringValue {
+            return "Markdown: \(markdownContent.prefix(50))..."
         }
+        
+        // Check for cards content
+        if let cardsValue = section.content["cards"], case .array(let cards) = cardsValue {
+            return "Card Section: \(cards.count) cards"
+        }
+        
+        // Generic content description
+        return "Section Type: \(section.sectionType)"
     }
     
     private func simulateCatalogueEvent() {
-        Task { @MainActor in
-            switch selectedCatalogueType {
-            case .overview:
-                let data: CatalogueSection.CatalogueSectionData = .overview(markdown: overviewMarkdown)
-                sseEventRouter.setCatalogue(type: .overview, data: data)
-                
-            case .cuisine, .architecture:
-                print("⚠️ Card section simulation not yet implemented in test view")
-            }
+        let sectionType = selectedSectionType == "custom" ? customSectionType : selectedSectionType
+        
+        if sectionType == "overview" {
+            // Build content with markdown config
+            let content: JSONValue = .dictionary([
+                "markdown": .string(overviewMarkdown)
+            ])
+            let config: JSONValue = .dictionary([
+                "markdown": .dictionary([:])
+            ])
+            
+            catalogueManager.handleCatalogue(
+                sectionType: sectionType,
+                displayTitle: displayTitle,
+                action: .replace,
+                config: config,
+                content: content
+            )
+        } else {
+            print("⚠️ Card section simulation not yet implemented in test view")
         }
     }
     
@@ -132,21 +160,34 @@ You can test different content types using the buttons below.
     }
     
     private func clearSelectedType() {
-        catalogueManager.removeCatalogue(type: selectedCatalogueType)
+        let sectionType = selectedSectionType == "custom" ? customSectionType : selectedSectionType
+        catalogueManager.removeCatalogue(sectionType: sectionType)
     }
 }
 
 /// Quick test functions for common scenarios
 @MainActor
 struct SSECatalogueTestHelpers {
-    static func testOverview(router: SSEEventRouter, markdown: String = "# Test Overview\n\nThis is a test.") {
-        let data: CatalogueSection.CatalogueSectionData = .overview(markdown: markdown)
-        router.setCatalogue(type: .overview, data: data)
+    static func testOverview(manager: CatalogueManager, markdown: String = "# Test Overview\n\nThis is a test.") {
+        let content: JSONValue = .dictionary([
+            "markdown": .string(markdown)
+        ])
+        let config: JSONValue = .dictionary([
+            "markdown": .dictionary([:])
+        ])
+        
+        manager.handleCatalogue(
+            sectionType: "overview",
+            displayTitle: "Overview",
+            action: .replace,
+            config: config,
+            content: content
+        )
     }
     
-    static func testAllCatalogueTypes(router: SSEEventRouter) async {
+    static func testAllCatalogueTypes(manager: CatalogueManager) async {
         // Test overview
-        testOverview(router: router, markdown: """
+        testOverview(manager: manager, markdown: """
         # Complete Test
 
         This tests **all** catalogue section types in sequence.
