@@ -38,8 +38,8 @@ struct MainView: View {
     @EnvironmentObject var toastManager: ToastManager
     @FocusState var isTextFieldFocused: Bool
     
-    // Content management
-    @EnvironmentObject var contentManager: ContentManager
+    // Catalogue management
+    @EnvironmentObject var catalogueManager: CatalogueManager
     // SSE event router for handling events from both /v1/chat and /v1/orchestrator
     @EnvironmentObject var sseEventRouter: SSEEventRouter
     // Event manager for event-driven location tracking
@@ -101,7 +101,7 @@ struct MainView: View {
                         sheetFullHeight: sheetFullHeight,
                         bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight,
                         sheetSnapPoint: $sheetSnapPoint,
-                        contentManager: contentManager
+                        catalogueManager: catalogueManager
                     )
                         .position(
                             x: geometry.size.width / 2,
@@ -218,18 +218,6 @@ struct MainView: View {
             }
             Task {
                 await updateLookupLocationToUHP(flyTo: flyTo, router: sseEventRouter)
-            }
-        }
-        .onChange(of: mapFeaturesManager.geoJSONUpdateTrigger) { _ in
-            // Update content manager with POIs when GeoJSON changes
-            let pois = extractPOIs(from: mapFeaturesManager.poisGeoJSON)
-            if !pois.isEmpty {
-                contentManager.setContent(
-                    type: .pointsOfInterest,
-                    data: .pointsOfInterest(features: pois)
-                )
-            } else {
-                contentManager.removeContent(type: .pointsOfInterest)
             }
         }
         .onChange(of: liveUpdateViewModel.inputLocation) { newValue in

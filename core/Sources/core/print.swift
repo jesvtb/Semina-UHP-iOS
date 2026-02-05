@@ -74,8 +74,8 @@ func printItem(item: SSEEvent) {
     case .hook(let action):
         print("   case: hook")
         print("   action: \(action)")
-    case .content(let typeString, let dataValue):
-        print("   case: content")
+    case .catalogue(let typeString, let dataValue):
+        print("   case: catalogue")
         print("   typeString: \(typeString)")
         if let jsonData = try? JSONEncoder().encode(dataValue),
            let jsonString = String(data: jsonData, encoding: .utf8) {

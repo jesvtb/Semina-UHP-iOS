@@ -217,7 +217,7 @@ struct InfoSheetHeaderView: View {
                                 .font(.system(size: TypographyScale.article0.baseSize, weight: .medium))
                                 .foregroundColor(Color("onBkgTextColor30"))
                             
-                            Text("Journey Content")
+                            Text("Journey Catalogue")
                                 .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article2.baseSize))
                                 .foregroundColor(Color("onBkgTextColor20"))
                             if isDropdownMode {
@@ -360,7 +360,7 @@ struct TestBody: View {
 // MARK: - Info Sheet Section Tab Bar
 /// Upper bar with tabs for switching between content sections (Overview, Location, Cuisine, Points of Interest).
 struct InfoSheetSectionTabBar: View {
-    let sections: [ContentSection]
+    let sections: [CatalogueSection]
     @Binding var selectedIndex: Int
 
     var body: some View {
@@ -404,14 +404,14 @@ struct InfoSheetSectionTabBar: View {
 /// Replaces TabView with ScrollView + scrollPosition/scrollTargetLayout so we avoid UICollectionView and layout warnings.
 @available(iOS 17.0, *)
 struct SectionPagedScrollView: View {
-    let sections: [ContentSection]
+    let sections: [CatalogueSection]
     @Binding var selectedIndex: Int
     /// When true, disables both horizontal paging and vertical scroll so drag-up-to-expand wins.
     var isScrollDisabled: Bool = false
     /// Explicit content height - when provided, uses this instead of GeometryReader inference
     var contentHeight: CGFloat?
 
-    @State private var scrollPositionId: ContentViewType?
+    @State private var scrollPositionId: CatalogueSectionType?
 
     var body: some View {
         GeometryReader { geo in
@@ -428,7 +428,7 @@ struct SectionPagedScrollView: View {
                 LazyHStack(spacing: 0) {
                     ForEach(sections) { section in
                         ScrollView {
-                            ContentViewRegistry.view(for: section)
+                            CatalogueViewRegistry.view(for: section)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, Spacing.current.spaceS)
                                 .padding(.bottom, 100)
@@ -471,14 +471,14 @@ struct SectionPagedScrollView: View {
 // MARK: - Legacy Paged Scroll View (iOS 16 and below)
 /// Custom UIScrollView paging to avoid TabView's UICollectionViewFlowLayout warnings.
 struct LegacyPagedScrollView: UIViewRepresentable {
-    let sections: [ContentSection]
+    let sections: [CatalogueSection]
     @Binding var selectedIndex: Int
     var isScrollDisabled: Bool = false
 
-    private func makePageView(for section: ContentSection) -> AnyView {
+    private func makePageView(for section: CatalogueSection) -> AnyView {
         AnyView(
             ScrollView {
-                ContentViewRegistry.view(for: section)
+                CatalogueViewRegistry.view(for: section)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, Spacing.current.spaceS)
                     .padding(.bottom, 100)
@@ -575,8 +575,8 @@ struct InfoSheet: View {
     let bottomSafeAreaInsetHeight: CGFloat
     @Binding var sheetSnapPoint: SnapPoint
     
-    // Content management
-    @ObservedObject var contentManager: ContentManager
+    // Catalogue management
+    @ObservedObject var catalogueManager: CatalogueManager
     
     init(
         selectedTab: Binding<PreviewTabSelection>,
@@ -584,19 +584,19 @@ struct InfoSheet: View {
         sheetFullHeight: CGFloat,
         bottomSafeAreaInsetHeight: CGFloat,
         sheetSnapPoint: Binding<SnapPoint>,
-        contentManager: ContentManager
+        catalogueManager: CatalogueManager
     ) {
         self._selectedTab = selectedTab
         self._shouldHideTabBar = shouldHideTabBar
         self.sheetFullHeight = sheetFullHeight
         self.bottomSafeAreaInsetHeight = bottomSafeAreaInsetHeight
         self._sheetSnapPoint = sheetSnapPoint
-        self.contentManager = contentManager
+        self.catalogueManager = catalogueManager
     }
     
-    /// Extracts LocationDetailData from ContentManager
+    /// Extracts LocationDetailData from CatalogueManager
     private var locationDetailData: LocationDetailData? {
-        contentManager.locationDetailData
+        catalogueManager.locationDetailData
     }
     
     // Snap points - visible heights
@@ -699,13 +699,13 @@ struct InfoSheet: View {
                 // Root layout: always drag handle → header → tab bar (when sections) → paging/scroll.
                 // No overlay/safeAreaInset so spacing is explicit and no extra gap.
                 Group {
-                    if !contentManager.orderedSections.isEmpty {
+                    if !catalogueManager.orderedSections.isEmpty {
                         VStack(spacing: 0) {
                             // Header and tab bar always in flow (full and non-full)
                             VStack(spacing: 0) {
                                 InfoSheetHeaderView(
                                     locationData: locationDetailData,
-                                    isFromDeviceLocation: contentManager.isContentFromDeviceLocation,
+                                    isFromDeviceLocation: catalogueManager.isCatalogueFromDeviceLocation,
                                     currentSnapPoint: sheetSnapPoint,
                                     isDropdownOpen: isShowingLocationPicker,
                                     onChangeLocation: {
@@ -722,18 +722,18 @@ struct InfoSheet: View {
                                         Color.clear.preference(key: HeaderFramePreferenceKey.self, value: geo.frame(in: .named("sheetContent")))
                                     }
                                 )
-                                InfoSheetSectionTabBar(sections: contentManager.orderedSections, selectedIndex: $selectedSectionIndex)
+                                InfoSheetSectionTabBar(sections: catalogueManager.orderedSections, selectedIndex: $selectedSectionIndex)
                             }
                             
                             if #available(iOS 17.0, *) {
                                 SectionPagedScrollView(
-                                    sections: contentManager.orderedSections,
+                                    sections: catalogueManager.orderedSections,
                                     selectedIndex: $selectedSectionIndex,
                                     isScrollDisabled: sheetSnapPoint != .full
                                 )
                             } else {
                                 LegacyPagedScrollView(
-                                    sections: contentManager.orderedSections,
+                                    sections: catalogueManager.orderedSections,
                                     selectedIndex: $selectedSectionIndex,
                                     isScrollDisabled: sheetSnapPoint != .full
                                 )
@@ -766,34 +766,36 @@ struct InfoSheet: View {
                         }
                         .animation(.easeOut(duration: 0.2), value: isShowingLocationPicker)
                     } else {
-                        ScrollView {
-                            VStack(spacing: 0) {
-                                ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: sheetSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
-                                VStack(alignment: .leading, spacing: 0) {
-                                    if sheetSnapPoint != .full {
-                                        InfoSheetHeaderView(
-                                            locationData: locationDetailData,
-                                            isFromDeviceLocation: contentManager.isContentFromDeviceLocation,
-                                            currentSnapPoint: sheetSnapPoint,
-                                            isDropdownOpen: isShowingLocationPicker,
-                                            onChangeLocation: {
-                                                withAnimation(.easeOut(duration: 0.2)) {
-                                                    isShowingLocationPicker.toggle()
-                                                }
-                                            }
-                                        )
-                                        .padding(.top, Spacing.current.spaceXs)
-                                        .padding(.bottom, Spacing.current.spaceXs)
-                                        .transition(.opacity)
+                        VStack(spacing: 0) {
+                            // Header fixed at top (same as sections layout)
+                            InfoSheetHeaderView(
+                                locationData: locationDetailData,
+                                isFromDeviceLocation: catalogueManager.isCatalogueFromDeviceLocation,
+                                currentSnapPoint: sheetSnapPoint,
+                                isDropdownOpen: isShowingLocationPicker,
+                                onChangeLocation: {
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        isShowingLocationPicker.toggle()
                                     }
-                                    TestBody()
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.horizontal, Spacing.current.spaceS)
-                                .padding(.bottom, 100)
+                            )
+                            .padding(.top, Spacing.current.space2xs)
+                            .padding(.bottom, Spacing.current.spaceXs)
+                            .padding(.horizontal, Spacing.current.spaceS)
+                            
+                            ScrollView {
+                                VStack(spacing: 0) {
+                                    ScrollOffsetTracker(offset: $scrollViewContentOffset, shouldHideTabBar: $shouldHideTabBar, currentSnapPoint: sheetSnapPoint, hideTabBarThreshold: hideTabBarThreshold)
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        TestBody()
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.horizontal, Spacing.current.spaceS)
+                                    .padding(.bottom, 100)
+                                }
                             }
+                            .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
                         }
-                        .scrollDisabled(sheetSnapPoint != .full || (sheetSnapPoint == .full && dragOffset > 0 && isScrollAtTop))
                     }
                 }
                 .compositingGroup()
@@ -976,17 +978,17 @@ struct InfoSheet: View {
 
 #if DEBUG
 /// Preview that loads an array of `{"event": "...", "data": {...}}` from `sse_preview_events.json`,
-/// stringifies each `data` to simulate an SSE stream, and replays via SSEEventProcessor so ContentManager is populated by the router.
-#Preview("SSE Content") {
+/// stringifies each `data` to simulate an SSE stream, and replays via SSEEventProcessor so CatalogueManager is populated by the router.
+#Preview("SSE Catalogue") {
     SSEPreviewWrapper(snapPoint: .full)
 }
 
-#Preview("SSE Content - Partial") {
+#Preview("SSE Catalogue - Partial") {
     SSEPreviewWrapper(snapPoint: .partial)
 }
 
 private struct SSEPreviewWrapper: View {
-    @StateObject private var contentManager = ContentManager()
+    @StateObject private var catalogueManager = CatalogueManager()
     let snapPoint: SnapPoint
 
     var body: some View {
@@ -996,10 +998,10 @@ private struct SSEPreviewWrapper: View {
             sheetFullHeight: 1000,
             bottomSafeAreaInsetHeight: 0,
             sheetSnapPoint: .constant(snapPoint),
-            contentManager: contentManager
+            catalogueManager: catalogueManager
         )
         .task {
-            await replaySSEPreviewEvents(into: contentManager)
+            await replaySSEPreviewEvents(into: catalogueManager)
         }
     }
 }
@@ -1030,14 +1032,34 @@ private func stringifySSEData(_ value: Any?) -> String {
     return string
 }
 
-/// Replay loaded SSE events through SSEEventProcessor so ContentManager is updated via SSEEventRouter.
+/// Replay loaded SSE events through SSEEventProcessor so CatalogueManager is updated via SSEEventRouter.
 @MainActor
-private func replaySSEPreviewEvents(into contentManager: ContentManager) async {
+private func replaySSEPreviewEvents(into catalogueManager: CatalogueManager) async {
     guard let events = loadSSEPreviewEventsFromJSON() else { return }
+    
+    // Set up sample location data for the header (similar to updateLocationToUHP)
+    let sampleLocation = CLLocation(
+        coordinate: CLLocationCoordinate2D(latitude: 41.9028, longitude: 12.4964),
+        altitude: 0,
+        horizontalAccuracy: 0,
+        verticalAccuracy: -1,
+        timestamp: Date()
+    )
+    let locationData = LocationDetailData(
+        location: sampleLocation,
+        placeName: "Ancient Rome",
+        subdivisions: "Rome, Lazio",
+        countryName: "Italy",
+        countryCode: "IT",
+        adminArea: "Lazio",
+        locality: "Rome"
+    )
+    catalogueManager.setLocationData(locationData, isFromDeviceLocation: true)
+    
     let chatManager = ChatManager(uhpGateway: UHPGateway(), userManager: UserManager())
     let router = SSEEventRouter(
         chatManager: chatManager,
-        contentManager: contentManager,
+        catalogueManager: catalogueManager,
         mapFeaturesManager: nil,
         toastManager: nil
     )

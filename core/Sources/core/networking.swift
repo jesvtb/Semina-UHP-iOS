@@ -32,7 +32,7 @@ public enum SSEEvent: Sendable {
     case stop
     case map(features: [[String: JSONValue]])
     case hook(action: String)
-    case content(typeString: String, dataValue: JSONValue)
+    case catalogue(typeString: String, dataValue: JSONValue)
 }
 
 public enum SSEEventType: String, Sendable {
@@ -41,13 +41,13 @@ public enum SSEEventType: String, Sendable {
     case stop
     case map
     case hook
-    case content
+    case catalogue
     case overview
 
     public init?(from eventString: String?) {
         guard let normalized = eventString?.lowercased() else { return nil }
         if normalized == "overview" {
-            self = .content
+            self = .catalogue
             return
         }
         self.init(rawValue: normalized)
@@ -101,13 +101,13 @@ public enum SSEEventType: String, Sendable {
             }
             return .hook(action: action)
 
-        case .content, .overview:
+        case .catalogue, .overview:
             guard let dict = dataDict,
-                  let typeString = dict["type"]?.stringValue,
-                  let dataValue = dict["data"] else {
-                throw ParseError.missingField("type or data")
+                  let section = dict["section"]?.stringValue,
+                  let content = dict["content"] else {
+                throw ParseError.missingField("section or content")
             }
-            return .content(typeString: typeString, dataValue: dataValue)
+            return .catalogue(typeString: section, dataValue: content)
         }
     }
 

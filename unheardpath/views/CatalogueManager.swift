@@ -3,111 +3,96 @@ import MarkdownUI
 import CoreLocation
 import core
 
-// MARK: - Content View Type
-enum ContentViewType: String, CaseIterable, Sendable {
+// MARK: - Catalogue Section Type
+enum CatalogueSectionType: String, CaseIterable, Sendable {
     case overview
-    case locationDetail
-    case pointsOfInterest
-    case countryOverview
-    case subdivisionsOverview
-    case neighborhoodOverview
-    case cultureOverview
-    case regionalCuisine
+    case cuisine
+    case architecture
 
-    /// Tab bar title for section tabs (Overview, Location, Cuisine, Points of Interest).
+    /// Tab bar title for section tabs.
     var sectionTabTitle: String {
         switch self {
-        case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
+        case .overview:
             return "Overview"
-        case .locationDetail:
-            return "Location"
-        case .regionalCuisine:
+        case .cuisine:
             return "Cuisine"
-        case .pointsOfInterest:
-            return "Points of Interest"
+        case .architecture:
+            return "Architecture"
         }
     }
 }
 
-// MARK: - Content Type Definition Protocol
-/// Protocol that defines all metadata and behavior for a content type
-/// Each content type conforms to this protocol, consolidating parsing, view creation, and type information
+// MARK: - Catalogue Type Definition Protocol
+/// Protocol that defines all metadata and behavior for a catalogue type
+/// Each catalogue type conforms to this protocol, consolidating parsing, view creation, and type information
 /// Sendable because all conforming types are value types (structs) with only static methods
-protocol ContentTypeDefinition: Sendable {
-    static var type: ContentViewType { get }
+protocol CatalogueTypeDefinition: Sendable {
+    static var type: CatalogueSectionType { get }
     
-    /// Parse raw data from SSE event into ContentSectionData
-    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData?
+    /// Parse raw data from SSE event into CatalogueSectionData
+    static func parse(from dataValue: Any) -> CatalogueSection.CatalogueSectionData?
     
-    /// Create SwiftUI view from ContentSectionData
-    static func createView(for data: ContentSection.ContentSectionData) -> AnyView
+    /// Create SwiftUI view from CatalogueSectionData
+    static func createView(for data: CatalogueSection.CatalogueSectionData) -> AnyView
 }
 
-// MARK: - Content Type Registry
-/// Centralized registry for all content types
+// MARK: - Catalogue Type Registry
+/// Centralized registry for all catalogue types
 /// Provides parsing, view creation, and display order management
 /// 
 /// Concurrency Safety (Swift 6):
 /// - All stored properties are `let` (immutable after initialization)
-/// - ContentTypeDefinition protocol is Sendable
-/// - ContentViewType enum is Sendable
+/// - CatalogueTypeDefinition protocol is Sendable
+/// - CatalogueSectionType enum is Sendable
 /// - Dictionary key/value types are Sendable
 /// - Registry is only written during initialization, then only read
 /// 
 /// Note: Using @unchecked Sendable because Swift 6 cannot automatically verify
-/// that existential metatypes (`any ContentTypeDefinition.Type`) are Sendable,
+/// that existential metatypes (`any CatalogueTypeDefinition.Type`) are Sendable,
 /// even though the protocol is Sendable. This is safe because:
 /// 1. Metatypes themselves are value types (no mutable state)
 /// 2. All conforming types are structs (value types) with only static methods
 /// 3. The dictionary is immutable after initialization
 /// 4. All access is read-only after initialization
-final class ContentTypeRegistry: @unchecked Sendable {
-    private let definitions: [ContentViewType: any ContentTypeDefinition.Type]
+final class CatalogueTypeRegistry: @unchecked Sendable {
+    private let definitions: [CatalogueSectionType: any CatalogueTypeDefinition.Type]
     
     /// Display order defined as ordered array - easy to reorder by moving items!
-    let displayOrder: [ContentViewType] = [
+    let displayOrder: [CatalogueSectionType] = [
         .overview,
-        .locationDetail,
-        .regionalCuisine,
-        .pointsOfInterest
+        .cuisine,
+        .architecture
     ]
     
     fileprivate init() {
-        var tempDefinitions: [ContentViewType: any ContentTypeDefinition.Type] = [:]
+        var tempDefinitions: [CatalogueSectionType: any CatalogueTypeDefinition.Type] = [:]
         
-        // Register overview and all its variants to use OverviewContentType
-        let overviewTypes: [ContentViewType] = [.overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview]
-        for type in overviewTypes {
-            tempDefinitions[type] = OverviewContentType.self
-        }
-        
-        // Register remaining content types
-        tempDefinitions[.locationDetail] = LocationDetailContentType.self
-        tempDefinitions[.pointsOfInterest] = PointsOfInterestContentType.self
-        tempDefinitions[.regionalCuisine] = RegionalCuisineContentType.self
+        tempDefinitions[.overview] = OverviewCatalogueType.self
+        tempDefinitions[.cuisine] = CuisineCatalogueType.self
+        tempDefinitions[.architecture] = ArchitectureCatalogueType.self
         
         self.definitions = tempDefinitions
     }
     
-    /// Parse content data from raw SSE event data
+    /// Parse catalogue data from raw SSE event data
     /// Must be called from @MainActor context (used by SSEEventProcessor)
     @MainActor
-    func parse(type: ContentViewType, dataValue: Any) -> ContentSection.ContentSectionData? {
+    func parse(type: CatalogueSectionType, dataValue: Any) -> CatalogueSection.CatalogueSectionData? {
         definitions[type]?.parse(from: dataValue)
     }
     
-    /// Create SwiftUI view for a content section
+    /// Create SwiftUI view for a catalogue section
     /// Can be called from any context (used by SwiftUI view builders)
-    func createView(for section: ContentSection) -> AnyView {
+    func createView(for section: CatalogueSection) -> AnyView {
         definitions[section.type]?.createView(for: section.data) ?? AnyView(EmptyView())
     }
 }
 
-// Global shared instance - safe because ContentTypeRegistry is @unchecked Sendable
+// Global shared instance - safe because CatalogueTypeRegistry is @unchecked Sendable
 // and all properties are immutable after initialization
-private let _contentTypeRegistry = ContentTypeRegistry()
+private let _catalogueTypeRegistry = CatalogueTypeRegistry()
 
-extension ContentTypeRegistry {
+extension CatalogueTypeRegistry {
     /// Access the shared registry instance
     /// 
     /// Swift 6 Concurrency: Using a function instead of a static property
@@ -116,12 +101,15 @@ extension ContentTypeRegistry {
     /// 1. It's @unchecked Sendable (immutable after init)
     /// 2. All stored properties are `let`
     /// 3. Only read operations after initialization
-    nonisolated static func shared() -> ContentTypeRegistry {
-        _contentTypeRegistry
+    nonisolated static func shared() -> CatalogueTypeRegistry {
+        _catalogueTypeRegistry
     }
 }
 
-struct RegionalDish: Identifiable {
+// MARK: - Generic Card System
+
+/// A dish card item
+struct Dish: Identifiable {
     let localName: String
     let globalName: String
     let description: String
@@ -130,70 +118,135 @@ struct RegionalDish: Identifiable {
     var id: String { "\(localName)|\(globalName)" }
 }
 
-struct RegionalCuisineData {
-    let introduction: String
-    let dishes: [RegionalDish]
+/// Enum representing different card types
+enum CardItem: Identifiable {
+    case dish(Dish)
+    case feature(PointFeature)
+    
+    var id: String {
+        switch self {
+        case .dish(let dish): return "dish_\(dish.id)"
+        case .feature(let feature): return "feature_\(feature.id)"
+        }
+    }
 }
 
-private let regionalCuisineCardCornerRadius: CGFloat = 12
-private let regionalCuisineCardAspectRatio: CGFloat = 0.85
-private let regionalCuisineCardMinHeight: CGFloat = 140
+/// Generic section data with markdown intro and cards
+struct CardSectionData {
+    let markdown: String
+    let cards: [CardItem]
+}
 
-struct RegionalCuisineView: View {
-    let data: RegionalCuisineData
-    @State private var selectedDish: RegionalDish?
+// MARK: - Card Section View Constants
+private let cardCornerRadius: CGFloat = 12
+private let cardAspectRatio: CGFloat = 0.85
+private let cardMinHeight: CGFloat = 140
+
+/// Generic view for rendering card sections with markdown intro and cards
+struct CardSectionView: View {
+    let data: CardSectionData
+    @State private var selectedDish: Dish?
 
     private let gridSpacing = Spacing.current.spaceS
 
     var body: some View {
         VStack(alignment: .leading, spacing: gridSpacing) {
-            Text(data.introduction)
-                .bodyParagraph(color: Color("onBkgTextColor30"))
-
-            GeometryReader { geometry in
-                let availableWidth = max(0, geometry.size.width)
-                let columnWidth = (availableWidth - gridSpacing) / 2
-                let columns = [
-                    GridItem(.fixed(columnWidth), spacing: gridSpacing),
-                    GridItem(.fixed(columnWidth), spacing: gridSpacing)
-                ]
-                LazyVGrid(columns: columns, spacing: gridSpacing) {
-                    ForEach(data.dishes) { dish in
-                        RegionalDishCard(dish: dish) {
-                            selectedDish = dish
-                        }
-                        .frame(width: columnWidth, height: columnWidth / regionalCuisineCardAspectRatio)
+            // Markdown intro
+            if !data.markdown.isEmpty {
+                Markdown(data.markdown)
+                    .markdownTextStyle(\.text) {
+                        ForegroundColor(Color("onBkgTextColor30"))
                     }
-                }
-                .frame(width: availableWidth)
-                .clipped()
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: gridContentHeight)
+
+            // Render cards based on type
+            cardsContent
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipped()
         .padding(.vertical, Spacing.current.spaceXs)
         .sheet(item: $selectedDish) { dish in
-            RegionalDishPopupView(dish: dish) {
+            DishPopupView(dish: dish) {
                 selectedDish = nil
             }
         }
     }
-
-    /// Approximate height so GeometryReader gets a bounded proposal (card height × rows + spacing).
-    private var gridContentHeight: CGFloat {
-        let rowCount = (data.dishes.count + 1) / 2
+    
+    @ViewBuilder
+    private var cardsContent: some View {
+        // Determine card type from first card (all cards in a section are same type)
+        if let firstCard = data.cards.first {
+            switch firstCard {
+            case .dish:
+                dishGridContent
+            case .feature:
+                featureListContent
+            }
+        }
+    }
+    
+    // MARK: - Dish Grid Layout
+    @ViewBuilder
+    private var dishGridContent: some View {
+        GeometryReader { geometry in
+            let availableWidth = max(0, geometry.size.width)
+            let columnWidth = (availableWidth - gridSpacing) / 2
+            let columns = [
+                GridItem(.fixed(columnWidth), spacing: gridSpacing),
+                GridItem(.fixed(columnWidth), spacing: gridSpacing)
+            ]
+            LazyVGrid(columns: columns, spacing: gridSpacing) {
+                ForEach(data.cards) { card in
+                    if case .dish(let dish) = card {
+                        DishCard(dish: dish) {
+                            selectedDish = dish
+                        }
+                        .frame(width: columnWidth, height: columnWidth / cardAspectRatio)
+                    }
+                }
+            }
+            .frame(width: availableWidth)
+            .clipped()
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: dishGridContentHeight)
+    }
+    
+    private var dishGridContentHeight: CGFloat {
+        let dishCount = data.cards.filter { if case .dish = $0 { return true }; return false }.count
+        let rowCount = (dishCount + 1) / 2
         guard rowCount > 0 else { return 0 }
         let estimatedColumnWidth: CGFloat = 160
-        let rowHeight = estimatedColumnWidth / regionalCuisineCardAspectRatio
+        let rowHeight = estimatedColumnWidth / cardAspectRatio
         return CGFloat(rowCount) * rowHeight + CGFloat(rowCount - 1) * gridSpacing
+    }
+    
+    // MARK: - Feature List Layout
+    @ViewBuilder
+    private var featureListContent: some View {
+        let features = data.cards.compactMap { card -> PointFeature? in
+            if case .feature(let feature) = card { return feature }
+            return nil
+        }
+        
+        if !features.isEmpty {
+            VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+                ForEach(Array(features.enumerated()), id: \.offset) { index, feature in
+                    ContentPoiItemView(feature: feature)
+                    
+                    if index < features.count - 1 {
+                        Divider()
+                            .background(Color("onBkgTextColor30").opacity(0.3))
+                    }
+                }
+            }
+        }
     }
 }
 
 /// Card with image background and dish name overlay; tappable to show popup.
-struct RegionalDishCard: View {
-    let dish: RegionalDish
+struct DishCard: View {
+    let dish: Dish
     let onTap: () -> Void
 
     var body: some View {
@@ -205,10 +258,10 @@ struct RegionalDishCard: View {
                     textOverlay(cardWidth: geometry.size.width)
                 }
             }
-            .aspectRatio(regionalCuisineCardAspectRatio, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: regionalCuisineCardCornerRadius))
+            .aspectRatio(cardAspectRatio, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
             .overlay(
-                RoundedRectangle(cornerRadius: regionalCuisineCardCornerRadius)
+                RoundedRectangle(cornerRadius: cardCornerRadius)
                     .stroke(Color("onBkgTextColor30").opacity(0.15), lineWidth: 1)
             )
         }
@@ -255,7 +308,7 @@ struct RegionalDishCard: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: regionalCuisineCardCornerRadius))
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
     }
 
     private var gradientOverlay: some View {
@@ -297,8 +350,8 @@ struct RegionalDishCard: View {
 }
 
 /// Popup presented when a regional dish card is tapped.
-struct RegionalDishPopupView: View {
-    let dish: RegionalDish
+struct DishPopupView: View {
+    let dish: Dish
     let onDismiss: () -> Void
 
     var body: some View {
@@ -331,7 +384,7 @@ struct RegionalDishPopupView: View {
                                 EmptyView()
                             }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: regionalCuisineCardCornerRadius))
+                        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius))
                     }
 
                     Text(dish.localName)
@@ -360,21 +413,38 @@ struct RegionalDishPopupView: View {
     }
 }
 
-// MARK: - Content Type Definitions
+// MARK: - Catalogue Type Definitions
 
-/// Overview content type definition
-/// Handles all overview variants (overview, countryOverview, subdivisionsOverview, etc.)
-struct OverviewContentType: ContentTypeDefinition {
-    static var type: ContentViewType { .overview }
+/// Overview catalogue type definition
+/// Parses content with nested markdown sections (territoryToday, localityToday, etc.)
+struct OverviewCatalogueType: CatalogueTypeDefinition {
+    static var type: CatalogueSectionType { .overview }
     
-    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
-        guard let markdown = dataValue as? String else {
+    static func parse(from dataValue: Any) -> CatalogueSection.CatalogueSectionData? {
+        guard let contentDict = dataValue as? [String: Any] else {
             return nil
         }
-        return .overview(markdown: markdown)
+        
+        // Collect markdown from all sections in order
+        var markdownParts: [String] = []
+        let sectionKeys = ["territoryToday", "territoryHistory", "localityToday", "localityHistory", "neighborhoodToday", "neighborhoodHistory"]
+        
+        for key in sectionKeys {
+            if let section = contentDict[key] as? [String: Any],
+               let markdown = section["markdown"] as? String,
+               !markdown.isEmpty {
+                markdownParts.append(markdown)
+            }
+        }
+        
+        guard !markdownParts.isEmpty else {
+            return nil
+        }
+        
+        return .overview(markdown: markdownParts.joined(separator: "\n\n"))
     }
     
-    static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
+    static func createView(for data: CatalogueSection.CatalogueSectionData) -> AnyView {
         if case .overview(let markdown) = data {
             return AnyView(OverviewView(markdown: markdown))
         }
@@ -382,125 +452,83 @@ struct OverviewContentType: ContentTypeDefinition {
     }
 }
 
-/// Location detail content type definition
-struct LocationDetailContentType: ContentTypeDefinition {
-    static var type: ContentViewType { .locationDetail }
+/// Cuisine catalogue type definition
+/// Parses content.regionalCuisine with "markdown" and "cards" keys
+struct CuisineCatalogueType: CatalogueTypeDefinition {
+    static var type: CatalogueSectionType { .cuisine }
     
-    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
-        guard let raw = dataValue as? [String: Any] else { return nil }
-        
-        let location: CLLocation
-        let altitude: Double
-        
-        if let coord = raw["coordinate"] as? [String: Any], let lat = coord["lat"] as? Double, let lng = coord["lng"] as? Double {
-            altitude = coord["alt"] as? Double ?? 0
-            location = CLLocation(
-                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng),
-                altitude: altitude,
-                horizontalAccuracy: 0,
-                verticalAccuracy: altitude != 0 ? 0 : -1,
-                timestamp: Date()
-            )
-        } else if let lat = raw["latitude"] as? Double, let lon = raw["longitude"] as? Double {
-            altitude = raw["altitude"] as? Double ?? 0
-            location = CLLocation(
-                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                altitude: altitude,
-                horizontalAccuracy: 0,
-                verticalAccuracy: altitude != 0 ? 0 : -1,
-                timestamp: Date()
-            )
-        } else {
+    static func parse(from dataValue: Any) -> CatalogueSection.CatalogueSectionData? {
+        guard let contentDict = dataValue as? [String: Any],
+              let cuisineDict = contentDict["regionalCuisine"] as? [String: Any] else {
             return nil
         }
         
-        let locationDetailData = LocationDetailData(
-            location: location,
-            placeName: raw["place_name"] as? String,
-            subdivisions: raw["subdivisions"] as? String,
-            countryName: raw["country_name"] as? String,
-            countryCode: raw["country_code"] as? String,
-            timezone: (raw["timezone"] as? String) ?? TimeZone.current.identifier,
-            adminArea: raw["adminArea"] as? String,
-            subAdminArea: raw["subAdminArea"] as? String,
-            locality: raw["locality"] as? String,
-            subLocality: raw["subLocality"] as? String,
-            iso3166_2: raw["iso3166_2"] as? String,
-            isOcean: raw["isOcean"] as? String
-        )
+        // "markdown" key for intro text
+        let markdown = cuisineDict["markdown"] as? String ?? ""
         
-        return .locationDetail(locationDetailData: locationDetailData)
+        // "cards" key for dish cards
+        var cards: [CardItem] = []
+        if let cardsArray = cuisineDict["cards"] as? [[String: Any]] {
+            cards = cardsArray.compactMap { dict -> CardItem? in
+                guard let localName = dict["local_name"] as? String,
+                      let globalName = dict["global_name"] as? String,
+                      let description = dict["description"] as? String else {
+                    return nil
+                }
+                let imageURLString = dict["image_url"] as? String
+                let imageURL = imageURLString.flatMap { URL(string: $0) }
+                let dish = Dish(
+                    localName: localName,
+                    globalName: globalName,
+                    description: description,
+                    imageURL: imageURL
+                )
+                return .dish(dish)
+            }
+        }
+        
+        return .cardSection(data: CardSectionData(markdown: markdown, cards: cards))
     }
     
-    static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
-        if case .locationDetail(let locationData) = data {
-            return AnyView(LocationDetailView(location: locationData.location))
+    static func createView(for data: CatalogueSection.CatalogueSectionData) -> AnyView {
+        if case .cardSection(let sectionData) = data {
+            return AnyView(CardSectionView(data: sectionData))
         }
         return AnyView(EmptyView())
     }
 }
 
-/// Points of interest content type definition
-struct PointsOfInterestContentType: ContentTypeDefinition {
-    static var type: ContentViewType { .pointsOfInterest }
+/// Architecture catalogue type definition
+/// Parses content.heritage with "markdown" and "cards" keys
+struct ArchitectureCatalogueType: CatalogueTypeDefinition {
+    static var type: CatalogueSectionType { .architecture }
     
-    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
-        guard let featuresDict = dataValue as? [String: Any],
-              let featuresArray = featuresDict["features"] as? [[String: Any]] else {
+    static func parse(from dataValue: Any) -> CatalogueSection.CatalogueSectionData? {
+        guard let contentDict = dataValue as? [String: Any],
+              let heritageDict = contentDict["heritage"] as? [String: Any] else {
             return nil
         }
-        // Convert to JSONValue format
-        let features = featuresArray.compactMap { dict -> PointFeature? in
-            guard let jsonValue = JSONValue(from: dict) else { return nil }
-            guard case .dictionary(let featureDict) = jsonValue else { return nil }
-            return PointFeature(from: featureDict)
-        }
-        return .pointsOfInterest(features: features)
-    }
-    
-    static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
-        if case .pointsOfInterest(let features) = data {
-            if features.count == 1, let feature = features.first {
-                return AnyView(ContentPoiItemView(feature: feature))
-            } else {
-                return AnyView(ContentPoiListView(features: features))
+        
+        // "markdown" key for intro text
+        let markdown = heritageDict["markdown"] as? String ?? ""
+        
+        // "cards" key for heritage site cards (GeoJSON features)
+        var cards: [CardItem] = []
+        if let cardsArray = heritageDict["cards"] as? [[String: Any]] {
+            cards = cardsArray.compactMap { dict -> CardItem? in
+                guard let jsonValue = JSONValue(from: dict) else { return nil }
+                guard case .dictionary(let featureDict) = jsonValue else { return nil }
+                guard let feature = PointFeature(from: featureDict) else { return nil }
+                return .feature(feature)
             }
         }
-        return AnyView(EmptyView())
-    }
-}
-
-/// Regional cuisine content type definition
-struct RegionalCuisineContentType: ContentTypeDefinition {
-    static var type: ContentViewType { .regionalCuisine }
-    
-    static func parse(from dataValue: Any) -> ContentSection.ContentSectionData? {
-        guard let regionalCuisineDict = dataValue as? [String: Any],
-              let introduction = regionalCuisineDict["introduction"] as? String,
-              let dishesDict = regionalCuisineDict["dishes"] as? [[String: Any]] else {
-            return nil
-        }
-        let dishes = dishesDict.compactMap { dict -> RegionalDish? in
-            guard let localName = dict["local_name"] as? String,
-                  let globalName = dict["global_name"] as? String,
-                  let description = dict["description"] as? String else {
-                return nil
-            }
-            let imageURLString = dict["image_url"] as? String
-            let imageURL = imageURLString.flatMap { URL(string: $0) }
-            return RegionalDish(
-                localName: localName,
-                globalName: globalName,
-                description: description,
-                imageURL: imageURL
-            )
-        }
-        return .regionalCuisine(data: RegionalCuisineData(introduction: introduction, dishes: dishes))
+        
+        return .cardSection(data: CardSectionData(markdown: markdown, cards: cards))
     }
     
-    static func createView(for data: ContentSection.ContentSectionData) -> AnyView {
-        if case .regionalCuisine(let cuisineData) = data {
-            return AnyView(RegionalCuisineView(data: cuisineData))
+    static func createView(for data: CatalogueSection.CatalogueSectionData) -> AnyView {
+        if case .cardSection(let sectionData) = data {
+            return AnyView(CardSectionView(data: sectionData))
         }
         return AnyView(EmptyView())
     }
@@ -565,7 +593,7 @@ extension LocationDetailData {
             return placeName
         }
         
-        return "Journey Content"
+        return "Journey Catalogue"
     }
     
     /// Computes the body text content (remaining subdivisions + country name)
@@ -592,91 +620,86 @@ extension LocationDetailData {
     }
 }
 
-// MARK: - Content Section
-struct ContentSection: Identifiable {
+// MARK: - Catalogue Section
+struct CatalogueSection: Identifiable {
     // Use type as stable ID - each type appears at most once
     // This prevents SwiftUI from recreating views when parent state changes
     var id: String { type.rawValue }
-    let type: ContentViewType
-    let data: ContentSectionData
+    let type: CatalogueSectionType
+    let data: CatalogueSectionData
     
-    enum ContentSectionData {
-        case regionalCuisine(data: RegionalCuisineData)
+    enum CatalogueSectionData {
         case overview(markdown: String)
-        case locationDetail(locationDetailData: LocationDetailData)
-        case pointsOfInterest(features: [PointFeature])
+        case cardSection(data: CardSectionData)
     }
     
-    init(type: ContentViewType, data: ContentSectionData) {
+    init(type: CatalogueSectionType, data: CatalogueSectionData) {
         self.type = type
         self.data = data
     }
 }
 
-// MARK: - Content Manager
-/// Manages content sections by type, allowing selective updates
+// MARK: - Catalogue Manager
+/// Manages catalogue sections by type, allowing selective updates
 @MainActor
-class ContentManager: ObservableObject {
-    @Published private var sections: [ContentViewType: ContentSection] = [:]
+class CatalogueManager: ObservableObject {
+    @Published private var sections: [CatalogueSectionType: CatalogueSection] = [:]
     
-    /// Tracks whether the current location content is from device location (true) or lookup/search location (false)
-    @Published var isContentFromDeviceLocation: Bool = true
+    /// Current location data for header display (separate from catalogue sections)
+    @Published private(set) var locationDetailData: LocationDetailData?
     
-    /// Returns sections in display order (from ContentTypeRegistry)
-    var orderedSections: [ContentSection] {
-        ContentTypeRegistry.shared().displayOrder.compactMap { type in
+    /// Tracks whether the current location is from device location (true) or lookup/search location (false)
+    @Published var isCatalogueFromDeviceLocation: Bool = true
+    
+    /// Returns sections in display order (from CatalogueTypeRegistry)
+    var orderedSections: [CatalogueSection] {
+        CatalogueTypeRegistry.shared().displayOrder.compactMap { type in
             sections[type]
         }
     }
     
-    /// Returns LocationDetailData if available, for header view construction.
-    var locationDetailData: LocationDetailData? {
-        if let locationSection = sections[.locationDetail],
-           case .locationDetail(let data) = locationSection.data {
-            return data
-        }
-        return nil
-    }
-    
-    /// Set or update content by type
+    /// Set location data for header display
     /// - Parameters:
-    ///   - type: The content view type to set
-    ///   - data: The content section data
-    ///   - isFromDeviceLocation: For locationDetail type, indicates if content is from device location (true) or lookup/search (false)
-    func setContent(type: ContentViewType, data: ContentSection.ContentSectionData, isFromDeviceLocation: Bool? = nil) {
-        sections[type] = ContentSection(type: type, data: data)
-        
-        // Update location source tracking when locationDetail content is set
-        if type == .locationDetail, let isDevice = isFromDeviceLocation {
-            isContentFromDeviceLocation = isDevice
-        }
+    ///   - locationData: The location detail data
+    ///   - isFromDeviceLocation: Whether location is from device (true) or lookup/search (false)
+    func setLocationData(_ locationData: LocationDetailData, isFromDeviceLocation: Bool) {
+        self.locationDetailData = locationData
+        self.isCatalogueFromDeviceLocation = isFromDeviceLocation
     }
     
-    /// Remove content by type
-    func removeContent(type: ContentViewType) {
+    /// Set or update catalogue by type
+    /// - Parameters:
+    ///   - type: The catalogue view type to set
+    ///   - data: The catalogue section data
+    func setCatalogue(type: CatalogueSectionType, data: CatalogueSection.CatalogueSectionData) {
+        sections[type] = CatalogueSection(type: type, data: data)
+    }
+    
+    /// Remove catalogue by type
+    func removeCatalogue(type: CatalogueSectionType) {
         sections.removeValue(forKey: type)
     }
     
-    /// Check if content exists for a type
-    func hasContent(type: ContentViewType) -> Bool {
+    /// Check if catalogue exists for a type
+    func hasCatalogue(type: CatalogueSectionType) -> Bool {
         sections[type] != nil
     }
     
-    /// Get content for a specific type
-    func getContent(type: ContentViewType) -> ContentSection? {
+    /// Get catalogue for a specific type
+    func getCatalogue(type: CatalogueSectionType) -> CatalogueSection? {
         sections[type]
     }
     
-    /// Clear all content
+    /// Clear all catalogue
     func clearAll() {
         sections.removeAll()
     }
 }
 
-// MARK: - Content View Registry
-struct ContentViewRegistry {
-    static func view(for section: ContentSection) -> some View {
-        ContentTypeRegistry.shared().createView(for: section)
+// MARK: - Catalogue View Registry
+struct CatalogueViewRegistry {
+    static func view(for section: CatalogueSection) -> some View {
+        CatalogueTypeRegistry.shared().createView(for: section)
     }
 }
 
@@ -693,33 +716,6 @@ struct OverviewView: View {
 }
 
 // MARK: - Location Detail View
-struct LocationDetailView: View {
-    let location: CLLocation
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
-            DisplayText("Location", scale: .article2, color: Color("onBkgTextColor20"))
-            
-            VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
-                Text("Latitude: \(location.coordinate.latitude, specifier: "%.6f")")
-                    .bodyText()
-                    .foregroundColor(Color("onBkgTextColor30"))
-                
-                Text("Longitude: \(location.coordinate.longitude, specifier: "%.6f")")
-                    .bodyText()
-                    .foregroundColor(Color("onBkgTextColor30"))
-                
-                if location.altitude != 0 {
-                    Text("Altitude: \(location.altitude, specifier: "%.2f") m")
-                        .bodyText()
-                        .foregroundColor(Color("onBkgTextColor30"))
-                }
-            }
-        }
-        .padding(.vertical, Spacing.current.spaceXs)
-    }
-}
-
 // MARK: - Content POI Item View
 struct ContentPoiItemView: View {
     let feature: PointFeature
@@ -826,6 +822,8 @@ struct ContentPoiListView: View {
     }
 }
 
+// MARK: - Heritage View (Architecture Section)
+
 // MARK: - PointFeature Description Extension
 extension PointFeature {
     /// Extract description with priority: short_description > wikipedia.extract
@@ -891,16 +889,6 @@ func extractPOIs(from geoJSON: GeoJSON) -> [PointFeature] {
     .background(Color("AppBkgColor"))
 }
 
-#Preview("Location Detail View") {
-    ScrollView {
-        LocationDetailView(location: CLLocation(
-            latitude: 41.9028,
-            longitude: 12.4964
-        ))
-        .padding()
-    }
-    .background(Color("AppBkgColor"))
-}
 
 #Preview("POI Item View") {
     ScrollView {

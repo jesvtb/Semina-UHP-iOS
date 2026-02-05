@@ -132,7 +132,7 @@ struct unheardpathApp: App {
     @StateObject private var appLifecycleManager = AppLifecycleManager()
     @StateObject private var mapFeaturesManager = MapFeaturesManager()
     @StateObject private var toastManager = ToastManager()
-    @StateObject private var contentManager = ContentManager()
+    @StateObject private var catalogueManager = CatalogueManager()
     @StateObject private var eventManager = EventManager()
     @StateObject private var autocompleteManager: AutocompleteManager
     private let geocoder: Geocoder
@@ -181,7 +181,7 @@ struct unheardpathApp: App {
                 appLifecycleManager: appLifecycleManager,
                 mapFeaturesManager: mapFeaturesManager,
                 toastManager: toastManager,
-                contentManager: contentManager,
+                catalogueManager: catalogueManager,
                 eventManager: eventManager,
                 autocompleteManager: autocompleteManager,
                 geocoder: geocoder
@@ -250,7 +250,7 @@ private struct AppContentView: View {
     let appLifecycleManager: AppLifecycleManager
     let mapFeaturesManager: MapFeaturesManager
     let toastManager: ToastManager
-    let contentManager: ContentManager
+    let catalogueManager: CatalogueManager
     let eventManager: EventManager
     let autocompleteManager: AutocompleteManager
     let geocoder: Geocoder
@@ -267,7 +267,7 @@ private struct AppContentView: View {
         appLifecycleManager: AppLifecycleManager,
         mapFeaturesManager: MapFeaturesManager,
         toastManager: ToastManager,
-        contentManager: ContentManager,
+        catalogueManager: CatalogueManager,
         eventManager: EventManager,
         autocompleteManager: AutocompleteManager,
         geocoder: Geocoder
@@ -280,7 +280,7 @@ private struct AppContentView: View {
         self.appLifecycleManager = appLifecycleManager
         self.mapFeaturesManager = mapFeaturesManager
         self.toastManager = toastManager
-        self.contentManager = contentManager
+        self.catalogueManager = catalogueManager
         self.eventManager = eventManager
         self.autocompleteManager = autocompleteManager
         self.geocoder = geocoder
@@ -288,7 +288,7 @@ private struct AppContentView: View {
         _chatManager = StateObject(wrappedValue: chatManager)
         self.sseEventRouter = SSEEventRouter(
             chatManager: chatManager,
-            contentManager: contentManager,
+            catalogueManager: catalogueManager,
             mapFeaturesManager: mapFeaturesManager,
             toastManager: toastManager
         )
@@ -303,7 +303,7 @@ private struct AppContentView: View {
             .environmentObject(chatManager) // Pass chat manager to all views
             .environmentObject(mapFeaturesManager) // Pass map features manager to all views
             .environmentObject(toastManager) // Pass toast manager to all views
-            .environmentObject(contentManager) // Pass content manager to all views
+            .environmentObject(catalogueManager) // Pass catalogue manager to all views
             .environmentObject(eventManager) // Pass event manager to all views
             .environmentObject(autocompleteManager) // Pass autocomplete manager to all views
             .environment(\.geocoder, geocoder) // Pass geocoder for reverse geocoding (location → LocationDict)

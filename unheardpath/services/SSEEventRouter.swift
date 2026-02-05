@@ -8,7 +8,7 @@ import core
 @MainActor
 class SSEEventRouter: ObservableObject {
     private let chatManager: ChatManager
-    private let contentManager: ContentManager?
+    private let catalogueManager: CatalogueManager?
     private let mapFeaturesManager: MapFeaturesManager?
     private let toastManager: ToastManager?
     private let logger: Logger
@@ -18,22 +18,22 @@ class SSEEventRouter: ObservableObject {
 
     init(
         chatManager: ChatManager,
-        contentManager: ContentManager? = nil,
+        catalogueManager: CatalogueManager? = nil,
         mapFeaturesManager: MapFeaturesManager? = nil,
         toastManager: ToastManager? = nil,
         logger: Logger = AppLifecycleManager.sharedLogger
     ) {
         self.chatManager = chatManager
-        self.contentManager = contentManager
+        self.catalogueManager = catalogueManager
         self.mapFeaturesManager = mapFeaturesManager
         self.toastManager = toastManager
         self.logger = logger
     }
 
-    /// Set content directly (e.g. for testing or when already holding ContentSectionData).
-    /// For parsed SSE events use route(.content(typeString:dataValue:)) instead.
-    func setContent(type: ContentViewType, data: ContentSection.ContentSectionData) {
-        contentManager?.setContent(type: type, data: data)
+    /// Set catalogue directly (e.g. for testing or when already holding CatalogueSectionData).
+    /// For parsed SSE events use route(.catalogue(typeString:dataValue:)) instead.
+    func setCatalogue(type: CatalogueSectionType, data: CatalogueSection.CatalogueSectionData) {
+        catalogueManager?.setCatalogue(type: type, data: data)
     }
 
     /// Route a parsed SSE event to the appropriate manager
@@ -62,17 +62,17 @@ class SSEEventRouter: ObservableObject {
                 onShowInfoSheet?()
             }
 
-        case .content(let typeString, let dataValue):
-            guard let contentType = ContentViewType(rawValue: typeString) else {
-                logger.warning("Unknown content type: \(typeString)", handlerType: "SSEEventRouter")
+        case .catalogue(let typeString, let dataValue):
+            guard let catalogueType = CatalogueSectionType(rawValue: typeString) else {
+                logger.warning("Unknown catalogue type: \(typeString)", handlerType: "SSEEventRouter")
                 return
             }
-            guard let contentData = ContentTypeRegistry.shared().parse(type: contentType, dataValue: dataValue.asAny) else {
-                logger.warning("Failed to parse content type: \(typeString)", handlerType: "SSEEventRouter")
+            guard let catalogueData = CatalogueTypeRegistry.shared().parse(type: catalogueType, dataValue: dataValue.asAny) else {
+                logger.warning("Failed to parse catalogue type: \(typeString)", handlerType: "SSEEventRouter")
                 return
             }
-            contentManager?.setContent(type: contentType, data: contentData)
-            logger.debug("Routed content: \(typeString)")
+            catalogueManager?.setCatalogue(type: catalogueType, data: catalogueData)
+            logger.debug("Routed catalogue: \(typeString)")
         }
     }
 }

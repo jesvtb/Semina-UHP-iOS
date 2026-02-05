@@ -3,13 +3,13 @@ import CoreLocation
 import core
 
 #if DEBUG
-/// Debug view for testing SSE content events in InfoSheet
-/// Allows simulating different content types (overview, locationDetail, pointsOfInterest)
+/// Debug view for testing SSE catalogue events in InfoSheet
+/// Allows simulating different catalogue section types (overview, cuisine, architecture)
 struct SSEContentTestView: View {
-    @EnvironmentObject var contentManager: ContentManager
+    @EnvironmentObject var catalogueManager: CatalogueManager
     @EnvironmentObject var sseEventRouter: SSEEventRouter
     
-    @State private var selectedContentType: ContentViewType = .overview
+    @State private var selectedCatalogueType: CatalogueSectionType = .overview
     @State private var overviewMarkdown: String = """
 # Welcome to Ancient Rome
 
@@ -24,56 +24,28 @@ This is a **test overview** content that demonstrates how markdown is rendered i
 You can test different content types using the buttons below.
 """
     
-    @State private var locationLatitude: String = "41.9028"
-    @State private var locationLongitude: String = "12.4964"
-    @State private var locationAltitude: String = "0"
-    
     @State private var showTestSheet: Bool = false
     
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Content Type")) {
-                    Picker("Content Type", selection: $selectedContentType) {
-                        ForEach(ContentViewType.allCases, id: \.self) { type in
+                Section(header: Text("Catalogue Type")) {
+                    Picker("Catalogue Type", selection: $selectedCatalogueType) {
+                        ForEach(CatalogueSectionType.allCases, id: \.self) { type in
                             Text(type.rawValue.capitalized).tag(type)
                         }
                     }
                 }
                 
-                Section(header: Text("Content Data")) {
-                    switch selectedContentType {
-                    case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
+                Section(header: Text("Catalogue Data")) {
+                    switch selectedCatalogueType {
+                    case .overview:
                         TextEditor(text: $overviewMarkdown)
                             .frame(height: 200)
                             .font(.system(.body, design: .monospaced))
                         
-                    case .locationDetail:
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Latitude:")
-                                TextField("41.9028", text: $locationLatitude)
-                                    .keyboardType(.decimalPad)
-                            }
-                            HStack {
-                                Text("Longitude:")
-                                TextField("12.4964", text: $locationLongitude)
-                                    .keyboardType(.decimalPad)
-                            }
-                            HStack {
-                                Text("Altitude:")
-                                TextField("0", text: $locationAltitude)
-                                    .keyboardType(.decimalPad)
-                            }
-                        }
-                        
-                    case .pointsOfInterest:
-                        Text("POI testing requires GeoJSON features. Use the 'Test Sample POIs' button below.")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                        
-                    case .regionalCuisine:
-                        Text("Regional cuisine testing requires structured data. Not yet implemented in test view.")
+                    case .cuisine, .architecture:
+                        Text("Card section testing requires structured data. Not yet implemented in test view.")
                             .foregroundColor(.secondary)
                             .font(.caption)
                     }
@@ -81,7 +53,7 @@ You can test different content types using the buttons below.
                 
                 Section(header: Text("Actions")) {
                     Button(action: {
-                        simulateContentEvent()
+                        simulateCatalogueEvent()
                     }) {
                         HStack {
                             Image(systemName: "play.fill")
@@ -89,23 +61,12 @@ You can test different content types using the buttons below.
                         }
                     }
                     
-                    if selectedContentType == .pointsOfInterest {
-                        Button(action: {
-                            simulateSamplePOIs()
-                        }) {
-                            HStack {
-                                Image(systemName: "map.fill")
-                                Text("Test Sample POIs")
-                            }
-                        }
-                    }
-                    
                     Button(action: {
-                        clearContent()
+                        clearCatalogue()
                     }) {
                         HStack {
                             Image(systemName: "trash.fill")
-                            Text("Clear All Content")
+                            Text("Clear All Catalogue")
                         }
                         .foregroundColor(.red)
                     }
@@ -121,16 +82,16 @@ You can test different content types using the buttons below.
                     }
                 }
                 
-                Section(header: Text("Current Content")) {
-                    if contentManager.orderedSections.isEmpty {
-                        Text("No content loaded")
+                Section(header: Text("Current Catalogue")) {
+                    if catalogueManager.orderedSections.isEmpty {
+                        Text("No catalogue loaded")
                             .foregroundColor(.secondary)
                     } else {
-                        ForEach(contentManager.orderedSections) { section in
+                        ForEach(catalogueManager.orderedSections) { section in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(section.type.rawValue.capitalized)
                                     .font(.headline)
-                                Text(contentDescription(for: section))
+                                Text(catalogueDescription(for: section))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -138,192 +99,61 @@ You can test different content types using the buttons below.
                     }
                 }
             }
-            .navigationTitle("SSE Content Tester")
+            .navigationTitle("SSE Catalogue Tester")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
     
-    private func contentDescription(for section: ContentSection) -> String {
+    private func catalogueDescription(for section: CatalogueSection) -> String {
         switch section.data {
         case .overview(let markdown):
             return "Markdown: \(markdown.prefix(50))..."
-        case .locationDetail(let locationData):
-            return "Location: \(locationData.location.coordinate.latitude), \(locationData.location.coordinate.longitude)"
-        case .pointsOfInterest(let features):
-            return "POIs: \(features.count) features"
-        case .regionalCuisine(let data):
-            return "Regional Cuisine: \(data.dishes.count) dishes"
+        case .cardSection(let data):
+            let cardCount = data.cards.count
+            return "Card Section: \(cardCount) cards"
         }
     }
     
-    private func simulateContentEvent() {
+    private func simulateCatalogueEvent() {
         Task { @MainActor in
-            switch selectedContentType {
-            case .overview, .countryOverview, .subdivisionsOverview, .neighborhoodOverview, .cultureOverview:
-                let data: ContentSection.ContentSectionData = .overview(markdown: overviewMarkdown)
-                sseEventRouter.setContent(type: selectedContentType, data: data)
+            switch selectedCatalogueType {
+            case .overview:
+                let data: CatalogueSection.CatalogueSectionData = .overview(markdown: overviewMarkdown)
+                sseEventRouter.setCatalogue(type: .overview, data: data)
                 
-            case .locationDetail:
-                guard let lat = Double(locationLatitude),
-                      let lon = Double(locationLongitude) else {
-                    print("⚠️ Invalid location coordinates")
-                    return
-                }
-                let altitude = Double(locationAltitude) ?? 0
-                let location = CLLocation(
-                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                    altitude: altitude,
-                    horizontalAccuracy: 0,
-                    verticalAccuracy: altitude != 0 ? 0 : -1,
-                    timestamp: Date()
-                )
-                let locationDetailData = LocationDetailData(location: location)
-                let data: ContentSection.ContentSectionData = .locationDetail(locationDetailData: locationDetailData)
-                sseEventRouter.setContent(type: .locationDetail, data: data)
-                
-            case .pointsOfInterest:
-                // Use sample POIs
-                simulateSamplePOIs()
-                
-            case .regionalCuisine:
-                print("⚠️ Regional cuisine simulation not yet implemented in test view")
+            case .cuisine, .architecture:
+                print("⚠️ Card section simulation not yet implemented in test view")
             }
         }
     }
     
-    private func simulateSamplePOIs() {
-        Task { @MainActor in
-            // Create sample POI features
-            let sampleFeatures: [[String: JSONValue]] = [
-                [
-                    "type": .string("Feature"),
-                    "geometry": .dictionary([
-                        "type": .string("Point"),
-                        "coordinates": .array([.double(12.4964), .double(41.9028)])
-                    ]),
-                    "properties": .dictionary([
-                        "title": .string("Colosseum"),
-                        "description": .string("Ancient Roman amphitheater"),
-                        "category": .string("landmark")
-                    ])
-                ],
-                [
-                    "type": .string("Feature"),
-                    "geometry": .dictionary([
-                        "type": .string("Point"),
-                        "coordinates": .array([.double(12.4833), .double(41.9000)])
-                    ]),
-                    "properties": .dictionary([
-                        "title": .string("Roman Forum"),
-                        "description": .string("Ancient Roman public square"),
-                        "category": .string("landmark")
-                    ])
-                ],
-                [
-                    "type": .string("Feature"),
-                    "geometry": .dictionary([
-                        "type": .string("Point"),
-                        "coordinates": .array([.double(12.4763), .double(41.9022)])
-                    ]),
-                    "properties": .dictionary([
-                        "title": .string("Pantheon"),
-                        "description": .string("Ancient Roman temple"),
-                        "category": .string("landmark")
-                    ])
-                ]
-            ]
-            
-            let features = sampleFeatures.compactMap { featureDict -> PointFeature? in
-                PointFeature(from: featureDict)
-            }
-            
-            guard !features.isEmpty else {
-                print("⚠️ Failed to create sample POI features")
-                return
-            }
-            
-            let data: ContentSection.ContentSectionData = .pointsOfInterest(features: features)
-            sseEventRouter.setContent(type: .pointsOfInterest, data: data)
-        }
-    }
-    
-    private func clearContent() {
-        contentManager.clearAll()
+    private func clearCatalogue() {
+        catalogueManager.clearAll()
     }
     
     private func clearSelectedType() {
-        contentManager.removeContent(type: selectedContentType)
+        catalogueManager.removeCatalogue(type: selectedCatalogueType)
     }
 }
 
 /// Quick test functions for common scenarios
 @MainActor
-struct SSEContentTestHelpers {
+struct SSECatalogueTestHelpers {
     static func testOverview(router: SSEEventRouter, markdown: String = "# Test Overview\n\nThis is a test.") {
-        let data: ContentSection.ContentSectionData = .overview(markdown: markdown)
-        router.setContent(type: .overview, data: data)
-    }
-
-    static func testLocationDetail(router: SSEEventRouter, lat: Double = 41.9028, lon: Double = 12.4964) {
-        let location = CLLocation(
-            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-            altitude: 0,
-            horizontalAccuracy: 0,
-            verticalAccuracy: -1,
-            timestamp: Date()
-        )
-        let locationDetailData = LocationDetailData(
-            location: location,
-            placeName: "Test Location",
-            subdivisions: "Test City, Test State",
-            countryName: "Test Country",
-            adminArea: "Test State",
-            locality: "Test City"
-        )
-        let data: ContentSection.ContentSectionData = .locationDetail(locationDetailData: locationDetailData)
-        router.setContent(type: .locationDetail, data: data)
+        let data: CatalogueSection.CatalogueSectionData = .overview(markdown: markdown)
+        router.setCatalogue(type: .overview, data: data)
     }
     
-    static func testAllContentTypes(router: SSEEventRouter) async {
+    static func testAllCatalogueTypes(router: SSEEventRouter) async {
         // Test overview
         testOverview(router: router, markdown: """
         # Complete Test
 
-        This tests **all** content types in sequence.
+        This tests **all** catalogue section types in sequence.
 
         ## Overview Section
-        This is the overview content.
+        This is the overview catalogue.
         """)
-
-        // Wait a bit
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-
-        // Test location
-        testLocationDetail(router: router)
-
-        // Wait a bit
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-
-        // Test POIs
-        let sampleFeatures: [[String: JSONValue]] = [
-            [
-                "type": .string("Feature"),
-                "geometry": .dictionary([
-                    "type": .string("Point"),
-                    "coordinates": .array([.double(12.4964), .double(41.9028)])
-                ]),
-                "properties": .dictionary([
-                    "title": .string("Test POI"),
-                    "description": .string("A test point of interest")
-                ])
-            ]
-        ]
-
-        let features = sampleFeatures.compactMap { PointFeature(from: $0) }
-        if !features.isEmpty {
-            let data: ContentSection.ContentSectionData = .pointsOfInterest(features: features)
-            router.setContent(type: .pointsOfInterest, data: data)
-        }
     }
 }
 #endif
