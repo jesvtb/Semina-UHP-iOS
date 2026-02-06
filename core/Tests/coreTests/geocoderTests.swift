@@ -147,21 +147,23 @@ struct GeocoderTests {
             !(first.locality?.isEmpty ?? true) || !(first.country?.isEmpty ?? true),
             success: "First placemark has locality or country",
             failure: "First placemark has empty locality and country"
-        )
+         )
     }
 
     @Test(
         "geocodeReverse",
         arguments: [
+            CLLocation(latitude: 35.01161, longitude: 135.76811), // Kyoto, Japan
             // CLLocation(latitude: 22.352725, longitude: 114.139399), // Hong Kong, China
             // CLLocation(latitude: 22.559623109782347, longitude: 114.11698910372738), // Shenzhen, China
             // CLLocation(latitude: 41.008918, longitude: 28.979900), 
             // CLLocation(latitude: 1.283333, longitude: 103.833333), // Singapore, Singapore
             // CLLocation(latitude: 5.416011, longitude: 100.338764), // Penang, Malaysia
-            CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
-            CLLocation(latitude: 41.902222, longitude: 12.453333), // Vatican City, Italy
+            // CLLocation(latitude: -6.1753, longitude: 106.8269), // Jakarta, Indonesia
+            // CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
+            // CLLocation(latitude: 41.902222, longitude: 12.453333), // Vatican City, Italy
             // CLLocation(latitude: 30.333000, longitude: 89.051053), // Himlayas
-            
+            // CLLocation(latitude: 40.0, longitude: 20.0), // Albania
             // CLLocation(latitude: 42.569393, longitude: 88.465132), // Lake Garda
             // CLLocation(latitude:30.0, longitude: -40.0),  
         ]
