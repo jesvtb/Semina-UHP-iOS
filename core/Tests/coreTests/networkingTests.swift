@@ -178,9 +178,9 @@ struct NetworkingTests {
             params: ["simulate_data": "sse_map"],
         )
        try require(
-           data is Data,
-           success: "data is Data type",
-           failure: "data is not Data type"
+           !data.isEmpty,
+           success: "data is not empty",
+           failure: "data is empty"
        )
        let jsonValue = try data.shapeIntoJsonValue()
        try require(
@@ -197,7 +197,7 @@ struct NetworkingTests {
     )
     func testStreamAPI(testCase: String) async throws {
         let client = APIClient()
-        let stream = try await client.streamAPI(
+        let stream = client.streamAPI(
             url: "http://192.168.50.171:1031/v1/test/stream",
             method: "POST",
             headers: ["Content-Type": "application/json"],
@@ -248,7 +248,7 @@ struct NetworkingTests {
             filesDict: [:]
         )
         // print("data: \(data)")
-        let jsonValue = try data.shapeIntoJsonValue()
+        _ = try data.shapeIntoJsonValue()
         let features = try data.extractFeatures()
         // printItem(item: jsonValue)
         // let geojson = Data
@@ -333,7 +333,7 @@ struct SSEEventTypeTests {
     @Test("SSEEventType.init(from:) normalizes to lowercase and handles overview alias")
     func initFromNormalizes() throws {
         try require(SSEEventType(from: "TOAST") == .toast, success: "TOAST -> toast", failure: "TOAST did not map to toast")
-        try require(SSEEventType(from: "overview") == .content, success: "overview -> content", failure: "overview did not map to content")
+        try require(SSEEventType(from: "overview") == .catalogue, success: "overview -> catalogue", failure: "overview did not map to catalogue")
         try require(SSEEventType(from: "chat") == .chat, success: "chat -> chat", failure: "chat did not map")
     }
 

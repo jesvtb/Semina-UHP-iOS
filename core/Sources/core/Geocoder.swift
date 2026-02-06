@@ -13,22 +13,34 @@ import MapKit
 /// NewLocation-style dictionary (coordinate, place_name, subdivisions, country_name, etc.) used for events and content. Built by geocodeReverse.
 public typealias LocationDict = [String: JSONValue]
 
+// MARK: - Location Data Source
+/// Source of location data - device GPS or external lookup.
+public enum LocationDataSource: String, Sendable, Codable {
+    /// Location obtained from device GPS/CoreLocation.
+    case device
+    /// Location obtained from geocoding lookup or search.
+    case lookup
+}
+
 // MARK: - Location Detail Data
 /// Structured geocoding result with location metadata for display and events.
 /// Built by Geocoder.geocodeReverse from Apple MapKit or Geoapify responses.
 public struct LocationDetailData: Sendable {
     public let location: CLLocation
+    public let isOcean: Bool?
     public let placeName: String?
+    public let subLocality: String?
+    public let locality: String?
+    public let adminArea: String?
+    public let subAdminArea: String?
     public let subdivisions: String?
+    public let subdivisionCode: String?
     public let countryName: String?
     public let countryCode: String?
     public let timezone: String
-    public let adminArea: String?
-    public let subAdminArea: String?
-    public let locality: String?
-    public let subLocality: String?
-    public let iso3166_2: String?
-    public let isOcean: String?
+    
+    /// Data source of the location (device GPS or lookup). Can be set at init or assigned later.
+    public var dataSource: LocationDataSource?
     
     /// Creates LocationDetailData with all geocoding fields.
     public init(
@@ -42,8 +54,9 @@ public struct LocationDetailData: Sendable {
         subAdminArea: String? = nil,
         locality: String? = nil,
         subLocality: String? = nil,
-        iso3166_2: String? = nil,
-        isOcean: String? = nil
+        subdivisionCode: String? = nil,
+        isOcean: Bool? = nil,
+        dataSource: LocationDataSource? = nil
     ) {
         self.location = location
         self.placeName = placeName
@@ -55,8 +68,9 @@ public struct LocationDetailData: Sendable {
         self.subAdminArea = subAdminArea
         self.locality = locality
         self.subLocality = subLocality
-        self.iso3166_2 = iso3166_2
+        self.subdivisionCode = subdivisionCode
         self.isOcean = isOcean
+        self.dataSource = dataSource
     }
     
     /// Converts to LocationDict format for events and backend communication.
@@ -86,11 +100,11 @@ public struct LocationDetailData: Sendable {
         if let countryName = countryName, !countryName.isEmpty {
             dict["country_name"] = .string(countryName)
         }
-        if let iso3166_2 = iso3166_2, !iso3166_2.isEmpty {
-            dict["iso3166_2"] = .string(iso3166_2)
+        if let subdivisionCode = subdivisionCode, !subdivisionCode.isEmpty {
+            dict["subdivision_code"] = .string(subdivisionCode)
         }
-        if let isOcean = isOcean, !isOcean.isEmpty {
-            dict["isOcean"] = .string(isOcean)
+        if let isOcean = isOcean, isOcean {
+            dict["is_ocean"] = .bool(true)
         }
         if let adminArea = adminArea, !adminArea.isEmpty {
             dict["adminArea"] = .string(adminArea)
@@ -103,6 +117,9 @@ public struct LocationDetailData: Sendable {
         }
         if let subLocality = subLocality, !subLocality.isEmpty {
             dict["subLocality"] = .string(subLocality)
+        }
+        if let dataSource = dataSource {
+            dict["data_source"] = .string(dataSource.rawValue)
         }
         
         return dict
@@ -233,9 +250,6 @@ public final class Geocoder: Sendable {
             .filter { !$0.isEmpty && seen.insert($0).inserted }
         let subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
         
-        // Place name
-        let placeName = (first["address_line1"] as? String) ?? (first["name"] as? String) ?? city
-        
         // Timezone
         let timezone: String
         if let tzObj = first["timezone"] as? [String: Any], let tzName = tzObj["name"] as? String {
@@ -244,14 +258,22 @@ public final class Geocoder: Sendable {
             timezone = TimeZone.current.identifier
         }
         
-        // Ocean/marine area
-        let isOcean: String?
+        // Ocean/marine area - detect ocean name and use as place_name
+        let oceanName: String?
         if let ocean = first["ocean"] as? String, !ocean.isEmpty {
-            isOcean = ocean
+            oceanName = ocean
         } else if let marineArea = first["marinearea"] as? String, !marineArea.isEmpty {
-            isOcean = marineArea
+            oceanName = marineArea
         } else {
-            isOcean = nil
+            oceanName = nil
+        }
+        
+        // Place name: use ocean name if in ocean, otherwise address_line1/name/city
+        let placeName: String?
+        if let ocean = oceanName {
+            placeName = ocean
+        } else {
+            placeName = (first["address_line1"] as? String) ?? (first["name"] as? String) ?? city
         }
         
         // subLocality: lowest hierarchy of (neighborhood, suburb, district, town)
@@ -270,8 +292,8 @@ public final class Geocoder: Sendable {
             subAdminArea: county?.isEmpty == true ? nil : county,
             locality: city?.isEmpty == true ? nil : city,
             subLocality: subLocality?.isEmpty == true ? nil : subLocality,
-            iso3166_2: (first["iso3166_2"] as? String)?.uppercased(),
-            isOcean: isOcean
+            subdivisionCode: (first["iso3166_2"] as? String)?.uppercased(),
+            isOcean: oceanName != nil ? true : nil
         )
     }
 
@@ -315,10 +337,6 @@ public final class Geocoder: Sendable {
          .filter { !$0.isEmpty }
         let subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
         
-        // Place name: prefer name, then thoroughfare, then locality
-        let placeName = (placemark.name ?? placemark.thoroughfare ?? placemark.locality)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        
         // Timezone
         let timezone = placemark.timeZone?.identifier ?? TimeZone.current.identifier
         
@@ -327,6 +345,18 @@ public final class Geocoder: Sendable {
         let subAdminArea = placemark.subAdministrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
         let locality = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines)
         let subLocality = placemark.subLocality?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Ocean detection from CLPlacemark
+        let oceanName = placemark.ocean?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Place name: use ocean name if in ocean, otherwise prefer name/thoroughfare/locality
+        let placeName: String?
+        if let ocean = oceanName, !ocean.isEmpty {
+            placeName = ocean
+        } else {
+            placeName = (placemark.name ?? placemark.thoroughfare ?? placemark.locality)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         
         return LocationDetailData(
             location: location,
@@ -338,7 +368,8 @@ public final class Geocoder: Sendable {
             adminArea: adminArea?.isEmpty == true ? nil : adminArea,
             subAdminArea: subAdminArea?.isEmpty == true ? nil : subAdminArea,
             locality: locality?.isEmpty == true ? nil : locality,
-            subLocality: subLocality?.isEmpty == true ? nil : subLocality
+            subLocality: subLocality?.isEmpty == true ? nil : subLocality,
+            isOcean: oceanName?.isEmpty == false ? true : nil
         )
     }
 

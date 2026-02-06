@@ -151,12 +151,15 @@ struct GeocoderTests {
     }
 
     @Test(
-        "geocodeReverse returns LocationDetailData with expected fields when API key is set",
+        "geocodeReverse",
         arguments: [
+            // CLLocation(latitude: 22.352725, longitude: 114.139399), // Hong Kong, China
             // CLLocation(latitude: 22.559623109782347, longitude: 114.11698910372738), // Shenzhen, China
-            CLLocation(latitude: 41.008918, longitude: 28.979900), 
+            // CLLocation(latitude: 41.008918, longitude: 28.979900), 
+            // CLLocation(latitude: 1.283333, longitude: 103.833333), // Singapore, Singapore
             // CLLocation(latitude: 5.416011, longitude: 100.338764), // Penang, Malaysia
-            // CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
+            CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
+            CLLocation(latitude: 41.902222, longitude: 12.453333), // Vatican City, Italy
             // CLLocation(latitude: 30.333000, longitude: 89.051053), // Himlayas
             
             // CLLocation(latitude: 42.569393, longitude: 88.465132), // Lake Garda
@@ -186,6 +189,7 @@ struct GeocoderTests {
         
         // Verify toLocationDict() produces valid dict
         let locationDict = locationDetailData.toLocationDict()
+        printItem(item: locationDict)
         expect(
             locationDict["coordinate"] != nil,
             success: "toLocationDict() includes coordinate",
