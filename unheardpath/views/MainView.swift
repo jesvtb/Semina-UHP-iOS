@@ -24,6 +24,7 @@ struct MainView: View {
     private let previewLastMessage: ChatMessage?
     private let previewCurrentToastData: ToastData?
     @State private var selectedTab: PreviewTabSelection = .journey
+    @State private var previousTab: PreviewTabSelection = .journey
     @State private var shouldHideTabBar: Bool = false
     @StateObject var liveUpdateViewModel = LiveUpdateViewModel()
     @StateObject var stretchableInputVM = StretchableInputViewModel()
@@ -140,6 +141,9 @@ struct MainView: View {
                 .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
             }
             
+            // Avatar / profile button overlay
+            avatarButton
+            
             // Debug cache button overlay
             #if DEBUG
             debugCacheButton
@@ -235,6 +239,10 @@ struct MainView: View {
             isTextFieldFocused = isStretched
         }
         .onChange(of: selectedTab) { newTab in
+            // Track the previous non-profile tab for profile close navigation
+            if newTab != .profile {
+                previousTab = newTab
+            }
             // Hide chat button when already on the chat tab
             stretchableInputVM.isChatButtonVisible = (newTab != .chat)
             // Show journey button when on the chat tab
@@ -382,6 +390,42 @@ extension MainView {
 
 
 
+// MARK: - MainView: Avatar Button
+extension MainView {
+    var avatarButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Button(action: {
+                    if selectedTab == .profile {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedTab = previousTab
+                        }
+                    } else {
+                        previousTab = selectedTab
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedTab = .profile
+                        }
+                    }
+                }) {
+                    Image(systemName: selectedTab == .profile ? "xmark.circle.fill" : "person.crop.circle.fill")
+                        .resizable()
+                        .frame(width: 36, height: 36)
+                        .foregroundColor(Color("onBkgTextColor30"))
+                        .background(
+                            Circle()
+                                .fill(Color("AppBkgColor").opacity(0.8))
+                        )
+                        .clipShape(Circle())
+                }
+                .padding(.top, 8)
+                .padding(.trailing, 8)
+            }
+            Spacer()
+        }
+    }
+}
+
 // MARK: - Debug Cache Components
 #if DEBUG
 extension MainView {
@@ -404,6 +448,7 @@ extension MainView {
                 }
                 .padding(.top, 8)
                 .padding(.trailing, 8)
+                .offset(y: 48) // Position below avatar button
             }
             Spacer()
         }
@@ -428,7 +473,7 @@ extension MainView {
                 }
                 .padding(.top, 8)
                 .padding(.trailing, 8)
-                .offset(y: 40) // Position below cache button
+                .offset(y: 88) // Position below cache button
             }
             Spacer()
         }

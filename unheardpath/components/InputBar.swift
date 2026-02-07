@@ -370,6 +370,13 @@ struct StretchableInput: View {
                         }
                     }
                     .animation(.easeInOut(duration: 0.2), value: draftMessage.isEmpty)
+
+                    // Invisible spacer to balance the map button on the left
+                    if !isEffectivelyStretched {
+                        Image(systemName: "map")
+                            .bodyText(size: .article0)
+                            .hidden()
+                    }
                 }
                 .padding(.horizontal, Spacing.current.space3xs)
                 .padding(.vertical, Spacing.current.space3xs)

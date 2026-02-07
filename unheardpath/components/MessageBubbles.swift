@@ -35,7 +35,6 @@ struct MessageReactions: View {
 
     var body: some View {
         HStack {
-            Spacer(minLength: 0)
             HStack(spacing: Spacing.current.space2xs) {
                 Button {
                     isDisliked = true
@@ -65,6 +64,7 @@ struct MessageReactions: View {
                 }
                 .buttonStyle(.plain)
             }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, Spacing.current.spaceXs)
     }
