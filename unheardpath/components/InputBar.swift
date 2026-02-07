@@ -76,8 +76,13 @@ class StretchableInputViewModel: ObservableObject {
     @Published var cachedLocations: [LocationDetailData] = []
     @Published var autocompleteResults: [MapSearchResult] = []
 
+    /// Whether the switch-to-chat button is visible.
+    @Published var isChatButtonVisible: Bool = true
+
     /// Callback fired when the user submits a message in freestyle mode.
     var onSendMessage: (() -> Void)?
+    /// Callback fired when the user taps the switch-to-chat button.
+    var onSwitchToChat: (() -> Void)?
     /// Callback fired when the user selects a cached location from the list.
     var onLocationSelected: ((LocationDetailData) -> Void)?
     /// Callback fired when the user selects an autocomplete search result.
@@ -310,7 +315,7 @@ struct StretchableInput: View {
                     .padding(.trailing, viewModel.inputMode == .freestyle && !draftMessage.isEmpty
                         ? Spacing.current.spaceL : Spacing.current.spaceXs)
                     .padding(.vertical, Spacing.current.space2xs)
-                    .background(Color("onBkgTextColor30").opacity(0.15))
+                    .background(Color("onBkgTextColor30"))
                     .cornerRadius(Spacing.current.spaceM)
                     .frame(
                         width: isEffectivelyStretched
@@ -332,6 +337,16 @@ struct StretchableInput: View {
                         }
                     }
                     .animation(.easeInOut(duration: 0.2), value: draftMessage.isEmpty)
+
+                    // Switch-to-chat button
+                    if viewModel.isChatButtonVisible, let onSwitchToChat = viewModel.onSwitchToChat {
+                        Button(action: onSwitchToChat) {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .bodyText(size: .article0)
+                                .foregroundColor(Color("onBkgTextColor30"))
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                    }
                 }
                 .padding(.horizontal, Spacing.current.space3xs)
                 .padding(.vertical, Spacing.current.space3xs)
