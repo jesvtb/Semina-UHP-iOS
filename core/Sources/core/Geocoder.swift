@@ -181,6 +181,68 @@ public struct LocationDetailData: Sendable {
         self.dataSource = nil
     }
     
+    /// Creates LocationDetailData from an event dictionary (reverse of `toLocationDict()`).
+    /// Returns nil if the required coordinate cannot be extracted.
+    public init?(eventDict dict: [String: JSONValue]) {
+        guard case .dictionary(let coordDict) = dict["coordinate"],
+              case .double(let lat) = coordDict["lat"],
+              case .double(let lng) = coordDict["lng"] else {
+            return nil
+        }
+
+        let altitude: Double
+        let verticalAccuracy: Double
+        if case .double(let alt) = coordDict["alt"] {
+            altitude = alt
+            verticalAccuracy = 0
+        } else {
+            altitude = 0
+            verticalAccuracy = -1
+        }
+
+        self.location = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng),
+            altitude: altitude,
+            horizontalAccuracy: 0,
+            verticalAccuracy: verticalAccuracy,
+            timestamp: Date()
+        )
+
+        if case .string(let tz) = dict["timezone"] {
+            self.timezone = tz
+        } else {
+            self.timezone = TimeZone.current.identifier
+        }
+
+        self.placeName = Self.stringValue(dict["place_name"])
+        self.subdivisions = Self.stringValue(dict["subdivisions"])
+        self.countryName = Self.stringValue(dict["country_name"])
+        self.countryCode = Self.stringValue(dict["country_code"])
+        self.subdivisionCode = Self.stringValue(dict["subdivision_code"])
+        self.adminArea = Self.stringValue(dict["admin_area"])
+        self.subAdminArea = Self.stringValue(dict["sub_admin_area"])
+        self.locality = Self.stringValue(dict["locality"])
+        self.subLocality = Self.stringValue(dict["sub_locality"])
+
+        if case .bool(let ocean) = dict["is_ocean"] {
+            self.isOcean = ocean
+        } else {
+            self.isOcean = nil
+        }
+
+        if case .string(let ds) = dict["data_source"] {
+            self.dataSource = LocationDataSource(rawValue: ds)
+        } else {
+            self.dataSource = nil
+        }
+    }
+
+    /// Helper to extract an optional String from a JSONValue.
+    private static func stringValue(_ value: JSONValue?) -> String? {
+        guard case .string(let s) = value else { return nil }
+        return s
+    }
+
     /// Converts to LocationDict format for events and backend communication.
     public func toLocationDict() -> LocationDict {
         var coordinateDict: [String: JSONValue] = [

@@ -580,13 +580,17 @@ struct InfoSheet: View {
     // Catalogue management
     @ObservedObject var catalogueManager: CatalogueManager
     
+    /// Callback to activate location search in the StretchableInput (sets inputMode to .autocomplete).
+    var onActivateLocationSearch: (() -> Void)?
+    
     init(
         selectedTab: Binding<PreviewTabSelection>,
         shouldHideTabBar: Binding<Bool>,
         sheetFullHeight: CGFloat,
         bottomSafeAreaInsetHeight: CGFloat,
         sheetSnapPoint: Binding<SnapPoint>,
-        catalogueManager: CatalogueManager
+        catalogueManager: CatalogueManager,
+        onActivateLocationSearch: (() -> Void)? = nil
     ) {
         self._selectedTab = selectedTab
         self._shouldHideTabBar = shouldHideTabBar
@@ -594,6 +598,7 @@ struct InfoSheet: View {
         self.bottomSafeAreaInsetHeight = bottomSafeAreaInsetHeight
         self._sheetSnapPoint = sheetSnapPoint
         self.catalogueManager = catalogueManager
+        self.onActivateLocationSearch = onActivateLocationSearch
     }
     
     /// Extracts LocationDetailData from CatalogueManager
@@ -611,7 +616,6 @@ struct InfoSheet: View {
     @State private var isScrolling: Bool = false
     @State private var scrollSettleTask: Task<Void, Never>?
     @State private var selectedSectionIndex: Int = 0
-    @State private var isShowingLocationPicker: Bool = false
     @State private var headerFrame: CGRect = .zero
     
     // Offset adjustment for sheet positioning (bottom safe area + optional padding)
@@ -708,11 +712,9 @@ struct InfoSheet: View {
                                 InfoSheetHeaderView(
                                     locationData: locationDetailData,
                                     currentSnapPoint: sheetSnapPoint,
-                                    isDropdownOpen: isShowingLocationPicker,
+                                    isDropdownOpen: false,
                                     onChangeLocation: {
-                                        withAnimation(.easeOut(duration: 0.2)) {
-                                            isShowingLocationPicker.toggle()
-                                        }
+                                        onActivateLocationSearch?()
                                     }
                                 )
                                 .padding(.top, Spacing.current.space2xs)
@@ -746,38 +748,15 @@ struct InfoSheet: View {
                         .onPreferenceChange(HeaderFramePreferenceKey.self) { frame in
                             headerFrame = frame
                         }
-                        .overlay {
-                            // Dropdown overlay - on top of everything
-                            if isShowingLocationPicker && (sheetSnapPoint == .full || sheetSnapPoint == .partial) {
-                                ZStack(alignment: .top) {
-                                    // Dismiss backdrop
-                                    Color.black.opacity(0.001)
-                                        .onTapGesture {
-                                            withAnimation(.easeOut(duration: 0.15)) {
-                                                isShowingLocationPicker = false
-                                            }
-                                        }
-                                    
-                                    // Dropdown positioned below header
-                                    LocationDropdown(isPresented: $isShowingLocationPicker)
-                                        .padding(.horizontal, Spacing.current.spaceS)
-                                        .padding(.top, headerFrame.maxY + 4)
-                                }
-                                .transition(.opacity)
-                            }
-                        }
-                        .animation(.easeOut(duration: 0.2), value: isShowingLocationPicker)
                     } else {
                         VStack(spacing: 0) {
                             // Header fixed at top (same as sections layout)
                             InfoSheetHeaderView(
                                 locationData: locationDetailData,
                                 currentSnapPoint: sheetSnapPoint,
-                                isDropdownOpen: isShowingLocationPicker,
+                                isDropdownOpen: false,
                                 onChangeLocation: {
-                                    withAnimation(.easeOut(duration: 0.2)) {
-                                        isShowingLocationPicker.toggle()
-                                    }
+                                    onActivateLocationSearch?()
                                 }
                             )
                             .padding(.top, Spacing.current.space2xs)
@@ -943,14 +922,7 @@ struct InfoSheet: View {
             if newSnapPoint != .full {
                 shouldHideTabBar = false
             }
-            // Close dropdown when snap point changes to collapsed
-            if newSnapPoint == .collapsed && isShowingLocationPicker {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    isShowingLocationPicker = false
-                }
-            }
         }
-        .animation(.easeOut(duration: 0.2), value: isShowingLocationPicker)
     }
     
     private func determineSnapPoint(dragDistance: CGFloat) -> SnapPoint {

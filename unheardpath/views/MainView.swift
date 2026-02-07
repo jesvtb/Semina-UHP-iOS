@@ -26,6 +26,7 @@ struct MainView: View {
     @State private var selectedTab: PreviewTabSelection = .journey
     @State private var shouldHideTabBar: Bool = false
     @StateObject var liveUpdateViewModel = LiveUpdateViewModel()
+    @StateObject var stretchableInputVM = StretchableInputViewModel()
     @State var shouldDismissKeyboard: Bool = false
     
     // Location-related state
@@ -83,6 +84,7 @@ struct MainView: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     isTextFieldFocused = false
+                    stretchableInputVM.isStretched = false
                 }
             // Main content (messages list)
             if selectedTab == .chat {
@@ -101,7 +103,12 @@ struct MainView: View {
                         sheetFullHeight: sheetFullHeight,
                         bottomSafeAreaInsetHeight: bottomSafeAreaInsetHeight,
                         sheetSnapPoint: $sheetSnapPoint,
-                        catalogueManager: catalogueManager
+                        catalogueManager: catalogueManager,
+                        onActivateLocationSearch: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                stretchableInputVM.inputMode = .autocomplete
+                            }
+                        }
                     )
                         .position(
                             x: geometry.size.width / 2,
@@ -119,7 +126,7 @@ struct MainView: View {
             }
 
             
-            if let lastMessage = chatManager.lastMessage, selectedTab != .chat {
+            if let lastMessage = chatManager.lastMessage {
                 LiveUpdateStack(
                     message: lastMessage,
                     currentToastData: $toastManager.currentToastData,
@@ -133,23 +140,6 @@ struct MainView: View {
                 .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
             }
             
-            // Show autocomplete results in map tab
-            if selectedTab == .map && !autocompleteManager.searchResults.isEmpty && !liveUpdateViewModel.inputLocation.isEmpty {
-                AddrSearchResultsList(
-                    searchResults: autocompleteManager.searchResults,
-                    inputLocation: $liveUpdateViewModel.inputLocation,
-                    isTextFieldFocused: $isTextFieldFocused,
-                    onResultSelected: { result in
-                        await flyToLocation(result: result)
-                    },
-                    onClearResults: {
-                        autocompleteManager.clearSearchResults()
-                    }
-                )
-                    .opacity(shouldHideTabBar ? 0 : 1)
-                    .allowsHitTesting(!shouldHideTabBar)
-            }
-            
             // Debug cache button overlay
             #if DEBUG
             debugCacheButton
@@ -159,36 +149,23 @@ struct MainView: View {
         // Input bar pinned to bottom; moves with keyboard
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
-                InputBar(
-                    selectedTab: selectedTab,
-                    draftMessage: $chatManager.draftMessage,
-                    inputLocation: $liveUpdateViewModel.inputLocation,
-                    isTextFieldFocused: $isTextFieldFocused,
-                    isAuthenticated: authManager.isAuthenticated,
-                    isLoading: authManager.isLoading,
-                    onSendMessage: {
-                        Task { @MainActor in
-                            await chatManager.sendMessage()
-                        }
-                    },
-                    onSwitchToChat: {
-                        selectedTab = .chat
-                    }
+                StretchableInput(
+                    viewModel: stretchableInputVM,
+                    draftMessage: $chatManager.draftMessage
                 )
-                if !isTextFieldFocused {
+                if !stretchableInputVM.isStretched {
                     TabsBarView(selectedTab: $selectedTab, tabs: tabs)
                 }
             }
-            .background(.ultraThinMaterial)
-            .overlay(
-                Divider()
-                    .background(Color("onBkgTextColor30")),
-                alignment: .top
-            )
-            .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
-            // .opacity(0.2)
-            .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
-            .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
+            // .background(.ultraThinMaterial)
+            // .overlay(
+            //     Divider()
+            //         .background(Color("onBkgTextColor30")),
+            //     alignment: .top
+            // )
+            // .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
+            // .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
+            // .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
         }
         #if DEBUG
         .sheet(isPresented: $showCacheDebugSheet) {
@@ -220,16 +197,37 @@ struct MainView: View {
                 await updateLookupLocationToUHP(flyTo: flyTo, router: sseEventRouter)
             }
         }
-        .onChange(of: liveUpdateViewModel.inputLocation) { newValue in
-            // Update autocomplete when typing in map tab
-            if selectedTab == .map {
+        .onChange(of: stretchableInputVM.inputLocation) { newValue in
+            // Update autocomplete when typing in autocomplete mode
+            if stretchableInputVM.inputMode == .autocomplete {
                 updateAutocomplete(query: newValue)
             }
         }
-        .onChange(of: selectedTab) { newTab in
-            // Clear autocomplete results when switching away from map tab
-            if newTab != .map {
+        .onChange(of: stretchableInputVM.inputMode) { newMode in
+            if newMode == .autocomplete {
+                // Load cached locations when entering autocomplete mode
+                stretchableInputVM.loadCachedLocations(from: eventManager)
+            } else {
+                // Clear autocomplete state when leaving autocomplete mode
                 autocompleteManager.clearSearchResults()
+                stretchableInputVM.autocompleteResults = []
+                stretchableInputVM.inputLocation = ""
+            }
+        }
+        .onReceive(autocompleteManager.$searchResults) { newResults in
+            // Feed autocomplete results into the StretchableInput view model
+            if stretchableInputVM.inputMode == .autocomplete {
+                stretchableInputVM.autocompleteResults = newResults
+            }
+        }
+        .onChange(of: stretchableInputVM.isStretched) { isStretched in
+            // Sync MainView's isTextFieldFocused with StretchableInput's stretch state
+            isTextFieldFocused = isStretched
+        }
+        .onChange(of: selectedTab) { newTab in
+            // Clear autocomplete results when switching tabs
+            if stretchableInputVM.inputMode == .autocomplete {
+                stretchableInputVM.inputMode = .freestyle
             }
         }
         .onAppear {
@@ -265,6 +263,25 @@ struct MainView: View {
             
             // Set router reference in ChatManager (router already holds chatManager from app init)
             chatManager.sseEventRouter = sseEventRouter
+            
+            // Set up StretchableInput callbacks
+            stretchableInputVM.onSendMessage = {
+                Task { @MainActor in
+                    await chatManager.sendMessage()
+                }
+            }
+            stretchableInputVM.onLocationSelected = { [weak stretchableInputVM] locationDetail in
+                mapFeaturesManager.flyToLocation = FlyToLocation(locationDetail: locationDetail)
+                autocompleteManager.clearSearchResults()
+                stretchableInputVM?.inputLocation = ""
+                stretchableInputVM?.autocompleteResults = []
+            }
+            stretchableInputVM.onAutocompleteResultSelected = { [weak stretchableInputVM] result in
+                Task { @MainActor in
+                    await flyToLocation(result: result)
+                    stretchableInputVM?.autocompleteResults = []
+                }
+            }
         }
         .task { @MainActor in
             

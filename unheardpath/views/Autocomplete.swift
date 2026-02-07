@@ -26,7 +26,7 @@ extension MainView {
             mapFeaturesManager.flyToLocation = FlyToLocation(locationDetail: detail)
         }
         autocompleteManager.clearSearchResults()
-        liveUpdateViewModel.inputLocation = ""
-        isTextFieldFocused = false
+        stretchableInputVM.inputLocation = ""
+        stretchableInputVM.isStretched = false
     }
 }

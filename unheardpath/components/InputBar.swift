@@ -72,36 +72,59 @@ enum InputMode: String {
 class StretchableInputViewModel: ObservableObject {
     @Published var isStretched: Bool = false
     @Published var inputMode: InputMode = .freestyle
-    @Published var locations: [LocationDetailData] = []
+    @Published var inputLocation: String = ""
+    @Published var cachedLocations: [LocationDetailData] = []
+    @Published var autocompleteResults: [MapSearchResult] = []
+
+    /// Callback fired when the user submits a message in freestyle mode.
+    var onSendMessage: (() -> Void)?
+    /// Callback fired when the user selects a cached location from the list.
+    var onLocationSelected: ((LocationDetailData) -> Void)?
+    /// Callback fired when the user selects an autocomplete search result.
+    var onAutocompleteResultSelected: ((MapSearchResult) -> Void)?
+
+    /// Loads cached `location_searched` events from the EventManager into `cachedLocations`.
+    func loadCachedLocations(from eventManager: EventManager) {
+        cachedLocations = eventManager.getSearchedLocations()
+    }
 }
 
 // MARK: - LocationListMenu
 
 struct LocationListMenu: View {
-    let locations: [LocationDetailData]
-    let onSelect: (LocationDetailData) -> Void
+    let cachedLocations: [LocationDetailData]
+    let autocompleteResults: [MapSearchResult]
+    let onSelectCached: (LocationDetailData) -> Void
+    let onSelectAutocomplete: (MapSearchResult) -> Void
+
+    private var totalItemCount: Int {
+        cachedLocations.count + autocompleteResults.count
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Recent Locations")
-                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
-                .foregroundColor(Color("onBkgTextColor30"))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, Spacing.current.spaceS)
-                .padding(.top, Spacing.current.spaceS)
-                .padding(.bottom, Spacing.current.spaceXs)
+            if !cachedLocations.isEmpty {
+                Text("Recent Locations")
+                    .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
+                    .foregroundColor(Color("onBkgTextColor30"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Spacing.current.spaceS)
+                    .padding(.top, Spacing.current.spaceS)
+                    .padding(.bottom, Spacing.current.spaceXs)
 
-            Divider()
-                .padding(.leading, Spacing.current.spaceS)
+                Divider()
+                    .padding(.leading, Spacing.current.spaceS)
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // Cached location rows
                     ForEach(
-                        Array(locations.enumerated()),
+                        Array(cachedLocations.enumerated()),
                         id: \.offset
                     ) { index, location in
                         Button {
-                            onSelect(location)
+                            onSelectCached(location)
                         } label: {
                             HStack(spacing: Spacing.current.spaceXs) {
                                 Image(systemName: "mappin.circle.fill")
@@ -134,7 +157,44 @@ struct LocationListMenu: View {
                             .padding(.vertical, Spacing.current.spaceXs)
                         }
 
-                        if index < locations.count - 1 {
+                        if index < cachedLocations.count - 1 || !autocompleteResults.isEmpty {
+                            Divider()
+                                .padding(.leading, Spacing.current.spaceS)
+                        }
+                    }
+
+                    // Autocomplete result rows
+                    ForEach(
+                        Array(autocompleteResults.enumerated()),
+                        id: \.offset
+                    ) { index, result in
+                        Button {
+                            onSelectAutocomplete(result)
+                        } label: {
+                            HStack(spacing: Spacing.current.spaceXs) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Color("AccentColor"))
+
+                                VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
+                                    Text(result.name)
+                                        .font(.custom(FontFamily.sansRegular, size: TypographyScale.article0.baseSize))
+                                        .foregroundColor(Color("onBkgTextColor10"))
+
+                                    if !result.address.isEmpty {
+                                        Text(result.address)
+                                            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
+                                            .foregroundColor(Color("onBkgTextColor30"))
+                                    }
+                                }
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, Spacing.current.spaceS)
+                            .padding(.vertical, Spacing.current.spaceXs)
+                        }
+
+                        if index < autocompleteResults.count - 1 {
                             Divider()
                                 .padding(.leading, Spacing.current.spaceS)
                         }
@@ -165,33 +225,54 @@ struct StretchableInput: View {
         viewModel.isStretched || isTextFieldFocused
     }
 
+    /// The active text binding: `inputLocation` in autocomplete mode, `draftMessage` in freestyle.
+    private var activeText: Binding<String> {
+        viewModel.inputMode == .autocomplete
+            ? $viewModel.inputLocation
+            : $draftMessage
+    }
+
     /// Whether the autocomplete location list should be visible
     private var showAutocompleteList: Bool {
         viewModel.inputMode == .autocomplete
             && isEffectivelyStretched
-            && !viewModel.locations.isEmpty
+            && (!viewModel.cachedLocations.isEmpty || !viewModel.autocompleteResults.isEmpty)
     }
 
     var body: some View {
-        GeometryReader { geo in
-            VStack(spacing: 0) {
-                // MARK: Autocomplete context menu (expands upward)
-                if showAutocompleteList {
-                    LocationListMenu(
-                        locations: viewModel.locations,
-                        onSelect: { location in
-                            draftMessage = location.placeName ?? ""
+        VStack(spacing: 0) {
+            // MARK: Autocomplete context menu (expands upward)
+            if showAutocompleteList {
+                LocationListMenu(
+                    cachedLocations: viewModel.cachedLocations,
+                    autocompleteResults: viewModel.autocompleteResults,
+                    onSelectCached: { location in
+                        viewModel.onLocationSelected?(location)
+                        viewModel.inputLocation = ""
+                        viewModel.autocompleteResults = []
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            viewModel.isStretched = false
                         }
-                    )
-                    .padding(.horizontal, Spacing.current.spaceXs)
-                    .padding(.bottom, Spacing.current.space3xs)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.0, anchor: .bottom).combined(with: .opacity),
-                        removal: .scale(scale: 0.0, anchor: .bottom).combined(with: .opacity)
-                    ))
-                }
+                    },
+                    onSelectAutocomplete: { result in
+                        viewModel.onAutocompleteResultSelected?(result)
+                        viewModel.inputLocation = ""
+                        viewModel.autocompleteResults = []
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            viewModel.isStretched = false
+                        }
+                    }
+                )
+                .padding(.horizontal, Spacing.current.spaceXs)
+                .padding(.bottom, Spacing.current.space3xs)
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.0, anchor: .bottom).combined(with: .opacity),
+                    removal: .scale(scale: 0.0, anchor: .bottom).combined(with: .opacity)
+                ))
+            }
 
-                // MARK: Input bar
+            // MARK: Input bar
+            GeometryReader { geo in
                 HStack(spacing: Spacing.current.spaceXs) {
                     // Map / Autocomplete toggle button
                     Button {
@@ -215,10 +296,16 @@ struct StretchableInput: View {
                         viewModel.inputMode == .autocomplete
                             ? "Locate..."
                             : "Ask...",
-                        text: $draftMessage
+                        text: activeText
                     )
                     .bodyText()
                     .focused($isTextFieldFocused)
+                    .submitLabel(viewModel.inputMode == .autocomplete ? .search : .send)
+                    .onSubmit {
+                        if viewModel.inputMode == .freestyle && !draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            viewModel.onSendMessage?()
+                        }
+                    }
                     .padding(.horizontal, Spacing.current.spaceXs)
                     .padding(.trailing, viewModel.inputMode == .freestyle && !draftMessage.isEmpty
                         ? Spacing.current.spaceL : Spacing.current.spaceXs)
@@ -234,7 +321,7 @@ struct StretchableInput: View {
                         // Send button — inside the text field, trailing edge
                         if viewModel.inputMode == .freestyle && !draftMessage.isEmpty {
                             Button {
-                                // Send action placeholder
+                                viewModel.onSendMessage?()
                             } label: {
                                 Image(systemName: "arrow.up.circle.fill")
                                     .bodyText(size: .article2)
@@ -249,32 +336,33 @@ struct StretchableInput: View {
                 .padding(.horizontal, Spacing.current.space3xs)
                 .padding(.vertical, Spacing.current.space3xs)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .animation(.easeInOut(duration: 0.25), value: isEffectivelyStretched)
-            .animation(.easeInOut(duration: 0.25), value: showAutocompleteList)
-            .onChange(of: isTextFieldFocused) { isFocused in
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    viewModel.isStretched = isFocused
-                }
+            .frame(height: 40)
+        }
+        .animation(.easeInOut(duration: 0.25), value: isEffectivelyStretched)
+        .animation(.easeInOut(duration: 0.25), value: showAutocompleteList)
+        .onChange(of: isTextFieldFocused) { isFocused in
+            withAnimation(.easeInOut(duration: 0.25)) {
+                viewModel.isStretched = isFocused
             }
-            .onChange(of: viewModel.isStretched) { isStretched in
-                if !isStretched {
-                    isTextFieldFocused = false
-                }
+        }
+        .onChange(of: viewModel.isStretched) { isStretched in
+            if !isStretched {
+                isTextFieldFocused = false
             }
-            .onChange(of: viewModel.inputMode) { inputMode in
-                if inputMode == .autocomplete {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        viewModel.isStretched = true
-                    }
-                }
-            }
-            .onTapGesture {
+        }
+        .onChange(of: viewModel.inputMode) { inputMode in
+            if inputMode == .autocomplete {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     viewModel.isStretched = true
                 }
                 isTextFieldFocused = true
             }
+        }
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                viewModel.isStretched = true
+            }
+            isTextFieldFocused = true
         }
     }
 }
@@ -285,7 +373,7 @@ struct StretchableInput: View {
     struct StretchableInputPreviewWrapper: View {
         @StateObject private var viewModel: StretchableInputViewModel = {
             let vm = StretchableInputViewModel()
-            vm.locations = [
+            vm.cachedLocations = [
                 LocationDetailData(
                     location: CLLocation(latitude: 48.8566, longitude: 2.3522),
                     placeName: "Eiffel Tower",
@@ -348,7 +436,6 @@ struct StretchableInput: View {
                     viewModel: viewModel,
                     draftMessage: $draftMessage
                 )
-                .frame(height: 300)
             }
             .padding()
             .background(Color("AppBkgColor"))

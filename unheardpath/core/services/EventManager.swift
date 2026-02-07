@@ -228,6 +228,34 @@ class EventManager: ObservableObject {
         return allEvents
     }
     
+    /// Returns all location_searched events as `[LocationDetailData]`, sorted chronologically (oldest first, most recent last).
+    /// Deduplicates by coordinate proximity (within 200m). Used to populate the StretchableInput's cached locations list.
+    func getSearchedLocations() -> [LocationDetailData] {
+        let allEvents = consolidateEvents()
+        let locationEvents = allEvents
+            .filter { $0.evt_type == "location_searched" }
+            .sorted { $0.evt_utc < $1.evt_utc }
+
+        var locations: [LocationDetailData] = []
+        for event in locationEvents {
+            guard let detail = LocationDetailData(eventDict: event.evt_data) else { continue }
+
+            // Deduplicate: skip if within 200m of an already-added location
+            let isDuplicate = locations.contains { existing in
+                guard let coord = extractCoordinate(from: event.evt_data) else { return false }
+                let existingCoord = (
+                    latitude: existing.location.coordinate.latitude,
+                    longitude: existing.location.coordinate.longitude
+                )
+                return calculateDistance(coord, existingCoord) <= locationDistanceThresholdMeters
+            }
+            if !isDuplicate {
+                locations.append(detail)
+            }
+        }
+        return locations
+    }
+
     /// Returns all chat_sent and chat_received events from current and past sessions, sorted by evt_utc ascending.
     /// Used to restore chat history on app relaunch.
     func chatEventsInOrder() -> [UserEvent] {
