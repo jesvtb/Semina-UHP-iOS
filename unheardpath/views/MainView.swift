@@ -227,6 +227,8 @@ struct MainView: View {
         .onChange(of: selectedTab) { newTab in
             // Hide chat button when already on the chat tab
             stretchableInputVM.isChatButtonVisible = (newTab != .chat)
+            // Show journey button when on the chat tab
+            stretchableInputVM.isJourneyButtonVisible = (newTab == .chat)
             // Clear autocomplete results when switching tabs
             if stretchableInputVM.inputMode == .autocomplete {
                 stretchableInputVM.inputMode = .freestyle
@@ -275,7 +277,11 @@ struct MainView: View {
             stretchableInputVM.onSwitchToChat = {
                 selectedTab = .chat
             }
+            stretchableInputVM.onSwitchToJourney = {
+                selectedTab = .journey
+            }
             stretchableInputVM.isChatButtonVisible = (selectedTab != .chat)
+            stretchableInputVM.isJourneyButtonVisible = (selectedTab == .chat)
             stretchableInputVM.onLocationSelected = { [weak stretchableInputVM] locationDetail in
                 mapFeaturesManager.flyToLocation = FlyToLocation(locationDetail: locationDetail)
                 autocompleteManager.clearSearchResults()

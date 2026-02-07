@@ -78,11 +78,15 @@ class StretchableInputViewModel: ObservableObject {
 
     /// Whether the switch-to-chat button is visible.
     @Published var isChatButtonVisible: Bool = true
+    /// Whether the switch-to-journey button is visible (shown when on chat tab).
+    @Published var isJourneyButtonVisible: Bool = false
 
     /// Callback fired when the user submits a message in freestyle mode.
     var onSendMessage: (() -> Void)?
     /// Callback fired when the user taps the switch-to-chat button.
     var onSwitchToChat: (() -> Void)?
+    /// Callback fired when the user taps the switch-to-journey button.
+    var onSwitchToJourney: (() -> Void)?
     /// Callback fired when the user selects a cached location from the list.
     var onLocationSelected: ((LocationDetailData) -> Void)?
     /// Callback fired when the user selects an autocomplete search result.
@@ -276,6 +280,35 @@ struct StretchableInput: View {
                 ))
             }
 
+            // MARK: Tab-switching buttons (above the input bar)
+            if viewModel.isChatButtonVisible, let onSwitchToChat = viewModel.onSwitchToChat {
+                HStack {
+                    Spacer()
+                    Button(action: onSwitchToChat) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .bodyText(size: .article0)
+                            .foregroundColor(Color("onBkgTextColor30"))
+                    }
+                }
+                .padding(.horizontal, Spacing.current.spaceXs)
+                .padding(.bottom, Spacing.current.space3xs)
+                .transition(.scale.combined(with: .opacity))
+            }
+
+            if viewModel.isJourneyButtonVisible, let onSwitchToJourney = viewModel.onSwitchToJourney {
+                HStack {
+                    Spacer()
+                    Button(action: onSwitchToJourney) {
+                        Image(systemName: "arrow.down.right.and.arrow.up.left")
+                            .bodyText(size: .article0)
+                            .foregroundColor(Color("onBkgTextColor30"))
+                    }
+                }
+                .padding(.horizontal, Spacing.current.spaceXs)
+                .padding(.bottom, Spacing.current.space3xs)
+                .transition(.scale.combined(with: .opacity))
+            }
+
             // MARK: Input bar
             GeometryReader { geo in
                 HStack(spacing: Spacing.current.spaceXs) {
@@ -337,16 +370,6 @@ struct StretchableInput: View {
                         }
                     }
                     .animation(.easeInOut(duration: 0.2), value: draftMessage.isEmpty)
-
-                    // Switch-to-chat button
-                    if viewModel.isChatButtonVisible, let onSwitchToChat = viewModel.onSwitchToChat {
-                        Button(action: onSwitchToChat) {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .bodyText(size: .article0)
-                                .foregroundColor(Color("onBkgTextColor30"))
-                        }
-                        .transition(.scale.combined(with: .opacity))
-                    }
                 }
                 .padding(.horizontal, Spacing.current.space3xs)
                 .padding(.vertical, Spacing.current.space3xs)
