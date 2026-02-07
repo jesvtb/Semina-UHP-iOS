@@ -18,7 +18,7 @@ public typealias LocationDict = [String: JSONValue]
 public enum LocationDataSource: String, Sendable, Codable {
     /// Location obtained from device GPS/CoreLocation.
     case device
-    /// Location obtained from geocoding lookup or search.
+    /// Location obtained from geocoding lookup.
     case lookup
 }
 

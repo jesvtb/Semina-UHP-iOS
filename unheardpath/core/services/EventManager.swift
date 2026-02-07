@@ -20,7 +20,7 @@ struct SessionData: Codable, Sendable {
 /// Location type for deduplication
 enum LocationType: Sendable {
     case device
-    case search
+    case lookup
 }
 
 /// Result of the location send gate: one check decides skip, send same location with new time, or send new location.
@@ -29,7 +29,7 @@ enum LocationSendDecision: Sendable {
     case skip
     /// Send existing latest location dict with new time (device only; no geocode).
     case sendSameLocationNewTime
-    /// Geocode (if device) and send new location; or send the given location dict (search).
+    /// Geocode (if device) and send new location; or send the given location dict (lookup).
     case sendNewLocation
 }
 
@@ -42,7 +42,7 @@ class EventManager: ObservableObject {
     @Published var thisSession: [UserEvent] = []
     @Published var pastSessions: [String: SessionData] = [:]
     @Published var latestDeviceLocation: [String: JSONValue]?
-    @Published var latestSearchLocation: [String: JSONValue]?
+    @Published var latestLookupLocation: [String: JSONValue]?
     
     // MARK: - Session Properties
     
@@ -61,13 +61,13 @@ class EventManager: ObservableObject {
     private let sessionIdKey = "EventManager.sessionId"
     private let sessionMetadataKey = "EventManager.sessionMetadata"
     private let lastDeviceLocationKey = "LastDeviceLocation"      // Widget compatibility
-    private let lastSearchLocationKey = "LastSearchLocation"
+    private let lastLookupLocationKey = "LastLookupLocation"
     
     // MARK: - Configuration
     
     private let inactivityTimeoutMinutes: Int = 30
     private let maxSessionDurationMinutes: Int = 240  // 4 hours
-    /// Distance threshold (meters) for location send gate; used for both device and search.
+    /// Distance threshold (meters) for location send gate; used for both device and lookup.
     private let locationDistanceThresholdMeters: Double = 200.0
     /// Time threshold (seconds) for device location send gate; e.g. 12 hours.
     private let locationTimeThresholdSeconds: TimeInterval = 12 * 3600
@@ -175,7 +175,7 @@ class EventManager: ObservableObject {
     func setLatestLocations() {
         // Reset to ensure we pick the most recent events
         latestDeviceLocation = nil
-        latestSearchLocation = nil
+        latestLookupLocation = nil
         
         // Get all events from all sessions (current + past)
         let allEvents = consolidateEvents()
@@ -188,21 +188,21 @@ class EventManager: ObservableObject {
                     latestDeviceLocation = extractLocationFromEvent(event)
                 }
             } else if event.evt_type == "location_searched" {
-                if latestSearchLocation == nil {
-                    logger.debug("Set latest search location from events")
-                    latestSearchLocation = extractLocationFromEvent(event)
+                if latestLookupLocation == nil {
+                    logger.debug("Set latest lookup location from events")
+                    latestLookupLocation = extractLocationFromEvent(event)
                 }
             }
             
             // Break early if both locations have been found
-            if latestDeviceLocation != nil && latestSearchLocation != nil {
+            if latestDeviceLocation != nil && latestLookupLocation != nil {
                 break
             }
         }
         
-        // If no location_searched was found in history, use the same latest_device_location
-        if latestSearchLocation == nil && latestDeviceLocation != nil {
-            latestSearchLocation = latestDeviceLocation
+        // If no location_searched was found in history, use the same latest_lookup_location
+        if latestLookupLocation == nil && latestDeviceLocation != nil {
+            latestLookupLocation = latestDeviceLocation
         }
     }
     
@@ -242,15 +242,15 @@ class EventManager: ObservableObject {
     /// Single gate for location events: returns skip, send same location with new time (device only), or send new location.
     /// - Parameters:
     ///   - location: Location dict (must contain coordinate.lat/lng); for device can be a minimal dict from CLLocation.
-    ///   - type: .device or .search
-    /// - Returns: .skip = do nothing; .sendSameLocationNewTime = use latest location dict + new time (device, no geocode); .sendNewLocation = geocode and send (device) or send this dict (search).
+    ///   - type: .device or .lookup
+    /// - Returns: .skip = do nothing; .sendSameLocationNewTime = use latest location dict + new time (device, no geocode); .sendNewLocation = geocode and send (device) or send this dict (lookup).
     func locationSendDecision(_ location: [String: JSONValue], type: LocationType) -> LocationSendDecision {
         let comparisonLocation: [String: JSONValue]?
         switch type {
         case .device:
             comparisonLocation = latestDeviceLocation
-        case .search:
-            comparisonLocation = latestSearchLocation
+        case .lookup:
+            comparisonLocation = latestLookupLocation
         }
 
         guard let comparison = comparisonLocation else {
@@ -278,7 +278,7 @@ class EventManager: ObservableObject {
                 return .sendSameLocationNewTime
             }
             return .sendNewLocation
-        case .search:
+        case .lookup:
             if distance <= locationDistanceThresholdMeters && newCoord.latitude == oldCoord.latitude && newCoord.longitude == oldCoord.longitude {
                 return .skip
             }
@@ -286,7 +286,7 @@ class EventManager: ObservableObject {
         }
     }
 
-    /// Convenience: returns true when we should send (i.e. not skip). Use when only send/skip matters (e.g. search after geocode).
+    /// Convenience: returns true when we should send (i.e. not skip). Use when only send/skip matters (e.g. lookup after geocode).
     func shouldSendLocation(_ location: [String: JSONValue], type: LocationType) -> Bool {
         switch locationSendDecision(location, type: type) {
         case .skip: return false
@@ -490,9 +490,9 @@ class EventManager: ObservableObject {
             Storage.saveToUserDefaults(locationString, forKey: lastDeviceLocationKey)
         }
         
-        if let searchLocation = latestSearchLocation,
-           let searchLocationString = JSONValue.encodeToString(searchLocation) {
-            Storage.saveToUserDefaults(searchLocationString, forKey: lastSearchLocationKey)
+        if let lookupLocation = latestLookupLocation,
+           let lookupLocationString = JSONValue.encodeToString(lookupLocation) {
+            Storage.saveToUserDefaults(lookupLocationString, forKey: lastLookupLocationKey)
         }
         
         logger.debug("Saved events: \(thisSession.count) in current session, \(pastSessions.count) past sessions")

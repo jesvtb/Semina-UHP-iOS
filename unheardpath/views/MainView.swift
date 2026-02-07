@@ -417,7 +417,7 @@ extension MainView {
         
         @State private var isThisSessionEventsExpanded = false
         @State private var isLastDeviceLocationExpanded = false
-        @State private var isLastSearchLocationExpanded = false
+        @State private var isLastLookupLocationExpanded = false
         
         private var cacheInfo: (entryCount: Int, totalSize: Int, formattedSize: String, breakdown: [(key: String, size: Int, formattedSize: String, value: Any?)]) {
             getCacheInfo()
@@ -499,15 +499,15 @@ extension MainView {
                         }
                     }
                     
-                    // LastSearchLocation - expandable
+                    // LastLookupLocation - expandable
                     expandableSection(
-                        title: "LastSearchLocation",
-                        isExpanded: $isLastSearchLocationExpanded,
-                        isEmpty: eventManager.latestSearchLocation == nil,
-                        emptyMessage: "No search location available"
+                        title: "LastLookupLocation",
+                        isExpanded: $isLastLookupLocationExpanded,
+                        isEmpty: eventManager.latestLookupLocation == nil,
+                        emptyMessage: "No lookup location available"
                     ) {
-                        if let searchLocation = eventManager.latestSearchLocation {
-                            locationJsonView(json: searchLocation)
+                        if let lookupLocation = eventManager.latestLookupLocation {
+                            locationJsonView(json: lookupLocation)
                         }
                     }
                     

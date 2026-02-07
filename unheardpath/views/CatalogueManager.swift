@@ -387,7 +387,7 @@ class CatalogueManager: ObservableObject {
     }
     
     /// Set location data for header display.
-    /// The location's `dataSource` property determines whether it's from device GPS or lookup/search.
+    /// The location's `dataSource` property determines whether it's from device GPS or lookup.
     func setLocationData(_ locationData: LocationDetailData) {
         self.locationDetailData = locationData
     }

@@ -93,7 +93,7 @@ extension MainView {
         let locationDictForCheck: [String: JSONValue] = [
             "coordinate": .dictionary(["lat": .double(lat), "lng": .double(lon)])
         ]
-        let decision = eventManager.locationSendDecision(locationDictForCheck, type: .search)
+        let decision = eventManager.locationSendDecision(locationDictForCheck, type: .lookup)
 
         if case .skip = decision {
             logger.debug("Skipping location_searched send (within distance threshold)")

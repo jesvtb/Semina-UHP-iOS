@@ -118,7 +118,7 @@ struct InfoSheetHeaderView: View {
     var isDropdownOpen: Bool
     var onChangeLocation: (() -> Void)?
     
-    /// Whether the location comes from device GPS (vs lookup/search)
+    /// Whether the location comes from device GPS (vs lookup)
     private var isFromDeviceLocation: Bool {
         locationData?.dataSource == .device
     }
