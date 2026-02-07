@@ -90,7 +90,7 @@ private func buildDisplayResults(from searchResults: [MapSearchResult]) -> [MapS
     }
     var ordered = keysInOrder.compactMap { keyToPreferred[$0] }
     if !ordered.isEmpty {
-        let mostRelevantIndex = ordered.firstIndex(where: { $0.type == "city" }) ?? (ordered.count - 1)
+        let mostRelevantIndex = ordered.firstIndex(where: { $0.isCityType }) ?? (ordered.count - 1)
         let mostRelevant = ordered[mostRelevantIndex]
         ordered.remove(at: mostRelevantIndex)
         ordered.append(mostRelevant)

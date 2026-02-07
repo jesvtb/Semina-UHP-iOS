@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import core
 
 // MARK: - Content View
 struct ContentView: View {
@@ -35,11 +36,26 @@ struct ContentView: View {
  }
 
  #Preview("Authenticated") {
+   let uhpGateway = UHPGateway()
+   let userManager = UserManager()
+   let chatManager = ChatManager(uhpGateway: uhpGateway, userManager: userManager)
+   let mapFeaturesManager = MapFeaturesManager()
+   let toastManager = ToastManager()
+   let catalogueManager = CatalogueManager()
+   let sseEventRouter = SSEEventRouter(chatManager: chatManager, catalogueManager: catalogueManager, mapFeaturesManager: mapFeaturesManager, toastManager: toastManager)
    ContentView()
      .environmentObject(AuthManager.preview(isAuthenticated: true, isLoading: false, userID: "c1a4eee7-8fb1-496e-be39-a58d6e8257e7"))
-     .environmentObject(UHPGateway())
+     .environmentObject(uhpGateway)
      .environmentObject(TrackingManager())
-     .environmentObject(UserManager())
+     .environmentObject(userManager)
+     .environmentObject(chatManager)
+     .environmentObject(mapFeaturesManager)
+     .environmentObject(toastManager)
+     .environmentObject(catalogueManager)
+     .environmentObject(sseEventRouter)
+     .environmentObject(EventManager())
+     .environmentObject(AutocompleteManager(geoapifyApiKey: ""))
+     .environment(\.geocoder, Geocoder(geoapifyApiKey: ""))
  }
 
  #Preview("Loading") {

@@ -114,20 +114,22 @@ enum SnapPoint {
 /// Displays location hierarchy with adminArea/subAdminArea and locality/subLocality
 struct InfoSheetHeaderView: View {
     let locationData: LocationDetailData?
-    let isFromDeviceLocation: Bool
     let currentSnapPoint: SnapPoint
     var isDropdownOpen: Bool
     var onChangeLocation: (() -> Void)?
     
+    /// Whether the location comes from device GPS (vs lookup/search)
+    private var isFromDeviceLocation: Bool {
+        locationData?.dataSource == .device
+    }
+    
     init(
         locationData: LocationDetailData?,
-        isFromDeviceLocation: Bool = true,
         currentSnapPoint: SnapPoint = .collapsed,
         isDropdownOpen: Bool = false,
         onChangeLocation: (() -> Void)? = nil
     ) {
         self.locationData = locationData
-        self.isFromDeviceLocation = isFromDeviceLocation
         self.currentSnapPoint = currentSnapPoint
         self.isDropdownOpen = isDropdownOpen
         self.onChangeLocation = onChangeLocation
@@ -705,7 +707,6 @@ struct InfoSheet: View {
                             VStack(spacing: 0) {
                                 InfoSheetHeaderView(
                                     locationData: locationDetailData,
-                                    isFromDeviceLocation: catalogueManager.isCatalogueFromDeviceLocation,
                                     currentSnapPoint: sheetSnapPoint,
                                     isDropdownOpen: isShowingLocationPicker,
                                     onChangeLocation: {
@@ -771,7 +772,6 @@ struct InfoSheet: View {
                             // Header fixed at top (same as sections layout)
                             InfoSheetHeaderView(
                                 locationData: locationDetailData,
-                                isFromDeviceLocation: catalogueManager.isCatalogueFromDeviceLocation,
                                 currentSnapPoint: sheetSnapPoint,
                                 isDropdownOpen: isShowingLocationPicker,
                                 onChangeLocation: {
@@ -1055,7 +1055,7 @@ private func replaySSEPreviewEvents(into catalogueManager: CatalogueManager) asy
         adminArea: "Lazio",
         locality: "Rome"
     )
-    catalogueManager.setLocationData(locationData, isFromDeviceLocation: true)
+    catalogueManager.setLocationData(locationData)
     
     let chatManager = ChatManager(uhpGateway: UHPGateway(), userManager: UserManager())
     let router = SSEEventRouter(

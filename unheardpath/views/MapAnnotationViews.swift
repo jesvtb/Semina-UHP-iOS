@@ -83,7 +83,7 @@ struct PlaceView: View {
 /// Custom SwiftUI view for lookup location annotations (from autocomplete selection or long press)
 /// Used with MapViewAnnotation to display lookup place information on the map
 struct LookupLocation: View {
-    let flyToLocation: FlyToLocation
+    let locationDetail: LocationDetailData
 
     var body: some View {
         VStack(spacing: 4) {
@@ -93,8 +93,8 @@ struct LookupLocation: View {
                 .foregroundColor(Color("AppBkgColor"))
                 .shadow(radius: Spacing.current.space3xs)
 
-            // Place name text (only show if name exists)
-            if let name = flyToLocation.name {
+            // Place name text (only show if placeName exists)
+            if let name = locationDetail.placeName {
                 Text(name)
                     .bodyText(size: .articleMinus1)
                     .foregroundColor(Color("onBkgTextColor10"))

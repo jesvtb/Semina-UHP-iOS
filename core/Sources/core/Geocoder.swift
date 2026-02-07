@@ -72,6 +72,114 @@ public struct LocationDetailData: Sendable {
         self.isOcean = isOcean
         self.dataSource = dataSource
     }
+
+    /// Creates LocationDetailData from a CLPlacemark (MapKit/CLGeocoder result).
+    public init(placemark: CLPlacemark, location: CLLocation) {
+        // Build subdivisions: subLocality, locality, subAdministrativeArea, administrativeArea
+        let subdivisionParts = [
+            placemark.subLocality,
+            placemark.locality,
+            placemark.subAdministrativeArea,
+            placemark.administrativeArea
+        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+         .filter { !$0.isEmpty }
+
+        let adminArea = placemark.administrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subAdminArea = placemark.subAdministrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let locality = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subLocality = placemark.subLocality?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Ocean detection from CLPlacemark
+        let oceanName = placemark.ocean?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Place name: use ocean name if in ocean, otherwise prefer name/thoroughfare/locality
+        let placeName: String?
+        if let ocean = oceanName, !ocean.isEmpty {
+            placeName = ocean
+        } else {
+            placeName = (placemark.name ?? placemark.thoroughfare ?? placemark.locality)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        self.location = location
+        self.placeName = placeName?.isEmpty == true ? nil : placeName
+        self.subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
+        self.countryName = placemark.country
+        self.countryCode = placemark.isoCountryCode?.uppercased()
+        self.timezone = placemark.timeZone?.identifier ?? TimeZone.current.identifier
+        self.adminArea = adminArea?.isEmpty == true ? nil : adminArea
+        self.subAdminArea = subAdminArea?.isEmpty == true ? nil : subAdminArea
+        self.locality = locality?.isEmpty == true ? nil : locality
+        self.subLocality = subLocality?.isEmpty == true ? nil : subLocality
+        self.subdivisionCode = nil
+        self.isOcean = oceanName?.isEmpty == false ? true : nil
+        self.dataSource = nil
+    }
+
+    /// Creates LocationDetailData from a Geoapify properties dictionary.
+    /// Expects the inner result dict (e.g. `results[0]`), not the full API response wrapper.
+    public init(geoapifyProperties props: [String: Any], location: CLLocation) {
+        // Extract all possible subdivision levels
+        let neighbourhood = (props["neighbourhood"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let suburb = (props["suburb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let district = (props["district"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let town = (props["town"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let city = (props["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let county = (props["county"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let state = (props["state"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Hierarchy order (smallest to largest): neighbourhood -> suburb -> district -> town -> city -> county -> state
+        // Remove duplicates while preserving order
+        var seen = Set<String>()
+        let subdivisionParts = [neighbourhood, suburb, district, town, city, county, state]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+
+        // Timezone
+        let timezone: String
+        if let tzObj = props["timezone"] as? [String: Any], let tzName = tzObj["name"] as? String {
+            timezone = tzName
+        } else {
+            timezone = TimeZone.current.identifier
+        }
+
+        // Ocean/marine area
+        let oceanName: String?
+        if let ocean = props["ocean"] as? String, !ocean.isEmpty {
+            oceanName = ocean
+        } else if let marineArea = props["marinearea"] as? String, !marineArea.isEmpty {
+            oceanName = marineArea
+        } else {
+            oceanName = nil
+        }
+
+        // Place name: use ocean name if in ocean, otherwise address_line1/name/city
+        let placeName: String?
+        if let ocean = oceanName {
+            placeName = ocean
+        } else {
+            placeName = (props["address_line1"] as? String) ?? (props["name"] as? String) ?? city
+        }
+
+        // subLocality: lowest hierarchy of (neighborhood, suburb, district, town)
+        let subLocality = [neighbourhood, suburb, district, town]
+            .compactMap { $0 }
+            .first { !$0.isEmpty }
+
+        self.location = location
+        self.placeName = placeName?.isEmpty == true ? nil : placeName
+        self.subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
+        self.countryName = props["country"] as? String
+        self.countryCode = (props["country_code"] as? String)?.uppercased()
+        self.timezone = timezone
+        self.adminArea = state?.isEmpty == true ? nil : state
+        self.subAdminArea = county?.isEmpty == true ? nil : county
+        self.locality = city?.isEmpty == true ? nil : city
+        self.subLocality = subLocality?.isEmpty == true ? nil : subLocality
+        self.subdivisionCode = (props["iso3166_2"] as? String)?.uppercased()
+        self.isOcean = oceanName != nil ? true : nil
+        self.dataSource = nil
+    }
     
     /// Converts to LocationDict format for events and backend communication.
     public func toLocationDict() -> LocationDict {
@@ -107,16 +215,16 @@ public struct LocationDetailData: Sendable {
             dict["is_ocean"] = .bool(true)
         }
         if let adminArea = adminArea, !adminArea.isEmpty {
-            dict["adminArea"] = .string(adminArea)
+            dict["admin_area"] = .string(adminArea)
         }
         if let subAdminArea = subAdminArea, !subAdminArea.isEmpty {
-            dict["subAdminArea"] = .string(subAdminArea)
+            dict["sub_admin_area"] = .string(subAdminArea)
         }
         if let locality = locality, !locality.isEmpty {
             dict["locality"] = .string(locality)
         }
         if let subLocality = subLocality, !subLocality.isEmpty {
-            dict["subLocality"] = .string(subLocality)
+            dict["sub_locality"] = .string(subLocality)
         }
         if let dataSource = dataSource {
             dict["data_source"] = .string(dataSource.rawValue)
@@ -126,8 +234,11 @@ public struct LocationDetailData: Sendable {
     }
 }
 
-/// Stateless geocoder that runs Geoapify autocomplete and MKLocalSearch in parallel,
-/// merges and caps results. Used by app-level AutocompleteManager.
+// MARK: - Geocoder
+
+/// Stateless geocoder: Geoapify autocomplete, MKLocalSearch, reverse geocode, and completion resolution.
+/// The MKLocalSearchCompleter (incremental autocomplete) lives in AutocompleteManager (app layer)
+/// because it requires @MainActor and a persistent delegate — not suited for a Sendable stateless service.
 public final class Geocoder: Sendable {
     private let geoapifyApiKey: String
     private let apiClient: APIClient
@@ -136,8 +247,6 @@ public final class Geocoder: Sendable {
     private static let geoapifyBaseURL = "https://api.geoapify.com/v1/geocode/autocomplete"
     private static let geoapifyReverseBaseURL = "https://api.geoapify.com/v1/geocode/reverse"
     private static let geoapifyLimit = 8
-    private static let mapKitLimit = 8
-    private static let maxTotalResults = 15
 
     public init(
         geoapifyApiKey: String,
@@ -147,22 +256,6 @@ public final class Geocoder: Sendable {
         self.geoapifyApiKey = geoapifyApiKey
         self.apiClient = apiClient ?? APIClient(logger: logger ?? NoOpLogger())
         self.logger = logger ?? NoOpLogger()
-    }
-
-    /// Runs Geoapify autocomplete and MKLocalSearch in parallel, interleaves and caps at maxTotalResults.
-    /// - Parameter query: Search query string (trimmed; empty returns []).
-    /// - Returns: Up to maxTotalResults MapSearchResult, interleaved from both sources.
-    public func search(query: String) async throws -> [MapSearchResult] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return []
-        }
-
-        async let geoapifyResults = autocompleteGeoapify(query: trimmed)
-        async let mapKitResults = autocompleteMapKit(query: trimmed)
-
-        let (geoapify, mapKit) = try await (geoapifyResults, mapKitResults)
-        return interleave(maxTotal: Self.maxTotalResults, first: geoapify, second: mapKit)
     }
 
     /// Reverse geocodes a location using MapKit.
@@ -229,72 +322,9 @@ public final class Geocoder: Sendable {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let results = root["results"] as? [[String: Any]],
               let first = results.first else {
-            // Return minimal data if parsing fails
             return LocationDetailData(location: location)
         }
-
-        // Extract all possible subdivision levels from Geoapify response
-        let neighbourhood = (first["neighbourhood"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let suburb = (first["suburb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let district = (first["district"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let town = (first["town"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let city = (first["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let county = (first["county"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let state = (first["state"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Hierarchy order (smallest to largest): neighbourhood → suburb → district → town → city → county → state
-        // Remove duplicates while preserving order (e.g., city="Istanbul" and county="Istanbul")
-        var seen = Set<String>()
-        let subdivisionParts = [neighbourhood, suburb, district, town, city, county, state]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty && seen.insert($0).inserted }
-        let subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
-        
-        // Timezone
-        let timezone: String
-        if let tzObj = first["timezone"] as? [String: Any], let tzName = tzObj["name"] as? String {
-            timezone = tzName
-        } else {
-            timezone = TimeZone.current.identifier
-        }
-        
-        // Ocean/marine area - detect ocean name and use as place_name
-        let oceanName: String?
-        if let ocean = first["ocean"] as? String, !ocean.isEmpty {
-            oceanName = ocean
-        } else if let marineArea = first["marinearea"] as? String, !marineArea.isEmpty {
-            oceanName = marineArea
-        } else {
-            oceanName = nil
-        }
-        
-        // Place name: use ocean name if in ocean, otherwise address_line1/name/city
-        let placeName: String?
-        if let ocean = oceanName {
-            placeName = ocean
-        } else {
-            placeName = (first["address_line1"] as? String) ?? (first["name"] as? String) ?? city
-        }
-        
-        // subLocality: lowest hierarchy of (neighborhood, suburb, district, town)
-        let subLocality = [neighbourhood, suburb, district, town]
-            .compactMap { $0 }
-            .first { !$0.isEmpty }
-        
-        return LocationDetailData(
-            location: location,
-            placeName: placeName?.isEmpty == true ? nil : placeName,
-            subdivisions: subdivisions,
-            countryName: first["country"] as? String,
-            countryCode: (first["country_code"] as? String)?.uppercased(),
-            timezone: timezone,
-            adminArea: state?.isEmpty == true ? nil : state,
-            subAdminArea: county?.isEmpty == true ? nil : county,
-            locality: city?.isEmpty == true ? nil : city,
-            subLocality: subLocality?.isEmpty == true ? nil : subLocality,
-            subdivisionCode: (first["iso3166_2"] as? String)?.uppercased(),
-            isOcean: oceanName != nil ? true : nil
-        )
+        return LocationDetailData(geoapifyProperties: first, location: location)
     }
 
     /// Composite reverse geocode: tries native MapKit first, falls back to Geoapify.
@@ -326,54 +356,11 @@ public final class Geocoder: Sendable {
         printItem(item: placemark.isoCountryCode, heading: "isoCountryCode")
         printItem(item: placemark.timeZone, heading: "timeZone")
         printItem(item: placemark.areasOfInterest, heading: "areasOfInterest")
-        
-        // Build subdivisions: subLocality, locality, subAdministrativeArea, administrativeArea
-        let subdivisionParts = [
-            placemark.subLocality,
-            placemark.locality,
-            placemark.subAdministrativeArea,
-            placemark.administrativeArea
-        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-         .filter { !$0.isEmpty }
-        let subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
-        
-        // Timezone
-        let timezone = placemark.timeZone?.identifier ?? TimeZone.current.identifier
-        
-        // Extract display fields
-        let adminArea = placemark.administrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let subAdminArea = placemark.subAdministrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let locality = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let subLocality = placemark.subLocality?.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Ocean detection from CLPlacemark
-        let oceanName = placemark.ocean?.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Place name: use ocean name if in ocean, otherwise prefer name/thoroughfare/locality
-        let placeName: String?
-        if let ocean = oceanName, !ocean.isEmpty {
-            placeName = ocean
-        } else {
-            placeName = (placemark.name ?? placemark.thoroughfare ?? placemark.locality)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        
-        return LocationDetailData(
-            location: location,
-            placeName: placeName?.isEmpty == true ? nil : placeName,
-            subdivisions: subdivisions,
-            countryName: placemark.country,
-            countryCode: placemark.isoCountryCode?.uppercased(),
-            timezone: timezone,
-            adminArea: adminArea?.isEmpty == true ? nil : adminArea,
-            subAdminArea: subAdminArea?.isEmpty == true ? nil : subAdminArea,
-            locality: locality?.isEmpty == true ? nil : locality,
-            subLocality: subLocality?.isEmpty == true ? nil : subLocality,
-            isOcean: oceanName?.isEmpty == false ? true : nil
-        )
+
+        return LocationDetailData(placemark: placemark, location: location)
     }
 
-    func autocompleteGeoapify(query: String) async throws -> [MapSearchResult] {
+    public func autocompleteGeoapify(query: String) async throws -> [MapSearchResult] {
         let params: [String: String] = [
             "text": query,
             "apiKey": geoapifyApiKey,
@@ -395,39 +382,45 @@ public final class Geocoder: Sendable {
         return features.map { MapSearchResult($0) }
     }
 
-    func autocompleteMapKit(query: String) async -> [MapSearchResult] {
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = query
+    /// Resolves an MKLocalSearchCompletion into a full MKMapItem with coordinates.
+    /// Used when the user selects a completer result from the autocomplete list (phase 2).
+    /// - Parameter completion: The MKLocalSearchCompletion to resolve.
+    /// - Returns: An MKMapItem with coordinates, or nil if resolution fails.
+    public func resolveMapKitCompletion(_ completion: MKLocalSearchCompletion) async -> MKMapItem? {
+        let request = MKLocalSearch.Request(completion: completion)
         let search = MKLocalSearch(request: request)
 
-        let results: [MapSearchResult] = await withCheckedContinuation { continuation in
+        // Wrap MKMapItem in @unchecked Sendable to cross the continuation boundary safely.
+        // MKMapItem is read-only after creation so this is safe.
+        struct SendableMapItem: @unchecked Sendable { let mapItem: MKMapItem }
+
+        let wrapped: SendableMapItem? = await withCheckedContinuation { continuation in
             search.start { response, error in
                 if error != nil {
-                    continuation.resume(returning: [])
+                    continuation.resume(returning: nil)
                     return
                 }
-                guard let response = response else {
-                    continuation.resume(returning: [])
+                guard let response = response, let firstItem = response.mapItems.first else {
+                    continuation.resume(returning: nil)
                     return
                 }
-                let mapItems = Array(response.mapItems.prefix(Self.mapKitLimit))
-                let searchResults = mapItems.map { MapSearchResult($0) }
-                continuation.resume(returning: searchResults)
+                continuation.resume(returning: SendableMapItem(mapItem: firstItem))
             }
         }
-        return results
+        return wrapped?.mapItem
     }
 
     /// Interleaves two arrays, preferring results with type "city"; caps total at maxTotal.
-    private func interleave(maxTotal: Int, first: [MapSearchResult], second: [MapSearchResult]) -> [MapSearchResult] {
+    /// Public static so AutocompleteManager can use it for progressive merging.
+    public static func interleave(maxTotal: Int, first: [MapSearchResult], second: [MapSearchResult]) -> [MapSearchResult] {
         var result: [MapSearchResult] = []
         var i = 0
         var j = 0
         while result.count < maxTotal, i < first.count || j < second.count {
             let fromFirst = i < first.count ? first[i] : nil
             let fromSecond = j < second.count ? second[j] : nil
-            let firstIsCity = fromFirst?.type == "city"
-            let secondIsCity = fromSecond?.type == "city"
+            let firstIsCity = fromFirst?.isCityType ?? false
+            let secondIsCity = fromSecond?.isCityType ?? false
             if let a = fromFirst, let b = fromSecond {
                 if firstIsCity, !secondIsCity {
                     result.append(a)

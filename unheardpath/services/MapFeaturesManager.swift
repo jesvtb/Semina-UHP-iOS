@@ -5,15 +5,14 @@ import core
 
 // MARK: - FlyToLocation
 
-/// Selected search item for map fly-to and marker. Replaces TargetLocation.
+/// Observable vessel for map fly-to and marker. Wraps LocationDetailData so the map
+/// annotation and downstream handlers get rich location data without a reverse geocode.
 struct FlyToLocation: Equatable {
-    let location: CLLocation
-    let name: String?
+    let locationDetail: LocationDetailData
 
     static func == (lhs: FlyToLocation, rhs: FlyToLocation) -> Bool {
-        lhs.location.coordinate.latitude == rhs.location.coordinate.latitude &&
-        lhs.location.coordinate.longitude == rhs.location.coordinate.longitude &&
-        lhs.name == rhs.name
+        lhs.locationDetail.location.coordinate.latitude == rhs.locationDetail.location.coordinate.latitude &&
+        lhs.locationDetail.location.coordinate.longitude == rhs.locationDetail.location.coordinate.longitude
     }
 }
 

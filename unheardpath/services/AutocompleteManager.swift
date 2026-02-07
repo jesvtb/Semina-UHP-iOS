@@ -2,35 +2,53 @@
 //  AutocompleteManager.swift
 //  unheardpath
 //
-//  Owns Geocoder and autocomplete results ([MapSearchResult]).
-//  Caches last API response and filters/ranks client-side when query extends cached prefix.
+//  Owns Geocoder, MKLocalSearchCompleter, and autocomplete results ([MapSearchResult]).
+//  The completer is a persistent @MainActor instance — delegate results arrive
+//  asynchronously and are merged with Geoapify results for progressive display.
+//  Caches last merged response and filters/ranks client-side when query extends cached prefix.
 //  Used by MainView+Autocomplete and AddrSearch for autocomplete only.
 //
 
 import Foundation
+import MapKit
 import core
 
 @MainActor
-final class AutocompleteManager: ObservableObject {
+final class AutocompleteManager: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
     @Published private(set) var searchResults: [MapSearchResult] = []
 
-    private let geocoder: Geocoder
+    let geocoder: Geocoder
+    private let mkCompleter = MKLocalSearchCompleter()
     private var currentQuery: String = ""
+    /// The query that was last sent to the completer; used to discard stale delegate callbacks.
+    private var mkCompleterQuery: String = ""
     private var lastSearchQuery: String = ""
     private var lastSearchResults: [MapSearchResult] = []
+    /// The query for which Geoapify results have been fetched. Cache is only valid when this matches lastSearchQuery.
+    private var lastGeoapifySearchQuery: String = ""
+    /// Partial results from each source, kept separately for progressive merging.
+    private var lastMapKitResults: [MapSearchResult] = []
+    private var lastGeoapifyResults: [MapSearchResult] = []
     private var searchTask: Task<Void, Never>?
-    private let debounceNanoseconds: UInt64 = 150_000_000 // 0.15s
+    private let geoapifyDebounceNanoseconds: UInt64 = 150_000_000 // 0.15s
     private let logger: Logger
 
-    private static let minimumCharactersForSearch = 3
+    private static let geoapifyMinimumCharacters = 3
     private static let displayCap = 6
+    private static let maxTotalResults = 15
 
     init(geoapifyApiKey: String, logger: Logger = AppLifecycleManager.sharedLogger) {
         self.logger = logger
         self.geocoder = Geocoder(geoapifyApiKey: geoapifyApiKey, logger: logger)
+        super.init()
+        mkCompleter.delegate = self
+        mkCompleter.resultTypes = [.address, .pointOfInterest]
     }
 
-    /// Updates the search query; debounced. Uses cache when query matches or extends last search; otherwise calls API.
+    /// Updates the search query.
+    /// - MKLocalSearchCompleter fires immediately on 1+ chars (it self-debounces internally).
+    /// - Geoapify fires after debounce at 3+ chars (geoapifyMinimumCharacters).
+    /// Uses cache when query matches or extends last search for the Geoapify side.
     func updateQuery(_ query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
@@ -39,14 +57,23 @@ final class AutocompleteManager: ObservableObject {
             return
         }
         currentQuery = trimmed
-        if trimmed.count < Self.minimumCharactersForSearch {
-            clearCacheAndResults()
+
+        // Fire completer immediately on any non-empty query — it handles its own debouncing
+        mkCompleterQuery = trimmed
+        mkCompleter.queryFragment = trimmed
+
+        if trimmed.count < Self.geoapifyMinimumCharacters {
+            // Below Geoapify threshold: cancel pending Geoapify task and clear its results.
+            // Completer results arrive via delegate and display on their own.
             searchTask?.cancel()
+            lastGeoapifyResults = []
             return
         }
+
+        // 3+ chars: debounce and run Geoapify (completer already fired above)
         searchTask?.cancel()
         searchTask = Task {
-            try? await Task.sleep(nanoseconds: debounceNanoseconds)
+            try? await Task.sleep(nanoseconds: geoapifyDebounceNanoseconds)
             guard !Task.isCancelled else { return }
             await applyUpdateQuery(trimmed: trimmed)
         }
@@ -55,16 +82,23 @@ final class AutocompleteManager: ObservableObject {
     private func clearCacheAndResults() {
         lastSearchQuery = ""
         lastSearchResults = []
+        lastGeoapifySearchQuery = ""
+        lastMapKitResults = []
+        lastGeoapifyResults = []
+        mkCompleterQuery = ""
         searchResults = []
     }
 
     /// Branch: exact match → use cache; extends prefix → filter cache or API if empty; else → API.
+    /// Cache is only valid when Geoapify has resolved for the base query (lastGeoapifySearchQuery).
     private func applyUpdateQuery(trimmed: String) async {
-        if trimmed == lastSearchQuery {
+        let isGeoapifyCacheValid = lastGeoapifySearchQuery == lastSearchQuery && !lastSearchQuery.isEmpty
+
+        if trimmed == lastSearchQuery, isGeoapifyCacheValid {
             searchResults = filterRankAndCap(cache: lastSearchResults, query: trimmed)
             return
         }
-        if trimmed.hasPrefix(lastSearchQuery), trimmed.count > lastSearchQuery.count, !lastSearchQuery.isEmpty {
+        if trimmed.hasPrefix(lastSearchQuery), trimmed.count > lastSearchQuery.count, isGeoapifyCacheValid {
             let filtered = lastSearchResults.filter { item in
                 item.name.localizedCaseInsensitiveContains(trimmed) || item.address.localizedCaseInsensitiveContains(trimmed)
             }
@@ -102,18 +136,32 @@ final class AutocompleteManager: ObservableObject {
         return 4
     }
 
+    /// Fires Geoapify autocomplete and merges with whatever completer results are available.
+    /// The completer is already fired from updateQuery on every keystroke; this only handles Geoapify.
     private func performSearch(query: String) async {
+        // Reset Geoapify results for the new query.
+        // MapKit completer results are managed by the delegate — not reset here so they stay visible.
+        lastGeoapifyResults = []
+        lastGeoapifySearchQuery = ""
+
         do {
-            let results = try await geocoder.search(query: query)
-            guard query == currentQuery else { return }
-            lastSearchQuery = query
-            lastSearchResults = results
-            searchResults = filterRankAndCap(cache: results, query: query)
+            let results = try await geocoder.autocompleteGeoapify(query: query)
+            guard query == currentQuery, !Task.isCancelled else { return }
+            lastGeoapifyResults = results
+            lastGeoapifySearchQuery = query
+            mergeAndPublish(query: query)
         } catch {
-            logger.error("Autocomplete search failed", handlerType: "AutocompleteManager", error: error)
-            guard query == currentQuery else { return }
-            searchResults = []
+            logger.error("Geoapify autocomplete failed", handlerType: "AutocompleteManager", error: error)
+            // MapKit completer results (if any) still display; don't clear them
         }
+    }
+
+    /// Merges partial results from both sources, applies filter/rank/cap, and publishes to UI.
+    private func mergeAndPublish(query: String) {
+        let merged = Geocoder.interleave(maxTotal: Self.maxTotalResults, first: lastGeoapifyResults, second: lastMapKitResults)
+        lastSearchQuery = query
+        lastSearchResults = merged
+        searchResults = filterRankAndCap(cache: merged, query: query)
     }
 
     func clearSearchResults() {
@@ -121,5 +169,28 @@ final class AutocompleteManager: ObservableObject {
         searchTask = nil
         currentQuery = ""
         clearCacheAndResults()
+    }
+
+    // MARK: - MKLocalSearchCompleterDelegate
+
+    /// Called when the completer has new suggestions. Converts to MapSearchResult and merges with Geoapify.
+    /// Marked nonisolated because MKLocalSearchCompleterDelegate methods are non-isolated ObjC protocol requirements.
+    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let capped = Array(completer.results.prefix(8)) // matches completerResultCap
+        let results = capped.map { MapSearchResult($0) }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard self.mkCompleterQuery == self.currentQuery, !self.currentQuery.isEmpty else { return }
+            self.lastMapKitResults = results
+            self.mergeAndPublish(query: self.currentQuery)
+        }
+    }
+
+    /// Called when the completer fails. Logs the error; Geoapify results still display if available.
+    nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.logger.error("MKLocalSearchCompleter failed", handlerType: "AutocompleteManager", error: error)
+        }
     }
 }

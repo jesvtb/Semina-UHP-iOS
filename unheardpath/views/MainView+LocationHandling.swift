@@ -51,10 +51,11 @@ extension MainView {
         }
 
         do {
-            let locationDetailData = try await geocoder.geocodeReverse(location: location)
+            var locationDetailData = try await geocoder.geocodeReverse(location: location)
+            locationDetailData.dataSource = .device
             let locationDict = locationDetailData.toLocationDict()
 
-            catalogueManager.setLocationData(locationDetailData, isFromDeviceLocation: true)
+            catalogueManager.setLocationData(locationDetailData)
 
             let event = UserEventBuilder.build(
                 evtType: "location_detected",
@@ -80,10 +81,13 @@ extension MainView {
 
     /// Sends the selected lookup (fly-to) location to the backend as a location_searched event.
     /// Called when mapFeaturesManager.flyToLocation is set (autocomplete selection or map long-press).
+    /// For autocomplete selections, uses pre-built LocationDetailData directly.
+    /// For long-press (minimal LocationDetailData), falls back to reverse geocode.
     @MainActor
     func updateLookupLocationToUHP(flyTo: FlyToLocation, router: SSEEventRouter) async {
-        let lat = flyTo.location.coordinate.latitude
-        let lon = flyTo.location.coordinate.longitude
+        let locationDetail = flyTo.locationDetail
+        let lat = locationDetail.location.coordinate.latitude
+        let lon = locationDetail.location.coordinate.longitude
         logger.debug("updateLookupLocationToUHP called for location: \(lat), \(lon)")
 
         let locationDictForCheck: [String: JSONValue] = [
@@ -97,10 +101,17 @@ extension MainView {
         }
 
         do {
-            let locationDetailData = try await geocoder.geocodeReverse(location: flyTo.location)
-            let locationDict = locationDetailData.toLocationDict()
+            // Use pre-built data for autocomplete; reverse geocode for long-press (minimal data)
+            var finalDetail: LocationDetailData
+            if locationDetail.placeName == nil && locationDetail.countryCode == nil {
+                finalDetail = try await geocoder.geocodeReverse(location: locationDetail.location)
+            } else {
+                finalDetail = locationDetail
+            }
+            finalDetail.dataSource = .lookup
 
-            catalogueManager.setLocationData(locationDetailData, isFromDeviceLocation: false)
+            let locationDict = finalDetail.toLocationDict()
+            catalogueManager.setLocationData(finalDetail)
 
             let event = UserEventBuilder.build(
                 evtType: "location_searched",

@@ -64,8 +64,8 @@ struct MapboxMapView: View {
                     
                     // Add lookup marker when flyToLocation is set (autocomplete selection or long press)
                     if let flyToLocation = mapFeaturesManager.flyToLocation {
-                        MapboxMaps.MapViewAnnotation(coordinate: flyToLocation.location.coordinate) {
-                            LookupLocation(flyToLocation: flyToLocation)
+                        MapboxMaps.MapViewAnnotation(coordinate: flyToLocation.locationDetail.location.coordinate) {
+                            LookupLocation(locationDetail: flyToLocation.locationDetail)
                         }
                         .allowOverlap(true)
                     }
@@ -98,7 +98,7 @@ struct MapboxMapView: View {
                 .onChange(of: mapFeaturesManager.flyToLocation) { newFlyToLocation in
                     // When flyToLocation is set (autocomplete selection or long press), fly to it and show marker
                     if let flyTo = newFlyToLocation {
-                        updateMapCamera(proxy: proxy, location: flyTo.location, isDeviceLocation: false)
+                        updateMapCamera(proxy: proxy, location: flyTo.locationDetail.location, isDeviceLocation: false)
                     }
                 }
                 .simultaneousGesture(
@@ -284,7 +284,7 @@ struct MapboxMapView: View {
         logger.debug("Manual location selected: \(coordinate.latitude), \(coordinate.longitude)")
 
         Task { @MainActor in
-            mapFeaturesManager.flyToLocation = FlyToLocation(location: location, name: nil)
+            mapFeaturesManager.flyToLocation = FlyToLocation(locationDetail: LocationDetailData(location: location))
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds delay
             updateMapCamera(proxy: proxy, location: location, isDeviceLocation: false)
         }

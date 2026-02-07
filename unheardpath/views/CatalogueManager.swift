@@ -381,21 +381,15 @@ class CatalogueManager: ObservableObject {
     /// Current location data for header display (separate from catalogue sections)
     @Published private(set) var locationDetailData: LocationDetailData?
     
-    /// Tracks whether the current location is from device location (true) or lookup/search location (false)
-    @Published var isCatalogueFromDeviceLocation: Bool = true
-    
     /// Returns sections in display order (server-controlled via arrival order)
     var orderedSections: [CatalogueSection] {
         sectionOrder.compactMap { sections[$0] }
     }
     
-    /// Set location data for header display
-    /// - Parameters:
-    ///   - locationData: The location detail data
-    ///   - isFromDeviceLocation: Whether location is from device (true) or lookup/search (false)
-    func setLocationData(_ locationData: LocationDetailData, isFromDeviceLocation: Bool) {
+    /// Set location data for header display.
+    /// The location's `dataSource` property determines whether it's from device GPS or lookup/search.
+    func setLocationData(_ locationData: LocationDetailData) {
         self.locationDetailData = locationData
-        self.isCatalogueFromDeviceLocation = isFromDeviceLocation
     }
     
     /// Handle catalogue update with action

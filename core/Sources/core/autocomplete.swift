@@ -10,40 +10,46 @@ import Foundation
 import CoreLocation
 import MapKit
 
+// MARK: - CompletionSource
+
+/// Wraps the original source object from an autocomplete result so it can be used later
+/// to build LocationDetailData without a redundant reverse geocode.
+public enum CompletionSource: @unchecked Sendable {
+    case mapItem(MKMapItem)
+    case completion(MKLocalSearchCompletion)
+    case geoJSON(MKGeoJSONFeature, properties: [String: Any])
+}
+
 // MARK: - MapSearchResult
 
-/// Unified parsed result of a map search (MKLocalSearch or GeoJSON) with common fields.
-/// Marked @unchecked Sendable so it can be passed from MKLocalSearch callback across continuation; properties dict is read-only after creation.
+/// Unified search result from MKLocalSearch, MKLocalSearchCompleter, or GeoJSON (Geoapify).
+/// Stores only the required display fields (source, name, address) plus the original source object.
+/// Marked @unchecked Sendable because CompletionSource holds non-Sendable MapKit types that are read-only after creation.
 public struct MapSearchResult: @unchecked Sendable {
-    /// Source identifier: `"mapkit"` or `"geojson"`.
+    /// Source identifier: `"mapkit"`, `"mapkit_completer"`, or `"geojson"`.
     public let source: String
     /// Display name of the place.
     public let name: String
     /// Full or formatted address string.
     public let address: String
-    /// Coordinate when available (Point geometry or placemark).
-    public let coordinate: CLLocationCoordinate2D?
+    /// Original source object for resolving full details later.
+    public let completionSource: CompletionSource
 
-    /// Result type (e.g. Geoapify result_type). Nil for MapKit results.
-    public let type: String?
-    /// Subdivisions in order from smaller to larger (e.g. suburb, city, state), comma-separated. Nil for MapKit results.
-    public let subdivisions: String?
-    /// ISO country code (e.g. "US"). Nil when not provided.
-    public let countryCode: String?
-    /// Extra key-value data: GeoJSON feature "properties", or MKMapItem fields not used for name/address/coordinate.
-    public let properties: [String: Any]
-
+    // MARK: - Initializers
 
     public init(_ mapItem: MKMapItem) {
         source = "mapkit"
         name = mapItem.name ?? mapItem.placemark.name ?? ""
         let rawAddress = MapSearchResult.address(from: mapItem.placemark)
         address = MapSearchResult.normalizeAddress(rawAddress, name: name, postalCode: mapItem.placemark.postalCode)
-        coordinate = mapItem.placemark.coordinate
-        properties = MapSearchResult.properties(from: mapItem)
-        type = nil
-        subdivisions = nil
-        countryCode = nil
+        completionSource = .mapItem(mapItem)
+    }
+
+    public init(_ completion: MKLocalSearchCompletion) {
+        source = "mapkit_completer"
+        name = completion.title
+        address = completion.subtitle
+        completionSource = .completion(completion)
     }
 
     public init(_ feature: MKGeoJSONFeature) {
@@ -59,16 +65,39 @@ public struct MapSearchResult: @unchecked Sendable {
         let rawAddress = addressFromLine2 ?? (props["formatted"] as? String) ?? (props["address"] as? String) ?? ""
         let postalCode = (props["postcode"] as? String) ?? (props["postal_code"] as? String)
         address = MapSearchResult.normalizeAddress(rawAddress, name: name, postalCode: postalCode)
-        coordinate = feature.geometry.first?.coordinate
-        properties = props
-        type = props["result_type"] as? String ?? props["type"] as? String
-        let suburb = (props["suburb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let city = (props["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let state = (props["state"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let subdivisionParts = [suburb, city, state].compactMap { $0 }.filter { !$0.isEmpty }
-        subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
-        countryCode = props["country_code"] as? String
+        completionSource = .geoJSON(feature, properties: props)
     }
+
+    // MARK: - Build LocationDetailData
+
+    /// Builds LocationDetailData from the stored source object.
+    /// Returns nil for `.completion` (needs resolution via MKLocalSearch first).
+    public func buildLocationDetailData() -> LocationDetailData? {
+        switch completionSource {
+        case .mapItem(let mapItem):
+            let loc = CLLocation(latitude: mapItem.placemark.coordinate.latitude,
+                                 longitude: mapItem.placemark.coordinate.longitude)
+            return LocationDetailData(placemark: mapItem.placemark, location: loc)
+        case .geoJSON(let feature, let properties):
+            guard let coord = feature.geometry.first?.coordinate else { return nil }
+            let loc = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+            return LocationDetailData(geoapifyProperties: properties, location: loc)
+        case .completion:
+            return nil
+        }
+    }
+
+    // MARK: - Helpers
+
+    /// Whether this result represents a "city" type (from Geoapify result_type).
+    public var isCityType: Bool {
+        if case .geoJSON(_, let props) = completionSource {
+            return (props["result_type"] as? String) == "city"
+        }
+        return false
+    }
+
+    // MARK: - Private Static Helpers
 
     /// Builds a single address string from placemark components (excludes postal code).
     private static func address(from placemark: CLPlacemark) -> String {
@@ -123,17 +152,6 @@ public struct MapSearchResult: @unchecked Sendable {
             result = result.trimmingCharacters(in: CharacterSet(charactersIn: ", "))
         }
         return result
-    }
-
-    /// Extracts MKMapItem fields not used for name/address/coordinate into a properties dictionary.
-    private static func properties(from mapItem: MKMapItem) -> [String: Any] {
-        var props: [String: Any] = [:]
-        if let phone = mapItem.phoneNumber { props["phone_number"] = phone }
-        if let url = mapItem.url { props["url"] = url.absoluteString }
-        if let category = mapItem.pointOfInterestCategory { props["point_of_interest_category"] = category.rawValue }
-        if let tz = mapItem.timeZone { props["time_zone_identifier"] = tz.identifier }
-        props["is_current_location"] = mapItem.isCurrentLocation
-        return props
     }
 
     /// Decodes GeoJSON feature properties Data into [String: Any].

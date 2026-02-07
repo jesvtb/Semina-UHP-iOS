@@ -15,33 +15,6 @@ import CoreLocation
 struct GeocoderTests {
 
     @Test(
-        "Geocoder.search returns results when API key is set",
-        arguments: ["Hagia Sophi", "ista"]
-    )
-    func testGeocoderSearch(query: String) async throws {
-        let apiKey = ProcessInfo.processInfo.environment["GEOAPIFY_API_KEY"] ?? ""
-        guard !apiKey.isEmpty else { return }
-        let geocoder = Geocoder(geoapifyApiKey: apiKey)
-        let results = try await geocoder.search(query: query)
-        try require(
-            !results.isEmpty,
-            success: "Geocoder returned results",
-            failure: "Results empty for query '\(query)'"
-        )
-        let first = results[0]
-        expect(
-            first.coordinate != nil,
-            success: "First result has coordinate",
-            failure: "First result coordinate is nil"
-        )
-        expect(
-            !first.name.isEmpty || !first.address.isEmpty,
-            success: "First result has name or address",
-            failure: "First result has empty name and address"
-        )
-    }
-
-    @Test(
         "autocompleteGeoapify returns results when API key is set",
         arguments: ["Hag", "Shenzhe"]
     )
@@ -63,39 +36,9 @@ struct GeocoderTests {
             failure: "First result source is '\(first.source)', expected geojson"
         )
         expect(
-            first.coordinate != nil,
-            success: "First result has coordinate",
-            failure: "First result coordinate is nil"
-        )
-        expect(
-            !first.name.isEmpty || !first.address.isEmpty,
-            success: "First result has name or address",
-            failure: "First result has empty name and address"
-        )
-    }
-
-    @Test(
-        "autocompleteMapKit returns results for natural language query",
-        arguments: ["Apple Park", "Cupertino"]
-    )
-    func testAutocompleteMapKit(query: String) async throws {
-        let geocoder = Geocoder(geoapifyApiKey: "")
-        let results = await geocoder.autocompleteMapKit(query: query)
-        try require(
-            !results.isEmpty,
-            success: "MapKit returned results",
-            failure: "MapKit results empty for query '\(query)'"
-        )
-        let first = results[0]
-        expect(
-            first.source == "mapkit",
-            success: "First result source is mapkit",
-            failure: "First result source is '\(first.source)', expected mapkit"
-        )
-        expect(
-            first.coordinate != nil,
-            success: "First result has coordinate",
-            failure: "First result coordinate is nil"
+            first.buildLocationDetailData() != nil,
+            success: "First result can build LocationDetailData",
+            failure: "First result buildLocationDetailData returned nil"
         )
         expect(
             !first.name.isEmpty || !first.address.isEmpty,
@@ -159,13 +102,15 @@ struct GeocoderTests {
             // CLLocation(latitude: 41.008918, longitude: 28.979900), 
             // CLLocation(latitude: 1.283333, longitude: 103.833333), // Singapore, Singapore
             // CLLocation(latitude: 5.416011, longitude: 100.338764), // Penang, Malaysia
-            CLLocation(latitude: -6.1753, longitude: 106.8269), // Jakarta, Indonesia
+            // CLLocation(latitude: -6.1753, longitude: 106.8269), // Jakarta, Indonesia
             // CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
             // CLLocation(latitude: 41.902222, longitude: 12.453333), // Vatican City, Italy
             // CLLocation(latitude: 30.333000, longitude: 89.051053), // Himlayas
             // CLLocation(latitude: 40.0, longitude: 20.0), // Albania
             // CLLocation(latitude: 42.569393, longitude: 88.465132), // Lake Garda
-            // CLLocation(latitude:30.0, longitude: -40.0),  
+            // CLLocation(latitude:30.0, longitude: -40.0), 
+            // CLLocation(latitude: 68.1386, longitude: 24.2215), // Rovaniemi, Finland
+            CLLocation(latitude: 55.7569, longitude: 37.6151), // Moscow, Russia
         ]
     )
     func geocodeReverse(location: CLLocation) async throws {
@@ -202,19 +147,5 @@ struct GeocoderTests {
             success: "toLocationDict() includes timezone",
             failure: "toLocationDict() missing timezone"
         )
-        
-        // Log display fields for debugging
-        if let adminArea = locationDetailData.adminArea {
-            print("  adminArea: \(adminArea)")
-        }
-        if let subAdminArea = locationDetailData.subAdminArea {
-            print("  subAdminArea: \(subAdminArea)")
-        }
-        if let locality = locationDetailData.locality {
-            print("  locality: \(locality)")
-        }
-        if let subLocality = locationDetailData.subLocality {
-            print("  subLocality: \(subLocality)")
-        }
     }
 }
