@@ -185,7 +185,10 @@ struct StretchableInput: View {
                     )
                     .padding(.horizontal, Spacing.current.spaceXs)
                     .padding(.bottom, Spacing.current.space3xs)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.0, anchor: .bottom).combined(with: .opacity),
+                        removal: .scale(scale: 0.0, anchor: .bottom).combined(with: .opacity)
+                    ))
                 }
 
                 // MARK: Input bar
