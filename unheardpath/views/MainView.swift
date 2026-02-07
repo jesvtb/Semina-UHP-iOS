@@ -146,6 +146,16 @@ struct MainView: View {
             debugSSEContentTestButton
             #endif
         }
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                if stretchableInputVM.isStretched {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        stretchableInputVM.isStretched = false
+                    }
+                }
+            }
+        )
         // Input bar pinned to bottom; moves with keyboard
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
@@ -153,16 +163,16 @@ struct MainView: View {
                     viewModel: stretchableInputVM,
                     draftMessage: $chatManager.draftMessage
                 )
-                if !stretchableInputVM.isStretched {
-                    TabsBarView(selectedTab: $selectedTab, tabs: tabs)
-                }
+                // if !stretchableInputVM.isStretched {
+                //     TabsBarView(selectedTab: $selectedTab, tabs: tabs)
+                // }
             }
-            // .background(.ultraThinMaterial)
-            // .overlay(
-            //     Divider()
-            //         .background(Color("onBkgTextColor30")),
-            //     alignment: .top
-            // )
+            .background(.ultraThinMaterial)
+            .overlay(
+                Divider()
+                    .background(Color("onBkgTextColor30")),
+                alignment: .top
+            )
             // .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
             // .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
             // .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)

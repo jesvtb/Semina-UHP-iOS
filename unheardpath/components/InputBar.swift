@@ -373,6 +373,7 @@ struct StretchableInput: View {
                 }
                 .padding(.horizontal, Spacing.current.space3xs)
                 .padding(.vertical, Spacing.current.space3xs)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
             .frame(height: 40)
         }

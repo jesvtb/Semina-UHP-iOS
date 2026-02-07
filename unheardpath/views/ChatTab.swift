@@ -58,9 +58,7 @@ struct ChatDetailView: View {
     // MARK: - Scroll Handlers
     private func handleInitialScroll(proxy: ScrollViewProxy) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation {
-                proxy.scrollTo("bottom-spacer", anchor: .bottom)
-            }
+            proxy.scrollTo("bottom-spacer", anchor: .bottom)
         }
     }
     
