@@ -22,8 +22,6 @@
     "event": "catalogue",
     "data": {
       "section": "cuisine",
-      "action": "replace",
-      "display_title": "Cuisine",
       "content": {
         "roman_cuisine": {
           "markdown": "# Regional Flavors\n\nA taste of regional dishes from the area. Italian cuisine is known for its regional diversity and abundance of taste.",
@@ -74,8 +72,6 @@
     "event": "catalogue",
     "data": {
       "section": "cuisine",
-      "action": "replace",
-      "display_title": "Cuisine",
       "content": {
         "cuisine_of_hong_kong": {
           "qid": "Q1036629",
@@ -99,11 +95,7 @@
             "interface": {
               "markdown": {},
               "card": {
-                "render_type": "dish",
-                "inColsofCount": 2,
-                "colGap": 12,
-                "rowGap": 12,
-                "aspectRatio": 0.85
+                "render_type": "dish"
               }
             }
           }
@@ -124,11 +116,7 @@
             "interface": {
               "markdown": {},
               "card": {
-                "render_type": "dish",
-                "inColsofCount": 2,
-                "colGap": 12,
-                "rowGap": 12,
-                "aspectRatio": 0.85
+                "render_type": "dish"
               }
             }
           }
