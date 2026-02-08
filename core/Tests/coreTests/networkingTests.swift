@@ -330,11 +330,17 @@ struct SSEEventTypeTests {
         try require(SSEEventType(from: "") == nil, success: "empty returns nil", failure: "empty did not return nil")
     }
 
-    @Test("SSEEventType.init(from:) normalizes to lowercase and handles overview alias")
+    @Test("SSEEventType.init(from:) normalizes to lowercase")
     func initFromNormalizes() throws {
         try require(SSEEventType(from: "TOAST") == .toast, success: "TOAST -> toast", failure: "TOAST did not map to toast")
-        try require(SSEEventType(from: "overview") == .catalogue, success: "overview -> catalogue", failure: "overview did not map to catalogue")
+        try require(SSEEventType(from: "CATALOGUE") == .catalogue, success: "CATALOGUE -> catalogue", failure: "CATALOGUE did not map to catalogue")
         try require(SSEEventType(from: "chat") == .chat, success: "chat -> chat", failure: "chat did not map")
+    }
+
+    @Test("SSEEventType.init(from:) returns nil for unknown event type")
+    func initFromUnknownReturnsNil() throws {
+        try require(SSEEventType(from: "overview") == nil, success: "overview -> nil", failure: "overview should not map to any event type")
+        try require(SSEEventType(from: "unknown") == nil, success: "unknown -> nil", failure: "unknown should return nil")
     }
 
     @Test("SSEEventType.parse toast returns event")

@@ -222,6 +222,24 @@ public extension JSONValue {
         guard case .dictionary(let dict) = self else { return nil }
         return dict[key]
     }
+
+    /// Returns a copy with all underscore-prefixed metadata keys (e.g. `_geo_scope`)
+    /// removed from dictionaries, recursively.
+    ///
+    /// Convention: keys starting with `_` are backend metadata and should not be rendered.
+    var strippingMetadataKeys: JSONValue {
+        switch self {
+        case .dictionary(let dict):
+            let filtered = dict
+                .filter { !$0.key.hasPrefix("_") }
+                .mapValues { $0.strippingMetadataKeys }
+            return .dictionary(filtered)
+        case .array(let arr):
+            return .array(arr.map { $0.strippingMetadataKeys })
+        default:
+            return self
+        }
+    }
 }
 
 // MARK: - JSONValue String Encoding/Decoding Extension

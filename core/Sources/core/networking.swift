@@ -42,14 +42,9 @@ public enum SSEEventType: String, Sendable {
     case map
     case hook
     case catalogue
-    case overview
 
     public init?(from eventString: String?) {
         guard let normalized = eventString?.lowercased() else { return nil }
-        if normalized == "overview" {
-            self = .catalogue
-            return
-        }
         self.init(rawValue: normalized)
     }
 
@@ -101,12 +96,12 @@ public enum SSEEventType: String, Sendable {
             }
             return .hook(action: action)
 
-        case .catalogue, .overview:
+        case .catalogue:
             guard let dict = dataDict,
                   let section = dict["section"]?.stringValue else {
                 throw ParseError.missingField("section")
             }
-            // Pass entire data dict - router extracts action, display_title, config, content
+            // Pass entire data dict - router extracts action, display_title, content (with per-item _metadata)
             let dataValue = JSONValue.decode(dataString) ?? .dictionary([:])
             return .catalogue(typeString: section, dataValue: dataValue)
         }

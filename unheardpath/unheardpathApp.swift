@@ -323,6 +323,23 @@ private struct AppContentView: View {
                 // Wire up ChatManager dependencies
                 chatManager.eventManager = eventManager
                 chatManager.loadHistory()
+                
+                // Wire up catalogue persistence and restore cached content
+                let catalogueFileStore = CatalogueFileStore()
+                catalogueManager.setPersistence(catalogueFileStore)
+                Task {
+                    // Restore catalogue from cache using last-known location
+                    if let lookupLocation = eventManager.latestLookupLocation,
+                       let locationDetail = LocationDetailData(eventDict: lookupLocation) {
+                        await catalogueManager.restoreFromCache(for: locationDetail)
+                    } else if let deviceLocation = eventManager.latestDeviceLocation,
+                              let locationDetail = LocationDetailData(eventDict: deviceLocation) {
+                        await catalogueManager.restoreFromCache(for: locationDetail)
+                    } else {
+                        // No location available -- restore last active context
+                        await catalogueManager.restoreFromCache()
+                    }
+                }
             }
             .onOpenURL { url in
                 Task {

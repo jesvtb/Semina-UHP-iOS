@@ -72,6 +72,9 @@ extension MainView {
             }
             let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
+            
+            // Persist catalogue state after SSE stream delivers new content
+            catalogueManager.persistCurrentState(for: locationDetailData)
 
             logger.debug("Successfully added location_detected event to EventManager")
         } catch {
@@ -128,6 +131,9 @@ extension MainView {
             }
             let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
+            
+            // Persist catalogue state after SSE stream delivers new content
+            catalogueManager.persistCurrentState(for: finalDetail)
 
             logger.debug("Successfully added location_searched event to EventManager")
         } catch {

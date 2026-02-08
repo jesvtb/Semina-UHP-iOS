@@ -51,6 +51,7 @@ struct MainView: View {
     #if DEBUG
     @State private var showCacheDebugSheet: Bool = false
     @State private var showSSEContentTestSheet: Bool = false
+    @State private var showPersistenceDebugSheet: Bool = false
     #endif
     
     // Sheet snap point control - universal binding for bidirectional control
@@ -164,6 +165,7 @@ struct MainView: View {
             #if DEBUG
             debugCacheButton
             debugSSEContentTestButton
+            debugPersistenceButton
             #endif
         }
         .contentShape(Rectangle())
@@ -203,6 +205,11 @@ struct MainView: View {
         }
         .sheet(isPresented: $showSSEContentTestSheet) {
             SSEContentTestView()
+        }
+        .sheet(isPresented: $showPersistenceDebugSheet) {
+            CataloguePersistenceDebugView()
+                .environmentObject(catalogueManager)
+                .environmentObject(eventManager)
         }
         #endif
         .onChange(of: shouldDismissKeyboard) { shouldDismiss in
@@ -456,6 +463,31 @@ extension MainView {
                 .padding(.top, 8)
                 .padding(.trailing, 8)
                 .offset(y: 88) // Position below cache button
+            }
+            Spacer()
+        }
+    }
+    
+    private var debugPersistenceButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Button(action: {
+                    showPersistenceDebugSheet = true
+                }) {
+                    Image(systemName: "cylinder.split.1x2")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color("onBkgTextColor30"))
+                        .padding(8)
+                        .background(
+                            Color("AppBkgColor")
+                                .opacity(0.8)
+                                .cornerRadius(8)
+                        )
+                }
+                .padding(.top, 8)
+                .padding(.trailing, 8)
+                .offset(y: 128) // Position below SSE test button
             }
             Spacer()
         }

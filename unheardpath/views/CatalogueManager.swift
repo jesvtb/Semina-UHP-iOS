@@ -3,27 +3,19 @@ import MarkdownUI
 import CoreLocation
 import core
 
-// MARK: - Catalogue Action
-/// Actions for catalogue content handling
-enum CatalogueAction: String, Sendable {
-    case replace  // Default: Replace entire section content
-    case edit     // Merge/patch existing content based on config
-}
-
 // MARK: - Catalogue Section
-/// A catalogue section with dynamic type and raw JSONValue content
+/// A catalogue section with dynamic type and raw JSONValue content.
+/// Content items carry their own `_metadata` (geo_scope, interface) per key.
 struct CatalogueSection: Identifiable, Sendable {
     let id: String              // Unique ID (from server or generated)
     let sectionType: String     // Dynamic: "overview", "cuisine", "architecture", etc.
     let displayTitle: String    // Tab label (from server or derived)
-    let config: JSONValue?      // Optional rendering hints
-    var content: JSONValue      // Raw content - no predefined shape (var for edit mutations)
+    var content: JSONValue      // Raw content - keyed items with _metadata per key
     
-    init(id: String = UUID().uuidString, sectionType: String, displayTitle: String, config: JSONValue? = nil, content: JSONValue) {
+    init(id: String = UUID().uuidString, sectionType: String, displayTitle: String, content: JSONValue) {
         self.id = id
         self.sectionType = sectionType
         self.displayTitle = displayTitle
-        self.config = config
         self.content = content
     }
 }
@@ -393,180 +385,55 @@ class CatalogueManager: ObservableObject {
     }
     
     /// Handle catalogue update with action
+    /// Upsert catalogue content by key.
+    ///
+    /// - If the section already exists: merge incoming keyed items into the existing content dictionary.
+    ///   Existing keys are replaced; new keys are inserted.
+    /// - If the section does not exist: create it with the given content.
+    ///
     /// - Parameters:
     ///   - sectionType: The section type string (e.g., "overview", "cuisine", "architecture")
     ///   - displayTitle: The display title for the tab
-    ///   - action: The action to perform (replace or edit)
-    ///   - config: Optional config for rendering and edit operations
-    ///   - content: The content data
+    ///   - content: The content data (dictionary of keyed items, each optionally carrying `_metadata`)
     func handleCatalogue(
         sectionType: String,
         displayTitle: String,
-        action: CatalogueAction,
-        config: JSONValue?,
         content: JSONValue
     ) {
-        switch action {
-        case .replace:
-            replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, config: config, content: content)
-        case .edit:
-            editCatalogue(sectionType: sectionType, config: config, content: content)
+        guard case .dictionary(let contentDict) = content else {
+            // Non-dictionary content: replace wholesale
+            replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, content: content)
+            return
+        }
+
+        if var existing = sections[sectionType] {
+            // Upsert: merge items by key into existing section content
+            guard case .dictionary(var existingDict) = existing.content else {
+                replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, content: content)
+                return
+            }
+            for (key, value) in contentDict {
+                existingDict[key] = value  // insert or replace by key
+            }
+            existing.content = .dictionary(existingDict)
+            sections[sectionType] = existing
+        } else {
+            // New section
+            replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, content: content)
         }
     }
     
-    /// Replace: Completely replace section content
-    private func replaceCatalogue(sectionType: String, displayTitle: String, config: JSONValue?, content: JSONValue) {
+    /// Replace: Set section content from scratch.
+    private func replaceCatalogue(sectionType: String, displayTitle: String, content: JSONValue) {
         let section = CatalogueSection(
             sectionType: sectionType,
             displayTitle: displayTitle,
-            config: config,
             content: content
         )
         sections[sectionType] = section
         if !sectionOrder.contains(sectionType) {
             sectionOrder.append(sectionType)
         }
-    }
-    
-    /// Edit: Merge/patch existing content based on config
-    private func editCatalogue(sectionType: String, config: JSONValue?, content: JSONValue) {
-        guard var existingSection = sections[sectionType] else {
-            // No existing section - treat as replace with derived title
-            let displayTitle = sectionType.replacingOccurrences(of: "_", with: " ").capitalized
-            replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, config: config, content: content)
-            return
-        }
-        
-        // Apply edit operation based on config
-        let operation = config?["operation"]?.stringValue ?? "merge"
-        let targetPath = config?["target_path"]?.stringValue
-        
-        switch operation {
-        case "append":
-            existingSection.content = appendContent(existing: existingSection.content, new: content, path: targetPath)
-        case "remove":
-            let match = config?["match"]
-            existingSection.content = removeContent(existing: existingSection.content, path: targetPath, match: match)
-        default: // "merge"
-            existingSection.content = mergeContent(existing: existingSection.content, new: content)
-        }
-        
-        // Update config if provided
-        if let newConfig = config {
-            existingSection = CatalogueSection(
-                id: existingSection.id,
-                sectionType: existingSection.sectionType,
-                displayTitle: existingSection.displayTitle,
-                config: newConfig,
-                content: existingSection.content
-            )
-        }
-        
-        sections[sectionType] = existingSection
-    }
-    
-    // MARK: - Content Manipulation Helpers
-    
-    /// Deep merge two JSONValue dictionaries
-    private func mergeContent(existing: JSONValue, new: JSONValue) -> JSONValue {
-        guard case .dictionary(var existingDict) = existing,
-              case .dictionary(let newDict) = new else {
-            // If not both dictionaries, new content wins
-            return new
-        }
-        
-        for (key, newValue) in newDict {
-            if let existingValue = existingDict[key] {
-                // Recursive merge for nested dictionaries
-                existingDict[key] = mergeContent(existing: existingValue, new: newValue)
-            } else {
-                existingDict[key] = newValue
-            }
-        }
-        
-        return .dictionary(existingDict)
-    }
-    
-    /// Append items to an array at the specified path
-    private func appendContent(existing: JSONValue, new: JSONValue, path: String?) -> JSONValue {
-        guard let path = path else {
-            return mergeContent(existing: existing, new: new)
-        }
-        
-        let pathComponents = path.split(separator: ".").map(String.init)
-        return modifyAtPath(existing, pathComponents: pathComponents) { existingValue in
-            guard case .array(var existingArray) = existingValue else {
-                return existingValue
-            }
-            
-            // Get new items from the same path in new content
-            if let newArray = getValueAtPath(new, pathComponents: pathComponents),
-               case .array(let newItems) = newArray {
-                existingArray.append(contentsOf: newItems)
-            }
-            
-            return .array(existingArray)
-        }
-    }
-    
-    /// Remove items from an array at the specified path
-    private func removeContent(existing: JSONValue, path: String?, match: JSONValue?) -> JSONValue {
-        guard let path = path else {
-            return existing
-        }
-        
-        let pathComponents = path.split(separator: ".").map(String.init)
-        return modifyAtPath(existing, pathComponents: pathComponents) { existingValue in
-            guard case .array(var existingArray) = existingValue else {
-                return existingValue
-            }
-            
-            // Remove by index if specified
-            if let matchDict = match?.dictionaryValue,
-               let indexValue = matchDict["index"],
-               let indexDouble = indexValue.doubleValue {
-                let index = Int(indexDouble)
-                if index >= 0 && index < existingArray.count {
-                    existingArray.remove(at: index)
-                }
-            }
-            
-            return .array(existingArray)
-        }
-    }
-    
-    /// Navigate to a path and modify the value
-    private func modifyAtPath(_ value: JSONValue, pathComponents: [String], modifier: (JSONValue) -> JSONValue) -> JSONValue {
-        guard !pathComponents.isEmpty else {
-            return modifier(value)
-        }
-        
-        guard case .dictionary(var dict) = value else {
-            return value
-        }
-        
-        let key = pathComponents[0]
-        let remainingPath = Array(pathComponents.dropFirst())
-        
-        if let existingValue = dict[key] {
-            dict[key] = modifyAtPath(existingValue, pathComponents: remainingPath, modifier: modifier)
-        }
-        
-        return .dictionary(dict)
-    }
-    
-    /// Get value at a path
-    private func getValueAtPath(_ value: JSONValue, pathComponents: [String]) -> JSONValue? {
-        guard !pathComponents.isEmpty else {
-            return value
-        }
-        
-        guard case .dictionary(let dict) = value,
-              let nextValue = dict[pathComponents[0]] else {
-            return nil
-        }
-        
-        return getValueAtPath(nextValue, pathComponents: Array(pathComponents.dropFirst()))
     }
     
     /// Remove catalogue by type
@@ -590,6 +457,94 @@ class CatalogueManager: ObservableObject {
         sections.removeAll()
         sectionOrder.removeAll()
     }
+    
+    // MARK: - Persistence
+    
+    /// Optional persistence backend. Set via `setPersistence(_:)` during app initialization.
+    private var persistence: (any CataloguePersisting)?
+    
+    /// Inject the persistence backend. Called once during app setup.
+    func setPersistence(_ persistence: any CataloguePersisting) {
+        self.persistence = persistence
+    }
+    
+    /// Persist the current in-memory catalogue state for a given location.
+    /// Called after SSE stream processing completes for a location event.
+    func persistCurrentState(for location: LocationDetailData) {
+        guard let persistence = persistence else { return }
+        let currentSections = orderedSections.map { section in
+            CachedSection(
+                sectionType: section.sectionType,
+                displayTitle: section.displayTitle,
+                content: section.content
+            )
+        }
+        guard !currentSections.isEmpty else { return }
+        let order = sectionOrder
+        Task {
+            do {
+                try await persistence.persist(sections: currentSections, sectionOrder: order, location: location)
+            } catch {
+                #if DEBUG
+                print("⚠️ CatalogueManager: Failed to persist catalogue: \(error)")
+                #endif
+            }
+        }
+    }
+    
+    /// Restore cached catalogue sections for a known location.
+    /// Called on app launch when EventManager has a last-known location.
+    /// Only restores into empty sections (does not overwrite live SSE data).
+    func restoreFromCache(for location: LocationDetailData) async {
+        guard let persistence = persistence else { return }
+        guard sections.isEmpty else { return }
+        
+        do {
+            let cached = try await persistence.restore(for: location)
+            for section in cached where !hasCatalogue(sectionType: section.sectionType) {
+                handleCatalogue(
+                    sectionType: section.sectionType,
+                    displayTitle: section.displayTitle,
+                    content: section.content
+                )
+            }
+            // Restore the location for header display
+            if locationDetailData == nil {
+                setLocationData(location)
+            }
+        } catch {
+            #if DEBUG
+            print("⚠️ CatalogueManager: Failed to restore catalogue for location: \(error)")
+            #endif
+        }
+    }
+    
+    /// Restore the last active catalogue context (no location needed).
+    /// Fallback for app launch when no location is available yet.
+    func restoreFromCache() async {
+        guard let persistence = persistence else { return }
+        guard sections.isEmpty else { return }
+        
+        do {
+            guard let result = try await persistence.restoreLastContext() else { return }
+            for section in result.sections where !hasCatalogue(sectionType: section.sectionType) {
+                handleCatalogue(
+                    sectionType: section.sectionType,
+                    displayTitle: section.displayTitle,
+                    content: section.content
+                )
+            }
+            // Also restore the location summary for header display
+            let restoredLocation = result.snapshot.locationSummary.toLocationDetailData()
+            if locationDetailData == nil {
+                self.locationDetailData = restoredLocation
+            }
+        } catch {
+            #if DEBUG
+            print("⚠️ CatalogueManager: Failed to restore last catalogue context: \(error)")
+            #endif
+        }
+    }
 }
 
 // MARK: - Catalogue View Registry
@@ -601,16 +556,18 @@ struct CatalogueViewRegistry {
 }
 
 // MARK: - Content Block
-/// Represents a single content block with optional markdown and cards
+/// Represents a single content block with optional markdown, cards, and per-item interface config.
 struct ContentBlock: Identifiable {
     let id: String
     let markdown: String?
     let cards: [JSONValue]?
+    /// Per-item rendering config extracted from `_metadata.interface`.
+    let interface: JSONValue?
 }
 
 // MARK: - Dynamic Section Renderer
-/// Renders catalogue sections using config-driven rendering logic
-/// Handles both flat content (direct markdown/cards) and nested content (multiple subsections)
+/// Renders catalogue sections using per-item `_metadata.interface` for rendering config.
+/// Content items are sorted by `_metadata.geo_scope` specificity (most local first).
 struct DynamicSectionRenderer: View {
     let section: CatalogueSection
     
@@ -618,33 +575,34 @@ struct DynamicSectionRenderer: View {
         VStack(alignment: .leading, spacing: Spacing.current.spaceM) {
             // Extract content blocks and render each one
             ForEach(extractContentBlocks(from: section.content)) { block in
-                ContentBlockView(
-                    block: block,
-                    markdownConfig: section.config?["markdown"],
-                    cardConfig: section.config?["card"]
-                )
+                ContentBlockView(block: block)
             }
         }
         .padding(.vertical, Spacing.current.spaceXs)
     }
     
-    /// Extract content blocks from content
-    /// - Flat content: single block with direct markdown/cards
-    /// - Nested content: multiple blocks, one per subsection
+    /// Extract content blocks from content, reading `_metadata` per item for interface config and geo_scope ordering.
+    ///
+    /// - Flat content (direct markdown/cards at root level): single block with no interface.
+    /// - Nested content (keyed items): one block per subsection, sorted by geo_scope specificity (most specific first).
+    ///
+    /// Keys starting with `_` (e.g. `_metadata`) are stripped before rendering.
     private func extractContentBlocks(from content: JSONValue) -> [ContentBlock] {
-        guard case .dictionary(let dict) = content else { return [] }
+        guard case .dictionary(let rawDict) = content else { return [] }
         
-        // Check if content is flat (has direct markdown or cards keys)
-        let hasDirectMarkdown = dict["markdown"]?.stringValue != nil
+        // Check if content is flat (has direct markdown or cards keys — legacy/simple content)
+        let hasDirectMarkdown = rawDict["markdown"]?.stringValue != nil
         let hasDirectCards: Bool = {
-            if let cardsValue = dict["cards"], case .array(let cards) = cardsValue, !cards.isEmpty {
+            if let cardsValue = rawDict["cards"], case .array(let cards) = cardsValue, !cards.isEmpty {
                 return true
             }
             return false
         }()
         
         if hasDirectMarkdown || hasDirectCards {
-            // Flat content - single block
+            // Flat content - single block (strip metadata)
+            let cleaned = content.strippingMetadataKeys
+            guard case .dictionary(let dict) = cleaned else { return [] }
             let markdown = dict["markdown"]?.stringValue
             let cards: [JSONValue]? = {
                 if let cardsValue = dict["cards"], case .array(let cards) = cardsValue {
@@ -652,18 +610,30 @@ struct DynamicSectionRenderer: View {
                 }
                 return nil
             }()
-            return [ContentBlock(id: "root", markdown: markdown, cards: cards)]
+            return [ContentBlock(id: "root", markdown: markdown, cards: cards, interface: nil)]
         }
         
-        // Nested content - extract each subsection as a block
-        var blocks: [ContentBlock] = []
-        for (key, value) in dict {
-            // Skip non-dictionary values (metadata like wikidata_qid at root level)
+        // Nested content - extract each subsection as a block with interface and geo_scope
+        var blocks: [(block: ContentBlock, geoLevel: GeoLevel?)] = []
+        for (key, value) in rawDict {
+            // Skip metadata keys at root level
+            if key.hasPrefix("_") { continue }
+            // Skip non-dictionary values
             guard case .dictionary(let subsectionDict) = value else { continue }
             
-            let markdown = subsectionDict["markdown"]?.stringValue
+            // Extract _metadata before stripping
+            let metadata = subsectionDict["_metadata"]
+            let itemInterface = metadata?["interface"]
+            let geoScopeStr = metadata?["geo_scope"]?.stringValue
+            let geoLevel = geoScopeStr.flatMap { GeoLevel(identifier: $0) }
+            
+            // Strip metadata from the subsection for rendering
+            let cleaned = value.strippingMetadataKeys
+            guard case .dictionary(let cleanedDict) = cleaned else { continue }
+            
+            let markdown = cleanedDict["markdown"]?.stringValue
             let cards: [JSONValue]? = {
-                if let cardsValue = subsectionDict["cards"], case .array(let cards) = cardsValue {
+                if let cardsValue = cleanedDict["cards"], case .array(let cards) = cardsValue {
                     return cards
                 }
                 return nil
@@ -671,20 +641,33 @@ struct DynamicSectionRenderer: View {
             
             // Only include if subsection has markdown or cards
             if markdown != nil || cards != nil {
-                blocks.append(ContentBlock(id: key, markdown: markdown, cards: cards))
+                let block = ContentBlock(id: key, markdown: markdown, cards: cards, interface: itemInterface)
+                blocks.append((block, geoLevel))
             }
         }
         
-        return blocks
+        // Sort by geo_scope specificity: most specific (highest rawValue) first.
+        // Items without geo_scope go to the end.
+        blocks.sort { a, b in
+            let aOrder = a.geoLevel?.rawValue ?? -1
+            let bOrder = b.geoLevel?.rawValue ?? -1
+            return aOrder > bOrder
+        }
+        
+        return blocks.map { $0.block }
     }
 }
 
 // MARK: - Content Block View
-/// Renders a single content block (markdown + cards)
+/// Renders a single content block (markdown + cards).
+/// Reads rendering config from the block's per-item `interface` (from `_metadata.interface`).
 struct ContentBlockView: View {
     let block: ContentBlock
-    let markdownConfig: JSONValue?
-    let cardConfig: JSONValue?
+    
+    /// Card rendering config from `_metadata.interface.card`.
+    private var cardConfig: JSONValue? { block.interface?["card"] }
+    /// Markdown rendering config from `_metadata.interface.markdown`.
+    private var markdownConfig: JSONValue? { block.interface?["markdown"] }
     
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.current.spaceS) {

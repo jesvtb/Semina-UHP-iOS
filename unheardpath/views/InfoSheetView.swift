@@ -147,7 +147,23 @@ struct InfoSheetHeaderView: View {
     
     /// Whether we have any locality info to display
     private var hasLocalityInfo: Bool {
-        locationData?.locality != nil || locationData?.subLocality != nil
+        locationData?.locality != nil || locationData?.subAdminArea != nil || locationData?.adminArea != nil || locationData?.countryName != nil
+    }
+    
+    /// Main label: locality → subAdminArea → adminArea → countryName
+    private var mainLabel: String? {
+        locationData?.locality ?? locationData?.subAdminArea ?? locationData?.adminArea ?? locationData?.countryName
+    }
+    
+    /// Sub label: subLocality → placeName (only if different from mainLabel)
+    private var subLabel: String? {
+        if let subLocality = locationData?.subLocality {
+            return subLocality
+        }
+        if let placeName = locationData?.placeName, placeName != mainLabel {
+            return placeName
+        }
+        return nil
     }
     
     /// Whether the header is in dropdown mode (at full or partial snap point)
@@ -176,17 +192,10 @@ struct InfoSheetHeaderView: View {
                     // Locality section
                     if hasLocalityInfo {
                         VStack(alignment: .leading, spacing: 0) {
-                            // Admin area at top
-                            // if let adminArea = locationData?.adminArea {
-                            //     Text(adminArea.uppercased())
-                            //         .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
-                            //         .tracking(2)
-                            //         .foregroundColor(Color("onBkgTextColor30"))
-                            // }
-                            // Locality line with icons
+                            // Main label line with icons
                             HStack(spacing: Spacing.current.spaceXs) {
-                                if let locality = locationData?.locality {
-                                    Text(locality)
+                                if let mainLabel {
+                                    Text(mainLabel)
                                         .font(.custom(FontFamily.serifDisplay, size: TypographyScale.article2.baseSize))
                                         .foregroundColor(Color("onBkgTextColor10"))
                                 }
@@ -202,9 +211,9 @@ struct InfoSheetHeaderView: View {
                                         .animation(.easeOut(duration: 0.2), value: isDropdownOpen)
                                 }
                             }
-                            // Sublocality at bottom
-                            if let subLocality = locationData?.subLocality {
-                                Text(subLocality)
+                            // Sub label at bottom
+                            if let subLabel {
+                                Text(subLabel)
                                     .font(.custom(FontFamily.serifItalic, size: TypographyScale.articleMinus1.baseSize))
                                     .foregroundColor(Color("onBkgTextColor30"))
                             }

@@ -57,27 +57,20 @@ class SSEEventRouter: ObservableObject {
             }
 
         case .catalogue(let typeString, let dataValue):
-            // Extract action (default to "replace")
-            let actionString = dataValue["action"]?.stringValue ?? "replace"
-            let action = CatalogueAction(rawValue: actionString) ?? .replace
-            
             // Extract display title (from server or derive from type)
             let displayTitle = dataValue["display_title"]?.stringValue
                 ?? typeString.replacingOccurrences(of: "_", with: " ").capitalized
             
-            // Extract config and content
-            let config = dataValue["config"]
+            // Extract content (keyed items with _metadata per key)
             let content = dataValue["content"] ?? .dictionary([:])
             
-            // Route to CatalogueManager with action
+            // Route to CatalogueManager with upsert semantics
             catalogueManager?.handleCatalogue(
                 sectionType: typeString,
                 displayTitle: displayTitle,
-                action: action,
-                config: config,
                 content: content
             )
-            logger.debug("Routed catalogue: \(typeString) with action: \(actionString)")
+            logger.debug("Routed catalogue: \(typeString)")
         }
     }
 }

@@ -5,58 +5,16 @@
       "section": "overview",
       "action": "replace",
       "display_title": "Overview",
-      "config": {
-        "markdown": {}
-      },
       "content": {
-        "markdown": "# Italy Today\n\nItaly is a country in Europe. It is the fifth largest country in Europe by area and the third most populous country in Europe.\n\n## History\n\nItaly has a long and rich history. It is the birthplace of the Roman Empire and the Renaissance.\n\n## Rome\n\nRome is the capital of Italy. It is a city of history and culture, with ancient ruins and beautiful architecture around every corner."
-      }
-    }
-  },
-  {
-    "event": "catalogue",
-    "data": {
-      "section": "cuisine",
-      "action": "replace",
-      "display_title": "Cuisine",
-      "config": {
-        "markdown": {},
-        "card": {
-          "render_type": "dish",
-          "inColsofCount": 2,
-          "colGap": 12,
-          "rowGap": 12,
-          "aspectRatio": 0.85
-        }
-      },
-      "content": {
-        "markdown": "# Regional Flavors\n\nA taste of regional dishes from the area. Italian cuisine is known for its regional diversity and abundance of taste.",
-        "cards": [
-          {
-            "local_name": "Cacio e Pepe",
-            "global_name": "Cheese and Pepper Pasta",
-            "description": "A Roman pasta dish made with Pecorino Romano cheese and black pepper. Simple yet deeply flavorful.",
-            "img_url": "https://www.giallozafferano.com/images/228-22832/Cacio-e-Pepe_650x433_wm.jpg"
-          },
-          {
-            "local_name": "Supplì",
-            "global_name": "Fried Rice Balls",
-            "description": "Roman street food - fried rice balls with mozzarella center, named for the stringy cheese that stretches like a telephone cord.",
-            "img_url": "https://www.giallozafferano.com/images/230-23006/Suppli_650x433_wm.jpg"
-          },
-          {
-            "local_name": "Saltimbocca",
-            "global_name": "Veal with Prosciutto",
-            "description": "Veal cutlets topped with prosciutto and sage, pan-fried in butter. The name means 'jump in the mouth'.",
-            "img_url": "https://www.giallozafferano.com/images/228-22800/Saltimbocca-alla-Romana_650x433_wm.jpg"
-          },
-          {
-            "local_name": "Carciofi alla Romana",
-            "global_name": "Roman-Style Artichokes",
-            "description": "Whole artichokes braised with garlic, mint, and olive oil. A quintessential Roman spring dish.",
-            "img_url": "https://www.giallozafferano.com/images/229-22909/Roman-style-artichokes_650x433_wm.jpg"
+        "italy_overview": {
+          "markdown": "# Italy Today\n\nItaly is a country in Europe. It is the fifth largest country in Europe by area and the third most populous country in Europe.\n\n## History\n\nItaly has a long and rich history. It is the birthplace of the Roman Empire and the Renaissance.\n\n## Rome\n\nRome is the capital of Italy. It is a city of history and culture, with ancient ruins and beautiful architecture around every corner.",
+          "_metadata": {
+            "geo_scope": "country",
+            "interface": {
+              "markdown": {}
+            }
           }
-        ]
+        }
       }
     }
   },
@@ -66,16 +24,58 @@
       "section": "cuisine",
       "action": "replace",
       "display_title": "Cuisine",
-      "config": {
-        "markdown": {},
-        "card": {
-          "render_type": "dish",
-          "inColsofCount": 2,
-          "colGap": 12,
-          "rowGap": 12,
-          "aspectRatio": 0.85
+      "content": {
+        "roman_cuisine": {
+          "markdown": "# Regional Flavors\n\nA taste of regional dishes from the area. Italian cuisine is known for its regional diversity and abundance of taste.",
+          "cards": [
+            {
+              "local_name": "Cacio e Pepe",
+              "global_name": "Cheese and Pepper Pasta",
+              "description": "A Roman pasta dish made with Pecorino Romano cheese and black pepper. Simple yet deeply flavorful.",
+              "img_url": "https://www.giallozafferano.com/images/228-22832/Cacio-e-Pepe_650x433_wm.jpg"
+            },
+            {
+              "local_name": "Supplì",
+              "global_name": "Fried Rice Balls",
+              "description": "Roman street food - fried rice balls with mozzarella center, named for the stringy cheese that stretches like a telephone cord.",
+              "img_url": "https://www.giallozafferano.com/images/230-23006/Suppli_650x433_wm.jpg"
+            },
+            {
+              "local_name": "Saltimbocca",
+              "global_name": "Veal with Prosciutto",
+              "description": "Veal cutlets topped with prosciutto and sage, pan-fried in butter. The name means 'jump in the mouth'.",
+              "img_url": "https://www.giallozafferano.com/images/228-22800/Saltimbocca-alla-Romana_650x433_wm.jpg"
+            },
+            {
+              "local_name": "Carciofi alla Romana",
+              "global_name": "Roman-Style Artichokes",
+              "description": "Whole artichokes braised with garlic, mint, and olive oil. A quintessential Roman spring dish.",
+              "img_url": "https://www.giallozafferano.com/images/229-22909/Roman-style-artichokes_650x433_wm.jpg"
+            }
+          ],
+          "_metadata": {
+            "geo_scope": "locality",
+            "interface": {
+              "markdown": {},
+              "card": {
+                "render_type": "dish",
+                "inColsofCount": 2,
+                "colGap": 12,
+                "rowGap": 12,
+                "aspectRatio": 0.85
+              }
+            }
+          }
         }
-      },
+      }
+    }
+  },
+  {
+    "event": "catalogue",
+    "data": {
+      "section": "cuisine",
+      "action": "replace",
+      "display_title": "Cuisine",
       "content": {
         "cuisine_of_hong_kong": {
           "qid": "Q1036629",
@@ -93,21 +93,47 @@
               "description": "Wonton is a type of Chinese food. It is a small dish that is served in a small steamer.",
               "img_url": "https://www.giallozafferano.com/images/228-22832/Cacio-e-Pepe_650x433_wm.jpg"
             }
-          ]
-        },
-      "Chinese cuisine": {
-        "qid": "Q10876842",
-        "markdown": "# Chinese Cuisine\n\nChinese cuisine is a type of Chinese food. It is a small dish that is served in a small steamer.",
-        "cards": [
-          {
-            "local_name": "Dim sum",
-            "global_name": "Dim sum",
-            "description": "Dim sum is a type of Chinese food. It is a small dish that is served in a small steamer.",
-            "img_url": "https://www.giallozafferano.com/images/228-22832/Cacio-e-Pepe_650x433_wm.jpg"
+          ],
+          "_metadata": {
+            "geo_scope": "locality",
+            "interface": {
+              "markdown": {},
+              "card": {
+                "render_type": "dish",
+                "inColsofCount": 2,
+                "colGap": 12,
+                "rowGap": 12,
+                "aspectRatio": 0.85
+              }
+            }
           }
-        ]
+        },
+        "Chinese cuisine": {
+          "qid": "Q10876842",
+          "markdown": "# Chinese Cuisine\n\nChinese cuisine is a type of Chinese food. It is a small dish that is served in a small steamer.",
+          "cards": [
+            {
+              "local_name": "Dim sum",
+              "global_name": "Dim sum",
+              "description": "Dim sum is a type of Chinese food. It is a small dish that is served in a small steamer.",
+              "img_url": "https://www.giallozafferano.com/images/228-22832/Cacio-e-Pepe_650x433_wm.jpg"
+            }
+          ],
+          "_metadata": {
+            "geo_scope": "country",
+            "interface": {
+              "markdown": {},
+              "card": {
+                "render_type": "dish",
+                "inColsofCount": 2,
+                "colGap": 12,
+                "rowGap": 12,
+                "aspectRatio": 0.85
+              }
+            }
+          }
+        }
       }
-    }
     }
   },
   {
@@ -116,68 +142,73 @@
       "section": "landmarks",
       "action": "replace",
       "display_title": "Landmarks",
-      "config": {
-        "markdown": {},
-        "card": {
-          "render_type": "feature"
-        }
-      },
       "content": {
-        "markdown": "# Historical Landmarks\n\nExplore the ancient heritage sites and monuments that tell the story of Rome's glorious past.",
-        "cards": [
-          {
-            "type": "Feature",
-            "geometry": {
-              "type": "Point",
-              "coordinates": [12.4922, 41.8902]
+        "rome_landmarks": {
+          "markdown": "# Historical Landmarks\n\nExplore the ancient heritage sites and monuments that tell the story of Rome's glorious past.",
+          "cards": [
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [12.4922, 41.8902]
+              },
+              "properties": {
+                "title": "Colosseum",
+                "description": "Ancient Roman amphitheater, the largest ever built. Once hosted gladiatorial contests and public spectacles.",
+                "category": "landmark",
+                "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/1280px-Colosseo_2020.jpg"
+              }
             },
-            "properties": {
-              "title": "Colosseum",
-              "description": "Ancient Roman amphitheater, the largest ever built. Once hosted gladiatorial contests and public spectacles.",
-              "category": "landmark",
-              "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/1280px-Colosseo_2020.jpg"
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [12.4853, 41.8925]
+              },
+              "properties": {
+                "title": "Roman Forum",
+                "description": "Ancient Roman public square, once the center of Roman public life with temples, basilicas, and vibrant markets.",
+                "category": "landmark",
+                "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Forum_Romanum_Rom.jpg/1280px-Forum_Romanum_Rom.jpg"
+              }
+            },
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [12.4768, 41.9022]
+              },
+              "properties": {
+                "title": "Pantheon",
+                "description": "Former Roman temple, now a church. Features the world's largest unreinforced concrete dome.",
+                "category": "landmark",
+                "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Rome_Pantheon_front.jpg/1280px-Rome_Pantheon_front.jpg"
+              }
+            },
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [12.4534, 41.9029]
+              },
+              "properties": {
+                "title": "Vatican City",
+                "description": "Independent city-state and home to St. Peter's Basilica and the Sistine Chapel with Michelangelo's masterpiece.",
+                "category": "landmark",
+                "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg/1280px-Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg"
+              }
             }
-          },
-          {
-            "type": "Feature",
-            "geometry": {
-              "type": "Point",
-              "coordinates": [12.4853, 41.8925]
-            },
-            "properties": {
-              "title": "Roman Forum",
-              "description": "Ancient Roman public square, once the center of Roman public life with temples, basilicas, and vibrant markets.",
-              "category": "landmark",
-              "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Forum_Romanum_Rom.jpg/1280px-Forum_Romanum_Rom.jpg"
-            }
-          },
-          {
-            "type": "Feature",
-            "geometry": {
-              "type": "Point",
-              "coordinates": [12.4768, 41.9022]
-            },
-            "properties": {
-              "title": "Pantheon",
-              "description": "Former Roman temple, now a church. Features the world's largest unreinforced concrete dome.",
-              "category": "landmark",
-              "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Rome_Pantheon_front.jpg/1280px-Rome_Pantheon_front.jpg"
-            }
-          },
-          {
-            "type": "Feature",
-            "geometry": {
-              "type": "Point",
-              "coordinates": [12.4534, 41.9029]
-            },
-            "properties": {
-              "title": "Vatican City",
-              "description": "Independent city-state and home to St. Peter's Basilica and the Sistine Chapel with Michelangelo's masterpiece.",
-              "category": "landmark",
-              "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg/1280px-Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg"
+          ],
+          "_metadata": {
+            "geo_scope": "locality",
+            "interface": {
+              "markdown": {},
+              "card": {
+                "render_type": "feature"
+              }
             }
           }
-        ]
+        }
       }
     }
   },
@@ -187,49 +218,54 @@
       "section": "activities",
       "action": "replace",
       "display_title": "Activities",
-      "config": {
-        "markdown": {},
-        "card": {
-          "inColsofCount": 3,
-          "colGap": 12,
-          "rowGap": 12,
-          "aspectRatio": 1.0
-        }
-      },
       "content": {
-        "markdown": "# Things To Do\n\nDiscover unique experiences and activities in the area.",
-        "cards": [
-          {
-            "title": "Cooking Class",
-            "subtitle": "Learn traditional recipes",
-            "image_url": "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400"
-          },
-          {
-            "name": "Wine Tasting",
-            "subtitle": "Local vineyard tour",
-            "img_url": "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=400"
-          },
-          {
-            "title": "Walking Tour",
-            "subtitle": "Historic center",
-            "image_url": "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400"
-          },
-          {
-            "local_name": "Vespa Rental",
-            "global_name": "Scooter Adventure",
-            "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"
-          },
-          {
-            "title": "Artisan Workshop",
-            "subtitle": "Leather crafting",
-            "img_url": "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400"
-          },
-          {
-            "name": "Sunset Cruise",
-            "subtitle": "River boat experience",
-            "image_url": "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=400"
+        "rome_activities": {
+          "markdown": "# Things To Do\n\nDiscover unique experiences and activities in the area.",
+          "cards": [
+            {
+              "title": "Cooking Class",
+              "subtitle": "Learn traditional recipes",
+              "image_url": "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400"
+            },
+            {
+              "name": "Wine Tasting",
+              "subtitle": "Local vineyard tour",
+              "img_url": "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=400"
+            },
+            {
+              "title": "Walking Tour",
+              "subtitle": "Historic center",
+              "image_url": "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400"
+            },
+            {
+              "local_name": "Vespa Rental",
+              "global_name": "Scooter Adventure",
+              "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"
+            },
+            {
+              "title": "Artisan Workshop",
+              "subtitle": "Leather crafting",
+              "img_url": "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400"
+            },
+            {
+              "name": "Sunset Cruise",
+              "subtitle": "River boat experience",
+              "image_url": "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=400"
+            }
+          ],
+          "_metadata": {
+            "geo_scope": "locality",
+            "interface": {
+              "markdown": {},
+              "card": {
+                "inColsofCount": 3,
+                "colGap": 12,
+                "rowGap": 12,
+                "aspectRatio": 1.0
+              }
+            }
           }
-        ]
+        }
       }
     }
   }
