@@ -55,6 +55,9 @@ extension MainView {
             locationDetailData.dataSource = .device
             let locationDict = locationDetailData.toLocationDict()
 
+            // Prune stale catalogue items before updating location context.
+            // Must be called before setLocationData so the old location is still available for comparison.
+            catalogueManager.pruneStaleItems(forNewLocation: locationDetailData)
             catalogueManager.setLocationData(locationDetailData)
 
             let event = UserEventBuilder.build(
@@ -114,6 +117,10 @@ extension MainView {
             finalDetail.dataSource = .lookup
 
             let locationDict = finalDetail.toLocationDict()
+
+            // Prune stale catalogue items before updating location context.
+            // Must be called before setLocationData so the old location is still available for comparison.
+            catalogueManager.pruneStaleItems(forNewLocation: finalDetail)
             catalogueManager.setLocationData(finalDetail)
 
             let event = UserEventBuilder.build(

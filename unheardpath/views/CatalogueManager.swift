@@ -452,6 +452,86 @@ class CatalogueManager: ObservableObject {
         sections[sectionType]
     }
     
+    /// Remove catalogue items whose `_metadata.geo_scope` no longer applies to the new location.
+    ///
+    /// Compares the current `locationDetailData` (old) with `newLocation` to find the highest
+    /// geographic level where the two locations diverge. All catalogue items scoped at or more
+    /// specific than that divergence point are pruned, while shared higher-level content is kept.
+    ///
+    /// **Example — Shenzhen → Shanghai (same country, different admin area):**
+    /// - `country` keys match → country-scoped items (e.g. "Chinese cuisine") are kept.
+    /// - `adminarea` keys differ → adminarea/locality/sublocality items (e.g. "Cantonese cuisine") are removed.
+    ///
+    /// Call this **before** `setLocationData(_:)` and SSE stream processing so that the old
+    /// location reference is still available for comparison.
+    func pruneStaleItems(forNewLocation newLocation: LocationDetailData) {
+        guard let oldLocation = locationDetailData else {
+            // No previous location context — clear everything for a clean slate
+            clearAll()
+            return
+        }
+
+        let oldKeyMap = Dictionary(
+            uniqueKeysWithValues: StorageKey.applicableLevels(from: oldLocation).map { ($0.level, $0.key) }
+        )
+        let newKeyMap = Dictionary(
+            uniqueKeysWithValues: StorageKey.applicableLevels(from: newLocation).map { ($0.level, $0.key) }
+        )
+
+        // Walk from most general to most specific. Once a level diverges,
+        // that level and every more-specific level is considered stale.
+        var staleLevels = Set<GeoLevel>()
+        for level in GeoLevel.allCases {
+            if !staleLevels.isEmpty || oldKeyMap[level] != newKeyMap[level] {
+                staleLevels.insert(level)
+            }
+        }
+
+        guard !staleLevels.isEmpty else { return }  // Identical location — nothing to prune
+
+        // Collect section types to remove (sections that become empty after pruning)
+        var sectionsToRemove: [String] = []
+
+        for (sectionType, section) in sections {
+            guard case .dictionary(var contentDict) = section.content else { continue }
+            var modified = false
+
+            for (key, value) in contentDict {
+                if key.hasPrefix("_") { continue }  // Preserve root-level metadata keys
+
+                let itemLevel: GeoLevel? = {
+                    guard case .dictionary(let itemDict) = value,
+                          case .dictionary(let meta) = itemDict["_metadata"],
+                          let scopeStr = meta["geo_scope"]?.stringValue else { return nil }
+                    return GeoLevel(identifier: scopeStr)
+                }()
+
+                // Remove if the item's scope is stale, or if it has no scope (conservative —
+                // unscoped items may be location-specific and cannot be verified).
+                if itemLevel == nil || staleLevels.contains(itemLevel!) {
+                    contentDict.removeValue(forKey: key)
+                    modified = true
+                }
+            }
+
+            if modified {
+                // Filter out root-level metadata to check if real content remains
+                let hasRealContent = contentDict.contains { !$0.key.hasPrefix("_") }
+                if !hasRealContent {
+                    sectionsToRemove.append(sectionType)
+                } else {
+                    var updated = section
+                    updated.content = .dictionary(contentDict)
+                    sections[sectionType] = updated
+                }
+            }
+        }
+
+        for sectionType in sectionsToRemove {
+            removeCatalogue(sectionType: sectionType)
+        }
+    }
+
     /// Clear all catalogue
     func clearAll() {
         sections.removeAll()

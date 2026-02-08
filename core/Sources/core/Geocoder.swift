@@ -84,10 +84,17 @@ public struct LocationDetailData: Sendable {
         ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
          .filter { !$0.isEmpty }
 
-        let adminArea = placemark.administrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var adminArea = placemark.administrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
         let subAdminArea = placemark.subAdministrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
         let locality = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines)
         let subLocality = placemark.subLocality?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // For direct-administered municipalities (e.g., Shanghai, Beijing) the geocoder may
+        // return a locality but no administrativeArea. Default adminArea to locality so the
+        // geographic hierarchy is complete for caching and backend processing.
+        if (adminArea == nil || adminArea?.isEmpty == true), let loc = locality, !loc.isEmpty {
+            adminArea = loc
+        }
 
         // Ocean detection from CLPlacemark
         let oceanName = placemark.ocean?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -166,13 +173,25 @@ public struct LocationDetailData: Sendable {
             .compactMap { $0 }
             .first { !$0.isEmpty }
 
+        // For direct-administered municipalities (e.g., Shanghai, Beijing) Geoapify may
+        // return a city but no state. Default adminArea to city so the geographic hierarchy
+        // is complete for caching and backend processing.
+        let resolvedAdminArea: String?
+        if let s = state, !s.isEmpty {
+            resolvedAdminArea = s
+        } else if let c = city, !c.isEmpty {
+            resolvedAdminArea = c
+        } else {
+            resolvedAdminArea = nil
+        }
+
         self.location = location
         self.placeName = placeName?.isEmpty == true ? nil : placeName
         self.subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
         self.countryName = props["country"] as? String
         self.countryCode = (props["country_code"] as? String)?.uppercased()
         self.timezone = timezone
-        self.adminArea = state?.isEmpty == true ? nil : state
+        self.adminArea = resolvedAdminArea
         self.subAdminArea = county?.isEmpty == true ? nil : county
         self.locality = city?.isEmpty == true ? nil : city
         self.subLocality = subLocality?.isEmpty == true ? nil : subLocality
