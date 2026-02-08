@@ -26,7 +26,6 @@ struct MainView: View {
     @State private var selectedTab: PreviewTabSelection = .journey
     @State private var previousTab: PreviewTabSelection = .journey
     @State private var shouldHideTabBar: Bool = false
-    @StateObject var liveUpdateViewModel = LiveUpdateViewModel()
     @StateObject var stretchableInputVM = StretchableInputViewModel()
     @State var shouldDismissKeyboard: Bool = false
     
@@ -127,19 +126,36 @@ struct MainView: View {
             }
 
             
-            if let lastMessage = chatManager.lastMessage {
-                LiveUpdateStack(
-                    message: lastMessage,
-                    currentToastData: $toastManager.currentToastData,
-                    isExpanded: $chatManager.isMessageExpanded,
-                    onDismiss: {
-                        chatManager.dismissLastMsg()
+            LiveUpdateStack(
+                message: chatManager.lastMessage,
+                currentToastData: $toastManager.currentToastData,
+                isExpanded: $chatManager.isMessageExpanded,
+                onDismiss: {
+                    chatManager.dismissLastMsg()
+                },
+                stretchableInputVM: stretchableInputVM,
+                onLocationSelected: { locationDetail in
+                    mapFeaturesManager.flyToLocation = FlyToLocation(locationDetail: locationDetail)
+                    autocompleteManager.clearSearchResults()
+                    stretchableInputVM.inputLocation = ""
+                },
+                onAutocompleteResultSelected: { result in
+                    Task { @MainActor in
+                        await flyToLocation(result: result)
                     }
-                )
-                .opacity(shouldHideTabBar ? 0 : 1)
-                .allowsHitTesting(!shouldHideTabBar)
-                .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
-            }
+                },
+                isChatButtonVisible: selectedTab != .chat,
+                onSwitchToChat: {
+                    selectedTab = .chat
+                },
+                isJourneyButtonVisible: selectedTab == .chat,
+                onSwitchToJourney: {
+                    selectedTab = .journey
+                }
+            )
+            .opacity(shouldHideTabBar ? 0 : 1)
+            .allowsHitTesting(!shouldHideTabBar)
+            .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
             
             // Avatar / profile button overlay
             avatarButton
@@ -218,20 +234,10 @@ struct MainView: View {
             }
         }
         .onChange(of: stretchableInputVM.inputMode) { newMode in
-            if newMode == .autocomplete {
-                // Load cached locations when entering autocomplete mode
-                stretchableInputVM.loadCachedLocations(from: eventManager)
-            } else {
+            if newMode != .autocomplete {
                 // Clear autocomplete state when leaving autocomplete mode
                 autocompleteManager.clearSearchResults()
-                stretchableInputVM.autocompleteResults = []
                 stretchableInputVM.inputLocation = ""
-            }
-        }
-        .onReceive(autocompleteManager.$searchResults) { newResults in
-            // Feed autocomplete results into the StretchableInput view model
-            if stretchableInputVM.inputMode == .autocomplete {
-                stretchableInputVM.autocompleteResults = newResults
             }
         }
         .onChange(of: stretchableInputVM.isStretched) { isStretched in
@@ -243,10 +249,6 @@ struct MainView: View {
             if newTab != .profile {
                 previousTab = newTab
             }
-            // Hide chat button when already on the chat tab
-            stretchableInputVM.isChatButtonVisible = (newTab != .chat)
-            // Show journey button when on the chat tab
-            stretchableInputVM.isJourneyButtonVisible = (newTab == .chat)
             // Clear autocomplete results when switching tabs
             if stretchableInputVM.inputMode == .autocomplete {
                 stretchableInputVM.inputMode = .freestyle
@@ -290,26 +292,6 @@ struct MainView: View {
             stretchableInputVM.onSendMessage = {
                 Task { @MainActor in
                     await chatManager.sendMessage()
-                }
-            }
-            stretchableInputVM.onSwitchToChat = {
-                selectedTab = .chat
-            }
-            stretchableInputVM.onSwitchToJourney = {
-                selectedTab = .journey
-            }
-            stretchableInputVM.isChatButtonVisible = (selectedTab != .chat)
-            stretchableInputVM.isJourneyButtonVisible = (selectedTab == .chat)
-            stretchableInputVM.onLocationSelected = { [weak stretchableInputVM] locationDetail in
-                mapFeaturesManager.flyToLocation = FlyToLocation(locationDetail: locationDetail)
-                autocompleteManager.clearSearchResults()
-                stretchableInputVM?.inputLocation = ""
-                stretchableInputVM?.autocompleteResults = []
-            }
-            stretchableInputVM.onAutocompleteResultSelected = { [weak stretchableInputVM] result in
-                Task { @MainActor in
-                    await flyToLocation(result: result)
-                    stretchableInputVM?.autocompleteResults = []
                 }
             }
         }
