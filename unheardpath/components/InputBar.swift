@@ -267,8 +267,9 @@ struct StretchableInput: View {
                 .padding(.horizontal, Spacing.current.spaceXs)
                 .padding(.trailing, viewModel.inputMode == .freestyle && !draftMessage.isEmpty
                     ? Spacing.current.spaceL : Spacing.current.spaceXs)
-                .padding(.vertical, Spacing.current.space2xs)
-                .background(Color("onBkgTextColor30"))
+                .padding(.vertical, Spacing.current.spaceXs)
+                .background(Color("AppBkgColor"))
+                // .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: -4)
                 .cornerRadius(Spacing.current.spaceM)
                 .frame(
                     width: isEffectivelyStretched
@@ -298,11 +299,16 @@ struct StretchableInput: View {
                         .hidden()
                 }
             }
-            .padding(.horizontal, Spacing.current.space3xs)
-            .padding(.vertical, Spacing.current.space3xs)
+            // .padding(.horizontal, Spacing.current.space3xs)
+            // .padding(.vertical, isTextFieldFocused ? Spacing.current.spaceS : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-        .frame(height: 40)
+        // .frame(height: 40)
+        .frame(height: isTextFieldFocused ? Spacing.current.space2xl : Spacing.current.space2xl)
+        // .background(Color.red) 
+        // .padding(.horizontal, Spacing.current.space3xs)
+        .padding(.top, isTextFieldFocused ? Spacing.current.space3xs : 0)
+        .padding(.bottom, isTextFieldFocused ? Spacing.current.space3xs : 0)
         .animation(.easeInOut(duration: 0.25), value: isEffectivelyStretched)
         .onChange(of: isTextFieldFocused) { isFocused in
             withAnimation(.easeInOut(duration: 0.25)) {
@@ -329,6 +335,7 @@ struct StretchableInput: View {
             isTextFieldFocused = true
         }
     }
+   
 }
 
 // MARK: - StretchableInput Preview
@@ -362,7 +369,7 @@ struct StretchableInput: View {
                 )
             }
             .padding()
-            .background(Color("AppBkgColor"))
+            .background(Color.white)
         }
     }
 

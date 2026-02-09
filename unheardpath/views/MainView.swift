@@ -190,11 +190,12 @@ struct MainView: View {
                 // }
             }
             .background(.ultraThinMaterial)
-            .overlay(
-                Divider()
-                    .background(Color("onBkgTextColor30")),
-                alignment: .top
-            )
+            // .background(Color.red)
+            // .overlay(
+            //     Divider()
+            //         .background(Color("onBkgTextColor30")),
+            //     alignment: .top 
+            // )
             // .opacity((!shouldHideTabBar || selectedTab != .journey) ? 1 : 0)
             // .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
             // .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)

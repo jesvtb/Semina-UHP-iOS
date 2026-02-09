@@ -17,16 +17,27 @@ struct SSEContentTestView: View {
     @State private var displayTitle: String = "Overview"
     @State private var overviewMarkdown: String = """
 # Welcome to Ancient Rome
+        
+This journey takes you through the **heart of the Roman Empire**, exploring iconic landmarks and hidden gems. Consequat penatibus at ridiculus inceptos auctor sit vehicula rhoncus vestibulum, enim quam quis ornare ullamcorper molestie fames. Netus augue purus aenean mus rhoncus ornare montes sapien urna mattis primis odio nullam convallis varius dictum dignissim, etiam inceptos neque aliquet pharetra mauris felis sed magnis congue lorem libero erat condimentum ante nec
 
-This is a **test overview** content that demonstrates how markdown is rendered in the InfoSheet.
+![Rome Colosseum](https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/1280px-Colosseo_2020.jpg)
 
-## Key Features
+## What You'll Discover
 
-- Rich markdown support
-- Multiple content types
-- Dynamic updates
+- The Colosseum: An architectural marvel
+- The Forum: The center of Roman public life
+- [The Pantheon](https://en.wikipedia.org/wiki/Pantheon,_Rome): A temple to all gods
 
-You can test different content types using the buttons below.
+## Getting Started
+
+Begin your journey at the Colosseum and follow the path through history.
+
+```swift
+let journey = Journey(name: "Ancient Rome")
+journey.start()
+```
+
+Enjoy your exploration!
 """
     
     @State private var showTestSheet: Bool = false
