@@ -1,4 +1,5 @@
 import SwiftUI
+import SafariServices
 import core
 
 // MARK: - Event Card Defaults
@@ -241,6 +242,7 @@ struct EventCard: View {
 struct EventPopupView: View {
     let event: CulturalEvent
     let onDismiss: () -> Void
+    @State private var showWebPage = false
 
     var body: some View {
         NavigationStack {
@@ -301,6 +303,23 @@ struct EventPopupView: View {
 
                     Text(event.eventDescription)
                         .bodyParagraph(color: Color("onBkgTextColor30"))
+
+                    if let sourceURL = URL(string: event.sourceURL) {
+                        Button(action: {
+                            showWebPage = true
+                        }) {
+                            HStack(spacing: Spacing.current.space2xs) {
+                                Image(systemName: "safari")
+                                    .font(.system(size: TypographyScale.articleMinus1.baseSize))
+                                Text("View Source")
+                                    .bodyText(size: .articleMinus1)
+                            }
+                            .foregroundColor(Color("AccentColor"))
+                        }
+                        .sheet(isPresented: $showWebPage) {
+                            SafariView(url: sourceURL)
+                        }
+                    }
                 }
                 .padding(Spacing.current.spaceS)
             }
