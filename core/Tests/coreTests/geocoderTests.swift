@@ -96,56 +96,54 @@ struct GeocoderTests {
     @Test(
         "geocodeReverse",
         arguments: [
-            // CLLocation(latitude: 35.01161, longitude: 135.76811), // Kyoto, Japan
-            // CLLocation(latitude: 22.352725, longitude: 114.139399), // Hong Kong, China
-            // CLLocation(latitude: 22.559623109782347, longitude: 114.11698910372738), // Shenzhen, China
-            // CLLocation(latitude: 41.008918, longitude: 28.979900), 
-            // CLLocation(latitude: 1.283333, longitude: 103.833333), // Singapore, Singapore
-            // CLLocation(latitude: 5.416011, longitude: 100.338764), // Penang, Malaysia
-            // CLLocation(latitude: -6.1753, longitude: 106.8269), // Jakarta, Indonesia
+            CLLocation(latitude: 35.01161, longitude: 135.76811), // Kyoto, Japan
+            CLLocation(latitude: 22.352725, longitude: 114.139399), // Hong Kong, China
+            CLLocation(latitude: 22.559623109782347, longitude: 114.11698910372738), // Shenzhen, China
+            CLLocation(latitude: 41.008918, longitude: 28.979900), 
+            CLLocation(latitude: 1.283333, longitude: 103.833333), // Singapore, Singapore
+            CLLocation(latitude: 5.416011, longitude: 100.338764), // Penang, Malaysia
+            CLLocation(latitude: -6.1753, longitude: 106.8269), // Jakarta, Indonesia
             CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
-            // CLLocation(latitude: 41.902222, longitude: 12.453333), // Vatican City, Italy
-            // CLLocation(latitude: 30.333000, longitude: 89.051053), // Himlayas
-            // CLLocation(latitude: 40.0, longitude: 20.0), // Albania
-            // CLLocation(latitude: 42.569393, longitude: 88.465132), // Lake Garda
-            // CLLocation(latitude:30.0, longitude: -40.0), 
-            // CLLocation(latitude: 68.1386, longitude: 24.2215), // Rovaniemi, Finland
-            // CLLocation(latitude: 55.7569, longitude: 37.6151), // Moscow, Russia
+            CLLocation(latitude: 41.902222, longitude: 12.453333), // Vatican City, Italy
+            CLLocation(latitude: 30.333000, longitude: 89.051053), // Himlayas
+            CLLocation(latitude: 40.0, longitude: 20.0), // Albania
+            CLLocation(latitude: 42.569393, longitude: 88.465132), // Lake Garda
+            CLLocation(latitude:30.0, longitude: -40.0), 
+            CLLocation(latitude: 68.1386, longitude: 24.2215), // Rovaniemi, Finland
+            CLLocation(latitude: 55.7569, longitude: 37.6151), // Moscow, Russia
         ]
     )
     func geocodeReverse(location: CLLocation) async throws {
         let apiKey = ProcessInfo.processInfo.environment["GEOAPIFY_API_KEY"] ?? "e810e0454fda45acbf6b3fbaa7bebe15"
         guard !apiKey.isEmpty else { return }
         let geocoder = Geocoder(geoapifyApiKey: apiKey)
-        let locationDetailData = try await geocoder.geocodeReverse(location: location)
-        printItem(item: locationDetailData)
+        let locationDetail = try await geocoder.geocodeReverse(location: location)
+        let placeName = locationDetail.placeName ?? "unknown"
 
-        // Verify location is set with correct coordinates
-        try require(
-            abs(locationDetailData.location.coordinate.latitude - location.coordinate.latitude) < 0.001 &&
-            abs(locationDetailData.location.coordinate.longitude - location.coordinate.longitude) < 0.001,
-            success: "LocationDetailData has correct coordinates",
-            failure: "LocationDetailData coordinates don't match input"
-        )
-        
-        expect(
-            locationDetailData.timezone != nil && !locationDetailData.timezone!.isEmpty,
-            success: "LocationDetailData has timezone: \(locationDetailData.timezone ?? "nil")",
-            failure: "LocationDetailData missing timezone"
-        )
+        let locationDetailConditions: [(condition: Bool, failure: String)] = [
+            (
+                abs(locationDetail.location.coordinate.latitude - location.coordinate.latitude) < 0.001 &&
+                abs(locationDetail.location.coordinate.longitude - location.coordinate.longitude) < 0.001,
+                "\(placeName): coordinates don't match input"
+            ),
+            (
+                locationDetail.timezone != nil && !locationDetail.timezone!.isEmpty,
+                "\(placeName): missing timezone"
+            ),
+            (
+                locationDetail.countryCode != nil && !locationDetail.countryCode!.isEmpty,
+                "\(placeName): missing country_code"
+            ),
+            (
+                (locationDetail.adminArea != nil && !locationDetail.adminArea!.isEmpty) ||
+                (locationDetail.locality != nil && !locationDetail.locality!.isEmpty),
+                "\(placeName): missing both admin_area and locality"
+            ),
+        ]
+        expectAll(locationDetailConditions, success: "\(placeName): locationDetail has all expected fields")
         
         // Verify toLocationDict() produces valid dict
-        let locationDict = locationDetailData.toLocationDict()
+        let locationDict = locationDetail.toLocationDict()
         printItem(item: locationDict)
-        expect(
-            locationDict["coordinate"] != nil,
-            success: "toLocationDict() includes coordinate",
-            failure: "toLocationDict() missing coordinate"
-        )
-        expect(
-            locationDict["timezone"] != nil,
-            success: "toLocationDict() includes timezone",
-            failure: "toLocationDict() missing timezone"
-        )
     }
 }

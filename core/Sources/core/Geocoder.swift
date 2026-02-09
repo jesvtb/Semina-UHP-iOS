@@ -72,6 +72,22 @@ public struct LocationDetailData: Sendable {
 
     /// Creates LocationDetailData from a CLPlacemark (MapKit/CLGeocoder result).
     public init(placemark: CLPlacemark, location: CLLocation) {
+        self.init(placemark: placemark, location: location, mapItemTimeZone: nil)
+    }
+
+    /// Creates LocationDetailData from an MKMapItem (MKReverseGeocodingRequest result).
+    /// Uses mapItem.timeZone (always populated on MKMapItem) instead of placemark.timeZone
+    /// which may be nil for results from MKReverseGeocodingRequest.
+    public init(mapItem: MKMapItem, location: CLLocation) {
+        self.init(placemark: mapItem.placemark, location: location, mapItemTimeZone: mapItem.timeZone)
+    }
+
+    /// Shared initializer for CLPlacemark-based construction.
+    /// - Parameters:
+    ///   - placemark: The CLPlacemark with address fields.
+    ///   - location: The original CLLocation.
+    ///   - mapItemTimeZone: Optional timezone from MKMapItem (preferred over placemark.timeZone).
+    private init(placemark: CLPlacemark, location: CLLocation, mapItemTimeZone: TimeZone?) {
         var adminArea = placemark.administrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
         let subAdminArea = placemark.subAdministrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
         let locality = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -100,7 +116,9 @@ public struct LocationDetailData: Sendable {
         self.placeName = placeName?.isEmpty == true ? nil : placeName
         self.countryName = placemark.country
         self.countryCode = placemark.isoCountryCode?.uppercased()
-        self.timezone = placemark.timeZone?.identifier
+        // Prefer MKMapItem.timeZone (always populated) over placemark.timeZone (may be nil
+        // for MKReverseGeocodingRequest results).
+        self.timezone = mapItemTimeZone?.identifier ?? placemark.timeZone?.identifier
         self.adminArea = adminArea?.isEmpty == true ? nil : adminArea
         self.subAdminArea = subAdminArea?.isEmpty == true ? nil : subAdminArea
         self.locality = locality?.isEmpty == true ? nil : locality
@@ -386,7 +404,6 @@ public final class Geocoder: Sendable {
             timeout: false,
             filesDict: [:]
         )
-        printItem(item: data)
         return buildLocationDetailDataFromGeoapifyResponse(location: location, data: data)
     }
 
@@ -408,12 +425,20 @@ public final class Geocoder: Sendable {
     public func geocodeReverse(location: CLLocation) async throws -> LocationDetailData {
         // Try native MapKit geocoder first
         do {
-            let placemarks = try await geocodeReverseMK(location: location)
-            if let placemark = placemarks.first {
-                return buildLocationDetailDataFromPlacemark(location: location, placemark: placemark)
+            if #available(macOS 26.0, iOS 26.0, *) {
+                // Use MKReverseGeocodingRequest directly to preserve MKMapItem.timeZone
+                // (placemark.timeZone may be nil for MKReverseGeocodingRequest results).
+                if let result = try await geocodeReverseFromMapItems(location: location) {
+                    return result
+                }
+            } else {
+                let placemarks = try await geocodeReverseMKLegacy(location: location)
+                if let placemark = placemarks.first {
+                    return buildLocationDetailDataFromPlacemark(location: location, placemark: placemark)
+                }
             }
         } catch {
-            // CLGeocoder failed, fall through to Geoapify
+            // MapKit failed, fall through to Geoapify
         }
         // Fallback to Geoapify
         if let result = try await geocodeReverseGeoapify(location: location) {
@@ -421,19 +446,27 @@ public final class Geocoder: Sendable {
         }
         throw GeocoderError.noResults(location: location)
     }
-    
-    /// Builds LocationDetailData from a CLPlacemark (from MapKit/CLGeocoder).
-    private func buildLocationDetailDataFromPlacemark(location: CLLocation, placemark: CLPlacemark) -> LocationDetailData {
-        // Debug logging
-        printItem(item: placemark.subLocality, heading: "subLocality")
-        printItem(item: placemark.locality, heading: "locality")
-        printItem(item: placemark.subAdministrativeArea, heading: "subAdministrativeArea")
-        printItem(item: placemark.administrativeArea, heading: "administrativeArea")
-        printItem(item: placemark.country, heading: "country")
-        printItem(item: placemark.isoCountryCode, heading: "isoCountryCode")
-        printItem(item: placemark.timeZone, heading: "timeZone")
-        printItem(item: placemark.areasOfInterest, heading: "areasOfInterest")
 
+    /// Reverse geocodes using MKReverseGeocodingRequest and builds LocationDetailData
+    /// directly from MKMapItem to preserve mapItem.timeZone.
+    @available(macOS 26.0, iOS 26.0, *)
+    private func geocodeReverseFromMapItems(location: CLLocation) async throws -> LocationDetailData? {
+        logger.info("Geocoding reverse using New Apple Geocoder (MKMapItem): \(location)")
+        guard let request = MKReverseGeocodingRequest(location: location) else { return nil }
+        let mapItems = try await request.mapItems
+        printItem(item: mapItems)
+        guard let first = mapItems.first else { return nil }
+        return buildLocationDetailDataFromMapItem(location: location, mapItem: first)
+    }
+    
+    /// Builds LocationDetailData from an MKMapItem (from MKReverseGeocodingRequest).
+    /// Uses mapItem.timeZone which is always populated, unlike placemark.timeZone.
+    private func buildLocationDetailDataFromMapItem(location: CLLocation, mapItem: MKMapItem) -> LocationDetailData {
+        return LocationDetailData(mapItem: mapItem, location: location)
+    }
+
+    /// Builds LocationDetailData from a CLPlacemark (from CLGeocoder legacy path).
+    private func buildLocationDetailDataFromPlacemark(location: CLLocation, placemark: CLPlacemark) -> LocationDetailData {
         return LocationDetailData(placemark: placemark, location: location)
     }
 

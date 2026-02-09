@@ -1,23 +1,23 @@
 import Foundation
 
 func printItem(item: Any, heading: String) {
-    print("================")
+    print("\n================")
     print("🔹 \(heading) (\(type(of: item))): \n   \(item)\n")
-    print("================")
+    print("================\n")
 }
 
 func printItem(item: Any) {
-    print("================")
+    print("\n================")
     print("🔹 type: \(type(of: item)) \n   \(item)")
-    print("================")
+    print("================\n")
 }
 
 /// Pretty-prints JSONValue or Optional<JSONValue>. Labeled as "parsed data" so it’s distinct from printItem(SSEEvent). Handles both JSONValue and JSONValue?.
 func printItem(item: JSONValue?, heading: String = "parsed data (JSONValue)") {
     guard let value = item else {
-        print("================")
+        print("\n================")
         print("🔹 \(heading) (Optional<JSONValue>) \n   nil")
-        print("================")
+        print("================\n")
         return
     }
     let encoder = JSONEncoder()
@@ -26,13 +26,9 @@ func printItem(item: JSONValue?, heading: String = "parsed data (JSONValue)") {
           let jsonString = String(data: jsonData, encoding: .utf8) else {
         return
     }
-    print("================")
+    print("\n================")
     print("🔹 \(heading) (JSONValue)\n\(jsonString)")
-    print("================")
-}
-
-func printItem(item: Data) {
-    let jsonValue = try? item.shapeIntoJsonValue()
+    print("================\n")
 }
 
 /// Pretty-prints a Dictionary of JSONValue.
@@ -41,19 +37,18 @@ func printItem(item: [String: JSONValue], heading: String = "parsed data (JSONVa
     encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
     guard let jsonData = try? encoder.encode(item),
           let jsonString = String(data: jsonData, encoding: .utf8) else {
-        print("================")
+        print("\n================")
         print("🔹 \(heading) (Optional<[String: JSONValue]>) \n   nil")
         print("================") 
         return
     }
-    print("================")
+    print("\n================")
     print("🔹 \(heading) ([String: JSONValue])\n\(jsonString)")
-    print("================")
+    print("================\n")
 }
 
 /// Pretty-prints an SSEEvent (typed enum) with case and associated values.
 func printItem(item: SSEEvent) {
-    print("================")
     print("🔹 type: SSEEvent (enum)")
     switch item {
     case .toast(let message, let duration, let variant):
@@ -86,5 +81,4 @@ func printItem(item: SSEEvent) {
             print("   dataValue: \(dataValue)")
         }
     }
-    print("================")
 }

@@ -60,26 +60,52 @@ enum JSONTestCases {
 
 func require(_ condition: Bool, success: String, failure: String) throws {
 
-    print("================")
     if condition {
         print("✅ \(success)")
     } else {
         print("❌ \(failure)")
     }
-    print("================")
     
     try #require(condition, Comment(stringLiteral: failure))
 }
 
 func expect(_ condition: Bool, success: String, failure: String) {
-    print("================")
     if condition {
         print("✅ \(success)")
     } else {
         print("❌ \(failure)")
     }
-    print("================")
     #expect(condition, Comment(stringLiteral: failure))
+}
+
+/// Checks multiple conditions; all must pass. Prints one success message if all pass, or individual failure messages with a single #expect at the end.
+func expectAll(_ conditions: [(condition: Bool, failure: String)], success: String) {
+    var failures: [String] = []
+    for c in conditions {
+        if !c.condition {
+            print("❌ \(c.failure)")
+            failures.append(c.failure)
+        }
+    }
+    if failures.isEmpty {
+        print("✅ \(success)")
+    }
+    #expect(failures.isEmpty, Comment(stringLiteral: failures.joined(separator: "; ")))
+}
+
+/// Checks multiple conditions; all must pass. Prints one success message if all pass, individual failure messages, then throws if any failed.
+func requireAll(_ conditions: [(condition: Bool, failure: String)], success: String) throws {
+    var failures: [String] = []
+    for c in conditions {
+        if !c.condition {
+            print("❌ \(c.failure)")
+            failures.append(c.failure)
+        }
+    }
+    if failures.isEmpty {
+        print("✅ \(success)")
+    }
+    try #require(failures.isEmpty, Comment(stringLiteral: "Failed checks: \(failures.joined(separator: "; "))"))
 }
 
 @Suite("Test Utilities")
