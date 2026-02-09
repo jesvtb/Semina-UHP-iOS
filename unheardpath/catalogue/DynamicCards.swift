@@ -312,4 +312,5 @@ private let sampleCards: [JSONValue] = [
     .padding()
     .background(Color("AppBkgColor"))
 }
+
 #endif
