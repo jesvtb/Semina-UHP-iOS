@@ -18,7 +18,7 @@ struct GeocoderTests {
         "autocompleteGeoapify returns results when API key is set",
         arguments: ["Hag", "Shenzhe"]
     )
-    func testAutocompleteGeoapify(query: String) async throws {
+    func autocompleteGA(query: String) async throws {
         let apiKey = ProcessInfo.processInfo.environment["GEOAPIFY_API_KEY"] ?? "e810e0454fda45acbf6b3fbaa7bebe15"
         guard !apiKey.isEmpty else { return }
         let geocoder = Geocoder(geoapifyApiKey: apiKey)
@@ -30,21 +30,21 @@ struct GeocoderTests {
         )
         let first = results[0]
         printItem(item: first)
-        expect(
-            first.source == "geojson",
-            success: "First result source is geojson",
-            failure: "First result source is '\(first.source)', expected geojson"
-        )
-        expect(
-            first.buildLocationDetailData() != nil,
-            success: "First result can build LocationDetailData",
-            failure: "First result buildLocationDetailData returned nil"
-        )
-        expect(
-            !first.name.isEmpty || !first.address.isEmpty,
-            success: "First result has name or address",
-            failure: "First result has empty name and address"
-        )
+        let conditions: [(condition: Bool, failure: String)] = [
+            (
+                first.source == "geoapify",
+                "'\(query)': first result source is '\(first.source)', expected geoapify"
+            ),
+            (
+                first.buildLocationDetailData() != nil,
+                "'\(query)': first result buildLocationDetailData returned nil"
+            ),
+            (
+                !first.name.isEmpty || !first.address.isEmpty,
+                "'\(query)': first result has empty name and address"
+            ),
+        ]
+        expectAll(conditions, success: "'\(query)': first result has all expected fields")
     }
 
     @Test(

@@ -53,7 +53,7 @@ public struct MapSearchResult: @unchecked Sendable {
     }
 
     public init(_ feature: MKGeoJSONFeature) {
-        source = "geojson"
+        source = "geoapify"
         let props = MapSearchResult.decodeProperties(from: feature.properties)
         let nameFromLine1 = (props["address_line1"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         var nameValue = nameFromLine1 ?? (props["name"] as? String) ?? (props["title"] as? String) ?? ""
