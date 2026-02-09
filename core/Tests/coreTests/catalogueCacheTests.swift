@@ -800,3 +800,809 @@ struct JSONValueMetadataTests {
         }
     }
 }
+
+// MARK: - StorageKey Geographic Edge Cases
+
+@Suite("StorageKey geographic edge cases")
+struct StorageKeyEdgeCaseTests {
+
+    private func makeLocation(
+        countryCode: String? = nil,
+        adminArea: String? = nil,
+        locality: String? = nil,
+        subLocality: String? = nil,
+        timezone: String = "UTC",
+        lat: Double = 0.0,
+        lon: Double = 0.0
+    ) -> LocationDetailData {
+        LocationDetailData(
+            location: CLLocation(latitude: lat, longitude: lon),
+            countryCode: countryCode,
+            timezone: timezone,
+            adminArea: adminArea,
+            locality: locality,
+            subLocality: subLocality
+        )
+    }
+
+    // MARK: - Same Name, Different Countries
+
+    @Test("Córdoba Argentina vs Córdoba Spain produce distinct keys at all levels")
+    func cordobaArgentinaVsSpain() {
+        let cordobaAR = makeLocation(
+            countryCode: "AR", adminArea: "Córdoba", locality: "Córdoba",
+            lat: -31.4201, lon: -64.1888
+        )
+        let cordobaES = makeLocation(
+            countryCode: "ES", adminArea: "Andalucía", locality: "Córdoba",
+            lat: 37.8882, lon: -4.7794
+        )
+
+        let countryAR = StorageKey.geoKey(from: cordobaAR, level: .country)
+        let countryES = StorageKey.geoKey(from: cordobaES, level: .country)
+        let localityAR = StorageKey.geoKey(from: cordobaAR, level: .locality)
+        let localityES = StorageKey.geoKey(from: cordobaES, level: .locality)
+
+        expectAll([
+            (countryAR == "ar", "AR country key should be 'ar', got '\(countryAR ?? "nil")'"),
+            (countryES == "es", "ES country key should be 'es', got '\(countryES ?? "nil")'"),
+            (countryAR != countryES, "Country keys must differ between AR and ES"),
+            (localityAR == "ar.cordoba.cordoba", "AR locality key should be 'ar.cordoba.cordoba', got '\(localityAR ?? "nil")'"),
+            (localityES == "es.andalucia.cordoba", "ES locality key should be 'es.andalucia.cordoba', got '\(localityES ?? "nil")'"),
+            (localityAR != localityES, "Locality keys must differ between AR and ES Córdoba"),
+        ], success: "Córdoba AR vs ES keys are fully distinct at all levels")
+    }
+
+    @Test("Georgia (country GE) vs Georgia (US state) — country code prevents collision")
+    func georgiaCountryVsState() {
+        let georgiaCountry = makeLocation(
+            countryCode: "GE", adminArea: "Tbilisi", locality: "Tbilisi",
+            lat: 41.7151, lon: 44.8271
+        )
+        let georgiaState = makeLocation(
+            countryCode: "US", adminArea: "Georgia", locality: "Atlanta",
+            lat: 33.7490, lon: -84.3880
+        )
+
+        let keyGE = StorageKey.geoKey(from: georgiaCountry, level: .country)
+        let keyUS = StorageKey.geoKey(from: georgiaState, level: .country)
+        let adminGE = StorageKey.geoKey(from: georgiaCountry, level: .adminarea)
+        let adminUS = StorageKey.geoKey(from: georgiaState, level: .adminarea)
+
+        expectAll([
+            (keyGE == "ge", "Georgia country key should be 'ge', got '\(keyGE ?? "nil")'"),
+            (keyUS == "us", "US country key should be 'us', got '\(keyUS ?? "nil")'"),
+            (adminGE == "ge.tbilisi", "GE admin key should be 'ge.tbilisi', got '\(adminGE ?? "nil")'"),
+            (adminUS == "us.georgia", "US admin key should be 'us.georgia', got '\(adminUS ?? "nil")'"),
+            (adminGE != adminUS, "Admin keys must differ between Georgia (country) and Georgia (state)"),
+        ], success: "Georgia country vs US state keys are fully distinct")
+    }
+
+    // MARK: - Same Country, Different Admin, Same Locality
+
+    @Test("Portland Oregon vs Portland Maine produce distinct locality keys")
+    func portlandOregonVsMaine() {
+        let portlandOR = makeLocation(
+            countryCode: "US", adminArea: "Oregon", locality: "Portland",
+            lat: 45.5152, lon: -122.6784
+        )
+        let portlandME = makeLocation(
+            countryCode: "US", adminArea: "Maine", locality: "Portland",
+            lat: 43.6591, lon: -70.2568
+        )
+
+        let keyOR = StorageKey.geoKey(from: portlandOR, level: .locality)
+        let keyME = StorageKey.geoKey(from: portlandME, level: .locality)
+        let countryOR = StorageKey.geoKey(from: portlandOR, level: .country)
+        let countryME = StorageKey.geoKey(from: portlandME, level: .country)
+
+        expectAll([
+            (keyOR == "us.oregon.portland", "OR locality key should be 'us.oregon.portland', got '\(keyOR ?? "nil")'"),
+            (keyME == "us.maine.portland", "ME locality key should be 'us.maine.portland', got '\(keyME ?? "nil")'"),
+            (keyOR != keyME, "Locality keys must differ between Oregon and Maine Portland"),
+            (countryOR == countryME, "Country keys should be identical for cross-city reuse"),
+        ], success: "Portland OR vs ME: distinct locality keys, shared country key")
+    }
+
+    @Test("Springfield in 4 US states: unique locality keys, shared country key")
+    func springfieldMultipleStates() {
+        let states = ["Illinois", "Missouri", "Massachusetts", "Ohio"]
+        let coords: [(Double, Double)] = [
+            (39.7817, -89.6501), (37.2090, -93.2923),
+            (42.1015, -72.5898), (39.9242, -83.8088)
+        ]
+
+        var localityKeys = Set<String>()
+        var countryKeys = Set<String>()
+
+        for (state, coord) in zip(states, coords) {
+            let loc = makeLocation(
+                countryCode: "US", adminArea: state, locality: "Springfield",
+                lat: coord.0, lon: coord.1
+            )
+            if let key = StorageKey.geoKey(from: loc, level: .locality) {
+                localityKeys.insert(key)
+            }
+            if let key = StorageKey.geoKey(from: loc, level: .country) {
+                countryKeys.insert(key)
+            }
+        }
+
+        expectAll([
+            (localityKeys.count == 4, "Expected 4 unique locality keys, got \(localityKeys.count)"),
+            (countryKeys.count == 1, "Expected 1 shared country key, got \(countryKeys.count)"),
+            (countryKeys.first == "us", "Country key should be 'us', got '\(countryKeys.first ?? "nil")'"),
+        ], success: "4 Springfields: unique locality keys, shared 'us' country key")
+    }
+
+    // MARK: - Diacritic Normalization Collisions
+
+    @Test("Zürich and Zurich normalize to the same key — intentional collision")
+    func zurichDiacriticCollision() {
+        let withUmlaut = StorageKey.normalize("Zürich")
+        let plain = StorageKey.normalize("Zurich")
+        expectAll([
+            (withUmlaut == "zurich", "Zürich should normalize to 'zurich', got '\(withUmlaut)'"),
+            (plain == "zurich", "Zurich should normalize to 'zurich', got '\(plain)'"),
+            (withUmlaut == plain, "Zürich and Zurich should produce identical keys"),
+        ], success: "Zürich/Zurich normalize identically (intentional collision)")
+    }
+
+    @Test("São Paulo and Sao Paulo normalize identically")
+    func saoPauloDiacriticCollision() {
+        let withDiacritics = StorageKey.normalize("São Paulo")
+        let without = StorageKey.normalize("Sao Paulo")
+        expectAll([
+            (withDiacritics == "sao_paulo", "São Paulo should normalize to 'sao_paulo', got '\(withDiacritics)'"),
+            (without == "sao_paulo", "Sao Paulo should normalize to 'sao_paulo', got '\(without)'"),
+        ], success: "São Paulo / Sao Paulo normalize identically")
+    }
+
+    @Test("Nürnberg vs Nuremberg: different names do NOT collide")
+    func nurnbergVsNuremberg() {
+        let german = StorageKey.normalize("Nürnberg")
+        let english = StorageKey.normalize("Nuremberg")
+        expectAll([
+            (german == "nurnberg", "Nürnberg should normalize to 'nurnberg', got '\(german)'"),
+            (english == "nuremberg", "Nuremberg should normalize to 'nuremberg', got '\(english)'"),
+            (german != english, "Nürnberg and Nuremberg should NOT collide"),
+        ], success: "Nürnberg vs Nuremberg: distinct keys (different names)")
+    }
+
+    // MARK: - Direct-Administered Municipalities
+
+    @Test("Shanghai — admin area equals locality produces valid but redundant key segments")
+    func shanghaiDirectMunicipality() {
+        let shanghai = makeLocation(
+            countryCode: "CN", adminArea: "Shanghai", locality: "Shanghai",
+            lat: 31.2304, lon: 121.4737
+        )
+        let localityKey = StorageKey.geoKey(from: shanghai, level: .locality)
+        let adminKey = StorageKey.geoKey(from: shanghai, level: .adminarea)
+        expectAll([
+            (localityKey == "cn.shanghai.shanghai", "Locality key should be 'cn.shanghai.shanghai', got '\(localityKey ?? "nil")'"),
+            (adminKey == "cn.shanghai", "Admin key should be 'cn.shanghai', got '\(adminKey ?? "nil")'"),
+            (adminKey != localityKey, "Admin and locality keys must differ even when names are equal"),
+        ], success: "Shanghai: admin == locality produces valid distinct keys")
+    }
+
+    @Test("Beijing — admin == locality does not collapse hierarchy levels")
+    func beijingDirectMunicipality() {
+        let beijing = makeLocation(
+            countryCode: "CN", adminArea: "Beijing", locality: "Beijing",
+            lat: 39.9042, lon: 116.4074
+        )
+        let levels = StorageKey.applicableLevels(from: beijing)
+        expectAll([
+            (levels.count == 4, "Expected 4 levels (country, adminarea, locality, geohash), got \(levels.count)"),
+            (levels.map(\.level) == [.country, .adminarea, .locality, .geohash], "Levels should be in order: country, adminarea, locality, geohash"),
+        ], success: "Beijing: admin == locality does not collapse hierarchy")
+    }
+
+    // MARK: - Special Characters in Names
+
+    @Test("Apostrophe in name is preserved: Côte d'Ivoire")
+    func apostropheInName() {
+        let result = StorageKey.normalize("Côte d'Ivoire")
+        #expect(result == "cote_d'ivoire")
+    }
+
+    @Test("Hyphenated name is preserved: Stratford-upon-Avon")
+    func hyphenatedName() {
+        let result = StorageKey.normalize("Stratford-upon-Avon")
+        #expect(result == "stratford-upon-avon")
+    }
+
+    @Test("Period in name is preserved: St. Louis")
+    func periodInName() {
+        let result = StorageKey.normalize("St. Louis")
+        #expect(result == "st._louis")
+    }
+
+    @Test("Parentheses in name are preserved: Freiburg (Breisgau)")
+    func parenthesesInName() {
+        let result = StorageKey.normalize("Freiburg (Breisgau)")
+        #expect(result == "freiburg_(breisgau)")
+    }
+
+    // MARK: - Non-Latin Scripts
+
+    @Test("CJK characters are preserved in key")
+    func cjkCharacters() {
+        let result = StorageKey.normalize("東京都")
+        #expect(result == "東京都")
+    }
+
+    @Test("Arabic characters are preserved in key")
+    func arabicCharacters() {
+        let result = StorageKey.normalize("الرياض")
+        #expect(result == "الرياض")
+    }
+
+    @Test("Cyrillic: Москва preserved")
+    func cyrillicCharacters() {
+        let result = StorageKey.normalize("Москва")
+        #expect(result == "москва")
+    }
+
+    // MARK: - Whitespace Edge Cases
+
+    @Test("Multiple spaces collapse to a single underscore")
+    func multipleSpaces() {
+        let result = StorageKey.normalize("New   York")
+        #expect(result == "new_york")
+    }
+
+    @Test("Tab and newline treated as whitespace separators")
+    func tabAndNewline() {
+        let result = StorageKey.normalize("New\tYork\nCity")
+        #expect(result == "new_york_city")
+    }
+
+    @Test("Only whitespace normalizes to empty string")
+    func onlyWhitespace() {
+        let result = StorageKey.normalize("   ")
+        #expect(result == "")
+    }
+
+    @Test("Empty string normalizes to empty string")
+    func emptyString() {
+        let result = StorageKey.normalize("")
+        #expect(result == "")
+    }
+
+    // MARK: - Geohash Boundary Behavior
+
+    @Test("Antipodal points produce different geohashes")
+    func antipodalGeohashes() {
+        let northPole = makeLocation(lat: 89.99, lon: 0.0)
+        let southPole = makeLocation(lat: -89.99, lon: 0.0)
+        let keyN = StorageKey.geoKey(from: northPole, level: .geohash)
+        let keyS = StorageKey.geoKey(from: southPole, level: .geohash)
+        #expect(keyN != keyS)
+    }
+
+    @Test("International date line neighbors: 179.99 vs -179.99 longitude")
+    func dateLine() {
+        let east = makeLocation(lat: 0.0, lon: 179.99)
+        let west = makeLocation(lat: 0.0, lon: -179.99)
+        let keyE = StorageKey.geoKey(from: east, level: .geohash)
+        let keyW = StorageKey.geoKey(from: west, level: .geohash)
+        // These are geographically close but on opposite longitude extremes
+        #expect(keyE != keyW, "Date line neighbors should get different geohashes")
+    }
+}
+
+// MARK: - CatalogueFileStore Cross-Geography Edge Cases
+
+@Suite("CatalogueFileStore cross-geography edge cases")
+struct CatalogueFileStoreCrossGeographyTests {
+
+    private func makeIsolatedStore() -> CatalogueFileStore {
+        let uniqueDir = "catalogue_edge_\(UUID().uuidString)"
+        return CatalogueFileStore(baseSubdirectory: uniqueDir)
+    }
+
+    private func makeLocation(
+        countryCode: String = "US",
+        adminArea: String = "California",
+        locality: String = "San Francisco",
+        timezone: String = "America/Los_Angeles",
+        lat: Double = 37.7749,
+        lon: Double = -122.4194
+    ) -> LocationDetailData {
+        LocationDetailData(
+            location: CLLocation(latitude: lat, longitude: lon),
+            countryCode: countryCode,
+            timezone: timezone,
+            adminArea: adminArea,
+            locality: locality
+        )
+    }
+
+    // MARK: - Córdoba: Same City Name, Different Countries
+
+    @Test("Córdoba Argentina cache does not bleed into Córdoba Spain")
+    func cordobaCacheIsolation() async throws {
+        let store = makeIsolatedStore()
+
+        let argSections = [
+            CachedSection(
+                sectionType: "cuisine",
+                displayTitle: "Cuisine",
+                content: .dictionary([
+                    "Argentine cuisine": .dictionary([
+                        "cards": .array([.dictionary(["local_name": .string("Asado")])])
+                    ])
+                ])
+            )
+        ]
+        let cordobaAR = makeLocation(
+            countryCode: "AR", adminArea: "Córdoba", locality: "Córdoba",
+            timezone: "America/Argentina/Cordoba", lat: -31.4201, lon: -64.1888
+        )
+        try await store.persist(sections: argSections, sectionOrder: ["cuisine"], location: cordobaAR)
+
+        let spanishSections = [
+            CachedSection(
+                sectionType: "cuisine",
+                displayTitle: "Cuisine",
+                content: .dictionary([
+                    "Andalusian cuisine": .dictionary([
+                        "cards": .array([.dictionary(["local_name": .string("Salmorejo")])])
+                    ])
+                ])
+            )
+        ]
+        let cordobaES = makeLocation(
+            countryCode: "ES", adminArea: "Andalucía", locality: "Córdoba",
+            timezone: "Europe/Madrid", lat: 37.8882, lon: -4.7794
+        )
+        try await store.persist(sections: spanishSections, sectionOrder: ["cuisine"], location: cordobaES)
+
+        // Restore Argentina — should only see Argentine food
+        let restoredAR = try await store.restore(for: cordobaAR)
+        let cuisineAR = restoredAR.first { $0.sectionType == "cuisine" }
+        if case .dictionary(let dict) = cuisineAR?.content {
+            expectAll([
+                (dict["Argentine cuisine"] != nil, "Argentine cuisine missing from AR restore"),
+                (dict["Andalusian cuisine"] == nil, "Andalusian cuisine leaked into AR restore"),
+            ], success: "AR Córdoba cache contains only Argentine cuisine")
+        } else {
+            Issue.record("AR cuisine should be a dictionary with only Argentine cuisine")
+        }
+
+        // Restore Spain — should only see Spanish food
+        let restoredES = try await store.restore(for: cordobaES)
+        let cuisineES = restoredES.first { $0.sectionType == "cuisine" }
+        if case .dictionary(let dict) = cuisineES?.content {
+            expectAll([
+                (dict["Andalusian cuisine"] != nil, "Andalusian cuisine missing from ES restore"),
+                (dict["Argentine cuisine"] == nil, "Argentine cuisine leaked into ES restore"),
+            ], success: "ES Córdoba cache contains only Andalusian cuisine")
+        } else {
+            Issue.record("ES cuisine should be a dictionary with only Andalusian cuisine")
+        }
+    }
+
+    // MARK: - Portland: Same Locality, Same Country, Different Admin Area
+
+    @Test("Portland Oregon and Portland Maine stay isolated at locality level")
+    func portlandCacheIsolation() async throws {
+        let store = makeIsolatedStore()
+
+        let oregonSections = [
+            CachedSection(
+                sectionType: "overview",
+                displayTitle: "Overview",
+                content: .dictionary(["markdown": .string("# Portland, Oregon — Rose City")])
+            )
+        ]
+        let portlandOR = makeLocation(
+            countryCode: "US", adminArea: "Oregon", locality: "Portland",
+            timezone: "America/Los_Angeles", lat: 45.5152, lon: -122.6784
+        )
+        try await store.persist(sections: oregonSections, sectionOrder: ["overview"], location: portlandOR)
+
+        let maineSections = [
+            CachedSection(
+                sectionType: "overview",
+                displayTitle: "Overview",
+                content: .dictionary(["markdown": .string("# Portland, Maine — Vacationland")])
+            )
+        ]
+        let portlandME = makeLocation(
+            countryCode: "US", adminArea: "Maine", locality: "Portland",
+            timezone: "America/New_York", lat: 43.6591, lon: -70.2568
+        )
+        try await store.persist(sections: maineSections, sectionOrder: ["overview"], location: portlandME)
+
+        // Restore Oregon Portland — should see Rose City (locality-level)
+        let restoredOR = try await store.restore(for: portlandOR)
+        let overviewOR = restoredOR.first { $0.sectionType == "overview" }
+        if case .dictionary(let dict) = overviewOR?.content {
+            #expect(dict["markdown"]?.stringValue?.contains("Rose City") == true)
+        } else {
+            Issue.record("Oregon Portland should have Rose City overview")
+        }
+
+        // Restore Maine Portland — should see Vacationland (locality-level)
+        let restoredME = try await store.restore(for: portlandME)
+        let overviewME = restoredME.first { $0.sectionType == "overview" }
+        if case .dictionary(let dict) = overviewME?.content {
+            #expect(dict["markdown"]?.stringValue?.contains("Vacationland") == true)
+        } else {
+            Issue.record("Maine Portland should have Vacationland overview")
+        }
+    }
+
+    @Test("Portland OR and Portland ME share country-level content via legacy duplicate")
+    func portlandSharesCountryLevel() async throws {
+        let store = makeIsolatedStore()
+
+        let sections = [
+            CachedSection(
+                sectionType: "overview",
+                displayTitle: "Overview",
+                content: .dictionary(["markdown": .string("# USA overview")])
+            )
+        ]
+        let portlandOR = makeLocation(
+            countryCode: "US", adminArea: "Oregon", locality: "Portland",
+            lat: 45.5152, lon: -122.6784
+        )
+        try await store.persist(sections: sections, sectionOrder: ["overview"], location: portlandOR)
+
+        // Restore for Maine Portland — should find country-level content
+        let portlandME = makeLocation(
+            countryCode: "US", adminArea: "Maine", locality: "Portland",
+            lat: 43.6591, lon: -70.2568
+        )
+        let restored = try await store.restore(for: portlandME)
+        #expect(!restored.isEmpty, "Legacy duplicate should provide country-level content")
+    }
+
+    // MARK: - Scoped Content: Cross-Country Isolation
+
+    @Test("Scoped: country cuisine persisted in Argentina does not appear for Spain restore")
+    func scopedCrossContinentIsolation() async throws {
+        let store = makeIsolatedStore()
+
+        let combinedSection = CachedSection(
+            sectionType: "cuisine",
+            displayTitle: "Cuisine",
+            content: .dictionary([
+                "Argentine cuisine": .dictionary([
+                    "qid": .string("Q_AR"),
+                    "cards": .array([.dictionary(["local_name": .string("Empanadas")])]),
+                    "_metadata": .dictionary([
+                        "geo_scope": .string("country"),
+                        "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
+                    ])
+                ]),
+                "Cordobese cuisine": .dictionary([
+                    "qid": .string("Q_COR_AR"),
+                    "cards": .array([.dictionary(["local_name": .string("Locro")])]),
+                    "_metadata": .dictionary([
+                        "geo_scope": .string("locality"),
+                        "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
+                    ])
+                ])
+            ])
+        )
+
+        let cordobaAR = makeLocation(
+            countryCode: "AR", adminArea: "Córdoba", locality: "Córdoba",
+            lat: -31.4201, lon: -64.1888
+        )
+        try await store.persist(sections: [combinedSection], sectionOrder: ["cuisine"], location: cordobaAR)
+
+        // Restore for Córdoba, Spain — different country, should find nothing
+        let cordobaES = makeLocation(
+            countryCode: "ES", adminArea: "Andalucía", locality: "Córdoba",
+            lat: 37.8882, lon: -4.7794
+        )
+        let restoredES = try await store.restore(for: cordobaES)
+        #expect(restoredES.isEmpty, "Spanish Córdoba must not see Argentine cache data")
+    }
+
+    @Test("Scoped: same country different city gets country-scoped items but not locality-scoped")
+    func scopedSameCountryDifferentCity() async throws {
+        let store = makeIsolatedStore()
+
+        let combinedSection = CachedSection(
+            sectionType: "cuisine",
+            displayTitle: "Cuisine",
+            content: .dictionary([
+                "Argentine cuisine": .dictionary([
+                    "qid": .string("Q_AR"),
+                    "cards": .array([.dictionary(["local_name": .string("Empanadas")])]),
+                    "_metadata": .dictionary([
+                        "geo_scope": .string("country"),
+                        "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
+                    ])
+                ]),
+                "Cordobese cuisine": .dictionary([
+                    "qid": .string("Q_COR"),
+                    "cards": .array([.dictionary(["local_name": .string("Locro")])]),
+                    "_metadata": .dictionary([
+                        "geo_scope": .string("locality"),
+                        "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
+                    ])
+                ])
+            ])
+        )
+
+        let cordobaAR = makeLocation(
+            countryCode: "AR", adminArea: "Córdoba", locality: "Córdoba",
+            lat: -31.4201, lon: -64.1888
+        )
+        try await store.persist(sections: [combinedSection], sectionOrder: ["cuisine"], location: cordobaAR)
+
+        // Buenos Aires — same country, different city
+        let buenosAires = makeLocation(
+            countryCode: "AR", adminArea: "Buenos Aires", locality: "Buenos Aires",
+            lat: -34.6037, lon: -58.3816
+        )
+        let restored = try await store.restore(for: buenosAires)
+        let cuisine = restored.first { $0.sectionType == "cuisine" }
+        if case .dictionary(let dict) = cuisine?.content {
+            expectAll([
+                (dict["Argentine cuisine"] != nil, "Country-scoped Argentine cuisine should be available in Buenos Aires"),
+                (dict["Cordobese cuisine"] == nil, "Locality-scoped Cordobese cuisine must NOT appear for different city"),
+            ], success: "Buenos Aires gets country-scoped items only, no Córdoba locality items")
+        } else {
+            Issue.record("Should have country-level cuisine available for Buenos Aires")
+        }
+    }
+
+    // MARK: - Direct-Administered Municipality Cache Behavior
+
+    @Test("Shanghai: admin area == locality caches and restores correctly")
+    func shanghaiCacheRoundTrip() async throws {
+        let store = makeIsolatedStore()
+
+        let sections = [
+            CachedSection(
+                sectionType: "overview",
+                displayTitle: "Overview",
+                content: .dictionary(["markdown": .string("# Shanghai")])
+            )
+        ]
+        let shanghai = makeLocation(
+            countryCode: "CN", adminArea: "Shanghai", locality: "Shanghai",
+            timezone: "Asia/Shanghai", lat: 31.2304, lon: 121.4737
+        )
+        try await store.persist(sections: sections, sectionOrder: ["overview"], location: shanghai)
+
+        let restored = try await store.restore(for: shanghai)
+        #expect(restored.count == 1)
+        let overview = restored.first { $0.sectionType == "overview" }
+        if case .dictionary(let dict) = overview?.content {
+            #expect(dict["markdown"]?.stringValue?.contains("Shanghai") == true)
+        } else {
+            Issue.record("Shanghai overview should round-trip")
+        }
+    }
+
+    @Test("Shanghai cache is NOT locality-matched for Suzhou (different admin + locality)")
+    func shanghaiNotReturnedForSuzhou() async throws {
+        let store = makeIsolatedStore()
+
+        let sections = [
+            CachedSection(
+                sectionType: "overview",
+                displayTitle: "Overview",
+                content: .dictionary(["markdown": .string("# Shanghai overview")])
+            )
+        ]
+        let shanghai = makeLocation(
+            countryCode: "CN", adminArea: "Shanghai", locality: "Shanghai",
+            lat: 31.2304, lon: 121.4737
+        )
+        try await store.persist(sections: sections, sectionOrder: ["overview"], location: shanghai)
+
+        // Suzhou is in Jiangsu, not Shanghai admin area
+        let suzhou = makeLocation(
+            countryCode: "CN", adminArea: "Jiangsu", locality: "Suzhou",
+            lat: 31.2990, lon: 120.5853
+        )
+        let restored = try await store.restore(for: suzhou)
+        // Should get country-level duplicate only (legacy mode), not Shanghai's locality data
+        let overview = restored.first { $0.sectionType == "overview" }
+        expectAll([
+            (!restored.isEmpty, "Country-level duplicate should be found for Suzhou"),
+            (overview != nil, "Country-level overview should be available for Suzhou"),
+        ], success: "Suzhou gets country-level data only, not Shanghai locality data")
+    }
+
+    // MARK: - Diacritics and Normalization in Persistence
+
+    @Test("Diacritics in admin area: Córdoba normalizes consistently for cache hit")
+    func diacriticsInAdminAreaCacheHit() async throws {
+        let store = makeIsolatedStore()
+
+        let sections = [
+            CachedSection(
+                sectionType: "overview",
+                displayTitle: "Overview",
+                content: .dictionary(["markdown": .string("# Córdoba Province")])
+            )
+        ]
+
+        // Persist with diacritics
+        let withDiacritics = makeLocation(
+            countryCode: "AR", adminArea: "Córdoba", locality: "Córdoba",
+            lat: -31.4201, lon: -64.1888
+        )
+        try await store.persist(sections: sections, sectionOrder: ["overview"], location: withDiacritics)
+
+        // Restore with stripped diacritics (as might come from a different geocoder)
+        let withoutDiacritics = makeLocation(
+            countryCode: "AR", adminArea: "Cordoba", locality: "Cordoba",
+            lat: -31.4201, lon: -64.1888
+        )
+        let restored = try await store.restore(for: withoutDiacritics)
+        #expect(!restored.isEmpty, "Diacritic-stripped name should still produce a cache hit")
+    }
+
+    // MARK: - Overwrite Behavior
+
+    @Test("Second persist to the same location overwrites locality file")
+    func overwriteSameLocation() async throws {
+        let store = makeIsolatedStore()
+        let location = makeLocation()
+
+        let v1 = [CachedSection(
+            sectionType: "overview",
+            displayTitle: "Overview",
+            content: .dictionary(["markdown": .string("Version 1")])
+        )]
+        try await store.persist(sections: v1, sectionOrder: ["overview"], location: location)
+
+        let v2 = [CachedSection(
+            sectionType: "overview",
+            displayTitle: "Overview",
+            content: .dictionary(["markdown": .string("Version 2")])
+        )]
+        try await store.persist(sections: v2, sectionOrder: ["overview"], location: location)
+
+        let restored = try await store.restore(for: location)
+        let overview = restored.first { $0.sectionType == "overview" }
+        if case .dictionary(let dict) = overview?.content {
+            #expect(dict["markdown"]?.stringValue == "Version 2")
+        } else {
+            Issue.record("Overwritten content should be Version 2")
+        }
+    }
+
+    // MARK: - Country-Level Overwrite from Different Cities
+
+    @Test("Persisting for Portland ME overwrites country file previously written by Portland OR")
+    func countryLevelOverwriteFromDifferentCity() async throws {
+        let store = makeIsolatedStore()
+
+        let orSections = [CachedSection(
+            sectionType: "overview",
+            displayTitle: "Overview",
+            content: .dictionary(["markdown": .string("Written from Oregon")])
+        )]
+        let portlandOR = makeLocation(
+            countryCode: "US", adminArea: "Oregon", locality: "Portland",
+            lat: 45.5152, lon: -122.6784
+        )
+        try await store.persist(sections: orSections, sectionOrder: ["overview"], location: portlandOR)
+
+        let meSections = [CachedSection(
+            sectionType: "overview",
+            displayTitle: "Overview",
+            content: .dictionary(["markdown": .string("Written from Maine")])
+        )]
+        let portlandME = makeLocation(
+            countryCode: "US", adminArea: "Maine", locality: "Portland",
+            lat: 43.6591, lon: -70.2568
+        )
+        try await store.persist(sections: meSections, sectionOrder: ["overview"], location: portlandME)
+
+        // A third city in the US (Chicago) should see the country-level file from Maine
+        let chicago = makeLocation(
+            countryCode: "US", adminArea: "Illinois", locality: "Chicago",
+            lat: 41.8781, lon: -87.6298
+        )
+        let restored = try await store.restore(for: chicago)
+        let overview = restored.first { $0.sectionType == "overview" }
+        if case .dictionary(let dict) = overview?.content {
+            #expect(dict["markdown"]?.stringValue == "Written from Maine",
+                    "Country file should reflect the last city that wrote it")
+        } else {
+            Issue.record("Chicago should get country-level data")
+        }
+    }
+
+    // MARK: - Multiple Sections with Mixed Scopes Across Ambiguous Names
+
+    @Test("Scoped: two countries with same-name localities keep scoped items isolated")
+    func scopedSameLocalityNameDifferentCountries() async throws {
+        let store = makeIsolatedStore()
+
+        // Persist scoped content for Santiago, Chile
+        let chileSections = [
+            CachedSection(
+                sectionType: "cuisine",
+                displayTitle: "Cuisine",
+                content: .dictionary([
+                    "Chilean cuisine": .dictionary([
+                        "qid": .string("Q_CL"),
+                        "cards": .array([.dictionary(["local_name": .string("Pastel de Choclo")])]),
+                        "_metadata": .dictionary([
+                            "geo_scope": .string("country"),
+                            "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
+                        ])
+                    ]),
+                    "Santiaguino cuisine": .dictionary([
+                        "qid": .string("Q_SCL"),
+                        "cards": .array([.dictionary(["local_name": .string("Completo")])]),
+                        "_metadata": .dictionary([
+                            "geo_scope": .string("locality"),
+                            "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
+                        ])
+                    ])
+                ])
+            )
+        ]
+        let santiagoChile = makeLocation(
+            countryCode: "CL", adminArea: "Santiago Metropolitan", locality: "Santiago",
+            lat: -33.4489, lon: -70.6693
+        )
+        try await store.persist(sections: chileSections, sectionOrder: ["cuisine"], location: santiagoChile)
+
+        // Persist scoped content for Santiago de Compostela, Spain
+        let spainSections = [
+            CachedSection(
+                sectionType: "cuisine",
+                displayTitle: "Cuisine",
+                content: .dictionary([
+                    "Galician cuisine": .dictionary([
+                        "qid": .string("Q_GAL"),
+                        "cards": .array([.dictionary(["local_name": .string("Pulpo a la Gallega")])]),
+                        "_metadata": .dictionary([
+                            "geo_scope": .string("country"),
+                            "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
+                        ])
+                    ])
+                ])
+            )
+        ]
+        let santiagoSpain = makeLocation(
+            countryCode: "ES", adminArea: "Galicia", locality: "Santiago de Compostela",
+            lat: 42.8782, lon: -8.5448
+        )
+        try await store.persist(sections: spainSections, sectionOrder: ["cuisine"], location: santiagoSpain)
+
+        // Restore Chile — should see Chilean + Santiaguino, NOT Galician
+        let restoredCL = try await store.restore(for: santiagoChile)
+        let cuisineCL = restoredCL.first { $0.sectionType == "cuisine" }
+        if case .dictionary(let dict) = cuisineCL?.content {
+            expectAll([
+                (dict["Chilean cuisine"] != nil, "Chilean cuisine missing from Chile restore"),
+                (dict["Santiaguino cuisine"] != nil, "Santiaguino locality cuisine missing from Chile restore"),
+                (dict["Galician cuisine"] == nil, "Galician cuisine leaked into Chile"),
+            ], success: "Santiago Chile: has Chilean + Santiaguino, no Galician leakage")
+        } else {
+            Issue.record("Chile should have its own cuisine sections")
+        }
+
+        // Restore Spain — should see Galician, NOT Chilean
+        let restoredES = try await store.restore(for: santiagoSpain)
+        let cuisineES = restoredES.first { $0.sectionType == "cuisine" }
+        if case .dictionary(let dict) = cuisineES?.content {
+            expectAll([
+                (dict["Galician cuisine"] != nil, "Galician cuisine missing from Spain restore"),
+                (dict["Chilean cuisine"] == nil, "Chilean cuisine leaked into Spain"),
+                (dict["Santiaguino cuisine"] == nil, "Santiaguino locality-scoped item leaked into Spain"),
+            ], success: "Santiago de Compostela: has Galician only, no Chilean leakage")
+        } else {
+            Issue.record("Spain should have its own cuisine sections")
+        }
+    }
+}
