@@ -15,7 +15,7 @@ public typealias LocationDict = [String: JSONValue]
 
 // MARK: - Location Data Source
 /// Source of location data - device GPS or external lookup.
-public enum LocationDataSource: String, Sendable, Codable {
+public enum LocationSource: String, Sendable, Codable {
     /// Location obtained from device GPS/CoreLocation.
     case device
     /// Location obtained from geocoding lookup.
@@ -39,7 +39,7 @@ public struct LocationDetailData: Sendable {
     public let timezone: String?
     
     /// Data source of the location (device GPS or lookup). Can be set at init or assigned later.
-    public var dataSource: LocationDataSource?
+    public var dataSource: LocationSource?
     
     /// Creates LocationDetailData with all geocoding fields.
     public init(
@@ -54,7 +54,7 @@ public struct LocationDetailData: Sendable {
         subLocality: String? = nil,
         subdivisionCode: String? = nil,
         isOcean: Bool? = nil,
-        dataSource: LocationDataSource? = nil
+        dataSource: LocationSource? = nil
     ) {
         self.location = location
         self.placeName = placeName
@@ -231,7 +231,7 @@ public struct LocationDetailData: Sendable {
         self.locality = dict["locality"]?.stringValue
         self.subLocality = dict["sub_locality"]?.stringValue
         self.isOcean = dict["is_ocean"]?.boolValue
-        self.dataSource = dict["data_source"]?.stringValue.flatMap { LocationDataSource(rawValue: $0) }
+        self.dataSource = dict["data_source"]?.stringValue.flatMap { LocationSource(rawValue: $0) }
     }
 
     /// Converts to LocationDict format for events and backend communication.
