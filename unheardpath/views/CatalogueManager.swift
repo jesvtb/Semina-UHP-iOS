@@ -242,15 +242,15 @@ class CatalogueManager: ObservableObject {
     }
     
     /// Restore cached catalogue sections for a known location.
-    /// Called on app launch when EventManager has a last-known location.
-    /// Only restores into empty sections (does not overwrite live SSE data).
+    /// Called on app launch and after pruning when switching locations.
+    /// Uses key-level upsert via `handleCatalogue` so cached keys fill gaps
+    /// without overwriting fresher in-memory content.
     func restoreFromCache(for location: LocationDetailData) async {
         guard let persistence = persistence else { return }
-        guard sections.isEmpty else { return }
         
         do {
             let cached = try await persistence.restore(for: location)
-            for section in cached where !hasCatalogue(sectionType: section.sectionType) {
+            for section in cached {
                 handleCatalogue(
                     sectionType: section.sectionType,
                     displayTitle: section.displayTitle,

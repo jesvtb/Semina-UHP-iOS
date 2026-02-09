@@ -123,6 +123,11 @@ extension MainView {
             catalogueManager.pruneStaleItems(forNewLocation: finalDetail)
             catalogueManager.setLocationData(finalDetail)
 
+            // Immediately restore cached sections so the user sees content while
+            // the backend processes the request. handleCatalogue's key-level upsert
+            // ensures cached keys fill pruned gaps without overwriting surviving content.
+            await catalogueManager.restoreFromCache(for: finalDetail)
+
             let event = UserEventBuilder.build(
                 evtType: "location_searched",
                 evtData: locationDict,
