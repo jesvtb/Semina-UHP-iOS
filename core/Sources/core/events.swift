@@ -36,17 +36,13 @@ public struct UserEvent: Codable, Sendable {
 
 /// Builder for creating UserEvent instances with auto-generated UTC and timezone
 public enum UserEventBuilder {
-    /// Creates a UserEvent with auto-generated UTC datetime and timezone
-    /// - Parameters:
-    ///   - evtType: Event type (app-specific)
-    ///   - evtData: Event data dictionary
-    ///   - sessionId: Optional session identifier (default: nil)
-    /// - Returns: UserEvent instance with current UTC time and device timezone
-    public nonisolated static func build(evtType: String, evtData: [String: JSONValue], sessionId: String? = nil) -> UserEvent {
+    public nonisolated static func build(
+        evtType: String, 
+        evtData: [String: JSONValue], 
+        sessionId: String? = nil) -> UserEvent {
+        
         let now = Date()
-
-        // Create formatter - lightweight enough to create per call
-        // This avoids concurrency issues with static shared state
+        
         let utcFormatter = ISO8601DateFormatter()
         utcFormatter.formatOptions = [.withInternetDateTime, .withTimeZone]
         utcFormatter.timeZone = TimeZone(secondsFromGMT: 0)

@@ -53,7 +53,7 @@ extension MainView {
         do {
             var locationDetailData = try await geocoder.geocodeReverse(location: location)
             locationDetailData.dataSource = .device
-            let locationDict = locationDetailData.toLocationDict()
+            let locationDict = locationDetailData.toJSONDict()
 
             // Prune stale catalogue items before updating location context.
             // Must be called before setLocationData so the old location is still available for comparison.
@@ -116,7 +116,7 @@ extension MainView {
             }
             finalDetail.dataSource = .lookup
 
-            let locationDict = finalDetail.toLocationDict()
+            let locationDict = finalDetail.toJSONDict()
 
             // Prune stale catalogue items before updating location context.
             // Must be called before setLocationData so the old location is still available for comparison.

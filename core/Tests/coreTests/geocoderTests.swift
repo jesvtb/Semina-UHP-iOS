@@ -142,8 +142,8 @@ struct GeocoderTests {
         ]
         expectAll(locationDetailConditions, success: "\(placeName): locationDetail has all expected fields")
         
-        // Verify toLocationDict() produces valid dict
-        let locationDict = locationDetail.toLocationDict()
+        // Verify toJSONDict() produces valid dict
+        let locationDict = locationDetail.toJSONDict()
         printItem(item: locationDict)
     }
 }

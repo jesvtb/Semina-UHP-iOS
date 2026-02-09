@@ -197,7 +197,7 @@ public struct LocationDetailData: Sendable {
         self.dataSource = nil
     }
     
-    /// Creates LocationDetailData from an event dictionary (reverse of `toLocationDict()`).
+    /// Creates LocationDetailData from an event dictionary (reverse of `toJSONDict()`).
     /// Returns nil if the required coordinate cannot be extracted.
     public init?(eventDict dict: [String: JSONValue]) {
         guard case .dictionary(let coordDict) = dict["coordinate"],
@@ -259,7 +259,7 @@ public struct LocationDetailData: Sendable {
     }
 
     /// Converts to LocationDict format for events and backend communication.
-    public func toLocationDict() -> LocationDict {
+    public func toJSONDict() -> LocationDict {
         var coordinateDict: [String: JSONValue] = [
             "lat": .double(location.coordinate.latitude),
             "lng": .double(location.coordinate.longitude),
