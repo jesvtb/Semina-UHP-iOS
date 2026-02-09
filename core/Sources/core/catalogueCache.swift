@@ -17,6 +17,7 @@ public struct CachedLocationSummary: Codable, Sendable {
     public let adminArea: String?
     public let locality: String?
     public let subLocality: String?
+    public let timezone: String?
     public let latitude: Double
     public let longitude: Double
 
@@ -25,6 +26,7 @@ public struct CachedLocationSummary: Codable, Sendable {
         self.adminArea = location.adminArea
         self.locality = location.locality
         self.subLocality = location.subLocality
+        self.timezone = location.timezone
         self.latitude = location.location.coordinate.latitude
         self.longitude = location.location.coordinate.longitude
     }
@@ -34,6 +36,7 @@ public struct CachedLocationSummary: Codable, Sendable {
         LocationDetailData(
             location: CLLocation(latitude: latitude, longitude: longitude),
             countryCode: countryCode,
+            timezone: timezone,
             adminArea: adminArea,
             locality: locality,
             subLocality: subLocality

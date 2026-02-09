@@ -21,7 +21,7 @@ func printItem(item: JSONValue?, heading: String = "parsed data (JSONValue)") {
         return
     }
     let encoder = JSONEncoder()
-    encoder.outputFormatting = .prettyPrinted
+    encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
     guard let jsonData = try? encoder.encode(value),
           let jsonString = String(data: jsonData, encoding: .utf8) else {
         return
@@ -38,7 +38,7 @@ func printItem(item: Data) {
 /// Pretty-prints a Dictionary of JSONValue.
 func printItem(item: [String: JSONValue], heading: String = "parsed data (JSONValue)") {
     let encoder = JSONEncoder()
-    encoder.outputFormatting = .prettyPrinted
+    encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
     guard let jsonData = try? encoder.encode(item),
           let jsonString = String(data: jsonData, encoding: .utf8) else {
         print("================")
@@ -77,7 +77,9 @@ func printItem(item: SSEEvent) {
     case .catalogue(let typeString, let dataValue):
         print("   case: catalogue")
         print("   typeString: \(typeString)")
-        if let jsonData = try? JSONEncoder().encode(dataValue),
+        let catalogueEncoder = JSONEncoder()
+        catalogueEncoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
+        if let jsonData = try? catalogueEncoder.encode(dataValue),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             print("   dataValue:\n\(jsonString)")
         } else {

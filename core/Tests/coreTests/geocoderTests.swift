@@ -103,13 +103,13 @@ struct GeocoderTests {
             // CLLocation(latitude: 1.283333, longitude: 103.833333), // Singapore, Singapore
             // CLLocation(latitude: 5.416011, longitude: 100.338764), // Penang, Malaysia
             // CLLocation(latitude: -6.1753, longitude: 106.8269), // Jakarta, Indonesia
-            // CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
+            CLLocation(latitude: 35.0, longitude: 18.0), // Mediterranean Sea
             // CLLocation(latitude: 41.902222, longitude: 12.453333), // Vatican City, Italy
             // CLLocation(latitude: 30.333000, longitude: 89.051053), // Himlayas
             // CLLocation(latitude: 40.0, longitude: 20.0), // Albania
             // CLLocation(latitude: 42.569393, longitude: 88.465132), // Lake Garda
             // CLLocation(latitude:30.0, longitude: -40.0), 
-            CLLocation(latitude: 68.1386, longitude: 24.2215), // Rovaniemi, Finland
+            // CLLocation(latitude: 68.1386, longitude: 24.2215), // Rovaniemi, Finland
             // CLLocation(latitude: 55.7569, longitude: 37.6151), // Moscow, Russia
         ]
     )
@@ -129,8 +129,8 @@ struct GeocoderTests {
         )
         
         expect(
-            !locationDetailData.timezone.isEmpty,
-            success: "LocationDetailData has timezone: \(locationDetailData.timezone)",
+            locationDetailData.timezone != nil && !locationDetailData.timezone!.isEmpty,
+            success: "LocationDetailData has timezone: \(locationDetailData.timezone ?? "nil")",
             failure: "LocationDetailData missing timezone"
         )
         

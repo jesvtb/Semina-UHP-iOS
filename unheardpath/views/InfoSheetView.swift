@@ -1032,6 +1032,7 @@ private func replaySSEPreviewEvents(into catalogueManager: CatalogueManager) asy
         placeName: "Ancient Rome",
         countryName: "Italy",
         countryCode: "IT",
+        timezone: "Europe/Rome",
         adminArea: "Lazio",
         locality: "Rome"
     )

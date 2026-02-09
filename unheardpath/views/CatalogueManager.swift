@@ -344,23 +344,6 @@ struct DishPopupView: View {
 }
 
 
-/// Builds a minimal LocationDict from CLLocation and optional display strings (for previews and tests).
-func makeLocationDict(location: CLLocation, placeName: String?, countryName: String?) -> LocationDict {
-    var coordDict: [String: JSONValue] = [
-        "lat": .double(location.coordinate.latitude),
-        "lng": .double(location.coordinate.longitude),
-    ]
-    if location.verticalAccuracy > 0 { coordDict["alt"] = .double(location.altitude) }
-    let locationDict: LocationDict = [
-        "coordinate": .dictionary(coordDict),
-        "place_name": .string(placeName ?? ""),
-        "country_name": .string(countryName ?? ""),
-        "timezone": .string(TimeZone.current.identifier),
-        "timestamp": .double(location.timestamp.timeIntervalSince1970),
-    ]
-    return locationDict
-}
-
 
 // MARK: - Catalogue Manager
 /// Manages catalogue sections with dynamic types, allowing selective updates and action-based handling

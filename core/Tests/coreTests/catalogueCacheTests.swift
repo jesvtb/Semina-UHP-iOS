@@ -15,12 +15,14 @@ struct StorageKeyTests {
         adminArea: String? = nil,
         locality: String? = nil,
         subLocality: String? = nil,
+        timezone: String = "America/Los_Angeles",
         lat: Double = 37.7749,
         lon: Double = -122.4194
     ) -> LocationDetailData {
         LocationDetailData(
             location: CLLocation(latitude: lat, longitude: lon),
             countryCode: countryCode,
+            timezone: timezone,
             adminArea: adminArea,
             locality: locality,
             subLocality: subLocality
@@ -201,6 +203,7 @@ struct CachedLocationSummaryTests {
         let original = LocationDetailData(
             location: CLLocation(latitude: 37.7749, longitude: -122.4194),
             countryCode: "US",
+            timezone: "America/Los_Angeles",
             adminArea: "California",
             locality: "San Francisco",
             subLocality: "Mission"
@@ -221,6 +224,7 @@ struct CachedLocationSummaryTests {
         let summary = CachedLocationSummary(from: LocationDetailData(
             location: CLLocation(latitude: 40.7128, longitude: -74.0060),
             countryCode: "US",
+            timezone: "America/New_York",
             adminArea: "New York",
             locality: "New York City"
         ))
@@ -317,12 +321,14 @@ struct CatalogueFileStoreTests {
         countryCode: String = "US",
         adminArea: String = "California",
         locality: String = "San Francisco",
+        timezone: String = "America/Los_Angeles",
         lat: Double = 37.7749,
         lon: Double = -122.4194
     ) -> LocationDetailData {
         LocationDetailData(
             location: CLLocation(latitude: lat, longitude: lon),
             countryCode: countryCode,
+            timezone: timezone,
             adminArea: adminArea,
             locality: locality
         )
@@ -555,6 +561,7 @@ struct CatalogueFileStoreTests {
         let location = LocationDetailData(
             location: CLLocation(latitude: -33.8688, longitude: 151.2093),
             countryCode: "AU",
+            timezone: "Australia/Sydney",
             adminArea: "New South Wales",
             locality: "Sydney"
         )

@@ -36,7 +36,7 @@ public struct LocationDetailData: Sendable {
     public let subdivisionCode: String?
     public let countryName: String?
     public let countryCode: String?
-    public let timezone: String
+    public let timezone: String?
     
     /// Data source of the location (device GPS or lookup). Can be set at init or assigned later.
     public var dataSource: LocationDataSource?
@@ -47,7 +47,7 @@ public struct LocationDetailData: Sendable {
         placeName: String? = nil,
         countryName: String? = nil,
         countryCode: String? = nil,
-        timezone: String = TimeZone.current.identifier,
+        timezone: String? = nil,
         adminArea: String? = nil,
         subAdminArea: String? = nil,
         locality: String? = nil,
@@ -100,7 +100,7 @@ public struct LocationDetailData: Sendable {
         self.placeName = placeName?.isEmpty == true ? nil : placeName
         self.countryName = placemark.country
         self.countryCode = placemark.isoCountryCode?.uppercased()
-        self.timezone = placemark.timeZone?.identifier ?? TimeZone.current.identifier
+        self.timezone = placemark.timeZone?.identifier
         self.adminArea = adminArea?.isEmpty == true ? nil : adminArea
         self.subAdminArea = subAdminArea?.isEmpty == true ? nil : subAdminArea
         self.locality = locality?.isEmpty == true ? nil : locality
@@ -123,11 +123,11 @@ public struct LocationDetailData: Sendable {
         let state = (props["state"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Timezone
-        let timezone: String
+        let timezone: String?
         if let tzObj = props["timezone"] as? [String: Any], let tzName = tzObj["name"] as? String {
             timezone = tzName
         } else {
-            timezone = TimeZone.current.identifier
+            timezone = nil
         }
 
         // Ocean/marine area
@@ -209,7 +209,7 @@ public struct LocationDetailData: Sendable {
         if case .string(let tz) = dict["timezone"] {
             self.timezone = tz
         } else {
-            self.timezone = TimeZone.current.identifier
+            self.timezone = nil
         }
 
         self.placeName = Self.stringValue(dict["place_name"])
@@ -252,8 +252,10 @@ public struct LocationDetailData: Sendable {
         
         var dict: LocationDict = [
             "coordinate": .dictionary(coordinateDict),
-            "timezone": .string(timezone),
         ]
+        if let timezone = timezone, !timezone.isEmpty {
+            dict["timezone"] = .string(timezone)
+        }
         
         if let countryCode = countryCode, !countryCode.isEmpty {
             dict["country_code"] = .string(countryCode)
@@ -287,6 +289,21 @@ public struct LocationDetailData: Sendable {
         }
         
         return dict
+    }
+}
+
+// MARK: - Geocoder Error
+
+/// Errors thrown by Geocoder when reverse geocoding fails.
+public enum GeocoderError: Error, CustomStringConvertible {
+    /// Both MapKit and Geoapify failed to produce valid geocoding results for the given location.
+    case noResults(location: CLLocation)
+
+    public var description: String {
+        switch self {
+        case .noResults(let location):
+            return "Geocoder: no results for (\(location.coordinate.latitude), \(location.coordinate.longitude))"
+        }
     }
 }
 
@@ -350,9 +367,9 @@ public final class Geocoder: Sendable {
     /// Reverse geocodes a location using Geoapify reverse geocode API.
     /// Parses the API response (query + results) into LocationDetailData. Geoapify returns { "query": { lat, lon }, "results": [ { address fields } ] }, not GeoJSON.
     /// - Parameter location: The CLLocation to reverse geocode.
-    /// - Returns: LocationDetailData with location, place_name, country_name, timezone, admin_area, locality, and display fields.
+    /// - Returns: LocationDetailData if the response contains valid results, nil if the response is malformed or empty.
     /// - Throws: Error if the API call fails.
-    public func geocodeReverseGeoapify(location: CLLocation) async throws -> LocationDetailData {
+    public func geocodeReverseGeoapify(location: CLLocation) async throws -> LocationDetailData? {
         let params: [String: String] = [
             "lat": String(location.coordinate.latitude),
             "lon": String(location.coordinate.longitude),
@@ -374,11 +391,12 @@ public final class Geocoder: Sendable {
     }
 
     /// Builds LocationDetailData from Geoapify reverse API response: { "query": { lat, lon }, "results": [ { state, country_code, city, suburb, ... } ] }.
-    private func buildLocationDetailDataFromGeoapifyResponse(location: CLLocation, data: Data) -> LocationDetailData {
+    /// Returns nil if the response is malformed or contains no results.
+    private func buildLocationDetailDataFromGeoapifyResponse(location: CLLocation, data: Data) -> LocationDetailData? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let results = root["results"] as? [[String: Any]],
               let first = results.first else {
-            return LocationDetailData(location: location)
+            return nil
         }
         return LocationDetailData(geoapifyProperties: first, location: location)
     }
@@ -386,7 +404,7 @@ public final class Geocoder: Sendable {
     /// Composite reverse geocode: tries native MapKit first, falls back to Geoapify.
     /// - Parameter location: The CLLocation to reverse geocode.
     /// - Returns: LocationDetailData with location, place_name, country_name, timezone, admin_area, locality, and display fields.
-    /// - Throws: Error if both MapKit and Geoapify fail.
+    /// - Throws: Error if both MapKit and Geoapify fail to produce valid results.
     public func geocodeReverse(location: CLLocation) async throws -> LocationDetailData {
         // Try native MapKit geocoder first
         do {
@@ -398,7 +416,10 @@ public final class Geocoder: Sendable {
             // CLGeocoder failed, fall through to Geoapify
         }
         // Fallback to Geoapify
-        return try await geocodeReverseGeoapify(location: location)
+        if let result = try await geocodeReverseGeoapify(location: location) {
+            return result
+        }
+        throw GeocoderError.noResults(location: location)
     }
     
     /// Builds LocationDetailData from a CLPlacemark (from MapKit/CLGeocoder).
