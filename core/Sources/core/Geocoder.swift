@@ -83,9 +83,6 @@ public struct LocationDetailData: Sendable {
     }
 
     /// Shared initializer for CLPlacemark-based construction.
-    /// - Parameters:
-    ///   - placemark: The CLPlacemark with address fields.
-    ///   - location: The original CLLocation.
     ///   - mapItemTimeZone: Optional timezone from MKMapItem (preferred over placemark.timeZone).
     private init(placemark: CLPlacemark, location: CLLocation, mapItemTimeZone: TimeZone?) {
         var adminArea = placemark.administrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -118,7 +115,7 @@ public struct LocationDetailData: Sendable {
         self.countryCode = placemark.isoCountryCode?.uppercased()
         // Prefer MKMapItem.timeZone (always populated) over placemark.timeZone (may be nil
         // for MKReverseGeocodingRequest results).
-        self.timezone = mapItemTimeZone?.identifier ?? placemark.timeZone?.identifier
+        self.timezone = placemark.timeZone?.identifier ?? mapItemTimeZone?.identifier
         self.adminArea = adminArea?.isEmpty == true ? nil : adminArea
         self.subAdminArea = subAdminArea?.isEmpty == true ? nil : subAdminArea
         self.locality = locality?.isEmpty == true ? nil : locality
@@ -197,7 +194,7 @@ public struct LocationDetailData: Sendable {
         self.dataSource = nil
     }
     
-    /// Creates LocationDetailData from an event dictionary (reverse of `toJSONDict()`).
+    /// Creates LocationDetailData from an event dictionary.
     /// Returns nil if the required coordinate cannot be extracted.
     public init?(eventDict dict: [String: JSONValue]) {
         guard case .dictionary(let coordDict) = dict["coordinate"],
@@ -224,38 +221,17 @@ public struct LocationDetailData: Sendable {
             timestamp: Date()
         )
 
-        if case .string(let tz) = dict["timezone"] {
-            self.timezone = tz
-        } else {
-            self.timezone = nil
-        }
-
-        self.placeName = Self.stringValue(dict["place_name"])
-        self.countryName = Self.stringValue(dict["country_name"])
-        self.countryCode = Self.stringValue(dict["country_code"])
-        self.subdivisionCode = Self.stringValue(dict["subdivision_code"])
-        self.adminArea = Self.stringValue(dict["admin_area"])
-        self.subAdminArea = Self.stringValue(dict["sub_admin_area"])
-        self.locality = Self.stringValue(dict["locality"])
-        self.subLocality = Self.stringValue(dict["sub_locality"])
-
-        if case .bool(let ocean) = dict["is_ocean"] {
-            self.isOcean = ocean
-        } else {
-            self.isOcean = nil
-        }
-
-        if case .string(let ds) = dict["data_source"] {
-            self.dataSource = LocationDataSource(rawValue: ds)
-        } else {
-            self.dataSource = nil
-        }
-    }
-
-    /// Helper to extract an optional String from a JSONValue.
-    private static func stringValue(_ value: JSONValue?) -> String? {
-        guard case .string(let s) = value else { return nil }
-        return s
+        self.timezone = dict["timezone"]?.stringValue
+        self.placeName = dict["place_name"]?.stringValue
+        self.countryName = dict["country_name"]?.stringValue
+        self.countryCode = dict["country_code"]?.stringValue
+        self.subdivisionCode = dict["subdivision_code"]?.stringValue
+        self.adminArea = dict["admin_area"]?.stringValue
+        self.subAdminArea = dict["sub_admin_area"]?.stringValue
+        self.locality = dict["locality"]?.stringValue
+        self.subLocality = dict["sub_locality"]?.stringValue
+        self.isOcean = dict["is_ocean"]?.boolValue
+        self.dataSource = dict["data_source"]?.stringValue.flatMap { LocationDataSource(rawValue: $0) }
     }
 
     /// Converts to LocationDict format for events and backend communication.
