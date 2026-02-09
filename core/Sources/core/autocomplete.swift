@@ -119,7 +119,7 @@ public struct MapSearchResult: @unchecked Sendable {
         return streetParts.joined(separator: " ")
     }
 
-    /// Builds location/subdivisions string from placemark (subLocality, locality, subAdmin, adminArea).
+    /// Builds location detail string from placemark (subLocality, locality, subAdmin, adminArea).
     private static func locationStringFromPlacemark(_ placemark: CLPlacemark) -> String {
         var locationParts: [String] = []
         if let subLocality = placemark.subLocality {

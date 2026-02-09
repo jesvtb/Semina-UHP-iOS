@@ -1030,7 +1030,6 @@ private func replaySSEPreviewEvents(into catalogueManager: CatalogueManager) asy
     let locationData = LocationDetailData(
         location: sampleLocation,
         placeName: "Ancient Rome",
-        subdivisions: "Rome, Lazio",
         countryName: "Italy",
         countryCode: "IT",
         adminArea: "Lazio",

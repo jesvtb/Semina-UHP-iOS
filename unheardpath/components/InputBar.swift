@@ -125,8 +125,16 @@ struct LocationListMenu: View {
                                         .font(.custom(FontFamily.sansRegular, size: TypographyScale.article0.baseSize))
                                         .foregroundColor(Color("onBkgTextColor10"))
 
-                                    if let subdivisions = location.subdivisions {
-                                        Text(subdivisions)
+                                    if let locality = location.locality {
+                                        let detail = [locality, location.adminArea]
+                                            .compactMap { $0 }
+                                            .filter { !$0.isEmpty && $0 != locality }
+                                        let displayText = ([locality] + detail).joined(separator: ", ")
+                                        Text(displayText)
+                                            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
+                                            .foregroundColor(Color("onBkgTextColor30"))
+                                    } else if let adminArea = location.adminArea {
+                                        Text(adminArea)
                                             .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
                                             .foregroundColor(Color("onBkgTextColor30"))
                                     }

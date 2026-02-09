@@ -10,7 +10,7 @@ import Foundation
 import CoreLocation
 import MapKit
 
-/// NewLocation-style dictionary (coordinate, place_name, subdivisions, country_name, etc.) used for events and content. Built by geocodeReverse.
+/// NewLocation-style dictionary (coordinate, place_name, country_name, admin_area, locality, etc.) used for events and content. Built by geocodeReverse.
 public typealias LocationDict = [String: JSONValue]
 
 // MARK: - Location Data Source
@@ -33,7 +33,6 @@ public struct LocationDetailData: Sendable {
     public let locality: String?
     public let adminArea: String?
     public let subAdminArea: String?
-    public let subdivisions: String?
     public let subdivisionCode: String?
     public let countryName: String?
     public let countryCode: String?
@@ -46,7 +45,6 @@ public struct LocationDetailData: Sendable {
     public init(
         location: CLLocation,
         placeName: String? = nil,
-        subdivisions: String? = nil,
         countryName: String? = nil,
         countryCode: String? = nil,
         timezone: String = TimeZone.current.identifier,
@@ -60,7 +58,6 @@ public struct LocationDetailData: Sendable {
     ) {
         self.location = location
         self.placeName = placeName
-        self.subdivisions = subdivisions
         self.countryName = countryName
         self.countryCode = countryCode
         self.timezone = timezone
@@ -75,15 +72,6 @@ public struct LocationDetailData: Sendable {
 
     /// Creates LocationDetailData from a CLPlacemark (MapKit/CLGeocoder result).
     public init(placemark: CLPlacemark, location: CLLocation) {
-        // Build subdivisions: subLocality, locality, subAdministrativeArea, administrativeArea
-        let subdivisionParts = [
-            placemark.subLocality,
-            placemark.locality,
-            placemark.subAdministrativeArea,
-            placemark.administrativeArea
-        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-         .filter { !$0.isEmpty }
-
         var adminArea = placemark.administrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
         let subAdminArea = placemark.subAdministrativeArea?.trimmingCharacters(in: .whitespacesAndNewlines)
         let locality = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -110,7 +98,6 @@ public struct LocationDetailData: Sendable {
 
         self.location = location
         self.placeName = placeName?.isEmpty == true ? nil : placeName
-        self.subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
         self.countryName = placemark.country
         self.countryCode = placemark.isoCountryCode?.uppercased()
         self.timezone = placemark.timeZone?.identifier ?? TimeZone.current.identifier
@@ -134,13 +121,6 @@ public struct LocationDetailData: Sendable {
         let city = (props["city"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let county = (props["county"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let state = (props["state"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Hierarchy order (smallest to largest): neighbourhood -> suburb -> district -> town -> city -> county -> state
-        // Remove duplicates while preserving order
-        var seen = Set<String>()
-        let subdivisionParts = [neighbourhood, suburb, district, town, city, county, state]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty && seen.insert($0).inserted }
 
         // Timezone
         let timezone: String
@@ -187,7 +167,6 @@ public struct LocationDetailData: Sendable {
 
         self.location = location
         self.placeName = placeName?.isEmpty == true ? nil : placeName
-        self.subdivisions = subdivisionParts.isEmpty ? nil : subdivisionParts.joined(separator: ", ")
         self.countryName = props["country"] as? String
         self.countryCode = (props["country_code"] as? String)?.uppercased()
         self.timezone = timezone
@@ -234,7 +213,6 @@ public struct LocationDetailData: Sendable {
         }
 
         self.placeName = Self.stringValue(dict["place_name"])
-        self.subdivisions = Self.stringValue(dict["subdivisions"])
         self.countryName = Self.stringValue(dict["country_name"])
         self.countryCode = Self.stringValue(dict["country_code"])
         self.subdivisionCode = Self.stringValue(dict["subdivision_code"])
@@ -279,9 +257,6 @@ public struct LocationDetailData: Sendable {
         
         if let countryCode = countryCode, !countryCode.isEmpty {
             dict["country_code"] = .string(countryCode)
-        }
-        if let subdivisions = subdivisions, !subdivisions.isEmpty {
-            dict["subdivisions"] = .string(subdivisions)
         }
         if let placeName = placeName, !placeName.isEmpty {
             dict["place_name"] = .string(placeName)
@@ -375,7 +350,7 @@ public final class Geocoder: Sendable {
     /// Reverse geocodes a location using Geoapify reverse geocode API.
     /// Parses the API response (query + results) into LocationDetailData. Geoapify returns { "query": { lat, lon }, "results": [ { address fields } ] }, not GeoJSON.
     /// - Parameter location: The CLLocation to reverse geocode.
-    /// - Returns: LocationDetailData with location, place_name, subdivisions, country_name, timezone, and display fields.
+    /// - Returns: LocationDetailData with location, place_name, country_name, timezone, admin_area, locality, and display fields.
     /// - Throws: Error if the API call fails.
     public func geocodeReverseGeoapify(location: CLLocation) async throws -> LocationDetailData {
         let params: [String: String] = [
@@ -410,7 +385,7 @@ public final class Geocoder: Sendable {
 
     /// Composite reverse geocode: tries native MapKit first, falls back to Geoapify.
     /// - Parameter location: The CLLocation to reverse geocode.
-    /// - Returns: LocationDetailData with location, place_name, subdivisions, country_name, timezone, and display fields.
+    /// - Returns: LocationDetailData with location, place_name, country_name, timezone, admin_area, locality, and display fields.
     /// - Throws: Error if both MapKit and Geoapify fail.
     public func geocodeReverse(location: CLLocation) async throws -> LocationDetailData {
         // Try native MapKit geocoder first

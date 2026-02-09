@@ -345,7 +345,7 @@ struct DishPopupView: View {
 
 
 /// Builds a minimal LocationDict from CLLocation and optional display strings (for previews and tests).
-func makeLocationDict(location: CLLocation, placeName: String?, subdivisions: String?, countryName: String?) -> LocationDict {
+func makeLocationDict(location: CLLocation, placeName: String?, countryName: String?) -> LocationDict {
     var coordDict: [String: JSONValue] = [
         "lat": .double(location.coordinate.latitude),
         "lng": .double(location.coordinate.longitude),
@@ -354,7 +354,6 @@ func makeLocationDict(location: CLLocation, placeName: String?, subdivisions: St
     let locationDict: LocationDict = [
         "coordinate": .dictionary(coordDict),
         "place_name": .string(placeName ?? ""),
-        "subdivisions": .string(subdivisions ?? ""),
         "country_name": .string(countryName ?? ""),
         "timezone": .string(TimeZone.current.identifier),
         "timestamp": .double(location.timestamp.timeIntervalSince1970),

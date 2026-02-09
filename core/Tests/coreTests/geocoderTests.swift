@@ -109,8 +109,8 @@ struct GeocoderTests {
             // CLLocation(latitude: 40.0, longitude: 20.0), // Albania
             // CLLocation(latitude: 42.569393, longitude: 88.465132), // Lake Garda
             // CLLocation(latitude:30.0, longitude: -40.0), 
-            // CLLocation(latitude: 68.1386, longitude: 24.2215), // Rovaniemi, Finland
-            CLLocation(latitude: 55.7569, longitude: 37.6151), // Moscow, Russia
+            CLLocation(latitude: 68.1386, longitude: 24.2215), // Rovaniemi, Finland
+            // CLLocation(latitude: 55.7569, longitude: 37.6151), // Moscow, Russia
         ]
     )
     func geocodeReverse(location: CLLocation) async throws {
