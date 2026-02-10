@@ -3,6 +3,216 @@ import Foundation
 import CoreLocation
 @testable import core
 
+// MARK: - StorageKey Test Cases
+
+/// Test case for `StorageKey.geoKey(from:level:)` parameterised tests.
+///
+/// Each case supplies the location fields and the expected geo-key string
+/// (or `nil` when the key cannot be derived).
+struct GeoKeyTestCase: Sendable, CustomTestStringConvertible {
+    let label: String
+    let countryCode: String?
+    let adminArea: String?
+    let locality: String?
+    let subLocality: String?
+    let level: GeoLevel
+    let expectedKey: String?
+
+    var testDescription: String { label }
+
+    // MARK: - Washington D.C. (punctuation in name)
+
+    static let washingtonDCCountry = GeoKeyTestCase(
+        label: "Washington D.C. country key",
+        countryCode: "US", adminArea: nil, locality: nil, subLocality: nil,
+        level: .country, expectedKey: "us"
+    )
+    static let washingtonDCLocality = GeoKeyTestCase(
+        label: "Washington D.C. periods and commas stripped from locality",
+        countryCode: "US", adminArea: "District of Columbia", locality: "Washington, D.C.", subLocality: nil,
+        level: .locality, expectedKey: "us.district_of_columbia.washington_dc"
+    )
+    static let washingtonDCSublocality = GeoKeyTestCase(
+        label: "Washington D.C. full hierarchy with subLocality",
+        countryCode: "US", adminArea: "District of Columbia", locality: "Washington, D.C.", subLocality: "Capitol Hill",
+        level: .subLocality, expectedKey: "us.district_of_columbia.washington_dc.capitol_hill"
+    )
+
+    // MARK: - Portland disambiguation (same city name, different states)
+
+    static let portlandOregon = GeoKeyTestCase(
+        label: "Portland OR locality key",
+        countryCode: "US", adminArea: "Oregon", locality: "Portland", subLocality: nil,
+        level: .locality, expectedKey: "us.oregon.portland"
+    )
+    static let portlandMaine = GeoKeyTestCase(
+        label: "Portland ME locality key differs from Portland OR",
+        countryCode: "US", adminArea: "Maine", locality: "Portland", subLocality: nil,
+        level: .locality, expectedKey: "us.maine.portland"
+    )
+
+    // MARK: - Córdoba disambiguation (same city name, different countries)
+
+    static let cordobaArgentina = GeoKeyTestCase(
+        label: "Córdoba Argentina: diacritics stripped, distinct from Spain",
+        countryCode: "AR", adminArea: "Córdoba", locality: "Córdoba", subLocality: nil,
+        level: .locality, expectedKey: "ar.cordoba.cordoba"
+    )
+    static let cordobaSpain = GeoKeyTestCase(
+        label: "Córdoba Spain: same name, different country key",
+        countryCode: "ES", adminArea: "Andalucía", locality: "Córdoba", subLocality: nil,
+        level: .locality, expectedKey: "es.andalucia.cordoba"
+    )
+
+    // MARK: - Missing fields
+
+    static let countryKeyMissing = GeoKeyTestCase(
+        label: "country key nil when countryCode missing",
+        countryCode: nil, adminArea: nil, locality: nil, subLocality: nil,
+        level: .country, expectedKey: nil
+    )
+    static let adminAreaKeyMissingAdmin = GeoKeyTestCase(
+        label: "adminArea key nil when adminArea missing",
+        countryCode: "US", adminArea: nil, locality: nil, subLocality: nil,
+        level: .adminArea, expectedKey: nil
+    )
+    static let localityKeyMissingLocality = GeoKeyTestCase(
+        label: "locality key nil when locality missing",
+        countryCode: "US", adminArea: "California", locality: nil, subLocality: nil,
+        level: .locality, expectedKey: nil
+    )
+    static let subLocalityKeyMissingSub = GeoKeyTestCase(
+        label: "subLocality key nil when subLocality missing",
+        countryCode: "US", adminArea: "California", locality: "San Francisco", subLocality: nil,
+        level: .subLocality, expectedKey: nil
+    )
+
+    // MARK: - Côte d'Ivoire (apostrophe + diacritics)
+
+    static let coteIvoireCountry = GeoKeyTestCase(
+        label: "Côte d'Ivoire country key",
+        countryCode: "CI", adminArea: nil, locality: nil, subLocality: nil,
+        level: .country, expectedKey: "ci"
+    )
+    static let coteIvoireLocality = GeoKeyTestCase(
+        label: "Côte d'Ivoire locality: apostrophe and diacritics normalized",
+        countryCode: "CI", adminArea: "Lagunes", locality: "Abidjan", subLocality: "Plateau",
+        level: .subLocality, expectedKey: "ci.lagunes.abidjan.plateau"
+    )
+    static let coteIvoireAdminWithApostrophe = GeoKeyTestCase(
+        label: "admin area with apostrophe: Côte d'Ivoire Vallée du Bandama",
+        countryCode: "CI", adminArea: "Vallée du Bandama", locality: "Bouaké", subLocality: nil,
+        level: .locality, expectedKey: "ci.vallee_du_bandama.bouake"
+    )
+
+    static let allCases: [GeoKeyTestCase] = [
+        // Washington D.C.
+        .washingtonDCCountry, .washingtonDCLocality, .washingtonDCSublocality,
+        // Portland disambiguation
+        .portlandOregon, .portlandMaine,
+        // Córdoba disambiguation
+        .cordobaArgentina, .cordobaSpain,
+        // Missing fields
+        .countryKeyMissing, .adminAreaKeyMissingAdmin,
+        .localityKeyMissingLocality, .subLocalityKeyMissingSub,
+        // Côte d'Ivoire
+        .coteIvoireCountry, .coteIvoireLocality, .coteIvoireAdminWithApostrophe,
+    ]
+}
+
+/// Test case for `StorageKey.normalize(_:)` parameterised tests.
+///
+/// Consolidates basic, diacritic-collision, special-character, non-Latin,
+/// and whitespace edge-case normalize tests into a single parameterised suite.
+struct NormalizeTestCase: Sendable, CustomTestStringConvertible {
+    let label: String
+    let input: String
+    let expected: String
+
+    var testDescription: String { label }
+
+    // MARK: - Basic
+
+    static let commasRemoved = NormalizeTestCase(
+        label: "commas and periods removed", input: "Washington, D.C.", expected: "washington_dc"
+    )
+    static let leadingTrailingTrimmed = NormalizeTestCase(
+        label: "leading/trailing whitespace trimmed", input: "  New York  ", expected: "new_york"
+    )
+
+    // MARK: - Diacritic collisions
+
+    static let zurichUmlaut = NormalizeTestCase(
+        label: "Zürich umlaut stripped", input: "Zürich", expected: "zurich"
+    )
+    static let zurichPlain = NormalizeTestCase(
+        label: "Zurich plain (collides with Zürich)", input: "Zurich", expected: "zurich"
+    )
+    static let saoPauloWithDiacritics = NormalizeTestCase(
+        label: "São Paulo diacritics stripped", input: "São Paulo", expected: "sao_paulo"
+    )
+    static let saoPauloWithout = NormalizeTestCase(
+        label: "Sao Paulo without diacritics (collides)", input: "Sao Paulo", expected: "sao_paulo"
+    )
+    static let nurnbergGerman = NormalizeTestCase(
+        label: "Nürnberg umlaut stripped", input: "Nürnberg", expected: "nurnberg"
+    )
+    static let nurembergEnglish = NormalizeTestCase(
+        label: "Nuremberg stays distinct from Nürnberg", input: "Nuremberg", expected: "nuremberg"
+    )
+
+    // MARK: - Special characters
+
+    static let apostrophe = NormalizeTestCase(
+        label: "apostrophe replaced: Côte d'Ivoire", input: "Côte d'Ivoire", expected: "cote_d_ivoire"
+    )
+    static let hyphenated = NormalizeTestCase(
+        label: "hyphen replaced: Stratford-upon-Avon", input: "Stratford-upon-Avon", expected: "stratford_upon_avon"
+    )
+    static let period = NormalizeTestCase(
+        label: "period stripped: St. Louis", input: "St. Louis", expected: "st_louis"
+    )
+    static let parentheses = NormalizeTestCase(
+        label: "parentheses replaced: Freiburg (Breisgau)", input: "Freiburg (Breisgau)", expected: "freiburg_breisgau"
+    )
+
+    // MARK: - Non-Latin scripts
+
+    static let cjk = NormalizeTestCase(
+        label: "CJK characters preserved", input: "東京都", expected: "東京都"
+    )
+    static let arabic = NormalizeTestCase(
+        label: "Arabic characters preserved", input: "الرياض", expected: "الرياض"
+    )
+    static let cyrillic = NormalizeTestCase(
+        label: "Cyrillic lowercased: Москва", input: "Москва", expected: "москва"
+    )
+
+    // MARK: - Whitespace edge cases
+
+    static let multipleSpaces = NormalizeTestCase(
+        label: "multiple spaces collapse to single underscore", input: "New   York", expected: "new_york"
+    )
+    static let tabAndNewline = NormalizeTestCase(
+        label: "tab and newline treated as separators", input: "New\tYork\nCity", expected: "new_york_city"
+    )
+    static let onlyWhitespace = NormalizeTestCase(
+        label: "only whitespace → empty", input: "   ", expected: ""
+    )
+    static let emptyString = NormalizeTestCase(
+        label: "empty string → empty", input: "", expected: ""
+    )
+
+    static let allCases: [NormalizeTestCase] = [
+        .commasRemoved, .leadingTrailingTrimmed,
+        .zurichUmlaut, .zurichPlain, .saoPauloWithDiacritics, .saoPauloWithout,
+        .nurnbergGerman, .nurembergEnglish,
+        .apostrophe, .hyphenated, .period, .parentheses,
+        .cjk, .arabic, .cyrillic,
+        .multipleSpaces, .tabAndNewline, .onlyWhitespace, .emptyString,
+    ]
+}
+
 // MARK: - StorageKey Tests
 
 @Suite("StorageKey geographic key derivation")
@@ -29,61 +239,23 @@ struct StorageKeyTests {
         )
     }
 
-    // MARK: - Country Level
+    // MARK: - Geo Key Derivation (parameterised)
 
-    @Test("Country key is lowercased country code")
-    func countryKey() {
-        let loc = makeLocation(countryCode: "US")
-        let key = StorageKey.geoKey(from: loc, level: .country)
-        #expect(key == "us")
-    }
-
-    @Test("Country key returns nil when countryCode is missing")
-    func countryKeyMissing() {
-        let loc = makeLocation()
-        let key = StorageKey.geoKey(from: loc, level: .country)
-        #expect(key == nil)
-    }
-
-    // MARK: - Admin Area Level
-
-    @Test("Adminarea key uses dot delimiter")
-    func adminareaKey() {
-        let loc = makeLocation(countryCode: "US", adminArea: "California")
-        let key = StorageKey.geoKey(from: loc, level: .adminarea)
-        #expect(key == "us.california")
-    }
-
-    @Test("Adminarea key returns nil when adminArea is missing")
-    func adminareaKeyMissing() {
-        let loc = makeLocation(countryCode: "US")
-        let key = StorageKey.geoKey(from: loc, level: .adminarea)
-        #expect(key == nil)
-    }
-
-    // MARK: - Locality Level
-
-    @Test("Locality key with spaces becomes underscores within level")
-    func localityKeyWithSpaces() {
-        let loc = makeLocation(countryCode: "US", adminArea: "California", locality: "San Francisco")
-        let key = StorageKey.geoKey(from: loc, level: .locality)
-        #expect(key == "us.california.san_francisco")
-    }
-
-    @Test("Locality key returns nil when locality is missing")
-    func localityKeyMissing() {
-        let loc = makeLocation(countryCode: "US", adminArea: "California")
-        let key = StorageKey.geoKey(from: loc, level: .locality)
-        #expect(key == nil)
-    }
-
-    // MARK: - Sublocality Level
-
-    @Test("Sublocality key includes all four levels")
-    func sublocalityKey() {
-        let loc = makeLocation(countryCode: "US", adminArea: "California", locality: "San Francisco", subLocality: "Mission District")
-        let key = StorageKey.geoKey(from: loc, level: .sublocality)
-        #expect(key == "us.california.san_francisco.mission_district")
+    @Test("geoKey derivation from location", arguments: GeoKeyTestCase.allCases)
+    func geoKeyDerivation(testCase: GeoKeyTestCase) {
+        let loc = makeLocation(
+            countryCode: testCase.countryCode,
+            adminArea: testCase.adminArea,
+            locality: testCase.locality,
+            subLocality: testCase.subLocality
+        )
+        let key = StorageKey.geoKey(from: loc, level: testCase.level)
+        
+        expect(
+            key == testCase.expectedKey,
+            success: "[\(testCase.label)] \ngeoKey = \(key ?? "nil")",
+            failure: "[\(testCase.label)] expected: \n\(testCase.expectedKey ?? "nil"), got \(key ?? "nil")"
+        )
     }
 
     // MARK: - Geohash Level
@@ -121,11 +293,11 @@ struct StorageKeyTests {
     func applicableLevelsComplete() {
         let loc = makeLocation(countryCode: "CN", adminArea: "Jiangsu", locality: "Suzhou", subLocality: "Gusu")
         let levels = StorageKey.applicableLevels(from: loc)
-        #expect(levels.count == 5) // country, adminarea, locality, sublocality, geohash
+        #expect(levels.count == 5) // country, adminArea, locality, subLocality, geohash
         #expect(levels[0].level == .country)
-        #expect(levels[1].level == .adminarea)
+        #expect(levels[1].level == .adminArea)
         #expect(levels[2].level == .locality)
-        #expect(levels[3].level == .sublocality)
+        #expect(levels[3].level == .subLocality)
         #expect(levels[4].level == .geohash)
     }
 
@@ -133,32 +305,23 @@ struct StorageKeyTests {
     func applicableLevelsPartial() {
         let loc = makeLocation(countryCode: "US", adminArea: "California")
         let levels = StorageKey.applicableLevels(from: loc)
-        // Should have: country, adminarea, geohash (skips locality/sublocality)
+        // Should have: country, adminArea, geohash (skips locality/subLocality)
         #expect(levels.count == 3)
         #expect(levels[0].level == .country)
-        #expect(levels[1].level == .adminarea)
+        #expect(levels[1].level == .adminArea)
         #expect(levels[2].level == .geohash)
     }
 
-    // MARK: - Normalization
+    // MARK: - Normalization (parameterised)
 
-    @Test("Diacritics are stripped: São Paulo → sao_paulo")
-    func normalizeDiacritics() {
-        let loc = makeLocation(countryCode: "BR", adminArea: "São Paulo", locality: "São Paulo")
-        let key = StorageKey.geoKey(from: loc, level: .locality)
-        #expect(key == "br.sao_paulo.sao_paulo")
-    }
-
-    @Test("Commas are removed")
-    func normalizeCommas() {
-        let result = StorageKey.normalize("Washington, D.C.")
-        #expect(result == "washington_d.c.")
-    }
-
-    @Test("Leading/trailing whitespace is trimmed")
-    func normalizeTrimming() {
-        let result = StorageKey.normalize("  New York  ")
-        #expect(result == "new_york")
+    @Test("normalize transforms input correctly", arguments: NormalizeTestCase.allCases)
+    func normalizeTransform(testCase: NormalizeTestCase) {
+        let result = StorageKey.normalize(testCase.input)
+        expect(
+            result == testCase.expected,
+            success: "[\(testCase.label)] normalize(\"\(testCase.input)\") = \"\(result)\"",
+            failure: "[\(testCase.label)] expected \"\(testCase.expected)\", got \"\(result)\""
+        )
     }
 }
 
@@ -246,33 +409,7 @@ struct CatalogueFileStoreTests {
         return CatalogueFileStore(baseSubdirectory: uniqueDir)
     }
 
-    /// Legacy sections (no _metadata) for backward-compat tests.
-    private func makeLegacySections() -> [CachedSection] {
-        [
-            CachedSection(
-                sectionType: "overview",
-                displayTitle: "Overview",
-                content: .dictionary(["markdown": .string("# Welcome to San Francisco")])
-            ),
-            CachedSection(
-                sectionType: "cuisine",
-                displayTitle: "Regional Cuisine",
-                content: .dictionary([
-                    "California cuisine": .dictionary([
-                        "cards": .array([
-                            .dictionary([
-                                "local_name": .string("Fish Tacos"),
-                                "global_name": .string("Fish Tacos"),
-                                "description": .string("Fresh fish in a tortilla")
-                            ])
-                        ])
-                    ])
-                ])
-            )
-        ]
-    }
-
-    /// Scoped sections (with _metadata.geo_scope) mimicking the new backend behavior.
+    /// Scoped sections (with _metadata.location.geoscope) mimicking the new backend behavior.
     private func makeScopedSections() -> [CachedSection] {
         [
             CachedSection(
@@ -282,7 +419,10 @@ struct CatalogueFileStoreTests {
                     "country_overview": .dictionary([
                         "markdown": .string("# Welcome to China"),
                         "_metadata": .dictionary([
-                            "geo_scope": .string("country"),
+                            "location": .dictionary([
+                                "geoscope": .string("country"),
+                                "context": .dictionary([:])
+                            ]),
                             "interface": .dictionary(["markdown": .dictionary([:])])
                         ])
                     ])
@@ -296,7 +436,10 @@ struct CatalogueFileStoreTests {
                         "qid": .string("Q123"),
                         "cards": .array([.dictionary(["local_name": .string("Kung Pao Chicken")])]),
                         "_metadata": .dictionary([
-                            "geo_scope": .string("country"),
+                            "location": .dictionary([
+                                "geoscope": .string("country"),
+                                "context": .dictionary([:])
+                            ]),
                             "interface": .dictionary([
                                 "card": .dictionary(["render_type": .string("dish")])
                             ])
@@ -306,7 +449,10 @@ struct CatalogueFileStoreTests {
                         "qid": .string("Q456"),
                         "cards": .array([.dictionary(["local_name": .string("Lion's Head Meatball")])]),
                         "_metadata": .dictionary([
-                            "geo_scope": .string("locality"),
+                            "location": .dictionary([
+                                "geoscope": .string("locality"),
+                                "context": .dictionary([:])
+                            ]),
                             "interface": .dictionary([
                                 "card": .dictionary(["render_type": .string("dish")])
                             ])
@@ -334,41 +480,9 @@ struct CatalogueFileStoreTests {
         )
     }
 
-    // MARK: - Legacy (no _metadata) Tests
+    // MARK: - Scoped (_metadata.location.geoscope) Tests
 
-    @Test("Legacy: persist and restore sections for the same location")
-    func legacyPersistAndRestore() async throws {
-        let store = makeIsolatedStore()
-        let sections = makeLegacySections()
-        let location = makeLocation()
-
-        try await store.persist(sections: sections, sectionOrder: ["overview", "cuisine"], location: location)
-
-        let restored = try await store.restore(for: location)
-        #expect(restored.count == 2)
-        #expect(restored[0].sectionType == "overview")
-        #expect(restored[1].sectionType == "cuisine")
-    }
-
-    @Test("Legacy: cross-city reuse via country duplicate")
-    func legacyCrossCityReuse() async throws {
-        let store = makeIsolatedStore()
-        let sections = makeLegacySections()
-        let sfLocation = makeLocation(locality: "San Francisco")
-
-        try await store.persist(sections: sections, sectionOrder: ["overview", "cuisine"], location: sfLocation)
-
-        // Los Angeles — same country, different city
-        let laLocation = makeLocation(locality: "Los Angeles", lat: 34.0522, lon: -118.2437)
-        let restored = try await store.restore(for: laLocation)
-
-        #expect(!restored.isEmpty)
-        #expect(restored.count == 2) // From country-level duplicate
-    }
-
-    // MARK: - Scoped (_metadata.geo_scope) Tests
-
-    @Test("Scoped: splits content by _metadata.geo_scope into separate context files")
+    @Test("Scoped: splits content by _metadata.location.geoscope into separate context files")
     func scopedPersistSplits() async throws {
         let store = makeIsolatedStore()
         let sections = makeScopedSections()
@@ -399,11 +513,12 @@ struct CatalogueFileStoreTests {
             #expect(dict["Huaiyang cuisine"] != nil)   // from locality
             // _metadata should be preserved in stored content for UI rendering config
             if case .dictionary(let chineseDict) = dict["Chinese cuisine"],
-               case .dictionary(let metaDict) = chineseDict["_metadata"] {
-                #expect(metaDict["geo_scope"]?.stringValue == "country")
+               case .dictionary(let metaDict) = chineseDict["_metadata"],
+               case .dictionary(let locDict) = metaDict["location"] {
+                #expect(locDict["geoscope"]?.stringValue == "country")
                 #expect(metaDict["interface"] != nil)
             } else {
-                Issue.record("Chinese cuisine should retain _metadata with geo_scope and interface")
+                Issue.record("Chinese cuisine should retain _metadata with location.geoscope and interface")
             }
         } else {
             Issue.record("Cuisine content should be a dictionary")
@@ -459,7 +574,10 @@ struct CatalogueFileStoreTests {
                         "qid": .string("Q123-updated"),
                         "cards": .array([.dictionary(["local_name": .string("Peking Duck")])]),
                         "_metadata": .dictionary([
-                            "geo_scope": .string("locality"),
+                            "location": .dictionary([
+                                "geoscope": .string("locality"),
+                                "context": .dictionary([:])
+                            ]),
                             "interface": .dictionary([
                                 "card": .dictionary(["render_type": .string("dish")])
                             ])
@@ -514,7 +632,10 @@ struct CatalogueFileStoreTests {
                     "country_overview": .dictionary([
                         "markdown": .string("# Test"),
                         "_metadata": .dictionary([
-                            "geo_scope": .string("country"),
+                            "location": .dictionary([
+                                "geoscope": .string("country"),
+                                "context": .dictionary([:])
+                            ]),
                             "interface": .dictionary(["markdown": .dictionary([:])])
                         ])
                     ])
@@ -531,8 +652,9 @@ struct CatalogueFileStoreTests {
            case .dictionary(let countryOverview) = dict["country_overview"] {
             #expect(countryOverview["markdown"]?.stringValue == "# Test")
             // _metadata should be preserved so UI rendering config survives persistence
-            if case .dictionary(let metaDict) = countryOverview["_metadata"] {
-                #expect(metaDict["geo_scope"]?.stringValue == "country")
+            if case .dictionary(let metaDict) = countryOverview["_metadata"],
+               case .dictionary(let locDict) = metaDict["location"] {
+                #expect(locDict["geoscope"]?.stringValue == "country")
                 #expect(metaDict["interface"] != nil)
             } else {
                 Issue.record("_metadata should be preserved in persisted content")
@@ -600,56 +722,211 @@ struct CatalogueFileStoreTests {
 
 // MARK: - Geo-Scope Helper Tests
 
-@Suite("CatalogueFileStore geo-scope helpers")
-struct GeoScopeHelperTests {
+/// A single test-case value for the `contentHasGeoScope` parameterised suite.
+///
+/// - `expectGeoscope`: whether `contentHasGeoScope` should return `true`.
+/// - `contextMatched`: whether the `_metadata.location.context` dict contains
+///   a key for the declared geoscope level whose value is non-nil (i.e. the
+///   backend actually filled in the geographic identity for that level).
+struct GeoScopeTestCase: Sendable, CustomTestStringConvertible {
+    let label: String
+    let content: JSONValue
+    let expectGeoscope: Bool
+    let contextMatched: Bool
 
-    @Test("contentHasGeoScope detects _metadata.geo_scope in keyed items")
-    func itemLevelGeoScope() {
-        let content: JSONValue = .dictionary([
+    var testDescription: String { label }
+
+    // MARK: - Factory helpers
+
+    /// Item with full geoscope + populated context at the given level.
+    static let itemWithCountryContext = GeoScopeTestCase(
+        label: "item with geoscope=country and country_code in context",
+        content: .dictionary([
             "Chinese cuisine": .dictionary([
                 "qid": .string("Q123"),
                 "_metadata": .dictionary([
-                    "geo_scope": .string("country")
+                    "location": .dictionary([
+                        "geoscope": .string("country"),
+                        "context": .dictionary([
+                            "country_code": .string("CN")
+                        ])
+                    ])
                 ])
             ])
-        ])
-        #expect(CatalogueFileStore.contentHasGeoScope(content) == true)
-    }
+        ]),
+        expectGeoscope: true,
+        contextMatched: true
+    )
 
-    @Test("contentHasGeoScope returns false when no _metadata.geo_scope present")
-    func noGeoScope() {
-        let content: JSONValue = .dictionary([
+    /// Item with geoscope but an empty context dict.
+    static let itemWithEmptyContext = GeoScopeTestCase(
+        label: "item with geoscope=country but empty context",
+        content: .dictionary([
+            "Chinese cuisine": .dictionary([
+                "qid": .string("Q123"),
+                "_metadata": .dictionary([
+                    "location": .dictionary([
+                        "geoscope": .string("country"),
+                        "context": .dictionary([:])
+                    ])
+                ])
+            ])
+        ]),
+        expectGeoscope: true,
+        contextMatched: false
+    )
+
+    /// Item with geoscope=locality and context that has locality key.
+    static let itemWithLocalityContext = GeoScopeTestCase(
+        label: "item with geoscope=locality and locality in context",
+        content: .dictionary([
+            "Huaiyang cuisine": .dictionary([
+                "qid": .string("Q456"),
+                "_metadata": .dictionary([
+                    "location": .dictionary([
+                        "geoscope": .string("locality"),
+                        "context": .dictionary([
+                            "country_code": .string("CN"),
+                            "admin_area": .string("Jiangsu"),
+                            "locality": .string("Huai'an")
+                        ])
+                    ])
+                ])
+            ])
+        ]),
+        expectGeoscope: true,
+        contextMatched: true
+    )
+
+    /// Item with geoscope=locality but context only has country_code (missing locality key).
+    static let itemWithMismatchedContext = GeoScopeTestCase(
+        label: "item with geoscope=locality but context missing locality key",
+        content: .dictionary([
+            "Some dish": .dictionary([
+                "qid": .string("Q789"),
+                "_metadata": .dictionary([
+                    "location": .dictionary([
+                        "geoscope": .string("locality"),
+                        "context": .dictionary([
+                            "country_code": .string("JP")
+                        ])
+                    ])
+                ])
+            ])
+        ]),
+        expectGeoscope: true,
+        contextMatched: false
+    )
+
+    /// Plain content with no _metadata at all.
+    static let noMetadata = GeoScopeTestCase(
+        label: "plain content without _metadata",
+        content: .dictionary([
             "markdown": .string("# Hello")
-        ])
-        #expect(CatalogueFileStore.contentHasGeoScope(content) == false)
-    }
+        ]),
+        expectGeoscope: false,
+        contextMatched: false
+    )
 
-    @Test("contentHasGeoScope returns false for _metadata without geo_scope")
-    func metadataWithoutGeoScope() {
-        let content: JSONValue = .dictionary([
+    /// _metadata present but missing location.geoscope.
+    static let metadataWithoutGeoscope = GeoScopeTestCase(
+        label: "_metadata present but no location.geoscope",
+        content: .dictionary([
             "item": .dictionary([
                 "_metadata": .dictionary([
                     "interface": .dictionary(["markdown": .dictionary([:])])
                 ])
             ])
-        ])
-        #expect(CatalogueFileStore.contentHasGeoScope(content) == false)
+        ]),
+        expectGeoscope: false,
+        contextMatched: false
+    )
+
+    /// Collects all cases for the parameterised test.
+    static let allCases: [GeoScopeTestCase] = [
+        .itemWithCountryContext,
+        .itemWithEmptyContext,
+        .itemWithLocalityContext,
+        .itemWithMismatchedContext,
+        .noMetadata,
+        .metadataWithoutGeoscope,
+    ]
+}
+
+// MARK: - Context-key lookup for contextMatched verification
+
+/// Returns the `_metadata.location.context` key that corresponds to a given
+/// geoscope string (e.g. `"country"` → `"country_code"`).
+private func contextKeyForGeoscope(_ geoscope: String) -> String? {
+    switch geoscope {
+    case "country":      return "country_code"
+    case "admin_area":    return "admin_area"
+    case "locality":     return "locality"
+    case "sub_locality":  return "sub_locality"
+    default:             return nil
+    }
+}
+
+/// Extracts the first `_metadata.location.context` dict from the content and
+/// checks whether the key corresponding to the declared geoscope level has a
+/// non-nil, non-empty string value.
+private func evaluateContextMatched(content: JSONValue) -> Bool {
+    guard case .dictionary(let dict) = content else { return false }
+    for (key, value) in dict {
+        if key.hasPrefix("_") { continue }
+        guard case .dictionary(let itemDict) = value,
+              case .dictionary(let metaDict) = itemDict["_metadata"],
+              case .dictionary(let locDict) = metaDict["location"],
+              let geoscope = locDict["geoscope"]?.stringValue,
+              case .dictionary(let contextDict) = locDict["context"],
+              let expectedKey = contextKeyForGeoscope(geoscope),
+              case .string(let val) = contextDict[expectedKey],
+              !val.isEmpty else {
+            continue
+        }
+        return true
+    }
+    return false
+}
+
+@Suite("CatalogueFileStore geo-scope helpers")
+struct GeoScopeHelperTests {
+
+    // MARK: - contentHasGeoScope + contextMatched (parameterised)
+
+    @Test("contentHasGeoScope and contextMatched expectations", arguments: GeoScopeTestCase.allCases)
+    func geoScopeDetection(testCase: GeoScopeTestCase) {
+        let hasGeoScope = CatalogueFileStore.contentHasGeoScope(testCase.content)
+        let isContextMatched = evaluateContextMatched(content: testCase.content)
+
+        expectAll([
+            (hasGeoScope == testCase.expectGeoscope,
+             "[\(testCase.label)] expectGeoscope: expected \(testCase.expectGeoscope), got \(hasGeoScope)"),
+            (isContextMatched == testCase.contextMatched,
+             "[\(testCase.label)] contextMatched: expected \(testCase.contextMatched), got \(isContextMatched)"),
+        ], success: "[\(testCase.label)] geoscope=\(testCase.expectGeoscope), contextMatched=\(testCase.contextMatched)")
     }
 
-    @Test("extractGeoScopedFragments splits items by _metadata.geo_scope into multiple levels")
+    @Test("extractGeoScopedFragments splits items by _metadata.location.geoscope into multiple levels")
     func extractItemLevel() {
         let content: JSONValue = .dictionary([
             "Chinese cuisine": .dictionary([
                 "qid": .string("Q123"),
                 "_metadata": .dictionary([
-                    "geo_scope": .string("country"),
+                    "location": .dictionary([
+                        "geoscope": .string("country"),
+                        "context": .dictionary([:])
+                    ]),
                     "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                 ])
             ]),
             "Huaiyang cuisine": .dictionary([
                 "qid": .string("Q456"),
                 "_metadata": .dictionary([
-                    "geo_scope": .string("locality"),
+                    "location": .dictionary([
+                        "geoscope": .string("locality"),
+                        "context": .dictionary([:])
+                    ]),
                     "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                 ])
             ])
@@ -668,8 +945,9 @@ struct GeoScopeHelperTests {
             if case .dictionary(let inner) = dict["Chinese cuisine"] {
                 #expect(inner["qid"]?.stringValue == "Q123")
                 // _metadata should be preserved for UI rendering config
-                if case .dictionary(let metaDict) = inner["_metadata"] {
-                    #expect(metaDict["geo_scope"]?.stringValue == "country")
+                if case .dictionary(let metaDict) = inner["_metadata"],
+                   case .dictionary(let locDict) = metaDict["location"] {
+                    #expect(locDict["geoscope"]?.stringValue == "country")
                     #expect(metaDict["interface"] != nil)
                 } else {
                     Issue.record("_metadata should be preserved in extracted fragments")
@@ -758,7 +1036,10 @@ struct JSONValueMetadataTests {
         let value: JSONValue = .dictionary([
             "markdown": .string("hello"),
             "_metadata": .dictionary([
-                "geo_scope": .string("country"),
+                "location": .dictionary([
+                    "geoscope": .string("country"),
+                    "context": .dictionary([:])
+                ]),
                 "interface": .dictionary(["markdown": .dictionary([:])])
             ]),
             "_internal": .string("debug")
@@ -777,7 +1058,10 @@ struct JSONValueMetadataTests {
             "Chinese cuisine": .dictionary([
                 "qid": .string("Q123"),
                 "_metadata": .dictionary([
-                    "geo_scope": .string("country")
+                    "location": .dictionary([
+                        "geoscope": .string("country"),
+                        "context": .dictionary([:])
+                    ])
                 ])
             ])
         ])
@@ -866,8 +1150,8 @@ struct StorageKeyEdgeCaseTests {
 
         let keyGE = StorageKey.geoKey(from: georgiaCountry, level: .country)
         let keyUS = StorageKey.geoKey(from: georgiaState, level: .country)
-        let adminGE = StorageKey.geoKey(from: georgiaCountry, level: .adminarea)
-        let adminUS = StorageKey.geoKey(from: georgiaState, level: .adminarea)
+        let adminGE = StorageKey.geoKey(from: georgiaCountry, level: .adminArea)
+        let adminUS = StorageKey.geoKey(from: georgiaState, level: .adminArea)
 
         expectAll([
             (keyGE == "ge", "Georgia country key should be 'ge', got '\(keyGE ?? "nil")'"),
@@ -935,40 +1219,6 @@ struct StorageKeyEdgeCaseTests {
         ], success: "4 Springfields: unique locality keys, shared 'us' country key")
     }
 
-    // MARK: - Diacritic Normalization Collisions
-
-    @Test("Zürich and Zurich normalize to the same key — intentional collision")
-    func zurichDiacriticCollision() {
-        let withUmlaut = StorageKey.normalize("Zürich")
-        let plain = StorageKey.normalize("Zurich")
-        expectAll([
-            (withUmlaut == "zurich", "Zürich should normalize to 'zurich', got '\(withUmlaut)'"),
-            (plain == "zurich", "Zurich should normalize to 'zurich', got '\(plain)'"),
-            (withUmlaut == plain, "Zürich and Zurich should produce identical keys"),
-        ], success: "Zürich/Zurich normalize identically (intentional collision)")
-    }
-
-    @Test("São Paulo and Sao Paulo normalize identically")
-    func saoPauloDiacriticCollision() {
-        let withDiacritics = StorageKey.normalize("São Paulo")
-        let without = StorageKey.normalize("Sao Paulo")
-        expectAll([
-            (withDiacritics == "sao_paulo", "São Paulo should normalize to 'sao_paulo', got '\(withDiacritics)'"),
-            (without == "sao_paulo", "Sao Paulo should normalize to 'sao_paulo', got '\(without)'"),
-        ], success: "São Paulo / Sao Paulo normalize identically")
-    }
-
-    @Test("Nürnberg vs Nuremberg: different names do NOT collide")
-    func nurnbergVsNuremberg() {
-        let german = StorageKey.normalize("Nürnberg")
-        let english = StorageKey.normalize("Nuremberg")
-        expectAll([
-            (german == "nurnberg", "Nürnberg should normalize to 'nurnberg', got '\(german)'"),
-            (english == "nuremberg", "Nuremberg should normalize to 'nuremberg', got '\(english)'"),
-            (german != english, "Nürnberg and Nuremberg should NOT collide"),
-        ], success: "Nürnberg vs Nuremberg: distinct keys (different names)")
-    }
-
     // MARK: - Direct-Administered Municipalities
 
     @Test("Shanghai — admin area equals locality produces valid but redundant key segments")
@@ -978,7 +1228,7 @@ struct StorageKeyEdgeCaseTests {
             lat: 31.2304, lon: 121.4737
         )
         let localityKey = StorageKey.geoKey(from: shanghai, level: .locality)
-        let adminKey = StorageKey.geoKey(from: shanghai, level: .adminarea)
+        let adminKey = StorageKey.geoKey(from: shanghai, level: .adminArea)
         expectAll([
             (localityKey == "cn.shanghai.shanghai", "Locality key should be 'cn.shanghai.shanghai', got '\(localityKey ?? "nil")'"),
             (adminKey == "cn.shanghai", "Admin key should be 'cn.shanghai', got '\(adminKey ?? "nil")'"),
@@ -994,81 +1244,9 @@ struct StorageKeyEdgeCaseTests {
         )
         let levels = StorageKey.applicableLevels(from: beijing)
         expectAll([
-            (levels.count == 4, "Expected 4 levels (country, adminarea, locality, geohash), got \(levels.count)"),
-            (levels.map(\.level) == [.country, .adminarea, .locality, .geohash], "Levels should be in order: country, adminarea, locality, geohash"),
+            (levels.count == 4, "Expected 4 levels (country, adminArea, locality, geohash), got \(levels.count)"),
+            (levels.map(\.level) == [.country, .adminArea, .locality, .geohash], "Levels should be in order: country, adminArea, locality, geohash"),
         ], success: "Beijing: admin == locality does not collapse hierarchy")
-    }
-
-    // MARK: - Special Characters in Names
-
-    @Test("Apostrophe in name is preserved: Côte d'Ivoire")
-    func apostropheInName() {
-        let result = StorageKey.normalize("Côte d'Ivoire")
-        #expect(result == "cote_d'ivoire")
-    }
-
-    @Test("Hyphenated name is preserved: Stratford-upon-Avon")
-    func hyphenatedName() {
-        let result = StorageKey.normalize("Stratford-upon-Avon")
-        #expect(result == "stratford-upon-avon")
-    }
-
-    @Test("Period in name is preserved: St. Louis")
-    func periodInName() {
-        let result = StorageKey.normalize("St. Louis")
-        #expect(result == "st._louis")
-    }
-
-    @Test("Parentheses in name are preserved: Freiburg (Breisgau)")
-    func parenthesesInName() {
-        let result = StorageKey.normalize("Freiburg (Breisgau)")
-        #expect(result == "freiburg_(breisgau)")
-    }
-
-    // MARK: - Non-Latin Scripts
-
-    @Test("CJK characters are preserved in key")
-    func cjkCharacters() {
-        let result = StorageKey.normalize("東京都")
-        #expect(result == "東京都")
-    }
-
-    @Test("Arabic characters are preserved in key")
-    func arabicCharacters() {
-        let result = StorageKey.normalize("الرياض")
-        #expect(result == "الرياض")
-    }
-
-    @Test("Cyrillic: Москва preserved")
-    func cyrillicCharacters() {
-        let result = StorageKey.normalize("Москва")
-        #expect(result == "москва")
-    }
-
-    // MARK: - Whitespace Edge Cases
-
-    @Test("Multiple spaces collapse to a single underscore")
-    func multipleSpaces() {
-        let result = StorageKey.normalize("New   York")
-        #expect(result == "new_york")
-    }
-
-    @Test("Tab and newline treated as whitespace separators")
-    func tabAndNewline() {
-        let result = StorageKey.normalize("New\tYork\nCity")
-        #expect(result == "new_york_city")
-    }
-
-    @Test("Only whitespace normalizes to empty string")
-    func onlyWhitespace() {
-        let result = StorageKey.normalize("   ")
-        #expect(result == "")
-    }
-
-    @Test("Empty string normalizes to empty string")
-    func emptyString() {
-        let result = StorageKey.normalize("")
-        #expect(result == "")
     }
 
     // MARK: - Geohash Boundary Behavior
@@ -1276,7 +1454,10 @@ struct CatalogueFileStoreCrossGeographyTests {
                     "qid": .string("Q_AR"),
                     "cards": .array([.dictionary(["local_name": .string("Empanadas")])]),
                     "_metadata": .dictionary([
-                        "geo_scope": .string("country"),
+                        "location": .dictionary([
+                            "geoscope": .string("country"),
+                            "context": .dictionary([:])
+                        ]),
                         "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                     ])
                 ]),
@@ -1284,7 +1465,10 @@ struct CatalogueFileStoreCrossGeographyTests {
                     "qid": .string("Q_COR_AR"),
                     "cards": .array([.dictionary(["local_name": .string("Locro")])]),
                     "_metadata": .dictionary([
-                        "geo_scope": .string("locality"),
+                        "location": .dictionary([
+                            "geoscope": .string("locality"),
+                            "context": .dictionary([:])
+                        ]),
                         "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                     ])
                 ])
@@ -1318,7 +1502,10 @@ struct CatalogueFileStoreCrossGeographyTests {
                     "qid": .string("Q_AR"),
                     "cards": .array([.dictionary(["local_name": .string("Empanadas")])]),
                     "_metadata": .dictionary([
-                        "geo_scope": .string("country"),
+                        "location": .dictionary([
+                            "geoscope": .string("country"),
+                            "context": .dictionary([:])
+                        ]),
                         "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                     ])
                 ]),
@@ -1326,7 +1513,10 @@ struct CatalogueFileStoreCrossGeographyTests {
                     "qid": .string("Q_COR"),
                     "cards": .array([.dictionary(["local_name": .string("Locro")])]),
                     "_metadata": .dictionary([
-                        "geo_scope": .string("locality"),
+                        "location": .dictionary([
+                            "geoscope": .string("locality"),
+                            "context": .dictionary([:])
+                        ]),
                         "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                     ])
                 ])
@@ -1535,7 +1725,10 @@ struct CatalogueFileStoreCrossGeographyTests {
                         "qid": .string("Q_CL"),
                         "cards": .array([.dictionary(["local_name": .string("Pastel de Choclo")])]),
                         "_metadata": .dictionary([
-                            "geo_scope": .string("country"),
+                            "location": .dictionary([
+                                "geoscope": .string("country"),
+                                "context": .dictionary([:])
+                            ]),
                             "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                         ])
                     ]),
@@ -1543,7 +1736,10 @@ struct CatalogueFileStoreCrossGeographyTests {
                         "qid": .string("Q_SCL"),
                         "cards": .array([.dictionary(["local_name": .string("Completo")])]),
                         "_metadata": .dictionary([
-                            "geo_scope": .string("locality"),
+                            "location": .dictionary([
+                                "geoscope": .string("locality"),
+                                "context": .dictionary([:])
+                            ]),
                             "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                         ])
                     ])
@@ -1566,7 +1762,10 @@ struct CatalogueFileStoreCrossGeographyTests {
                         "qid": .string("Q_GAL"),
                         "cards": .array([.dictionary(["local_name": .string("Pulpo a la Gallega")])]),
                         "_metadata": .dictionary([
-                            "geo_scope": .string("country"),
+                            "location": .dictionary([
+                                "geoscope": .string("country"),
+                                "context": .dictionary([:])
+                            ]),
                             "interface": .dictionary(["card": .dictionary(["render_type": .string("dish")])])
                         ])
                     ])

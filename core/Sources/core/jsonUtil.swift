@@ -223,7 +223,7 @@ public extension JSONValue {
         return dict[key]
     }
 
-    /// Returns a copy with all underscore-prefixed metadata keys (e.g. `_geo_scope`)
+    /// Returns a copy with all underscore-prefixed metadata keys (e.g. `_geoscope`)
     /// removed from dictionaries, recursively.
     ///
     /// Convention: keys starting with `_` are backend metadata and should not be rendered.

@@ -322,7 +322,6 @@ private struct AppContentView: View {
 
                 // Wire up ChatManager dependencies
                 chatManager.eventManager = eventManager
-                chatManager.catalogueManager = catalogueManager
                 chatManager.loadHistory()
                 
                 // Wire up catalogue persistence and restore cached content

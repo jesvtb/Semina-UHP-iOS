@@ -424,3 +424,285 @@ struct Typography {
         return estimatedLines
     }
 }
+
+// MARK: - Multilingual Font Sample (Preview Helper)
+/// Reusable view for comparing fonts across languages in previews
+private struct MultilingualFontSample: View {
+    let fontLabel: String
+    let heading: String
+    let sampleText: String
+    let headingFont: Font
+    let bodyFont: Font
+    var isRTL: Bool = false
+    
+    var body: some View {
+        VStack(alignment: isRTL ? .trailing : .leading, spacing: 4) {
+            Text(fontLabel)
+                .font(.caption)
+                .foregroundColor(.blue)
+            Text(heading)
+                .font(headingFont)
+            Text(sampleText)
+                .font(bodyFont)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: isRTL ? .trailing : .leading)
+        .environment(\.layoutDirection, isRTL ? .rightToLeft : .leftToRight)
+    }
+}
+
+// MARK: - Multilingual Font Comparison Preview
+#Preview("Multilingual Font Comparison") {
+    let headingSize: CGFloat = TypographyScale.article3.baseSize
+    let bodySize: CGFloat = TypographyScale.article0.baseSize
+    
+    ScrollView {
+        VStack(alignment: .leading, spacing: 40) {
+            
+            // ━━━ English — Brand Font ━━━
+            VStack(alignment: .leading, spacing: 4) {
+                Text("ENGLISH — BRAND FONT")
+                    .font(.caption2).foregroundColor(.secondary).padding(.bottom, 4)
+                Text("Ancient Rome")
+                    .font(.custom(FontFamily.serifDisplay, size: headingSize))
+                Text("The ancient streets of Rome hold stories waiting to be discovered beneath centuries of history.")
+                    .font(.custom(FontFamily.sansRegular, size: bodySize))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            Divider()
+            
+            // ━━━ Japanese ━━━
+            VStack(alignment: .leading, spacing: 16) {
+                Text("JAPANESE — FONT COMPARISON")
+                    .font(.caption2).foregroundColor(.secondary)
+                
+                MultilingualFontSample(
+                    fontLabel: "1. System Default (SF → Hiragino Sans cascade)",
+                    heading: "古代ローマ",
+                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
+                    headingFont: .system(size: headingSize, weight: .semibold),
+                    bodyFont: .system(size: bodySize)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "2. System Serif (New York → serif cascade)",
+                    heading: "古代ローマ",
+                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
+                    headingFont: .system(size: headingSize, weight: .semibold, design: .serif),
+                    bodyFont: .system(size: bodySize, design: .serif)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "3. Hiragino Sans (W6 / W3)",
+                    heading: "古代ローマ",
+                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
+                    headingFont: .custom("HiraginoSans-W6", size: headingSize),
+                    bodyFont: .custom("HiraginoSans-W3", size: bodySize)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "4. Hiragino Mincho ProN (Serif — W6 / W3)",
+                    heading: "古代ローマ",
+                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
+                    headingFont: .custom("HiraMinProN-W6", size: headingSize),
+                    bodyFont: .custom("HiraMinProN-W3", size: bodySize)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "5. System Rounded",
+                    heading: "古代ローマ",
+                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
+                    headingFont: .system(size: headingSize, weight: .semibold, design: .rounded),
+                    bodyFont: .system(size: bodySize, design: .rounded)
+                )
+            }
+            
+            Divider()
+            
+            // ━━━ Chinese (Simplified) ━━━
+            VStack(alignment: .leading, spacing: 16) {
+                Text("CHINESE (SIMPLIFIED) — FONT COMPARISON")
+                    .font(.caption2).foregroundColor(.secondary)
+                
+                MultilingualFontSample(
+                    fontLabel: "1. System Default (SF → PingFang SC cascade)",
+                    heading: "古罗马",
+                    sampleText: "罗马古老的街道上，隐藏着等待在数百年历史中被发现的故事。",
+                    headingFont: .system(size: headingSize, weight: .semibold),
+                    bodyFont: .system(size: bodySize)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "2. System Serif (New York → serif cascade)",
+                    heading: "古罗马",
+                    sampleText: "罗马古老的街道上，隐藏着等待在数百年历史中被发现的故事。",
+                    headingFont: .system(size: headingSize, weight: .semibold, design: .serif),
+                    bodyFont: .system(size: bodySize, design: .serif)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "3. PingFang SC (Semibold / Regular)",
+                    heading: "古罗马",
+                    sampleText: "罗马古老的街道上，隐藏着等待在数百年历史中被发现的故事。",
+                    headingFont: .custom("PingFangSC-Semibold", size: headingSize),
+                    bodyFont: .custom("PingFangSC-Regular", size: bodySize)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "4. Songti SC (Serif — Bold / Regular)",
+                    heading: "古罗马",
+                    sampleText: "罗马古老的街道上，隐藏着等待在数百年历史中被发现的故事。",
+                    headingFont: .custom("STSongti-SC-Bold", size: headingSize),
+                    bodyFont: .custom("STSongti-SC-Regular", size: bodySize)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "5. System Rounded",
+                    heading: "古罗马",
+                    sampleText: "罗马古老的街道上，隐藏着等待在数百年历史中被发现的故事。",
+                    headingFont: .system(size: headingSize, weight: .semibold, design: .rounded),
+                    bodyFont: .system(size: bodySize, design: .rounded)
+                )
+            }
+            
+            Divider()
+            
+            // ━━━ Arabic ━━━
+            VStack(alignment: .leading, spacing: 16) {
+                Text("ARABIC — FONT COMPARISON")
+                    .font(.caption2).foregroundColor(.secondary)
+                
+                MultilingualFontSample(
+                    fontLabel: "1. System Default (SF Arabic cascade)",
+                    heading: "روما القديمة",
+                    sampleText: "تحتفظ شوارع روما القديمة بقصص تنتظر أن تُكتشف تحت قرون من التاريخ.",
+                    headingFont: .system(size: headingSize, weight: .semibold),
+                    bodyFont: .system(size: bodySize),
+                    isRTL: true
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "2. System Serif",
+                    heading: "روما القديمة",
+                    sampleText: "تحتفظ شوارع روما القديمة بقصص تنتظر أن تُكتشف تحت قرون من التاريخ.",
+                    headingFont: .system(size: headingSize, weight: .semibold, design: .serif),
+                    bodyFont: .system(size: bodySize, design: .serif),
+                    isRTL: true
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "3. Geeza Pro (Bold / Regular)",
+                    heading: "روما القديمة",
+                    sampleText: "تحتفظ شوارع روما القديمة بقصص تنتظر أن تُكتشف تحت قرون من التاريخ.",
+                    headingFont: .custom("GeezaPro-Bold", size: headingSize),
+                    bodyFont: .custom("GeezaPro", size: bodySize),
+                    isRTL: true
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "4. System Rounded",
+                    heading: "روما القديمة",
+                    sampleText: "تحتفظ شوارع روما القديمة بقصص تنتظر أن تُكتشف تحت قرون من التاريخ.",
+                    headingFont: .system(size: headingSize, weight: .semibold, design: .rounded),
+                    bodyFont: .system(size: bodySize, design: .rounded),
+                    isRTL: true
+                )
+            }
+            
+            Divider()
+            
+            // ━━━ Mixed Language (travel context) ━━━
+            VStack(alignment: .leading, spacing: 16) {
+                Text("MIXED LANGUAGE — TRAVEL CONTEXT")
+                    .font(.caption2).foregroundColor(.secondary)
+                
+                MultilingualFontSample(
+                    fontLabel: "System Default — English + Japanese",
+                    heading: "Exploring 東京 (Tokyo)",
+                    sampleText: "Visit the 浅草寺 (Sensō-ji) temple, one of Tokyo's oldest and most significant Buddhist temples.",
+                    headingFont: .system(size: headingSize, weight: .semibold),
+                    bodyFont: .system(size: bodySize)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "System Serif — English + Chinese",
+                    heading: "Discovering 北京 (Beijing)",
+                    sampleText: "Walk along the 长城 (Great Wall), a marvel of ancient engineering stretching across northern China.",
+                    headingFont: .system(size: headingSize, weight: .semibold, design: .serif),
+                    bodyFont: .system(size: bodySize, design: .serif)
+                )
+                
+                MultilingualFontSample(
+                    fontLabel: "System Default — English + Arabic",
+                    heading: "Exploring القاهرة (Cairo)",
+                    sampleText: "Discover the أهرامات الجيزة (Pyramids of Giza), standing as timeless monuments to human achievement.",
+                    headingFont: .system(size: headingSize, weight: .semibold),
+                    bodyFont: .system(size: bodySize)
+                )
+            }
+        }
+        .padding()
+    }
+}
+
+// MARK: - Line Height Preview
+#Preview("Line Height Test") {
+    let sampleText = "The quick brown fox jumps over the lazy dog. This is a longer sentence to test how line height behaves across multiple lines of text."
+    
+    ScrollView {
+        VStack(alignment: .leading, spacing: 32) {
+            // SansSemiBold at article0
+            VStack(alignment: .leading, spacing: 8) {
+                Text("SansSemiBold · article0")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text(sampleText)
+                    .font(Font.custom(FontFamily.sansSemibold, size: TypographyScale.article0.baseSize))
+                    .background(Color.yellow.opacity(0.15))
+                
+                Text("fontSize: \(TypographyScale.article0.baseSize, specifier: "%.1f")pt")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            
+            Divider()
+            
+            // SerifDisplay at article3
+            VStack(alignment: .leading, spacing: 8) {
+                Text("SerifDisplay · article3")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text(sampleText)
+                    .font(Font.custom(FontFamily.serifDisplay, size: TypographyScale.article3.baseSize))
+                    .background(Color.blue.opacity(0.15))
+                
+                Text("fontSize: \(TypographyScale.article3.baseSize, specifier: "%.1f")pt")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            
+            Divider()
+            
+            // SerifDisplay at article3 with tight line spacing (for comparison)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("SerifDisplay · article3 · tight lineSpacing")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                let fontSize = TypographyScale.article3.baseSize
+                Text(sampleText)
+                    .font(Font.custom(FontFamily.serifDisplay, size: fontSize))
+                    .lineSpacing(-(fontSize * 0.2))
+                    .background(Color.green.opacity(0.15))
+                
+                Text("fontSize: \(fontSize, specifier: "%.1f")pt · lineSpacing: \(-(fontSize * 0.2), specifier: "%.1f")")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+    }
+}

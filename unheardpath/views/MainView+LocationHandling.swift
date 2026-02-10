@@ -55,10 +55,11 @@ extension MainView {
             locationDetailData.dataSource = .device
             let locationDict = locationDetailData.toJSONDict()
 
-            // Prune stale catalogue items before updating location context.
-            // Must be called before setLocationData so the old location is still available for comparison.
-            catalogueManager.pruneStaleItems(forNewLocation: locationDetailData)
+            // Update location context and prune stale items.
+            // Each item's _metadata.geography is compared directly against the new location,
+            // so call order between setLocationData and pruneStaleItems no longer matters.
             catalogueManager.setLocationData(locationDetailData)
+            catalogueManager.pruneStaleItems(forNewLocation: locationDetailData)
 
             let event = UserEventBuilder.build(
                 evtType: "location_detected",
@@ -75,9 +76,6 @@ extension MainView {
             }
             let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
-            
-            // Persist catalogue state after SSE stream delivers new content
-            catalogueManager.persistCurrentState(for: locationDetailData)
 
             logger.debug("Successfully added location_detected event to EventManager")
         } catch {
@@ -118,10 +116,11 @@ extension MainView {
 
             let locationDict = finalDetail.toJSONDict()
 
-            // Prune stale catalogue items before updating location context.
-            // Must be called before setLocationData so the old location is still available for comparison.
-            catalogueManager.pruneStaleItems(forNewLocation: finalDetail)
+            // Update location context and prune stale items.
+            // Each item's _metadata.geography is compared directly against the new location,
+            // so call order between setLocationData and pruneStaleItems no longer matters.
             catalogueManager.setLocationData(finalDetail)
+            catalogueManager.pruneStaleItems(forNewLocation: finalDetail)
 
             // Immediately restore cached sections so the user sees content while
             // the backend processes the request. handleCatalogue's key-level upsert
@@ -143,9 +142,6 @@ extension MainView {
             }
             let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
-            
-            // Persist catalogue state after SSE stream delivers new content
-            catalogueManager.persistCurrentState(for: finalDetail)
 
             logger.debug("Successfully added location_searched event to EventManager")
         } catch {

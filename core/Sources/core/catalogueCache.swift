@@ -31,6 +31,25 @@ public struct CachedLocationSummary: Codable, Sendable {
         self.longitude = location.location.coordinate.longitude
     }
 
+    /// Direct memberwise initializer for construction without a `LocationDetailData`.
+    public init(
+        countryCode: String?,
+        adminArea: String?,
+        locality: String?,
+        subLocality: String?,
+        timezone: String?,
+        latitude: Double,
+        longitude: Double
+    ) {
+        self.countryCode = countryCode
+        self.adminArea = adminArea
+        self.locality = locality
+        self.subLocality = subLocality
+        self.timezone = timezone
+        self.latitude = latitude
+        self.longitude = longitude
+    }
+
     /// Reconstruct a `LocationDetailData` for key derivation (not full geocoding).
     public func toLocationDetailData() -> LocationDetailData {
         LocationDetailData(
@@ -40,6 +59,25 @@ public struct CachedLocationSummary: Codable, Sendable {
             adminArea: adminArea,
             locality: locality,
             subLocality: subLocality
+        )
+    }
+
+    /// Creates a copy with geographic identity fields overridden by backend-provided
+    /// ``_metadata.location.context`` values.
+    ///
+    /// Backend context keys use the Python model's snake_case naming:
+    /// `country_code`, `admin_area`, `locality`, `sub_locality`.
+    /// Fields absent from the context dict retain their device-derived values.
+    /// Non-geographic fields (timezone, coordinates) are always preserved.
+    public func overriding(withBackendContext context: [String: String]) -> CachedLocationSummary {
+        CachedLocationSummary(
+            countryCode: context["country_code"] ?? self.countryCode,
+            adminArea: context["admin_area"] ?? self.adminArea,
+            locality: context["locality"] ?? self.locality,
+            subLocality: context["sub_locality"] ?? self.subLocality,
+            timezone: self.timezone,
+            latitude: self.latitude,
+            longitude: self.longitude
         )
     }
 }
@@ -181,11 +219,18 @@ public final class CatalogueFileStore: CataloguePersisting, @unchecked Sendable 
         let namedLevels = levels.filter { $0.level != .geohash }
         guard let mostSpecific = namedLevels.last else { return }
 
-        // Check if any section carries _geo_scope metadata.
+        // Check if any section carries _metadata.location.geoscope metadata.
         let hasGeoScope = sections.contains { Self.contentHasGeoScope($0.content) }
 
+        // Snapshot defaults from device-derived location; overridden with
+        // backend-canonical identity in the geo-scoped path below.
+        var snapshotKey = mostSpecific.key
+        var snapshotLevel = mostSpecific.level
+        var snapshotSummary = locationSummary
+        var snapshotUpdated = false
+
         if hasGeoScope {
-            // Scoped persistence: split content items by their _geo_scope, write each level separately.
+            // Scoped persistence: split content items by their _metadata.location.geoscope, write each level separately.
             var levelSections: [GeoLevel: [CachedSection]] = [:]
 
             for section in sections {
@@ -201,19 +246,47 @@ public final class CatalogueFileStore: CataloguePersisting, @unchecked Sendable 
             }
 
             // Write a context file for each level that has content.
+            // Use backend-provided _metadata.location.context as the source of truth
+            // for both the geo key (file name) and the locationSummary, falling back
+            // to device-derived values when backend context is unavailable.
             for (level, levelSecs) in levelSections {
-                guard let geoKey = namedLevels.first(where: { $0.level == level })?.key else { continue }
+                // Extract backend location context from any section's content at this level.
+                let backendContext = levelSecs.lazy.compactMap { Self.extractBackendLocationContext(from: $0.content) }.first
+
+                // Derive geo key from backend context (source of truth), falling back to device-derived key.
+                let geoKey: String
+                if let ctx = backendContext,
+                   let backendKey = StorageKey.geoKey(fromBackendContext: ctx, level: level) {
+                    geoKey = backendKey
+                } else if let deviceKey = namedLevels.first(where: { $0.level == level })?.key {
+                    geoKey = deviceKey
+                } else {
+                    continue
+                }
+
+                // Override geographic identity with backend context, preserving device-derived
+                // timezone and coordinates.
+                let levelSummary = backendContext.map { locationSummary.overriding(withBackendContext: $0) } ?? locationSummary
+
                 let context = CachedContext(
                     geoKey: geoKey,
                     level: level,
-                    locationSummary: locationSummary,
+                    locationSummary: levelSummary,
                     sections: levelSecs,
                     sectionOrder: sectionOrder
                 )
                 try writeContext(context)
+
+                // Track the most specific level persisted for the snapshot.
+                if !snapshotUpdated || level > snapshotLevel {
+                    snapshotKey = geoKey
+                    snapshotLevel = level
+                    snapshotSummary = levelSummary
+                    snapshotUpdated = true
+                }
             }
         } else {
-            // Legacy (no _geo_scope): duplicate at most-specific + country for cross-city reuse.
+            // Legacy (no location.geoscope): duplicate at most-specific + country for cross-city reuse.
             let context = CachedContext(
                 geoKey: mostSpecific.key,
                 level: mostSpecific.level,
@@ -236,11 +309,11 @@ public final class CatalogueFileStore: CataloguePersisting, @unchecked Sendable 
             }
         }
 
-        // Update last-context snapshot (same for both paths).
+        // Update last-context snapshot.
         let snapshot = CachedCatalogueSnapshot(
-            geoKey: mostSpecific.key,
-            level: mostSpecific.level,
-            locationSummary: locationSummary,
+            geoKey: snapshotKey,
+            level: snapshotLevel,
+            locationSummary: snapshotSummary,
             sectionOrder: sectionOrder
         )
         try writeSnapshot(snapshot)
@@ -313,28 +386,55 @@ public final class CatalogueFileStore: CataloguePersisting, @unchecked Sendable 
 
     // MARK: - Geo-Scope Helpers
 
-    /// Whether the content JSONValue contains any `_metadata.geo_scope` metadata.
+    /// Whether the content JSONValue contains any `_metadata.location.geoscope` metadata.
     static func contentHasGeoScope(_ content: JSONValue) -> Bool {
         guard case .dictionary(let dict) = content else { return false }
 
-        // Item-level _metadata.geo_scope (keyed items containing _metadata dict with geo_scope)
+        // Item-level _metadata.location.geoscope
         for (_, value) in dict {
             if case .dictionary(let itemDict) = value,
                case .dictionary(let metaDict) = itemDict["_metadata"],
-               metaDict["geo_scope"]?.stringValue != nil {
+               case .dictionary(let locDict) = metaDict["location"],
+               locDict["geoscope"]?.stringValue != nil {
                 return true
             }
         }
         return false
     }
 
-    /// Splits a section's content by `_metadata.geo_scope`.
+    /// Extracts the ``_metadata.location.context`` dict from the first content item that carries one.
     ///
-    /// Each keyed item is grouped by the `geo_scope` found in its `_metadata` dict.
-    /// Items without `_metadata.geo_scope` default to `defaultLevel`.
+    /// The backend embeds canonical geographic identity in each catalogue item as
+    /// ``_metadata.location.context`` (e.g. `{"country_code": "JP", "admin_area": "Kyoto Prefecture"}`).
+    /// This method returns the first such context found, or `nil` if no item carries one.
+    static func extractBackendLocationContext(from content: JSONValue) -> [String: String]? {
+        guard case .dictionary(let dict) = content else { return nil }
+        for (key, value) in dict {
+            if key.hasPrefix("_") { continue }
+            if case .dictionary(let itemDict) = value,
+               case .dictionary(let metaDict) = itemDict["_metadata"],
+               case .dictionary(let locDict) = metaDict["location"],
+               case .dictionary(let contextDict) = locDict["context"] {
+                var result: [String: String] = [:]
+                for (k, v) in contextDict {
+                    if let str = v.stringValue {
+                        result[k] = str
+                    }
+                }
+                if !result.isEmpty { return result }
+            }
+        }
+        return nil
+    }
+
+    /// Splits a section's content by `_metadata.location.geoscope`.
     ///
-    /// The full `_metadata` (including `interface`) is preserved in the returned fragments
-    /// so that UI rendering configuration survives persistence and restoration.
+    /// Each keyed item is grouped by the `geoscope` found in its `_metadata.location` dict.
+    /// Items without `_metadata.location.geoscope` default to `defaultLevel`.
+    ///
+    /// The full `_metadata` (including `location` and `interface`) is preserved in the returned
+    /// fragments so that UI rendering configuration and location identity survive persistence
+    /// and restoration.
     static func extractGeoScopedFragments(
         from content: JSONValue,
         defaultLevel: GeoLevel
@@ -351,7 +451,8 @@ public final class CatalogueFileStore: CataloguePersisting, @unchecked Sendable 
 
             if case .dictionary(let itemDict) = value,
                case .dictionary(let metaDict) = itemDict["_metadata"],
-               let scopeStr = metaDict["geo_scope"]?.stringValue,
+               case .dictionary(let locDict) = metaDict["location"],
+               let scopeStr = locDict["geoscope"]?.stringValue,
                let level = GeoLevel(identifier: scopeStr) {
                 fragments[level, default: [:]][key] = .dictionary(itemDict)
             } else {

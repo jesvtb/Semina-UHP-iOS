@@ -22,7 +22,7 @@ struct ContentBlock: Identifiable {
 
 // MARK: - Dynamic Section Renderer
 /// Renders catalogue sections using per-item `_metadata.interface` for rendering config.
-/// Content items are sorted by `_metadata.geo_scope` specificity (most local first).
+/// Content items are sorted by `_metadata.location.geoscope` specificity (most local first).
 struct DynamicSectionRenderer: View {
     let section: CatalogueSection
     
@@ -36,10 +36,10 @@ struct DynamicSectionRenderer: View {
         .padding(.vertical, Spacing.current.spaceXs)
     }
     
-    /// Extract content blocks from content, reading `_metadata` per item for interface config and geo_scope ordering.
+    /// Extract content blocks from content, reading `_metadata` per item for interface config and geoscope ordering.
     ///
     /// - Flat content (direct markdown/cards at root level): single block with no interface.
-    /// - Nested content (keyed items): one block per subsection, sorted by geo_scope specificity (most specific first).
+    /// - Nested content (keyed items): one block per subsection, sorted by geoscope specificity (most specific first).
     ///
     /// Keys starting with `_` (e.g. `_metadata`) are stripped before rendering.
     private func extractContentBlocks(from content: JSONValue) -> [ContentBlock] {
@@ -68,7 +68,7 @@ struct DynamicSectionRenderer: View {
             return [ContentBlock(id: "root", markdown: markdown, cards: cards, interface: nil)]
         }
         
-        // Nested content - extract each subsection as a block with interface and geo_scope
+        // Nested content - extract each subsection as a block with interface and geoscope
         var blocks: [(block: ContentBlock, geoLevel: GeoLevel?)] = []
         for (key, value) in rawDict {
             // Skip metadata keys at root level
@@ -79,7 +79,7 @@ struct DynamicSectionRenderer: View {
             // Extract _metadata before stripping
             let metadata = subsectionDict["_metadata"]
             let itemInterface = metadata?["interface"]
-            let geoScopeStr = metadata?["geo_scope"]?.stringValue
+            let geoScopeStr = metadata?["location"]?["geoscope"]?.stringValue
             let geoLevel = geoScopeStr.flatMap { GeoLevel(identifier: $0) }
             
             // Strip metadata from the subsection for rendering
@@ -101,8 +101,8 @@ struct DynamicSectionRenderer: View {
             }
         }
         
-        // Sort by geo_scope specificity: most specific (highest rawValue) first.
-        // Items without geo_scope go to the end.
+        // Sort by geoscope specificity: most specific (highest rawValue) first.
+        // Items without geoscope go to the end.
         blocks.sort { a, b in
             let aOrder = a.geoLevel?.rawValue ?? -1
             let bOrder = b.geoLevel?.rawValue ?? -1

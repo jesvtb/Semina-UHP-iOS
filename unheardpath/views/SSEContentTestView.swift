@@ -151,7 +151,10 @@ Enjoy your exploration!
                 "test_overview": .dictionary([
                     "markdown": .string(overviewMarkdown),
                     "_metadata": .dictionary([
-                        "geo_scope": .string("country"),
+                        "location": .dictionary([
+                            "geoscope": .string("country"),
+                            "context": .dictionary([:])
+                        ]),
                         "interface": .dictionary(["markdown": .dictionary([:])])
                     ])
                 ])
@@ -185,7 +188,10 @@ struct SSECatalogueTestHelpers {
             "country_overview": .dictionary([
                 "markdown": .string(markdown),
                 "_metadata": .dictionary([
-                    "geo_scope": .string("country"),
+                    "location": .dictionary([
+                        "geoscope": .string("country"),
+                        "context": .dictionary([:])
+                    ]),
                     "interface": .dictionary(["markdown": .dictionary([:])])
                 ])
             ])

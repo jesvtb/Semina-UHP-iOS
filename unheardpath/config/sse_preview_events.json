@@ -9,7 +9,10 @@
         "italy_overview": {
           "markdown": "# Italy Today\n\nItaly is a country in Europe. It is the fifth largest country in Europe by area and the third most populous country in Europe.\n\n## History\n\nItaly has a long and rich history. It is the birthplace of the Roman Empire and the Renaissance.\n\n## Rome\n\nRome is the capital of Italy. It is a city of history and culture, with ancient ruins and beautiful architecture around every corner.",
           "_metadata": {
-            "geo_scope": "country",
+            "location": {
+              "geoscope": "country",
+              "context": {}
+            },
             "interface": {
               "markdown": {}
             }
@@ -52,7 +55,10 @@
             }
           ],
           "_metadata": {
-            "geo_scope": "locality",
+            "location": {
+              "geoscope": "locality",
+              "context": {}
+            },
             "interface": {
               "markdown": {},
               "card": {
@@ -91,7 +97,10 @@
             }
           ],
           "_metadata": {
-            "geo_scope": "locality",
+            "location": {
+              "geoscope": "locality",
+              "context": {}
+            },
             "interface": {
               "markdown": {},
               "card": {
@@ -112,7 +121,10 @@
             }
           ],
           "_metadata": {
-            "geo_scope": "country",
+            "location": {
+              "geoscope": "country",
+              "context": {}
+            },
             "interface": {
               "markdown": {},
               "card": {
@@ -188,7 +200,10 @@
             }
           ],
           "_metadata": {
-            "geo_scope": "locality",
+            "location": {
+              "geoscope": "locality",
+              "context": {}
+            },
             "interface": {
               "markdown": {},
               "card": {
@@ -242,7 +257,10 @@
             }
           ],
           "_metadata": {
-            "geo_scope": "locality",
+            "location": {
+              "geoscope": "locality",
+              "context": {}
+            },
             "interface": {
               "markdown": {},
               "card": {

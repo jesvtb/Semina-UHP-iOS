@@ -26,9 +26,6 @@ class ChatManager: ObservableObject {
     // EventManager reference (set after initialization, for event tracking)
     weak var eventManager: EventManager?
     
-    // CatalogueManager reference (set after initialization, for persisting catalogue after chat SSE)
-    weak var catalogueManager: CatalogueManager?
-    
     /// Last assistant message id we already persisted as chat_received. Avoids duplicate UserDefaults writes when SSE sends multiple stop events.
     private var lastPersistedChatReceivedMessageId: String?
     
@@ -129,13 +126,6 @@ class ChatManager: ObservableObject {
             }
             let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
-            
-            // Persist catalogue state after chat SSE stream delivers new content
-            // (e.g., "cultural_events" sections generated from chat responses)
-            if let catalogueManager = catalogueManager,
-               let location = catalogueManager.locationDetailData {
-                catalogueManager.persistCurrentState(for: location)
-            }
             
             // Safety net: Ensure the final assistant message is marked as not streaming
             // This handles cases where the stream ends without an explicit "stop" event

@@ -4,7 +4,7 @@ import core
 
 // MARK: - Catalogue Section
 /// A catalogue section with dynamic type and raw JSONValue content.
-/// Content items carry their own `_metadata` (geo_scope, interface) per key.
+/// Content items carry their own `_metadata` (location, interface) per key.
 struct CatalogueSection: Identifiable, Sendable {
     let id: String              // Unique ID (from server or generated)
     let sectionType: String     // Dynamic: "overview", "cuisine", "architecture", etc.
@@ -60,6 +60,11 @@ class CatalogueManager: ObservableObject {
     ///   Existing keys are replaced; new keys are inserted.
     /// - If the section does not exist: create it with the given content.
     ///
+    /// Incoming items that carry `_metadata.location.context` are validated against the current
+    /// `locationDetailData`. Items whose location context doesn't match are silently dropped to
+    /// prevent late-arriving SSE events from polluting the catalogue. Items without location
+    /// metadata (legacy / cached) are accepted permissively.
+    ///
     /// - Parameters:
     ///   - sectionType: The section type string (e.g., "overview", "cuisine", "architecture")
     ///   - displayTitle: The display title for the tab
@@ -69,16 +74,32 @@ class CatalogueManager: ObservableObject {
         displayTitle: String,
         content: JSONValue
     ) {
-        guard case .dictionary(let contentDict) = content else {
+        guard case .dictionary(var contentDict) = content else {
             // Non-dictionary content: replace wholesale
             replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, content: content)
+            schedulePersistence()
             return
         }
+
+        // Filter out items whose location context doesn't match the current location.
+        // Items without location metadata are accepted (backward compatible / permissive).
+        if let currentLocation = locationDetailData {
+            contentDict = contentDict.filter { (key, value) in
+                guard !key.hasPrefix("_") else { return true }  // Keep metadata keys
+                guard Self.itemHasLocationContext(value) else { return true }  // No location → accept
+                return Self.itemLocationMatchesCurrent(value, location: currentLocation)
+            }
+            // If all real content was filtered out, skip the upsert entirely.
+            guard contentDict.contains(where: { !$0.key.hasPrefix("_") }) else { return }
+        }
+
+        let filteredContent = JSONValue.dictionary(contentDict)
 
         if var existing = sections[sectionType] {
             // Upsert: merge items by key into existing section content
             guard case .dictionary(var existingDict) = existing.content else {
-                replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, content: content)
+                replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, content: filteredContent)
+                schedulePersistence()
                 return
             }
             for (key, value) in contentDict {
@@ -88,8 +109,10 @@ class CatalogueManager: ObservableObject {
             sections[sectionType] = existing
         } else {
             // New section
-            replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, content: content)
+            replaceCatalogue(sectionType: sectionType, displayTitle: displayTitle, content: filteredContent)
         }
+
+        schedulePersistence()
     }
     
     /// Replace: Set section content from scratch.
@@ -121,43 +144,19 @@ class CatalogueManager: ObservableObject {
         sections[sectionType]
     }
     
-    /// Remove catalogue items whose `_metadata.geo_scope` no longer applies to the new location.
+    /// Remove catalogue items whose `_metadata.location.context` does not match the new location.
     ///
-    /// Compares the current `locationDetailData` (old) with `newLocation` to find the highest
-    /// geographic level where the two locations diverge. All catalogue items scoped at or more
-    /// specific than that divergence point are pruned, while shared higher-level content is kept.
+    /// Each item self-describes its geographic identity via `_metadata.location.context`.
+    /// Items whose context fields don't match the new location are pruned.
+    /// Items without `_metadata.location` are conservatively removed (cannot verify).
     ///
     /// **Example — Shenzhen → Shanghai (same country, different admin area):**
-    /// - `country` keys match → country-scoped items (e.g. "Chinese cuisine") are kept.
-    /// - `adminarea` keys differ → adminarea/locality/sublocality items (e.g. "Cantonese cuisine") are removed.
+    /// - Items with `context: {"country_code": "CN"}` match → kept.
+    /// - Items with `context: {"country_code": "CN", "admin_area": "Guangdong"}` don't match → removed.
     ///
-    /// Call this **before** `setLocationData(_:)` and SSE stream processing so that the old
-    /// location reference is still available for comparison.
+    /// No longer requires the old `locationDetailData` — each item carries its own location
+    /// identity, so the comparison is directly against the new location.
     func pruneStaleItems(forNewLocation newLocation: LocationDetailData) {
-        guard let oldLocation = locationDetailData else {
-            // No previous location context — clear everything for a clean slate
-            clearAll()
-            return
-        }
-
-        let oldKeyMap = Dictionary(
-            uniqueKeysWithValues: StorageKey.applicableLevels(from: oldLocation).map { ($0.level, $0.key) }
-        )
-        let newKeyMap = Dictionary(
-            uniqueKeysWithValues: StorageKey.applicableLevels(from: newLocation).map { ($0.level, $0.key) }
-        )
-
-        // Walk from most general to most specific. Once a level diverges,
-        // that level and every more-specific level is considered stale.
-        var staleLevels = Set<GeoLevel>()
-        for level in GeoLevel.allCases {
-            if !staleLevels.isEmpty || oldKeyMap[level] != newKeyMap[level] {
-                staleLevels.insert(level)
-            }
-        }
-
-        guard !staleLevels.isEmpty else { return }  // Identical location — nothing to prune
-
         // Collect section types to remove (sections that become empty after pruning)
         var sectionsToRemove: [String] = []
 
@@ -168,16 +167,9 @@ class CatalogueManager: ObservableObject {
             for (key, value) in contentDict {
                 if key.hasPrefix("_") { continue }  // Preserve root-level metadata keys
 
-                let itemLevel: GeoLevel? = {
-                    guard case .dictionary(let itemDict) = value,
-                          case .dictionary(let meta) = itemDict["_metadata"],
-                          let scopeStr = meta["geo_scope"]?.stringValue else { return nil }
-                    return GeoLevel(identifier: scopeStr)
-                }()
-
-                // Remove if the item's scope is stale, or if it has no scope (conservative —
-                // unscoped items may be location-specific and cannot be verified).
-                if itemLevel == nil || staleLevels.contains(itemLevel!) {
+                // Remove if location context doesn't match the new location.
+                // Items without location metadata are conservatively removed (cannot verify).
+                if !Self.itemLocationMatchesCurrent(value, location: newLocation) {
                     contentDict.removeValue(forKey: key)
                     modified = true
                 }
@@ -206,19 +198,98 @@ class CatalogueManager: ObservableObject {
         sections.removeAll()
         sectionOrder.removeAll()
     }
-    
+
+    // MARK: - Location Context Matching
+
+    /// Check if an item has `_metadata.location.context`.
+    private static func itemHasLocationContext(_ item: JSONValue) -> Bool {
+        guard case .dictionary(let itemDict) = item,
+              case .dictionary(let meta) = itemDict["_metadata"],
+              case .dictionary(let loc) = meta["location"],
+              case .dictionary(_) = loc["context"] else {
+            return false
+        }
+        return true
+    }
+
+    /// Check if an item's `_metadata.location.context` matches the given location.
+    ///
+    /// Compares each field in the item's context dict against the corresponding
+    /// field in the location. A match requires all present context fields to agree
+    /// (normalized to handle case and diacritics consistently with cache keys).
+    ///
+    /// Items without `_metadata.location.context` return `false` (cannot verify).
+    static func itemLocationMatchesCurrent(
+        _ item: JSONValue,
+        location: LocationDetailData
+    ) -> Bool {
+        guard case .dictionary(let itemDict) = item,
+              case .dictionary(let meta) = itemDict["_metadata"],
+              case .dictionary(let loc) = meta["location"],
+              case .dictionary(let context) = loc["context"] else {
+            return false  // No location context → cannot verify
+        }
+
+        if let countryCode = context["country_code"]?.stringValue {
+            guard let locCountry = location.countryCode else { return false }
+            if StorageKey.normalize(countryCode) != StorageKey.normalize(locCountry) {
+                return false
+            }
+        }
+        if let adminArea = context["admin_area"]?.stringValue {
+            guard let locAdmin = location.adminArea else { return false }
+            if StorageKey.normalize(adminArea) != StorageKey.normalize(locAdmin) {
+                return false
+            }
+        }
+        if let locality = context["locality"]?.stringValue {
+            guard let locLocality = location.locality else { return false }
+            if StorageKey.normalize(locality) != StorageKey.normalize(locLocality) {
+                return false
+            }
+        }
+        if let subLocality = context["sub_locality"]?.stringValue {
+            guard let locSubLocality = location.subLocality else { return false }
+            if StorageKey.normalize(subLocality) != StorageKey.normalize(locSubLocality) {
+                return false
+            }
+        }
+
+        return true
+    }
+
     // MARK: - Persistence
     
     /// Optional persistence backend. Set via `setPersistence(_:)` during app initialization.
     private var persistence: (any CataloguePersisting)?
+    
+    /// Debounce task for batching rapid SSE-delivered sections into a single persist.
+    private var persistenceTask: Task<Void, Never>?
+    
+    /// When true, suppress scheduled persistence (used during cache restoration to avoid re-persisting loaded data).
+    private var isPersistenceSuppressed = false
     
     /// Inject the persistence backend. Called once during app setup.
     func setPersistence(_ persistence: any CataloguePersisting) {
         self.persistence = persistence
     }
     
+    /// Schedule a debounced persistence write.
+    /// Called after each `handleCatalogue` upsert to batch rapid SSE events into a single disk write.
+    private func schedulePersistence() {
+        guard !isPersistenceSuppressed else { return }
+        persistenceTask?.cancel()
+        persistenceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms debounce
+            guard !Task.isCancelled, let self else { return }
+            guard let location = self.locationDetailData else { return }
+            self.persistCurrentState(for: location)
+        }
+    }
+    
     /// Persist the current in-memory catalogue state for a given location.
-    /// Called after SSE stream processing completes for a location event.
+    /// Normally triggered automatically via debounced `schedulePersistence()`.
+    /// Can also be called explicitly (e.g., from debug tools).
     func persistCurrentState(for location: LocationDetailData) {
         guard let persistence = persistence else { return }
         let currentSections = orderedSections.map { section in
@@ -248,6 +319,10 @@ class CatalogueManager: ObservableObject {
     func restoreFromCache(for location: LocationDetailData) async {
         guard let persistence = persistence else { return }
         
+        // Suppress persistence during restoration to avoid re-persisting loaded data.
+        isPersistenceSuppressed = true
+        defer { isPersistenceSuppressed = false }
+        
         do {
             let cached = try await persistence.restore(for: location)
             for section in cached {
@@ -273,6 +348,10 @@ class CatalogueManager: ObservableObject {
     func restoreFromCache() async {
         guard let persistence = persistence else { return }
         guard sections.isEmpty else { return }
+        
+        // Suppress persistence during restoration to avoid re-persisting loaded data.
+        isPersistenceSuppressed = true
+        defer { isPersistenceSuppressed = false }
         
         do {
             guard let result = try await persistence.restoreLastContext() else { return }

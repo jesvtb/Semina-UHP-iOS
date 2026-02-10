@@ -47,7 +47,7 @@ For nested content like cuisines, each subsection is an entity with `_storage` a
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `entity_id` | string | Yes | Unique identifier for the entity (format: `{section}:{qid}`) |
-| `scope` | string | Yes | Geographic scope: `country`, `adminarea`, `locality`, `sublocality`, `coordinate` |
+| `scope` | string | Yes | Geographic scope: `country`, `admin_area`, `locality`, `sub_locality`, `coordinate` |
 | `ttl_hours` | number | No | Time-to-live in hours (defaults to 168 = 7 days) |
 
 ### Item-Level `_storage` Schema (Flat Format)
@@ -750,14 +750,14 @@ import Foundation
 /// Ordered from most specific to least specific
 public enum DivisionLevel: String, CaseIterable, Sendable, Codable {
     case coordinate
-    case sublocality
+    case subLocality
     case locality
-    case adminarea
+    case adminArea
     case country
     
     /// All levels from most specific to least specific
     public static var hierarchyOrder: [DivisionLevel] {
-        [.coordinate, .sublocality, .locality, .adminarea, .country]
+        [.coordinate, .subLocality, .locality, .adminArea, .country]
     }
     
     /// Levels that are less specific than or equal to this level
@@ -812,13 +812,13 @@ public enum StorageKey {
         let country = normalize(location.countryCode)
         let admin = normalize(location.adminArea)
         let locality = normalize(location.locality)
-        let sublocality = normalize(location.sublocality)
+        let subLoc = normalize(location.subLocality)
         
         switch level {
         case .country:
             return country
             
-        case .adminarea:
+        case .adminArea:
             guard let c = country, let a = admin else { return nil }
             return "\(c)_\(a)"
             
@@ -826,8 +826,8 @@ public enum StorageKey {
             guard let c = country, let a = admin, let l = locality else { return nil }
             return "\(c)_\(a)_\(l)"
             
-        case .sublocality:
-            guard let c = country, let a = admin, let l = locality, let s = sublocality else { return nil }
+        case .subLocality:
+            guard let c = country, let a = admin, let l = locality, let s = subLoc else { return nil }
             return "\(c)_\(a)_\(l)_\(s)"
             
         case .coordinate:
@@ -844,14 +844,14 @@ public enum StorageKey {
         if location.latitude != nil && location.longitude != nil {
             return .coordinate
         }
-        if location.sublocality != nil && !location.sublocality!.isEmpty {
-            return .sublocality
+        if location.subLocality != nil && !location.subLocality!.isEmpty {
+            return .subLocality
         }
         if location.locality != nil && !location.locality!.isEmpty {
             return .locality
         }
         if location.adminArea != nil && !location.adminArea!.isEmpty {
-            return .adminarea
+            return .adminArea
         }
         return .country
     }
@@ -861,9 +861,9 @@ public enum StorageKey {
         switch scope.lowercased() {
         case "global": return nil // Global entities don't have a specific level
         case "country": return .country
-        case "adminarea": return .adminarea
+        case "admin_area": return .adminArea
         case "locality": return .locality
-        case "sublocality": return .sublocality
+        case "sub_locality": return .subLocality
         case "coordinate": return .coordinate
         default: return nil
         }
@@ -898,7 +898,7 @@ struct CataloguePersistenceTests {
         let localityLevels = DivisionLevel.locality.lessSpecificLevels
         expect(localityLevels.count == 3)
         expect(localityLevels.contains(.locality))
-        expect(localityLevels.contains(.adminarea))
+        expect(localityLevels.contains(.adminArea))
         expect(localityLevels.contains(.country))
         expect(!localityLevels.contains(.coordinate))
     }
@@ -922,7 +922,7 @@ struct CataloguePersistenceTests {
             latitude: 31.2304,
             longitude: 121.4737,
             locality: "Shanghai",
-            sublocality: "Pudong",
+            subLocality: "Pudong",
             adminArea: "Shanghai",
             countryCode: "CN",
             countryName: "China"
@@ -938,7 +938,7 @@ struct CataloguePersistenceTests {
             latitude: 31.2304,
             longitude: 121.4737,
             locality: "Shanghai",
-            sublocality: "Pudong",
+            subLocality: "Pudong",
             adminArea: "Shanghai",
             countryCode: "CN",
             countryName: "China"
@@ -969,7 +969,7 @@ struct CataloguePersistenceTests {
             latitude: 31.2304,
             longitude: 121.4737,
             locality: "Shanghai",
-            sublocality: "Pudong",
+            subLocality: "Pudong",
             adminArea: "Shanghai",
             countryCode: "CN",
             countryName: "China"
@@ -978,12 +978,12 @@ struct CataloguePersistenceTests {
         
         let noCoordLocation = LocationDetailData(
             locality: "Shanghai",
-            sublocality: "Pudong",
+            subLocality: "Pudong",
             adminArea: "Shanghai",
             countryCode: "CN",
             countryName: "China"
         )
-        expect(StorageKey.mostSpecificLevel(from: noCoordLocation) == .sublocality)
+        expect(StorageKey.mostSpecificLevel(from: noCoordLocation) == .subLocality)
         
         let localityOnlyLocation = LocationDetailData(
             locality: "Shanghai",
@@ -1068,25 +1068,25 @@ public struct StoredEntity: Codable, Sendable {
         public let countryCode: String?
         public let adminArea: String?
         public let locality: String?
-        public let sublocality: String?
+        public let subLocality: String?
         
         public init(
             countryCode: String? = nil,
             adminArea: String? = nil,
             locality: String? = nil,
-            sublocality: String? = nil
+            subLocality: String? = nil
         ) {
             self.countryCode = countryCode
             self.adminArea = adminArea
             self.locality = locality
-            self.sublocality = sublocality
+            self.subLocality = subLocality
         }
         
         public init(from location: LocationDetailData) {
             self.countryCode = location.countryCode
             self.adminArea = location.adminArea
             self.locality = location.locality
-            self.sublocality = location.sublocality
+            self.subLocality = location.subLocality
         }
     }
     
@@ -1243,7 +1243,7 @@ public final class EntityStore: Sendable {
             let currentCountry = currentLocation.countryCode?.lowercased()
             return existingCountry == currentCountry
             
-        case .adminarea:
+        case .adminArea:
             let existingAdmin = existing.sourceLocation.adminArea?.lowercased()
             let currentAdmin = currentLocation.adminArea?.lowercased()
             let existingCountry = existing.sourceLocation.countryCode?.lowercased()
@@ -1255,9 +1255,9 @@ public final class EntityStore: Sendable {
             let currentLocality = currentLocation.locality?.lowercased()
             return existingLocality == currentLocality
             
-        case .sublocality:
-            let existingSublocality = existing.sourceLocation.sublocality?.lowercased()
-            let currentSublocality = currentLocation.sublocality?.lowercased()
+        case .subLocality:
+            let existingSublocality = existing.sourceLocation.subLocality?.lowercased()
+            let currentSublocality = currentLocation.subLocality?.lowercased()
             return existingSublocality == currentSublocality
             
         case .coordinate:
@@ -2778,7 +2778,7 @@ The following simplifications were made possible by the guaranteed `_storage` me
 
 1. **`content.items`** - Always use `items` as the array key
 2. **`_storage.entity_id`** - Pre-computed entity ID (format: `{section}:{normalized_key}`)
-3. **`_storage.scope`** - Valid scope: `global`, `country`, `adminarea`, `locality`, `sublocality`, `coordinate`
+3. **`_storage.scope`** - Valid scope: `global`, `country`, `admin_area`, `locality`, `sub_locality`, `coordinate`
 4. **`_storage.ttl_hours`** - Optional TTL override (defaults to 168 hours)
 
 ### Entity ID Format
