@@ -1,5 +1,5 @@
 {
-  "originHash" : "09947b6dbd6f11fd2eff47635ae734057eae2a4b668bb533d606d1fcd4a85514",
+  "originHash" : "179a37727f76c74a10bbca99f7810a1e0493d80e47fd7230d63c77597bcea1d9",
   "pins" : [
     {
       "identity" : "mapbox-common-ios",
@@ -116,6 +116,24 @@
       "state" : {
         "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
         "version" : "2.4.1"
+      }
+    },
+    {
+      "identity" : "swiftui-math",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalezreal/swiftui-math",
+      "state" : {
+        "revision" : "0b5c2cfaaec8d6193db206f675048eeb5ce95f71",
+        "version" : "0.1.0"
+      }
+    },
+    {
+      "identity" : "textual",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalezreal/textual",
+      "state" : {
+        "revision" : "5b06b811c0f5313b6b84bbef98c635a630638c38",
+        "version" : "0.3.1"
       }
     },
     {

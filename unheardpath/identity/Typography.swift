@@ -1,6 +1,8 @@
 import SwiftUI
 import CoreGraphics
 import UIKit
+import MarkdownUI
+import core
 
 // MARK: - Typography System
 // Matches brand typography from brand.scss
@@ -271,19 +273,25 @@ struct DisplayText: View {
     let color: Color
     let lineHeightMultiple: CGFloat
     let textAlignment: TextAlignment
+    let fontFamily: String
+    let tracking: CGFloat
     
     init(
         _ text: String,
         scale: TypographyScale = .article4,
         color: Color = .primary,
         lineHeightMultiple: CGFloat = 1.0,
-        alignment: TextAlignment = .leading
+        alignment: TextAlignment = .leading,
+        fontFamily: String = FontFamily.serifDisplay,
+        tracking: CGFloat = 0
     ) {
         self.text = text
         self.scale = scale
         self.color = color
         self.lineHeightMultiple = lineHeightMultiple
         self.textAlignment = alignment
+        self.fontFamily = fontFamily
+        self.tracking = tracking
     }
     
     var body: some View {
@@ -293,6 +301,8 @@ struct DisplayText: View {
             color: color,
             lineHeightMultiple: lineHeightMultiple,
             textAlignment: textAlignment,
+            fontFamily: fontFamily,
+            tracking: tracking,
             preferredWidth: nil // Will be set from superview bounds
         )
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -310,6 +320,8 @@ private struct DisplayTextLabel: UIViewRepresentable {
     let color: Color
     let lineHeightMultiple: CGFloat
     let textAlignment: TextAlignment
+    let fontFamily: String
+    let tracking: CGFloat
     let preferredWidth: CGFloat?
     
     func makeUIView(context: Context) -> UILabel {
@@ -358,7 +370,7 @@ private struct DisplayTextLabel: UIViewRepresentable {
         let fontSize = scale.scaledSize(from: baseSize)
         
         // Create font
-        let font = UIFont(name: FontFamily.serifDisplay, size: fontSize) ?? 
+        let font = UIFont(name: fontFamily, size: fontSize) ?? 
                    UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         label.font = font
         
@@ -370,14 +382,20 @@ private struct DisplayTextLabel: UIViewRepresentable {
         paragraphStyle.alignment = nsTextAlignment
         paragraphStyle.lineBreakMode = .byWordWrapping // Ensure proper word wrapping
         
+        // Build attributes
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .paragraphStyle: paragraphStyle,
+            .foregroundColor: UIColor(color)
+        ]
+        if tracking != 0 {
+            attributes[.kern] = tracking * fontSize
+        }
+        
         // Apply attributed string
         let attributedString = NSAttributedString(
             string: text,
-            attributes: [
-                .font: font,
-                .paragraphStyle: paragraphStyle,
-                .foregroundColor: UIColor(color)
-            ]
+            attributes: attributes
         )
         label.attributedText = attributedString
         label.textAlignment = nsTextAlignment
@@ -477,29 +495,6 @@ private struct MultilingualFontSample: View {
                 Text("JAPANESE — FONT COMPARISON")
                     .font(.caption2).foregroundColor(.secondary)
                 
-                MultilingualFontSample(
-                    fontLabel: "1. System Default (SF → Hiragino Sans cascade)",
-                    heading: "古代ローマ",
-                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
-                    headingFont: .system(size: headingSize, weight: .semibold),
-                    bodyFont: .system(size: bodySize)
-                )
-                
-                MultilingualFontSample(
-                    fontLabel: "2. System Serif (New York → serif cascade)",
-                    heading: "古代ローマ",
-                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
-                    headingFont: .system(size: headingSize, weight: .semibold, design: .serif),
-                    bodyFont: .system(size: bodySize, design: .serif)
-                )
-                
-                MultilingualFontSample(
-                    fontLabel: "3. Hiragino Sans (W6 / W3)",
-                    heading: "古代ローマ",
-                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
-                    headingFont: .custom("HiraginoSans-W6", size: headingSize),
-                    bodyFont: .custom("HiraginoSans-W3", size: bodySize)
-                )
                 
                 MultilingualFontSample(
                     fontLabel: "4. Hiragino Mincho ProN (Serif — W6 / W3)",
@@ -509,13 +504,6 @@ private struct MultilingualFontSample: View {
                     bodyFont: .custom("HiraMinProN-W3", size: bodySize)
                 )
                 
-                MultilingualFontSample(
-                    fontLabel: "5. System Rounded",
-                    heading: "古代ローマ",
-                    sampleText: "ローマの古代の街並みには、何世紀もの歴史の下に発見を待つ物語が眠っています。",
-                    headingFont: .system(size: headingSize, weight: .semibold, design: .rounded),
-                    bodyFont: .system(size: bodySize, design: .rounded)
-                )
             }
             
             Divider()
@@ -574,15 +562,6 @@ private struct MultilingualFontSample: View {
                     .font(.caption2).foregroundColor(.secondary)
                 
                 MultilingualFontSample(
-                    fontLabel: "1. System Default (SF Arabic cascade)",
-                    heading: "روما القديمة",
-                    sampleText: "تحتفظ شوارع روما القديمة بقصص تنتظر أن تُكتشف تحت قرون من التاريخ.",
-                    headingFont: .system(size: headingSize, weight: .semibold),
-                    bodyFont: .system(size: bodySize),
-                    isRTL: true
-                )
-                
-                MultilingualFontSample(
                     fontLabel: "2. System Serif",
                     heading: "روما القديمة",
                     sampleText: "تحتفظ شوارع روما القديمة بقصص تنتظر أن تُكتشف تحت قرون من التاريخ.",
@@ -591,23 +570,6 @@ private struct MultilingualFontSample: View {
                     isRTL: true
                 )
                 
-                MultilingualFontSample(
-                    fontLabel: "3. Geeza Pro (Bold / Regular)",
-                    heading: "روما القديمة",
-                    sampleText: "تحتفظ شوارع روما القديمة بقصص تنتظر أن تُكتشف تحت قرون من التاريخ.",
-                    headingFont: .custom("GeezaPro-Bold", size: headingSize),
-                    bodyFont: .custom("GeezaPro", size: bodySize),
-                    isRTL: true
-                )
-                
-                MultilingualFontSample(
-                    fontLabel: "4. System Rounded",
-                    heading: "روما القديمة",
-                    sampleText: "تحتفظ شوارع روما القديمة بقصص تنتظر أن تُكتشف تحت قرون من التاريخ.",
-                    headingFont: .system(size: headingSize, weight: .semibold, design: .rounded),
-                    bodyFont: .system(size: bodySize, design: .rounded),
-                    isRTL: true
-                )
             }
             
             Divider()
@@ -686,23 +648,22 @@ private struct MultilingualFontSample: View {
             
             Divider()
             
-            // SerifDisplay at article3 with tight line spacing (for comparison)
+            // SerifDisplay at article3 with tight line height (DisplayText)
             VStack(alignment: .leading, spacing: 8) {
-                Text("SerifDisplay · article3 · tight lineSpacing")
+                Text("SerifDisplay · article3 · tight lineHeight (DisplayText)")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
-                let fontSize = TypographyScale.article3.baseSize
-                Text(sampleText)
-                    .font(Font.custom(FontFamily.serifDisplay, size: fontSize))
-                    .lineSpacing(-(fontSize * 0.2))
+                DisplayText(sampleText, scale: .article3, lineHeightMultiple: 1.1)
                     .background(Color.green.opacity(0.15))
                 
-                Text("fontSize: \(fontSize, specifier: "%.1f")pt · lineSpacing: \(-(fontSize * 0.2), specifier: "%.1f")")
+                Text("fontSize: \(TypographyScale.article3.baseSize, specifier: "%.1f")pt · lineHeightMultiple: 1.0")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
+            
         }
         .padding()
     }
 }
+

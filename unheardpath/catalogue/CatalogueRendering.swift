@@ -11,9 +11,11 @@ struct CatalogueViewRegistry {
 }
 
 // MARK: - Content Block
-/// Represents a single content block with optional markdown, cards, and per-item interface config.
+/// Represents a single content block with optional header, markdown, cards, and per-item interface config.
 struct ContentBlock: Identifiable {
     let id: String
+    /// Optional header with overline, headline, subhead, and feature_img fields.
+    let header: JSONValue?
     let markdown: String?
     let cards: [JSONValue]?
     /// Per-item rendering config extracted from `_metadata.interface`.
@@ -58,6 +60,7 @@ struct DynamicSectionRenderer: View {
             // Flat content - single block (strip metadata)
             let cleaned = content.strippingMetadataKeys
             guard case .dictionary(let dict) = cleaned else { return [] }
+            let header = rawDict["header"]
             let markdown = dict["markdown"]?.stringValue
             let cards: [JSONValue]? = {
                 if let cardsValue = dict["cards"], case .array(let cards) = cardsValue {
@@ -65,7 +68,7 @@ struct DynamicSectionRenderer: View {
                 }
                 return nil
             }()
-            return [ContentBlock(id: "root", markdown: markdown, cards: cards, interface: nil)]
+            return [ContentBlock(id: "root", header: header, markdown: markdown, cards: cards, interface: nil)]
         }
         
         // Nested content - extract each subsection as a block with interface and geoscope
@@ -86,6 +89,7 @@ struct DynamicSectionRenderer: View {
             let cleaned = value.strippingMetadataKeys
             guard case .dictionary(let cleanedDict) = cleaned else { continue }
             
+            let header = subsectionDict["header"]
             let markdown = cleanedDict["markdown"]?.stringValue
             let cards: [JSONValue]? = {
                 if let cardsValue = cleanedDict["cards"], case .array(let cards) = cardsValue {
@@ -94,9 +98,9 @@ struct DynamicSectionRenderer: View {
                 return nil
             }()
             
-            // Only include if subsection has markdown or cards
-            if markdown != nil || cards != nil {
-                let block = ContentBlock(id: key, markdown: markdown, cards: cards, interface: itemInterface)
+            // Only include if subsection has header, markdown, or cards
+            if header != nil || markdown != nil || cards != nil {
+                let block = ContentBlock(id: key, header: header, markdown: markdown, cards: cards, interface: itemInterface)
                 blocks.append((block, geoLevel))
             }
         }
@@ -126,6 +130,11 @@ struct ContentBlockView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+            // Render header if present
+            if let header = block.header {
+                SectionHeaderView(header: header)
+            }
+            
             // Render markdown if present
             if let markdown = block.markdown, !markdown.isEmpty {
                 MarkdownRenderer(markdown: markdown, config: markdownConfig)
@@ -163,92 +172,124 @@ struct ContentBlockView: View {
 struct MarkdownRenderer: View {
     let markdown: String
     let config: JSONValue?
-
-    private var emColor: Color {
-        Color("onBkgTextColor20")
-    }
     
     var body: some View {
         Markdown(markdown)
             .markdownTextStyle(\.text) {
-                MarkdownUI.FontFamily(.custom(unheardpath.FontFamily.sansRegular))
+                MarkdownUI.FontFamily(.custom(FontFamily.sansRegular))
                 MarkdownUI.FontSize(TypographyScale.article0.baseSize)
-                ForegroundColor(Color("onBkgTextColor30"))
+                MarkdownUI.ForegroundColor(Color.textSecondary)
             }
-            .markdownBlockStyle(\.heading1) { configuration in
-                configuration.label
-                    .markdownTextStyle {
-                        MarkdownUI.FontFamily(.custom(unheardpath.FontFamily.serifItalic))
-                        MarkdownUI.FontWeight(.bold)
-                        MarkdownUI.FontSize(TypographyScale.article3.baseSize)
-                        ForegroundColor(Color("onBkgTextColor20"))
-                    }
-                    .markdownMargin(top: Spacing.current.spaceL, bottom: Spacing.current.spaceL)
-                }
+            .markdownTextStyle(\.strong) {
+                MarkdownUI.FontWeight(.semibold)
+                MarkdownUI.ForegroundColor(Color.textPrimary)
+            }
             .markdownBlockStyle(\.heading2) { configuration in
                 configuration.label
                     .markdownTextStyle {
-                        MarkdownUI.FontFamily(.custom(unheardpath.FontFamily.serifDisplay))
-                        MarkdownUI.FontSize(TypographyScale.article2.baseSize)
-                        ForegroundColor(Color("onBkgTextColor20"))
+                        MarkdownUI.FontWeight(.regular)
+                        MarkdownUI.FontFamily(.custom(FontFamily.sansExtraLight))
+                        MarkdownUI.FontSize(TypographyScale.article3.baseSize)
+                        MarkdownUI.ForegroundColor(Color("AccentColor"))
                     }
-                    .markdownMargin(top: Spacing.current.spaceL, bottom: Spacing.current.spaceXs)
-                }
+                    .relativeLineSpacing(.em(0.25))
+                    .markdownMargin(top: 30, bottom: 16)
+            }
             .markdownBlockStyle(\.heading3) { configuration in
                 configuration.label
                     .markdownTextStyle {
                         MarkdownUI.FontWeight(.bold)
+                        MarkdownUI.FontSize(TypographyScale.article1.baseSize)
+                        MarkdownUI.ForegroundColor(Color.textPrimary)
                     }
-                }
-            .markdownTextStyle(\.strong) {
-                MarkdownUI.FontWeight(.bold)
-                MarkdownUI.ForegroundColor(emColor)
-                }
-            .markdownBlockStyle(\.paragraph) { configuration in
-                configuration.label
-                .markdownTextStyle {
-                    MarkdownUI.FontFamily(.custom(unheardpath.FontFamily.sansRegular))
-                    MarkdownUI.FontSize(TypographyScale.article0.baseSize)
-                    ForegroundColor(Color("onBkgTextColor30"))
-                }
-                .markdownMargin(top: Spacing.current.spaceXs, bottom: Spacing.current.spaceXs)
-                }
+                    .relativeLineSpacing(.em(0.25))
+                    .markdownMargin(top: 0, bottom: 16)
             }
+            .markdownBlockStyle(\.blockquote) { configuration in
+                configuration.label
+                    .markdownTextStyle {
+                        MarkdownUI.FontFamily(.custom(FontFamily.sansRegular))
+                        MarkdownUI.FontSize(TypographyScale.article0.baseSize)
+                        MarkdownUI.ForegroundColor(Color.textPrimary)
+                    }
+                    .padding(.horizontal, Spacing.current.spaceM)
+                    .overlay(alignment: .leading) {
+                        Rectangle()
+                            .fill(Color("AccentColor"))
+                            .frame(width: 4)
+                    }
+            }
+            .markdownBlockStyle(\.table) { configuration in
+                configuration.label
+                    .markdownTableBorderStyle(.init(color: .clear))
+                    .markdownMargin(top: 16, bottom: 16)
+            }
+    }
 }
 
 
 
 // MARK: - Previews
 #if DEBUG
-#Preview("Overview View") {
+#Preview("Content Block with Header") {
     ScrollView {
-        MarkdownRenderer(markdown: """
-        # Welcome to Ancient Rome
-        
-        This journey takes you through the **heart of the Roman Empire**, exploring iconic landmarks and hidden gems. Consequat penatibus at ridiculus inceptos auctor sit vehicula rhoncus vestibulum, enim quam quis ornare ullamcorper molestie fames. Netus augue purus aenean mus rhoncus ornare montes sapien urna mattis primis odio nullam convallis varius dictum dignissim, etiam inceptos neque aliquet pharetra mauris felis sed magnis congue lorem libero erat condimentum ante nec.
+        ContentBlockView(block: ContentBlock(
+            id: "preview",
+            header: .dictionary([
+                "overline": .string("HISTORY & CULTURE"),
+                "headline": .string("An Unorthodox History of Istanbul"),
+                "subhead": .string("From Byzantine splendor to Ottoman grandeur"),
+                "feature_img": .string("https://www.esplanade.com/-/media/Esplanade/Images/Whats-On/all-events/2024/T/the-performing-art-of-the-samurai-japans-traditional-noh-drama-01.ashx?rev=c03c943571d04b05b7e5f6bc9ca3c4ac&hash=2D1A2C28F99A90CEDA9E77D1B5C3DC88")
+            ]),
+            markdown: """
+            The ancient streets of Rome hold stories waiting to be discovered beneath centuries of history. Walk through the **Colosseum**, where gladiators once fought, and imagine the roar of *fifty thousand spectators*.
 
-        A molestie ultrices commodo tincidunt bibendum gravida ante congue, nam lorem efficitur dignissim lacinia amet potenti eleifend nisl, accumsan ac blandit scelerisque pharetra dictumst natoque. Pretium praesent venenatis porta quisque fames dictum sit arcu aliquet sapien elit ad est, elementum porttitor faucibus facilisis felis phasellus ac rhoncus maximus neque ut fermentum.
+            ## Key Landmarks
 
-        
-        ![Rome Colosseum](https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/1280px-Colosseo_2020.jpg)
+            ### The Colosseum
 
-        ## What You'll Discover
-        
-        - The Colosseum: An architectural marvel
-        - The Forum: The center of Roman public life
-        - [The Pantheon](https://en.wikipedia.org/wiki/Pantheon,_Rome): A temple to all gods
-        
-        ## Getting Started
-        
-        Begin your journey at the Colosseum and follow the path through history.
-        
-        ```swift
-        let journey = Journey(name: "Ancient Rome")
-        journey.start()
-        ```
-        
-        Enjoy your exploration!
-        """, config: nil)
+            Built in **AD 72–80**, the Colosseum is the largest ancient amphitheatre ever built.
+
+            > While the Colosseum stands, Rome shall stand; when the Colosseum falls, Rome shall fall.
+            > — *Venerable Bede, 8th century*
+
+            ### The Roman Forum
+
+            The Forum was the center of day-to-day life in Rome for centuries.
+
+            | Detail | Info |
+            |--------|------|
+            | Best time to visit | Early morning or late afternoon |
+            | Duration | Allow 2–3 hours |
+            """,
+            cards: nil,
+            interface: nil
+        ))
+        .padding()
+    }
+    .background(Color("AppBkgColor"))
+}
+
+#Preview("Content Block without Header") {
+    ScrollView {
+        ContentBlockView(block: ContentBlock(
+            id: "no-header",
+            header: nil,
+            markdown: """
+            This journey takes you through the **heart of the Roman Empire**, exploring iconic landmarks and hidden gems.
+
+            ## What You'll Discover
+
+            - The Colosseum: An architectural marvel
+            - The Forum: The center of Roman public life
+
+            ## Getting Started
+
+            Begin your journey at the Colosseum and follow the path through history.
+            """,
+            cards: nil,
+            interface: nil
+        ))
         .padding()
     }
     .background(Color("AppBkgColor"))
