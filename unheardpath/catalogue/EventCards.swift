@@ -15,7 +15,8 @@ struct CulturalEvent: Identifiable {
     let eventDescription: String
     let startDatetime: String
     let endDatetime: String
-    let eventLocation: String
+    let eventVenue: String
+    let eventLocality: String
     let sourceURL: String
     let involvesLocalArtists: Bool
     let showcaseLocalHeritage: Bool
@@ -102,7 +103,8 @@ struct EventCardContent: View {
               let eventDescription = dict["event_description"]?.stringValue,
               let startDatetime = dict["start_datetime"]?.stringValue,
               let endDatetime = dict["end_datetime"]?.stringValue,
-              let eventLocation = dict["event_location"]?.stringValue,
+              let eventVenue = dict["event_venue"]?.stringValue,
+              let eventLocality = dict["event_locality"]?.stringValue,
               let sourceURL = dict["source_url"]?.stringValue else {
             return nil
         }
@@ -114,7 +116,8 @@ struct EventCardContent: View {
             eventDescription: eventDescription,
             startDatetime: startDatetime,
             endDatetime: endDatetime,
-            eventLocation: eventLocation,
+            eventVenue: eventVenue,
+            eventLocality: eventLocality,
             sourceURL: sourceURL,
             involvesLocalArtists: involvesLocalArtists,
             showcaseLocalHeritage: showcaseLocalHeritage,
@@ -218,7 +221,13 @@ struct EventCard: View {
                 .lineLimit(2)
                 .lineSpacing(-(TypographyScale.article1.baseSize * 0.15))
                 .truncationMode(.tail)
-            Text(event.eventLocation)
+            Text(event.eventVenue)
+                .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
+                .foregroundColor(.white.opacity(0.9))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .minimumScaleFactor(0.5)
+            Text(event.eventLocality)
                 .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
                 .foregroundColor(.white.opacity(0.9))
                 .lineLimit(1)
@@ -285,7 +294,7 @@ struct EventPopupView: View {
                         Image(systemName: "mappin.and.ellipse")
                             .foregroundColor(Color("onBkgTextColor30"))
                             .font(.system(size: TypographyScale.articleMinus1.baseSize))
-                        Text(event.eventLocation)
+                        Text(event.eventVenue)
                             .bodyText(size: .articleMinus1)
                             .foregroundColor(Color("onBkgTextColor30"))
                     }
@@ -345,7 +354,8 @@ private let sampleEventCards: [JSONValue] = [
         "event_description": .string("Singapore artist Dawn Ng presents 12 huge paintings by freezing pigment, earth, and sand into ice blocks then shattering them onto wooden canvases."),
         "start_datetime": .string("2026-01-22T09:00:00"),
         "end_datetime": .string("2026-02-15T22:00:00"),
-        "event_location": .string("Singapore Repertory Theatre"),
+        "event_venue": .string("Singapore Repertory Theatre"),
+        "event_locality": .string("Singapore"),
         "source_url": .string("https://www.ubs.com/global/en/our-firm/art/2026/art-sg-and-singapore-art-week.html"),
         "involves_local_artists": .bool(true),
         "showcase_local_heritage": .bool(false),
@@ -356,7 +366,7 @@ private let sampleEventCards: [JSONValue] = [
         "event_description": .string("Huge installations, sculptural works, performances, films, and paintings turn the warehouse into an open field where personal and collective memory shape the now."),
         "start_datetime": .string("2026-01-22T09:00:00"),
         "end_datetime": .string("2026-01-31T22:00:00"),
-        "event_location": .string("Singapore"),
+        "event_venue": .string("Singapore"),
         "source_url": .string("https://www.fzine.com/culture/singapore-art-week-2026-what-to-see"),
         "involves_local_artists": .bool(false),
         "showcase_local_heritage": .bool(false),
@@ -367,7 +377,7 @@ private let sampleEventCards: [JSONValue] = [
         "event_description": .string("Features Archivo 1984, Leon Gallery, Gajah Gallery, Art Agenda, Silverlens."),
         "start_datetime": .string("2026-02-05T09:00:00"),
         "end_datetime": .string("2026-02-05T22:00:00"),
-        "event_location": .string("Philippines"),
+        "event_venue": .string("Philippines"),
         "source_url": .string("https://www.artandmarket.net/art-fair/2026/02/05/preview-of-art-fair-philippines-2026"),
         "involves_local_artists": .bool(false),
         "showcase_local_heritage": .bool(false),
@@ -378,7 +388,7 @@ private let sampleEventCards: [JSONValue] = [
         "event_description": .string("Japanese artist Keiko Moriuchi showcases her Lu: The Never-Ending Thread, experimenting with gold leaf, cosmic symbols, and geometric patterns."),
         "start_datetime": .string("2026-01-17T09:00:00"),
         "end_datetime": .string("2026-02-28T22:00:00"),
-        "event_location": .string("Art Again gallery"),
+        "event_venue": .string("Art Again gallery"),
         "source_url": .string("https://www.fzine.com/culture/singapore-art-week-2026-what-to-see"),
         "involves_local_artists": .bool(false),
         "showcase_local_heritage": .bool(false),
@@ -389,7 +399,7 @@ private let sampleEventCards: [JSONValue] = [
         "event_description": .string("A shifting light and print installation where architecture morphs with movement, turning form into illusion and perception into experience."),
         "start_datetime": .string("2026-01-23T09:00:00"),
         "end_datetime": .string("2026-01-31T22:00:00"),
-        "event_location": .string("FLOCK at Kampong Java, Singapore"),
+        "event_venue": .string("FLOCK at Kampong Java, Singapore"),
         "source_url": .string("https://www.artweek.sg/event-detail/I-SAW-IT-Algorithmic-Prophecy"),
         "involves_local_artists": .bool(true),
         "showcase_local_heritage": .bool(true),
@@ -400,7 +410,7 @@ private let sampleEventCards: [JSONValue] = [
         "event_description": .string("A film event imagining alternative futures through myth, ritual, and storytelling, featuring works by various artists."),
         "start_datetime": .string("2026-01-05T09:00:00"),
         "end_datetime": .string("2026-02-08T22:00:00"),
-        "event_location": .string("ArtScience Cinema, Level 4"),
+        "event_venue": .string("ArtScience Cinema, Level 4"),
         "source_url": .string("https://www.artweek.sg/event-detail/Visions-of-the-Future"),
         "involves_local_artists": .bool(false),
         "showcase_local_heritage": .bool(false),
@@ -415,7 +425,8 @@ private let sampleEventCards: [JSONValue] = [
             eventDescription: "Singapore artist Dawn Ng presents 12 huge paintings.",
             startDatetime: "2026-01-22T09:00:00",
             endDatetime: "2026-02-15T22:00:00",
-            eventLocation: "Singapore Repertory Theatre",
+            eventVenue: "Singapore Repertory Theatre",
+            eventLocality: "Singapore",
             sourceURL: "https://example.com",
             involvesLocalArtists: true,
             showcaseLocalHeritage: false,

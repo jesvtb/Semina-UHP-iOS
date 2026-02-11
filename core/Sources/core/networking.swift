@@ -58,7 +58,7 @@ public enum SSEEventType: String, Sendable {
                 throw ParseError.missingField("message")
             }
             let duration = dict["duration"]?.doubleValue
-            let variant = dict["variant"]?.stringValue
+            let variant = dict["type"]?.stringValue
             return .toast(message: message, duration: duration, variant: variant)
 
         case .chat:

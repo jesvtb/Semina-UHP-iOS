@@ -43,7 +43,8 @@ class SSEEventRouter: ObservableObject {
 
         case .stop:
             await chatManager.handleStop()
-            logger.debug("Routing stop to ChatManager")
+            toastManager?.dismiss()
+            logger.debug("Routing stop to ChatManager and dismissing toast")
 
         case .map(let features):
             mapFeaturesManager?.apply(features: features)

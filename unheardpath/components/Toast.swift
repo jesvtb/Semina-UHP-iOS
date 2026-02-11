@@ -1,14 +1,32 @@
 import SwiftUI
 
 // MARK: - Activity Update Banner Component
-/// A banner specifically for activity updates in liveUpdateStack.
-/// Auto-dismisses after 4 seconds. When a new activity update arrives, SwiftUI automatically
-/// removes this banner (onDisappear cancels the dismiss task).
+/// A banner for activity updates in liveUpdateStack.
+///
+/// **Dismiss behavior by toast type:**
+/// - "info" toasts represent in-progress operations and persist with a spinner until replaced
+///   by the next toast or dismissed externally (e.g., on `stop` event). A 60-second stale guard
+///   auto-dismisses if no new event arrives (safety net for backend errors).
+/// - All other types (success, error, warning, etc.) auto-dismiss after 4 seconds.
+///
+/// When a new toast arrives, SwiftUI removes this view (onDisappear cancels any pending timer).
 /// Uses `onToastDimiss` (separate from the message bubble's `onDismiss`).
 struct ToastView: View {
     let toastData: ToastData
     let onToastDimiss: () -> Void
     @State private var dismissTask: Task<Void, Never>?
+    
+    /// Whether this toast represents an in-progress operation that should persist until
+    /// replaced or externally dismissed (e.g., by a `stop` SSE event).
+    private var isInProgress: Bool {
+        guard let type = toastData.type?.lowercased() else { return false }
+        switch type {
+        case "info", "information", "search", "search web", "update", "refresh", "location", "gps":
+            return true
+        default:
+            return false
+        }
+    }
     
     /// Maps activity update type to SF Symbol icon name
     private var iconName: String {
@@ -43,11 +61,18 @@ struct ToastView: View {
     // The banner content itself
     private var bannerContent: some View {
         HStack(spacing: 12) {
-            // Icon placeholder
-            Image(systemName: iconName)
-                .font(.title3)
-                .foregroundColor(.primary)
-                .frame(width: 24, height: 24)
+            if isInProgress {
+                // Spinner for in-progress toasts
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .primary))
+                    .frame(width: 24, height: 24)
+            } else {
+                // Static icon for terminal-state toasts
+                Image(systemName: iconName)
+                    .font(.title3)
+                    .foregroundColor(.primary)
+                    .frame(width: 24, height: 24)
+            }
             
             // Activity update message
             Text(toastData.message)
@@ -68,23 +93,33 @@ struct ToastView: View {
     
     var body: some View {
         bannerContent
-            .transition(.move(edge: .top).combined(with: .opacity))
+            .transition(.move(edge: .bottom).combined(with: .opacity))
             .onAppear {
-                // Start auto-dismiss timer
-                dismissTask = Task {
-                    try? await Task.sleep(nanoseconds: 4_000_000_000) // 4 seconds
-                    await MainActor.run {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            onToastDimiss()
-                        }
-                    }
-                }
+                startDismissTimer()
             }
             .onDisappear {
-                // Cancel dismiss task when view disappears (e.g., when new activity update arrives)
-                // SwiftUI automatically calls this when currentToastData changes
+                // Cancel dismiss task when view disappears (e.g., when new toast arrives or
+                // externally dismissed via stop event)
                 dismissTask?.cancel()
             }
+    }
+    
+    /// Starts the appropriate dismiss timer based on toast type.
+    /// - In-progress toasts: 60-second stale guard (safety net if backend never sends stop)
+    /// - Terminal toasts: 4-second auto-dismiss
+    private func startDismissTimer() {
+        let timeout: UInt64 = isInProgress
+            ? 60_000_000_000  // 60 seconds — stale guard for in-progress toasts
+            : 4_000_000_000   // 4 seconds — auto-dismiss for terminal toasts
+        
+        dismissTask = Task {
+            try? await Task.sleep(nanoseconds: timeout)
+            await MainActor.run {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    onToastDimiss()
+                }
+            }
+        }
     }
 }
 
