@@ -159,7 +159,7 @@ public enum Storage {
 
     /// Prints storage usage summary (UserDefaults size, documents, caches, available) for the configured Storage.
     public static func printStorageSummary() {
-        print("📦 Storage Summary:")
+        print("🗄️ Storage Summary:")
         print("---")
         let keys = allUserDefaultsKeysWithPrefix()
         let defaultsSize = keys.values.reduce(0) { total, value in

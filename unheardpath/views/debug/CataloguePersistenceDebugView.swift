@@ -312,17 +312,7 @@ struct CataloguePersistenceDebugView: View {
     }
     
     private func clearAllCacheFiles() {
-        let fm = FileManager.default
-        let contextsDir = Storage.cachesURL.appendingPathComponent("catalogue/contexts")
-        let snapshotFile = Storage.cachesURL.appendingPathComponent("catalogue/last_context.json")
-        
-        if fm.fileExists(atPath: contextsDir.path) {
-            try? fm.removeItem(at: contextsDir)
-        }
-        if fm.fileExists(atPath: snapshotFile.path) {
-            try? fm.removeItem(at: snapshotFile)
-        }
-        
+        CatalogueFileStore.clearAllFiles()
         statusMessage = "Cleared all cache files"
         refresh()
     }

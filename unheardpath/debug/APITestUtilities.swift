@@ -89,7 +89,7 @@ enum DebugVisualizer {
         let defaults = UserDefaults.standard
         let dict = defaults.dictionaryRepresentation()
 
-        print("📦 UserDefaults Contents for Unheard Path:")
+        print("🗄️ UserDefaults Contents for Unheard Path:")
         print("Total keys in UserDefaults: \(dict.count)")
         print("---")
 

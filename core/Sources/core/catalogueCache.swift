@@ -207,6 +207,26 @@ public final class CatalogueFileStore: CataloguePersisting, @unchecked Sendable 
         self.decoder = dec
     }
 
+    // MARK: - Static Cache Management
+    
+    /// Removes all catalogue cache files (contexts directory + last_context snapshot).
+    /// Safe to call even if files don't exist. Used during version upgrades to invalidate
+    /// potentially stale cache data whose schema may have changed.
+    ///
+    /// - Parameter baseSubdirectory: Root subdirectory under Caches (default: "catalogue").
+    public static func clearAllFiles(baseSubdirectory: String = "catalogue") {
+        let fm = FileManager.default
+        let contextsDir = Storage.cachesURL.appendingPathComponent("\(baseSubdirectory)/contexts")
+        let snapshotFile = Storage.cachesURL.appendingPathComponent("\(baseSubdirectory)/last_context.json")
+        
+        if fm.fileExists(atPath: contextsDir.path) {
+            try? fm.removeItem(at: contextsDir)
+        }
+        if fm.fileExists(atPath: snapshotFile.path) {
+            try? fm.removeItem(at: snapshotFile)
+        }
+    }
+    
     // MARK: - CataloguePersisting
 
     public func persist(sections: [CachedSection], sectionOrder: [String], location: LocationDetailData) async throws {

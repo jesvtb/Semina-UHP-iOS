@@ -116,6 +116,92 @@ class AppLifecycleManager: ObservableObject {
         }
     }
     
+    // MARK: - Version Upgrade Detection
+    
+    /// The current app marketing version (e.g. "2.1.0") from CFBundleShortVersionString
+    var currentAppVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+    }
+    
+    /// The current app build number from CFBundleVersion.
+    /// CI sets this to "MAJOR.MINOR.PATCH" (e.g. "0.0.16"); the Xcode default "1" indicates a local dev build.
+    /// In DEBUG builds, the raw default "1" is replaced with "dev" to avoid confusion.
+    var currentBuildNumber: String {
+        let raw = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+        #if DEBUG
+        return raw.contains(".") ? raw : AppConstants.devBuildLabel
+        #else
+        return raw
+        #endif
+    }
+    
+    /// The version that was running on the previous launch (nil on first install)
+    private(set) var previousAppVersion: String?
+    
+    /// True when a version upgrade is detected and requires additional handling
+    /// (e.g. cache clearing, migration). Placeholder for upcoming implementation.
+    private(set) var upgradeNeeded: Bool = false
+    
+    /// True when there is no previously stored version (brand new install)
+    private(set) var isFirstInstall: Bool = false
+    
+    private let lastAppVersionKey = "AppVersion.lastVersion"
+    private let lastAppBuildKey = "AppVersion.lastBuild"
+    private let upgradePendingKey = "AppVersion.upgradePending"
+    
+    /// Detects whether the app version changed since the last launch and persists the current version.
+    ///
+    /// Must be called after ``Storage.configure()``.
+    func checkForVersionUpgrade() {
+        let storedVersion = Storage.loadFromUserDefaults(forKey: lastAppVersionKey, as: String.self)
+        
+        previousAppVersion = storedVersion
+        isFirstInstall = (storedVersion == nil)
+        
+        // Always persist the current version and build number
+        Storage.saveToUserDefaults(currentAppVersion, forKey: lastAppVersionKey)
+        Storage.saveToUserDefaults(currentBuildNumber, forKey: lastAppBuildKey)
+        
+        logger.debug("""
+            📦 Version check complete:
+              currentAppVersion = \(currentAppVersion)
+              currentBuildNumber = \(currentBuildNumber)
+              schemaVersion = \(AppConstants.schemaVersion)
+              previousAppVersion = \(previousAppVersion ?? "nil")
+              isFirstInstall = \(isFirstInstall)
+              upgradeNeeded = \(upgradeNeeded)
+            """)
+    }
+    
+    /// Called after upgrade-related tasks (e.g. cache clearing, migration) complete successfully.
+    /// Clears the pending upgrade flag. Placeholder for upcoming implementation.
+    func commitVersionUpgrade() {
+        Storage.removeFromUserDefaults(forKey: upgradePendingKey)
+        upgradeNeeded = false
+        logger.debug("Version upgrade committed: \(currentAppVersion) build \(currentBuildNumber)")
+    }
+    
+    /// Semantic version comparison: returns true if `version` is strictly higher than `other`.
+    /// Parses "major.minor.patch" tuples. Falls back to string inequality if parsing fails.
+    static func isHigherVersion(_ version: String, than other: String) -> Bool {
+        let versionParts = version.split(separator: ".").compactMap { Int($0) }
+        let otherParts = other.split(separator: ".").compactMap { Int($0) }
+        
+        // If either fails to parse, fall back to string comparison
+        guard versionParts.count >= 2, otherParts.count >= 2 else {
+            return version != other
+        }
+        
+        // Compare major, minor, patch (pad missing components to 0)
+        for i in 0..<max(versionParts.count, otherParts.count) {
+            let v = i < versionParts.count ? versionParts[i] : 0
+            let o = i < otherParts.count ? otherParts[i] : 0
+            if v > o { return true }
+            if v < o { return false }
+        }
+        return false // equal
+    }
+    
     /// Weak references to registered lifecycle handlers
     private var handlers: [WeakLifecycleHandler] = []
     

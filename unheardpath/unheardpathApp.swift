@@ -163,6 +163,9 @@ struct unheardpathApp: App {
         logger.debug("Configuration: RELEASE (Production)")
         #endif
 
+        // Detect version upgrade (sets flags only; cache clearing happens in onAppear)
+        appLifecycleManager.checkForVersionUpgrade()
+
         // CRITICAL: Set UserManager reference BEFORE AuthManager checks session
         authManager.setUserManager(userManager)
 
@@ -327,6 +330,7 @@ private struct AppContentView: View {
                 // Wire up catalogue persistence and restore cached content
                 let catalogueFileStore = CatalogueFileStore()
                 catalogueManager.setPersistence(catalogueFileStore)
+                
                 Task {
                     // Restore catalogue from cache using last-known location
                     if let lookupLocation = eventManager.latestLookupLocation,
