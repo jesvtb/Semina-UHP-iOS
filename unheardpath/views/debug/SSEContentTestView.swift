@@ -2,7 +2,6 @@ import SwiftUI
 import CoreLocation
 import core
 
-#if DEBUG
 /// Debug view for testing SSE catalogue events in InfoSheet
 /// Allows simulating different catalogue section types dynamically
 struct SSEContentTestView: View {
@@ -216,4 +215,3 @@ struct SSECatalogueTestHelpers {
         """)
     }
 }
-#endif

@@ -1,7 +1,6 @@
 import SwiftUI
 import core
 
-#if DEBUG
 // MARK: - Catalogue Persistence Debug View
 
 /// Debug view to observe catalogue persistence: cached context files, last snapshot, and manual actions.
@@ -455,4 +454,3 @@ struct CataloguePersistenceDebugView: View {
         return "content"
     }
 }
-#endif

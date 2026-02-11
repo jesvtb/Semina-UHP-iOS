@@ -80,7 +80,6 @@ class APITestUtilities {
 // MARK: - Debug Visualizer
 /// Owns debug responsibilities for Storage/UserDefaults inspection and cache clearing.
 /// Use from debug UI or Xcode console (e.g. `DebugVisualizer.printAllUserDefaults()`).
-#if DEBUG
 enum DebugVisualizer {
 
     /// Prints all UserDefaults data stored by this app (Storage prefix, e.g. "UHP.").
@@ -141,4 +140,3 @@ enum DebugVisualizer {
         print("🗑️ Cleared \(count) cache entries")
     }
 }
-#endif

@@ -48,11 +48,9 @@ struct MainView: View {
     @EnvironmentObject var autocompleteManager: AutocompleteManager
     @Environment(\.geocoder) var geocoder: Geocoder
     // Debug cache overlay state
-    #if DEBUG
     @State var showCacheDebugSheet: Bool = false
     @State var showSSEContentTestSheet: Bool = false
     @State var showPersistenceDebugSheet: Bool = false
-    #endif
     
     // Sheet snap point control - universal binding for bidirectional control
     @State var sheetSnapPoint: SnapPoint = .partial
@@ -161,12 +159,12 @@ struct MainView: View {
             // Avatar / profile button overlay
             avatarButton
             
-            // Debug cache button overlay
-            #if DEBUG
-            debugCacheButton
-            debugSSEContentTestButton
-            debugPersistenceButton
-            #endif
+            // Debug cache button overlay (visible to allowlisted users in production)
+            if isDebugAccessAllowed {
+                debugCacheButton
+                debugSSEContentTestButton
+                debugPersistenceButton
+            }
         }
         .contentShape(Rectangle())
         .simultaneousGesture(
@@ -200,7 +198,6 @@ struct MainView: View {
             // .allowsHitTesting(!shouldHideTabBar || selectedTab != .journey)
             // .animation(.easeInOut(duration: 0.2), value: shouldHideTabBar)
         }
-        #if DEBUG
         .sheet(isPresented: $showCacheDebugSheet) {
             cacheDebugSheet
         }
@@ -212,7 +209,6 @@ struct MainView: View {
                 .environmentObject(catalogueManager)
                 .environmentObject(eventManager)
         }
-        #endif
         .onChange(of: shouldDismissKeyboard) { shouldDismiss in
             if shouldDismiss {
                 isTextFieldFocused = false

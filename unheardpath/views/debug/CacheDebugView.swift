@@ -1,7 +1,6 @@
 import SwiftUI
 import core
 
-#if DEBUG
 // MARK: - Cache Debug Content View
 
 /// Debug view showing cache statistics, session events, and device/lookup locations
@@ -316,4 +315,3 @@ struct CacheDebugContentView: View {
         }
     }
 }
-#endif

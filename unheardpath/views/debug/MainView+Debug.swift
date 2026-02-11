@@ -2,8 +2,23 @@ import SwiftUI
 import core
 
 // MARK: - Debug Components
-#if DEBUG
 extension MainView {
+    /// User IDs that can access debug views in production builds
+    private static let debugAllowedUserIDs: Set<String> = [
+        // Add allowed user UUIDs here, e.g.:
+        "c1a4eee7-8fb1-496e-be39-a58d6e8257e7",  // Jessica
+    ]
+    
+    /// Whether the current user is allowed to see debug views.
+    /// Always true in DEBUG builds; checks allowlist in RELEASE builds.
+    var isDebugAccessAllowed: Bool {
+        #if DEBUG
+        return true
+        #else
+        return Self.debugAllowedUserIDs.contains(authManager.userID)
+        #endif
+    }
+    
     var debugCacheButton: some View {
         VStack {
             HStack {
@@ -95,13 +110,14 @@ extension MainView {
     }
     
     func clearCache() {
-        #if DEBUG
         DebugVisualizer.clearAllCache()
+        #if DEBUG
         print("Cache cleared from debug button")
         #endif
     }
 }
 
+#if DEBUG
 #Preview("Map Tab with last user message") {
     let uhpGateway = UHPGateway()
     let trackingManager = TrackingManager()

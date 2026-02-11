@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+When running the app in the simulator, always use the `iPhone 17 Pro` model.
