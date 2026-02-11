@@ -28,6 +28,7 @@ struct InputBar: View {
                 .submitLabel(selectedTab == .map ? .search : .send)
                 .onSubmit {
                     if selectedTab != .map && !draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        isTextFieldFocused = false
                         onSendMessage()
                     }
                 }
@@ -44,7 +45,10 @@ struct InputBar: View {
                 }
             }
             if selectedTab != .map {
-                Button(action: onSendMessage) {
+                Button(action: {
+                    isTextFieldFocused = false
+                    onSendMessage()
+                }) {
                     Image(systemName: "arrow.up.circle.fill")
                         .bodyText(size: .article2)
                         .foregroundColor(isSendDisabled ? Color("onBkgTextColor30") : Color("onBkgTextColor10"))
@@ -261,6 +265,7 @@ struct StretchableInput: View {
                 .submitLabel(viewModel.inputMode == .autocomplete ? .search : .send)
                 .onSubmit {
                     if viewModel.inputMode == .freestyle && !draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        isTextFieldFocused = false
                         viewModel.onSendMessage?()
                     }
                 }
@@ -280,6 +285,7 @@ struct StretchableInput: View {
                     // Send button — inside the text field, trailing edge
                     if viewModel.inputMode == .freestyle && !draftMessage.isEmpty {
                         Button {
+                            isTextFieldFocused = false
                             viewModel.onSendMessage?()
                         } label: {
                             Image(systemName: "arrow.up.circle.fill")

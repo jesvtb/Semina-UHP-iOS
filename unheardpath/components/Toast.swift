@@ -123,3 +123,127 @@ struct ToastView: View {
     }
 }
 
+// MARK: - Preview: Simulated SSE Toast Stream
+
+/// Wrapper that drives a ToastManager through a scripted sequence of SSE-style
+/// toast events, each arriving after a configurable delay.
+private struct ToastSSEPreviewWrapper: View {
+    @StateObject private var toastManager = ToastManager()
+    @State private var eventLog: [String] = []
+    @State private var isRunning = false
+
+    /// Each step: (delay in seconds before firing, toast data or nil for dismiss)
+    private let sseScript: [(delay: Double, toast: ToastData?)] = [
+        // 1) Kick off with a location lookup (in-progress spinner)
+        (delay: 1.0,  toast: ToastData(type: "location", message: "Detecting your location…")),
+        // 2) Switch to a search (still in-progress)
+        (delay: 2.5,  toast: ToastData(type: "search", message: "Searching nearby landmarks…")),
+        // 3) Quick info update
+        (delay: 3.0,  toast: ToastData(type: "info", message: "Fetching cultural context…")),
+        // 4) Another search after a short pause
+        (delay: 1.5,  toast: ToastData(type: "search web", message: "Looking up opening hours…")),
+        // 5) Refresh/update step
+        (delay: 2.0,  toast: ToastData(type: "update", message: "Refreshing journey data…")),
+        // 6) Success — terminal toast, auto-dismisses after 4s
+        (delay: 3.5,  toast: ToastData(type: "success", message: "Journey ready! Tap to start.")),
+        // 7) Wait, then show a warning
+        (delay: 5.0,  toast: ToastData(type: "warning", message: "Slow network detected.")),
+        // 8) Error example
+        (delay: 5.0,  toast: ToastData(type: "error", message: "Failed to load audio guide.")),
+        // 9) Final dismiss (simulates SSE stop event)
+        (delay: 5.0,  toast: nil),
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Event log — scrollable history of what arrived
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(eventLog.enumerated()), id: \.offset) { index, entry in
+                            Text(entry)
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .id(index)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                }
+                .onChange(of: eventLog.count) { _ in
+                    if let last = eventLog.indices.last {
+                        withAnimation {
+                            proxy.scrollTo(last, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Toast display area
+            if let toastData = toastManager.currentToastData {
+                ToastView(
+                    toastData: toastData,
+                    onToastDimiss: {
+                        toastManager.dismiss()
+                    }
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+
+            // Replay button
+            Button(action: { runScript() }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isRunning ? "arrow.trianglehead.2.counterclockwise" : "play.fill")
+                    Text(isRunning ? "Running…" : "Replay SSE Stream")
+                }
+                .bodyText()
+                .foregroundColor(Color("AppBkgColor"))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(isRunning ? Color.gray : Color.accentColor)
+                .cornerRadius(Spacing.current.spaceXs)
+            }
+            .disabled(isRunning)
+            .padding(.bottom, 24)
+        }
+        .background(Color("AppBkgColor"))
+        .onAppear { runScript() }
+    }
+
+    private func runScript() {
+        guard !isRunning else { return }
+        isRunning = true
+        eventLog = ["▶ SSE stream started"]
+        toastManager.dismiss()
+
+        Task {
+            for (index, step) in sseScript.enumerated() {
+                try? await Task.sleep(nanoseconds: UInt64(step.delay * 1_000_000_000))
+
+                await MainActor.run {
+                    if let toast = step.toast {
+                        let label = "[\(String(format: "+%.1fs", step.delay))] toast → type: \(toast.type ?? "nil"), msg: \"\(toast.message)\""
+                        eventLog.append(label)
+                        toastManager.show(toast)
+                    } else {
+                        eventLog.append("[\(String(format: "+%.1fs", step.delay))] ■ stop (dismiss)")
+                        toastManager.dismiss()
+                    }
+                }
+            }
+
+            await MainActor.run {
+                eventLog.append("✓ Stream complete")
+                isRunning = false
+            }
+        }
+    }
+}
+
+#Preview("Toast — SSE Stream Simulation") {
+    ToastSSEPreviewWrapper()
+}
+
