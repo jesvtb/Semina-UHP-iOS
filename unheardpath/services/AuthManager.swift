@@ -27,6 +27,21 @@ class AuthManager: ObservableObject {
         self.userManager = userManager
     }
     
+    /// Normalizes Supabase user IDs into a stable canonical format.
+    /// Format: trimmed + UUID canonical representation + lowercase.
+    private static func normalizeSupabaseUserID(_ rawUserID: String) -> String {
+        let trimmedUserID = rawUserID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUserID.isEmpty else {
+            return ""
+        }
+        
+        if let parsedUserID = UUID(uuidString: trimmedUserID) {
+            return parsedUserID.uuidString.lowercased()
+        }
+        
+        return trimmedUserID.lowercased()
+    }
+    
     // Similar to React useEffect - runs once when object is created
     init() {
         // Start checking for session immediately (async task in init)
@@ -56,7 +71,7 @@ class AuthManager: ObservableObject {
         let manager = AuthManager(skipSessionCheck: true)
         manager.isAuthenticated = isAuthenticated
         manager.isLoading = isLoading
-        manager.userID = userID
+        manager.userID = normalizeSupabaseUserID(userID)
         return manager
     }
     #endif
@@ -70,10 +85,11 @@ class AuthManager: ObservableObject {
         // IMPORTANT: With emitLocalSessionAsInitialSession: true, we must check if session is expired
         do {
             let session = try await supabase.auth.session
-            userID = session.user.id.uuidString
+            let normalizedSessionUserID = Self.normalizeSupabaseUserID(session.user.id.uuidString)
+            userID = normalizedSessionUserID
             
             // Set global user in UserManager
-            userManager?.setUser(uuid: userID)
+            userManager?.setUser(uuid: normalizedSessionUserID)
             
             // print("🔍 Initial session: \(session)")
             // Check if session is expired (required when using emitLocalSessionAsInitialSession: true)
@@ -93,7 +109,7 @@ class AuthManager: ObservableObject {
                 #endif
                 // captureSessionRetrievalEvent(sessionFound: true, isExpired: false, userId: userID)
             }
-            PostHogSDK.shared.identify(userID, userProperties: ["is_signed_in": isAuthenticated], userPropertiesSetOnce: ["is_signed_up": true])
+            PostHogSDK.shared.identify(normalizedSessionUserID, userProperties: ["is_signed_in": isAuthenticated], userPropertiesSetOnce: ["is_signed_up": true])
         } catch {
             #if DEBUG
             print("ℹ️ No initial session - user needs to sign in: \(error.localizedDescription)")
@@ -143,15 +159,15 @@ class AuthManager: ObservableObject {
                     // Identify user with PostHog whenever we have a session
                     // Session expiration only affects JWT token validity, not user identity
                     // Same user ID should be used for PostHog regardless of expiration
-                    let signedInUserID = session.user.id.uuidString
-                    userID = signedInUserID
-                    PostHogSDK.shared.identify(signedInUserID)
+                    let normalizedSignedInUserID = Self.normalizeSupabaseUserID(session.user.id.uuidString)
+                    userID = normalizedSignedInUserID
+                    PostHogSDK.shared.identify(normalizedSignedInUserID)
                     
                     // Set global user in UserManager
-                    userManager?.setUser(uuid: signedInUserID)
+                    userManager?.setUser(uuid: normalizedSignedInUserID)
                     
                     #if DEBUG
-                    print("✅ PostHog identified user on auth state change: \(signedInUserID)")
+                    print("✅ PostHog identified user on auth state change: \(normalizedSignedInUserID)")
                     #endif
                     
                     // Check if session is expired for authentication state
