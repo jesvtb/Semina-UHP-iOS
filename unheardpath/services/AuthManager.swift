@@ -143,14 +143,15 @@ class AuthManager: ObservableObject {
                     // Identify user with PostHog whenever we have a session
                     // Session expiration only affects JWT token validity, not user identity
                     // Same user ID should be used for PostHog regardless of expiration
-                    let userID = session.user.id.uuidString
-                    PostHogSDK.shared.identify(userID)
+                    let signedInUserID = session.user.id.uuidString
+                    userID = signedInUserID
+                    PostHogSDK.shared.identify(signedInUserID)
                     
                     // Set global user in UserManager
-                    userManager?.setUser(uuid: userID)
+                    userManager?.setUser(uuid: signedInUserID)
                     
                     #if DEBUG
-                    print("✅ PostHog identified user on auth state change: \(userID)")
+                    print("✅ PostHog identified user on auth state change: \(signedInUserID)")
                     #endif
                     
                     // Check if session is expired for authentication state
@@ -161,6 +162,7 @@ class AuthManager: ObservableObject {
                     }
                 } else {
                     isAuthenticated = false
+                    userID = ""
                     // Clear user when session is lost
                     userManager?.clearUser()
                     // Reset PostHog when user signs out

@@ -9,13 +9,23 @@ extension MainView {
         "c1a4eee7-8fb1-496e-be39-a58d6e8257e7",  // Jessica
     ]
     
+    /// Pre-normalized allowlist so UUID casing/whitespace differences do not break access checks.
+    private static let normalizedDebugAllowedUserIDs: Set<String> = {
+        Set(debugAllowedUserIDs.map { normalizeUserIDForDebugAccess($0) })
+    }()
+    
+    private static func normalizeUserIDForDebugAccess(_ userID: String) -> String {
+        userID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+    
     /// Whether the current user is allowed to see debug views.
     /// Always true in DEBUG builds; checks allowlist in RELEASE builds.
     var isDebugAccessAllowed: Bool {
         #if DEBUG
         return true
         #else
-        return Self.debugAllowedUserIDs.contains(authManager.userID)
+        let normalizedCurrentUserID = Self.normalizeUserIDForDebugAccess(authManager.userID)
+        return Self.normalizedDebugAllowedUserIDs.contains(normalizedCurrentUserID)
         #endif
     }
     
