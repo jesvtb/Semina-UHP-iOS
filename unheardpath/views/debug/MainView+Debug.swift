@@ -29,78 +29,49 @@ extension MainView {
         #endif
     }
     
-    var debugCacheButton: some View {
+    @ViewBuilder
+    private func debugOverlayButton(systemName: String, yOffset: CGFloat, onTap: @escaping () -> Void) -> some View {
         VStack {
             HStack {
                 Spacer()
-                Button(action: {
-                    showCacheDebugSheet = true
-                }) {
-                    Image(systemName: "internaldrive")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color("onBkgTextColor30"))
-                        .padding(8)
-                        .background(
-                            Color("AppBkgColor")
-                                .opacity(0.8)
-                                .cornerRadius(8)
-                        )
+                Button(action: onTap) {
+                    debugOverlayButtonIcon(systemName: systemName)
                 }
                 .padding(.top, 8)
                 .padding(.trailing, 8)
-                .offset(y: 48) // Position below avatar button
+                .offset(y: yOffset)
             }
             Spacer()
+        }
+    }
+    
+    private func debugOverlayButtonIcon(systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 12))
+            .foregroundColor(Color("onBkgTextColor30"))
+            .padding(8)
+            .background(
+                Color("AppBkgColor")
+                    .opacity(0.8)
+                    .cornerRadius(8)
+            )
+    }
+    
+    var debugCacheButton: some View {
+        debugOverlayButton(systemName: "internaldrive", yOffset: 48) {
+            showCacheDebugSheet = true
         }
     }
     
     var debugSSEContentTestButton: some View {
-        VStack {
-            HStack {
-                Spacer()
-                Button(action: {
-                    showSSEContentTestSheet = true
-                }) {
-                    Image(systemName: "doc.text.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color("onBkgTextColor30"))
-                        .padding(8)
-                        .background(
-                            Color("AppBkgColor")
-                                .opacity(0.8)
-                                .cornerRadius(8)
-                        )
-                }
-                .padding(.top, 8)
-                .padding(.trailing, 8)
-                .offset(y: 88) // Position below cache button
-            }
-            Spacer()
+        debugOverlayButton(systemName: "doc.text.fill", yOffset: 88) {
+            showSSEContentTestSheet = true
         }
     }
     
     var debugPersistenceButton: some View {
-        VStack {
-            HStack {
-                Spacer()
-                Button(action: {
-                    showPersistenceDebugSheet = true
-                }) {
-                    Image(systemName: "cylinder.split.1x2")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color("onBkgTextColor30"))
-                        .padding(8)
-                        .background(
-                            Color("AppBkgColor")
-                                .opacity(0.8)
-                                .cornerRadius(8)
-                        )
-                }
-                .padding(.top, 8)
-                .padding(.trailing, 8)
-                .offset(y: 128) // Position below SSE test button
-            }
-            Spacer()
+        debugOverlayButton(systemName: "cylinder.split.1x2", yOffset: 128) {
+            showPersistenceDebugSheet = true
         }
     }
     
