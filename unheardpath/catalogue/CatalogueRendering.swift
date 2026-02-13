@@ -156,6 +156,8 @@ struct ContentBlockView: View {
                 DishCardContent(cards: cards, config: cardConfig)
             case "event":
                 EventCardContent(cards: cards, config: cardConfig)
+            case "journey":
+                JourneyCardContent(cards: cards, config: cardConfig)
             case "feature":
                 FeatureCardList(cards: cards, config: cardConfig)
             default:

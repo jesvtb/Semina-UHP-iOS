@@ -15,6 +15,9 @@ import core
 // MARK: - Font Family Names
 /// Centralized font family constants (PostScript names)
 enum FontFamily {
+    // SF Symbols Pro (IcoMoon-generated icon font)
+    static let sfSymbolsExtra = "SF-Symbols-Pro"
+    
     // Source Serif 4
     static let serifDisplay = "SourceSerif4Display-Semibold"
     static let serifRegular = "SourceSerif4-Regular"
@@ -24,6 +27,118 @@ enum FontFamily {
     static let sansRegular = "SourceSans3-Regular"
     static let sansSemibold = "SourceSans3-Semibold"
     static let sansExtraLight = "SourceSans3-ExtraLight"
+}
+
+// MARK: - Icon Font Helper
+/// Renders an icon glyph from the SF-Symbols-Pro icon font (IcoMoon-generated)
+/// 
+/// Usage:
+/// ```swift
+/// IconFontImage(.arrowUp, size: 24, color: .blue)
+/// IconFontImage(.heart, size: 20)
+/// IconFontImage(unicode: "\u{E900}", size: 16) // Direct unicode
+/// ```
+struct IconFontImage: View {
+    let unicode: String
+    let size: CGFloat
+    let color: Color
+    
+    /// Initialize with an IconGlyph enum case
+    init(_ glyph: IconGlyph, size: CGFloat = 20, color: Color = .primary) {
+        self.unicode = glyph.rawValue
+        self.size = size
+        self.color = color
+    }
+    
+    /// Initialize with a raw unicode string for glyphs not yet in the enum
+    init(unicode: String, size: CGFloat = 20, color: Color = .primary) {
+        self.unicode = unicode
+        self.size = size
+        self.color = color
+    }
+    
+    var body: some View {
+        Text(unicode)
+            .font(.custom(FontFamily.sfSymbolsExtra, size: size))
+            .foregroundColor(color)
+    }
+}
+
+// MARK: - Icon Glyph Catalog
+/// Unicode code points for SF-Symbols-Pro icon font glyphs
+/// 
+/// The font contains ~6,300 icons in the Private Use Area (U+E900–U+101AF).
+/// Add entries here as you identify glyphs you need.
+/// 
+/// To discover glyphs, use the "Icon Font Browser" preview in this file,
+/// which renders a grid of all available glyphs with their unicode values.
+/// 
+/// Usage:
+/// ```swift
+/// IconFontImage(.placeholder)
+/// ```
+enum IconGlyph: String {
+    // To discover more glyphs, use the "Icon Font Browser" previews at
+    // the bottom of this file which render a grid with unicode values.
+    // Format: case iconName = "\u{XXXX}"
+    
+    // MARK: Maps & Location
+    /// Map pin on folded map (U+E99E)
+    case mapPin = "\u{E99E}"
+    /// Globe with location pin (U+F652)
+    case globeLocation = "\u{F652}"
+    /// Map with route and location pins (U+EEA8)
+    case mapRoute = "\u{EEA8}"
+    /// Google Maps icon (U+F309)
+    case googleMaps = "\u{F309}"
+    /// Braille / tactile map (U+02B3)
+    case tactileMap = "\u{02B3}"
+    
+    // MARK: Buildings & Landmarks
+    /// Taj Mahal / mosque with domes (U+0004)
+    case tajMahal = "\u{0004}"
+    /// Korean / East Asian temple gate (U+003D)
+    case asianTemple = "\u{003D}"
+    /// Russian Orthodox church with onion domes (U+F96E)
+    case orthodoxChurch = "\u{F96E}"
+    /// Domed mosque / cathedral (U+ECFC)
+    case mosque = "\u{ECFC}"
+    /// Gothic cathedral with spires (U+ECFD)
+    case cathedral = "\u{ECFD}"
+    
+    // MARK: Religion & Culture
+    /// Star of David (U+FF32)
+    case starOfDavid = "\u{FF32}"
+    /// Menorah (U+F522)
+    case menorah = "\u{F522}"
+    
+    // MARK: Communication
+    /// Chat bubbles (U+F743)
+    case chatBubbles = "\u{F743}"
+    /// Chat translation bubbles (U+EE3A)
+    case chatTranslation = "\u{EE3A}"
+    
+    // MARK: Nature & Animals
+    /// Pelican / crane bird (U+EEB7)
+    case pelican = "\u{EEB7}"
+    /// Crescent moon (U+F7D0)
+    case crescentMoon = "\u{F7D0}"
+    
+    // MARK: Travel & Commerce
+    /// Ticket / coupon (U+ECFA)
+    case ticket = "\u{ECFA}"
+    /// Currency exchange EUR/USD (U+EEFA)
+    case currencyExchange = "\u{EEFA}"
+    /// Closed sign (U+EDD9)
+    case closedSign = "\u{EDD9}"
+    
+    // MARK: Medical & Health
+    /// Stethoscope (U+F98E)
+    case stethoscope = "\u{F98E}"
+    
+    // MARK: Brands
+    /// Google Plus icon (U+10009)
+    case googlePlus = "\u{10009}"
 }
 
 // MARK: - Typography Scale
@@ -667,3 +782,251 @@ private struct MultilingualFontSample: View {
     }
 }
 
+// MARK: - Icon Font Glyph Browser Preview
+/// Visual browser for discovering glyphs in the SF-Symbols-Pro icon font.
+/// 
+/// Shows icons in a scrollable grid with their Unicode values.
+/// Use this preview to identify which glyphs you want, then add them
+/// to the `IconGlyph` enum above.
+///
+/// Adjust `startCodePoint` and `endCodePoint` to browse different ranges:
+/// - Main range: 0xE900 – 0x101AF (~6,300 icons)
+/// - Scattered: 0xE007, 0xE013, 0xE01A, 0xE01E, 0xE049, 0xE052, 0xE055–0xE057, 0xE077–0xE07C
+private struct IconFontBrowser: View {
+    let startCodePoint: Int
+    let endCodePoint: Int
+    let iconSize: CGFloat
+    let columns: Int
+    
+    init(
+        start: Int = 0xE900,
+        end: Int = 0xE9FF,
+        iconSize: CGFloat = 28,
+        columns: Int = 6
+    ) {
+        self.startCodePoint = start
+        self.endCodePoint = end
+        self.iconSize = iconSize
+        self.columns = columns
+    }
+    
+    private var codePoints: [Int] {
+        Array(startCodePoint...endCodePoint)
+    }
+    
+    private var gridColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 4), count: columns)
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // Range header
+                Text("SF-Symbols-Pro Glyph Browser")
+                    .font(.headline)
+                Text("Range: U+\(String(format: "%04X", startCodePoint)) – U+\(String(format: "%04X", endCodePoint)) (\(endCodePoint - startCodePoint + 1) slots)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("Tap a glyph to copy its code. Add to IconGlyph enum as:\ncase name = \"\\u{XXXX}\"")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                
+                Divider()
+                
+                // Glyph grid
+                LazyVGrid(columns: gridColumns, spacing: 8) {
+                    ForEach(codePoints, id: \.self) { codePoint in
+                        if let scalar = Unicode.Scalar(codePoint) {
+                            VStack(spacing: 2) {
+                                Text(String(scalar))
+                                    .font(.custom(FontFamily.sfSymbolsExtra, size: iconSize))
+                                    .frame(width: 44, height: 44)
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(6)
+                                
+                                Text(String(format: "%04X", codePoint))
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+#Preview("Icon Font Browser · E900–E9FF") {
+    IconFontBrowser(start: 0xE900, end: 0xE9FF)
+}
+
+#Preview("Icon Font Browser · EA00–EAFF") {
+    IconFontBrowser(start: 0xEA00, end: 0xEAFF)
+}
+
+#Preview("Icon Font Browser · EB00–EBFF") {
+    IconFontBrowser(start: 0xEB00, end: 0xEBFF)
+}
+
+#Preview("Icon Font Browser · EC00–ECFF") {
+    IconFontBrowser(start: 0xEC00, end: 0xECFF)
+}
+
+#Preview("Icon Font Browser · Scattered PUA") {
+    ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Scattered PUA Glyphs")
+                .font(.headline)
+            
+            let scatteredCodes: [Int] = [
+                0xE007, 0xE013, 0xE01A, 0xE01E,
+                0xE049, 0xE052, 0xE055, 0xE056, 0xE057,
+                0xE077, 0xE078, 0xE079, 0xE07A, 0xE07B, 0xE07C
+            ]
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 5), spacing: 8) {
+                ForEach(scatteredCodes, id: \.self) { codePoint in
+                    if let scalar = Unicode.Scalar(codePoint) {
+                        VStack(spacing: 2) {
+                            Text(String(scalar))
+                                .font(.custom(FontFamily.sfSymbolsExtra, size: 28))
+                                .frame(width: 52, height: 52)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(6)
+                            
+                            Text(String(format: "U+%04X", codePoint))
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+// MARK: - Cataloged Icon Reference (Grouped)
+/// Shows all icons from the IconGlyph enum grouped by category,
+/// with enum case name and unicode value for each icon.
+private struct CatalogedIconRow: View {
+    let glyph: IconGlyph
+    let label: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            IconFontImage(glyph, size: 28, color: .primary)
+                .frame(width: 40, height: 40)
+                .background(Color(.systemGray6))
+                .cornerRadius(6)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(".\(label)")
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                Text(unicodeHex(for: glyph))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+    }
+    
+    private func unicodeHex(for glyph: IconGlyph) -> String {
+        guard let scalar = glyph.rawValue.unicodeScalars.first else { return "?" }
+        return String(format: "U+%04X", scalar.value)
+    }
+}
+
+private struct CatalogedIconGroup: View {
+    let title: String
+    let icons: [(glyph: IconGlyph, label: String)]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.secondary)
+                .tracking(1.2)
+            
+            ForEach(icons, id: \.label) { item in
+                CatalogedIconRow(glyph: item.glyph, label: item.label)
+            }
+        }
+    }
+}
+
+#Preview("Cataloged Icons by Group") {
+    ScrollView {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("SF-Symbols-Pro — Cataloged Icons")
+                .font(.headline)
+            Text("All icons added to IconGlyph enum, grouped by category.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Divider()
+            
+            CatalogedIconGroup(title: "Maps & Location", icons: [
+                (.mapPin, "mapPin"),
+                (.globeLocation, "globeLocation"),
+                (.mapRoute, "mapRoute"),
+                (.googleMaps, "googleMaps"),
+                (.tactileMap, "tactileMap"),
+            ])
+            
+            Divider()
+            
+            CatalogedIconGroup(title: "Buildings & Landmarks", icons: [
+                (.tajMahal, "tajMahal"),
+                (.asianTemple, "asianTemple"),
+                (.orthodoxChurch, "orthodoxChurch"),
+                (.mosque, "mosque"),
+                (.cathedral, "cathedral"),
+            ])
+            
+            Divider()
+            
+            CatalogedIconGroup(title: "Religion & Culture", icons: [
+                (.starOfDavid, "starOfDavid"),
+                (.menorah, "menorah"),
+            ])
+            
+            Divider()
+            
+            CatalogedIconGroup(title: "Communication", icons: [
+                (.chatBubbles, "chatBubbles"),
+                (.chatTranslation, "chatTranslation"),
+            ])
+            
+            Divider()
+            
+            CatalogedIconGroup(title: "Nature & Animals", icons: [
+                (.pelican, "pelican"),
+                (.crescentMoon, "crescentMoon"),
+            ])
+            
+            Divider()
+            
+            CatalogedIconGroup(title: "Travel & Commerce", icons: [
+                (.ticket, "ticket"),
+                (.currencyExchange, "currencyExchange"),
+                (.closedSign, "closedSign"),
+            ])
+            
+            Divider()
+            
+            CatalogedIconGroup(title: "Medical", icons: [
+                (.stethoscope, "stethoscope"),
+            ])
+            
+            Divider()
+            
+            CatalogedIconGroup(title: "Brands", icons: [
+                (.googlePlus, "googlePlus"),
+            ])
+        }
+        .padding()
+    }
+}
