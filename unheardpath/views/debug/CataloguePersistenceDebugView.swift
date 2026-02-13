@@ -274,6 +274,7 @@ struct CataloguePersistenceDebugView: View {
     
     private func refresh() {
         isLoading = true
+        statusMessage = nil
         loadContextFiles()
         loadSnapshot()
         isLoading = false
@@ -319,123 +320,147 @@ struct CataloguePersistenceDebugView: View {
     // MARK: - File Loading
     
     private func loadContextFiles() {
-        let fm = FileManager.default
-        let contextsDir = Storage.cachesURL.appendingPathComponent("catalogue/contexts")
+        let fileManager = FileManager.default
+        let contextsDirectoryURL = Storage.cachesURL.appendingPathComponent("catalogue/contexts")
         
-        guard fm.fileExists(atPath: contextsDir.path),
-              let files = try? fm.contentsOfDirectory(at: contextsDir, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey]) else {
+        guard fileManager.fileExists(atPath: contextsDirectoryURL.path) else {
             contextFiles = []
             return
         }
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .short
-        dateFormatter.timeStyle = .medium
+        let dateFormatter = buildDebugDateFormatter()
+        let decoder = buildISO8601JSONDecoder()
         
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        
-        contextFiles = files
-            .filter { $0.pathExtension == "json" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .compactMap { fileURL -> ContextFileInfo? in
-                let filename = fileURL.lastPathComponent
-                let resources = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
-                let size = resources?.fileSize ?? 0
-                let modified = resources?.contentModificationDate
-                
-                // Try to decode the context for metadata
-                var geoKey = filename.replacingOccurrences(of: ".json", with: "")
-                var level = "unknown"
-                var sectionCount = 0
-                var sectionTypes: [String] = []
-                
-                var rawJSON = "(unable to read file)"
-                if let data = try? Data(contentsOf: fileURL) {
-                    // Pretty-print the raw JSON
-                    if let jsonObject = try? JSONSerialization.jsonObject(with: data),
-                       let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted, .sortedKeys]),
-                       let prettyString = String(data: prettyData, encoding: .utf8) {
-                        rawJSON = prettyString
-                    } else {
-                        rawJSON = String(data: data, encoding: .utf8) ?? "(binary data)"
-                    }
-                    
-                    if let context = try? decoder.decode(CachedContext.self, from: data) {
-                        geoKey = context.geoKey
-                        level = context.level.identifier
-                        sectionCount = context.sections.count
-                        sectionTypes = context.sectionOrder
-                    }
-                }
-                
-                return ContextFileInfo(
-                    filename: filename,
-                    fileSize: ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file),
-                    modified: modified.map { dateFormatter.string(from: $0) } ?? "unknown",
-                    geoKey: geoKey,
-                    level: level,
-                    sectionCount: sectionCount,
-                    sectionTypes: sectionTypes,
-                    rawJSON: rawJSON
-                )
-            }
+        do {
+            let files = try fileManager.contentsOfDirectory(
+                at: contextsDirectoryURL,
+                includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey]
+            )
+            contextFiles = files
+                .filter { $0.pathExtension == "json" }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+                .compactMap { makeContextFileInfo(from: $0, dateFormatter: dateFormatter, decoder: decoder) }
+        } catch {
+            contextFiles = []
+            statusMessage = "Failed to read context files: \(error.localizedDescription)"
+        }
     }
     
     private func loadSnapshot() {
-        let snapshotFile = Storage.cachesURL.appendingPathComponent("catalogue/last_context.json")
-        let fm = FileManager.default
+        let snapshotFileURL = Storage.cachesURL.appendingPathComponent("catalogue/last_context.json")
+        let fileManager = FileManager.default
         
-        guard fm.fileExists(atPath: snapshotFile.path),
-              let data = try? Data(contentsOf: snapshotFile) else {
+        guard fileManager.fileExists(atPath: snapshotFileURL.path) else {
             lastSnapshot = nil
             return
         }
         
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        
-        guard let snapshot = try? decoder.decode(CachedCatalogueSnapshot.self, from: data) else {
+        do {
+            let snapshotData = try Data(contentsOf: snapshotFileURL)
+            let decoder = buildISO8601JSONDecoder()
+            let snapshot = try decoder.decode(CachedCatalogueSnapshot.self, from: snapshotData)
+            let dateFormatter = buildDebugDateFormatter()
+            
+            lastSnapshot = SnapshotInfo(
+                geoKey: snapshot.geoKey,
+                level: snapshot.level.identifier,
+                savedAt: dateFormatter.string(from: snapshot.savedAt),
+                sectionOrder: snapshot.sectionOrder,
+                locationSummary: formatLocationSummary(snapshot.locationSummary),
+                rawJSON: buildPrettyJSONString(from: snapshotData)
+            )
+        } catch {
             lastSnapshot = nil
-            return
+            statusMessage = "Failed to load snapshot: \(error.localizedDescription)"
         }
-        
-        // Pretty-print the raw snapshot JSON
-        let rawJSON: String
-        if let jsonObject = try? JSONSerialization.jsonObject(with: data),
-           let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted, .sortedKeys]),
-           let prettyString = String(data: prettyData, encoding: .utf8) {
-            rawJSON = prettyString
-        } else {
-            rawJSON = String(data: data, encoding: .utf8) ?? "(binary data)"
-        }
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .short
-        dateFormatter.timeStyle = .medium
-        
-        let locSummary: String = {
-            var parts: [String] = []
-            if let locality = snapshot.locationSummary.locality { parts.append(locality) }
-            if let admin = snapshot.locationSummary.adminArea { parts.append(admin) }
-            if let country = snapshot.locationSummary.countryCode { parts.append(country) }
-            if parts.isEmpty {
-                return String(format: "%.4f, %.4f", snapshot.locationSummary.latitude, snapshot.locationSummary.longitude)
-            }
-            return parts.joined(separator: ", ")
-        }()
-        
-        lastSnapshot = SnapshotInfo(
-            geoKey: snapshot.geoKey,
-            level: snapshot.level.identifier,
-            savedAt: dateFormatter.string(from: snapshot.savedAt),
-            sectionOrder: snapshot.sectionOrder,
-            locationSummary: locSummary,
-            rawJSON: rawJSON
-        )
     }
     
     // MARK: - Helpers
+    
+    private func buildDebugDateFormatter() -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .medium
+        return formatter
+    }
+    
+    private func buildISO8601JSONDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+    
+    private func makeContextFileInfo(
+        from fileURL: URL,
+        dateFormatter: DateFormatter,
+        decoder: JSONDecoder
+    ) -> ContextFileInfo? {
+        let fileName = fileURL.lastPathComponent
+        let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        let fileSize = resourceValues?.fileSize ?? 0
+        let modifiedDate = resourceValues?.contentModificationDate
+        
+        let metadata = parseContextMetadata(from: fileURL, decoder: decoder, fileName: fileName)
+        
+        return ContextFileInfo(
+            filename: fileName,
+            fileSize: ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file),
+            modified: modifiedDate.map { dateFormatter.string(from: $0) } ?? "unknown",
+            geoKey: metadata.geoKey,
+            level: metadata.level,
+            sectionCount: metadata.sectionCount,
+            sectionTypes: metadata.sectionTypes,
+            rawJSON: metadata.rawJSON
+        )
+    }
+    
+    private func parseContextMetadata(
+        from fileURL: URL,
+        decoder: JSONDecoder,
+        fileName: String
+    ) -> (geoKey: String, level: String, sectionCount: Int, sectionTypes: [String], rawJSON: String) {
+        let fallbackGeoKey = fileName.replacingOccurrences(of: ".json", with: "")
+        
+        do {
+            let contextData = try Data(contentsOf: fileURL)
+            let rawJSON = buildPrettyJSONString(from: contextData)
+            
+            guard let context = try? decoder.decode(CachedContext.self, from: contextData) else {
+                return (fallbackGeoKey, "unknown", 0, [], rawJSON)
+            }
+            
+            return (
+                context.geoKey,
+                context.level.identifier,
+                context.sections.count,
+                context.sectionOrder,
+                rawJSON
+            )
+        } catch {
+            let fallbackRawJSON = "(unable to read file: \(error.localizedDescription))"
+            return (fallbackGeoKey, "unknown", 0, [], fallbackRawJSON)
+        }
+    }
+    
+    private func buildPrettyJSONString(from data: Data) -> String {
+        guard let jsonObject = try? JSONSerialization.jsonObject(with: data),
+              let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted, .sortedKeys]),
+              let prettyString = String(data: prettyData, encoding: .utf8) else {
+            return String(data: data, encoding: .utf8) ?? "(binary data)"
+        }
+        return prettyString
+    }
+    
+    private func formatLocationSummary(_ locationSummary: CachedLocationSummary) -> String {
+        let locationParts = [locationSummary.locality, locationSummary.adminArea, locationSummary.countryCode]
+            .compactMap { $0 }
+        
+        guard !locationParts.isEmpty else {
+            return String(format: "%.4f, %.4f", locationSummary.latitude, locationSummary.longitude)
+        }
+        
+        return locationParts.joined(separator: ", ")
+    }
     
     private func contentSummary(_ content: JSONValue) -> String {
         if case .dictionary(let dict) = content {

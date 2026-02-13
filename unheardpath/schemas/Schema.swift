@@ -87,10 +87,18 @@ class UserManager: ObservableObject {
     } else {
         device_lang = Locale.current.languageCode ?? device_lang
     }
-    let userUUID = UUID(uuidString: uuid)
-    currentUser = User(isAnonymous: false, user_id: userUUID, device_lang: device_lang)
+    let normalizedUserID = uuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard let parsedUserUUID = UUID(uuidString: normalizedUserID) else {
+      currentUser = nil
+      #if DEBUG
+      print("⚠️ UserManager: Invalid UUID, unable to set current user: \(uuid)")
+      #endif
+      return
+    }
+    
+    currentUser = User(isAnonymous: false, user_id: parsedUserUUID, device_lang: device_lang)
     #if DEBUG
-    print("✅ UserManager: Set current user with UUID: \(uuid)")
+    print("✅ UserManager: Set current user with UUID: \(normalizedUserID)")
     #endif
   }
   
