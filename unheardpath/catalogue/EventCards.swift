@@ -1,6 +1,11 @@
 import SwiftUI
 import SafariServices
 import core
+import MapboxMaps
+import CoreLocation
+
+// Resolve ambiguity between core.JSONValue and MapboxMaps.JSONValue
+private typealias JSONValue = core.JSONValue
 
 // MARK: - Event Card Defaults
 /// Event-specific layout defaults, used when server config doesn't specify values.
@@ -52,35 +57,39 @@ struct CulturalEvent: Identifiable {
 }
 
 // MARK: - Event Card Content (render_type: "event")
-/// Renders event cards using `DynamicCardGrid` with `EventCard` as the internal card view.
+/// Renders event cards in a horizontal scroll layout with `EventCard` as the card view.
 /// Manages event popup state and parses JSONValue into CulturalEvent models.
 struct EventCardContent: View {
-    let cards: [JSONValue]
-    let config: JSONValue?
+    let cards: [core.JSONValue]
+    let config: core.JSONValue?
     @State private var selectedEvent: CulturalEvent?
     @Environment(\.isPopupEnabled) private var isPopupEnabled
+    @EnvironmentObject var catalogueManager: CatalogueManager
 
-    /// Effective config: event defaults overlaid with any server-provided overrides.
-    private var effectiveConfig: JSONValue {
-        var dict: [String: JSONValue] = [
-            "aspectRatio": .double(EventCardDefaults.aspectRatio),
-            "cornerRadius": .double(EventCardDefaults.cornerRadius)
-        ]
-        // Server config overrides event defaults
-        if case .dictionary(let serverDict) = config {
-            for (key, value) in serverDict {
-                dict[key] = value
-            }
-        }
-        return .dictionary(dict)
+    /// Card aspect ratio from config, falling back to event-specific default
+    private var cardAspectRatio: CGFloat {
+        config?["aspectRatio"]?.doubleValue.map { CGFloat($0) } ?? EventCardDefaults.aspectRatio
     }
 
+    /// Fixed card width for horizontal scroll
+    private let horizontalCardWidth: CGFloat = 200
+
     var body: some View {
-        DynamicCardGrid(cards: cards, config: effectiveConfig) { cardData in
-            eventCardView(from: cardData)
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: Spacing.current.spaceS) {
+                ForEach(cards.indices, id: \.self) { index in
+                    eventCardView(from: cards[index])
+                        .frame(width: horizontalCardWidth, height: horizontalCardWidth / cardAspectRatio)
+                }
+            }
+            .padding(.horizontal, Spacing.current.spaceXs)
         }
+        .frame(height: horizontalCardWidth / cardAspectRatio)
         .sheet(item: $selectedEvent) { event in
-            EventPopupView(event: event) {
+            EventPopupView(
+                event: event,
+                countryCode: catalogueManager.locationDetailData?.countryCode
+            ) {
                 selectedEvent = nil
             }
         }
@@ -128,7 +137,7 @@ struct EventCardContent: View {
 
 struct EventCard: View {
     let event: CulturalEvent
-    let config: JSONValue?
+    let config: core.JSONValue?
     let onTap: () -> Void
 
     /// Corner radius from config, falling back to event-specific default
@@ -216,10 +225,10 @@ struct EventCard: View {
         let maxTextWidth = max(0, cardWidth - horizontalPadding)
         return VStack(alignment: .leading, spacing: 2) {
             Text(event.eventName)
-                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article1.baseSize))
+                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article0.baseSize))
                 .foregroundColor(.white)
                 .lineLimit(2)
-                .lineSpacing(-(TypographyScale.article1.baseSize * 0.15))
+                .lineSpacing(-(TypographyScale.article0.baseSize * 0.15))
                 .truncationMode(.tail)
             Text(event.eventVenue)
                 .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
@@ -247,11 +256,51 @@ struct EventCard: View {
     }
 }
 
+/// Lightweight Mapbox map preview for showing a single venue location.
+/// Uses the app's custom Mapbox style for visual consistency with the main map.
+private struct VenueMapPreview: View {
+    let coordinate: CLLocationCoordinate2D
+    let venueName: String
+
+    var body: some View {
+        MapboxMaps.Map(initialViewport: .camera(
+            center: coordinate,
+            zoom: 14,
+            bearing: 0,
+            pitch: 0
+        )) {
+            MapboxMaps.MapViewAnnotation(coordinate: coordinate) {
+                VStack(spacing: 2) {
+                    Text(venueName)
+                        .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus2.baseSize))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .padding(.horizontal, Spacing.current.spaceXs)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.7))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(.red)
+                        .shadow(color: .black.opacity(0.3), radius: 2)
+                }
+            }
+            .allowOverlap(true)
+        }
+        .mapStyle(MapboxMaps.MapStyle(uri: MapboxMaps.StyleURI(rawValue: "mapbox://styles/jessicamingyu/clxyfv0on002q01r1143f2f70")!))
+    }
+}
+
 /// Popup presented when an event card is tapped.
+/// Geocodes the event venue using Geoapify forward search and shows the result on a map.
 struct EventPopupView: View {
     let event: CulturalEvent
+    let countryCode: String?
     let onDismiss: () -> Void
     @State private var showWebPage = false
+    @State private var venueCoordinate: CLLocationCoordinate2D?
+    @State private var isGeocoding = false
+    @Environment(\.geocoder) private var geocoder
 
     var body: some View {
         NavigationStack {
@@ -310,6 +359,18 @@ struct EventPopupView: View {
                         }
                     }
 
+                    // Map showing geocoded venue location
+                    if let coordinate = venueCoordinate {
+                        VenueMapPreview(coordinate: coordinate, venueName: event.eventVenue)
+                            .frame(height: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else if isGeocoding {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color("onBkgTextColor30").opacity(0.1))
+                            .frame(height: 200)
+                            .overlay(ProgressView().tint(Color("onBkgTextColor30")))
+                    }
+
                     Text(event.eventDescription)
                         .bodyParagraph(color: Color("onBkgTextColor30"))
 
@@ -341,6 +402,26 @@ struct EventPopupView: View {
                     }
                 }
             }
+            .task {
+                await geocodeVenue()
+            }
+        }
+    }
+
+    /// Geocodes the event venue using Geoapify forward search with the catalogue's country code filter.
+    private func geocodeVenue() async {
+        isGeocoding = true
+        defer { isGeocoding = false }
+        do {
+            let coordinate = try await geocoder.geocodeForward(
+                text: event.eventVenue,
+                countryCode: countryCode
+            )
+            if let coordinate = coordinate {
+                venueCoordinate = coordinate
+            }
+        } catch {
+            // Geocoding failed silently — map section won't appear
         }
     }
 }
@@ -447,19 +528,20 @@ private let sampleEventCards: [JSONValue] = [
             .padding()
     }
     .background(Color("AppBkgColor"))
+    .environmentObject(CatalogueManager())
 }
 
-#Preview("Event Cards - Single Column") {
+#Preview("Event Cards - Landscape") {
     ScrollView {
         EventCardContent(
             cards: sampleEventCards,
             config: .dictionary([
-                "inColsofCount": .double(1),
                 "aspectRatio": .double(2.5)
             ])
         )
         .padding()
     }
     .background(Color("AppBkgColor"))
+    .environmentObject(CatalogueManager())
 }
 #endif

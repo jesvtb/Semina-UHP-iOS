@@ -313,6 +313,7 @@ public final class Geocoder: Sendable {
 
     private static let geoapifyBaseURL = "https://api.geoapify.com/v1/geocode/autocomplete"
     private static let geoapifyReverseBaseURL = "https://api.geoapify.com/v1/geocode/reverse"
+    private static let geoapifySearchBaseURL = "https://api.geoapify.com/v1/geocode/search"
     private static let geoapifyLimit = 8
 
     public init(
@@ -444,6 +445,42 @@ public final class Geocoder: Sendable {
     /// Builds LocationDetailData from a CLPlacemark (from CLGeocoder legacy path).
     private func buildLocationDetailDataFromPlacemark(location: CLLocation, placemark: CLPlacemark) -> LocationDetailData {
         return LocationDetailData(placemark: placemark, location: location)
+    }
+
+    /// Forward geocodes a text query using Geoapify search API.
+    /// Optionally filters by ISO 3166-1 alpha-2 country code (e.g., "SG", "US").
+    /// - Parameters:
+    ///   - text: The search text (e.g., a venue name or address).
+    ///   - countryCode: Optional country code to narrow results.
+    /// - Returns: The coordinate of the best match, or nil if no result is found.
+    public func geocodeForward(text: String, countryCode: String? = nil) async throws -> CLLocationCoordinate2D? {
+        var params: [String: String] = [
+            "text": text,
+            "format": "json",
+            "apiKey": geoapifyApiKey,
+            "limit": "1",
+        ]
+        if let code = countryCode, !code.isEmpty {
+            params["filter"] = "countrycode:\(code.lowercased())"
+        }
+        let data = try await apiClient.asyncCallAPI(
+            url: Self.geoapifySearchBaseURL,
+            method: "GET",
+            headers: nil,
+            params: params,
+            dataDict: [:],
+            jsonDict: [:],
+            timeout: false,
+            filesDict: [:]
+        )
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let results = root["results"] as? [[String: Any]],
+              let first = results.first,
+              let lat = first["lat"] as? Double,
+              let lon = first["lon"] as? Double else {
+            return nil
+        }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
 
     public func autocompleteGeoapify(query: String) async throws -> [MapSearchResult] {
