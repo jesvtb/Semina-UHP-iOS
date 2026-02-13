@@ -93,6 +93,7 @@
 		<string>SourceSans3-ExtraLight.ttf</string>
 		<string>SourceSans3-Regular.ttf</string>
 		<string>SourceSans3-Semibold.ttf</string>
+		<string>SFSymbols-Extra.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
