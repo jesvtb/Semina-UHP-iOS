@@ -9,6 +9,110 @@ private enum JourneyCardDefaults {
     static let cornerRadius: CGFloat = 4
 }
 
+func currentDeviceLanguageCode() -> String {
+    if #available(iOS 16.0, *) {
+        return Locale.current.language.languageCode?.identifier ?? "en"
+    }
+    return Locale.current.languageCode ?? "en"
+}
+
+func countryLanguageCode(countryCode: String?) -> String? {
+    guard let countryCode,
+          countryCode.count == 2 else {
+        return nil
+    }
+    let normalizedCountryCode = countryCode.uppercased()
+    for localeIdentifier in Locale.availableIdentifiers {
+        let locale = Locale(identifier: localeIdentifier)
+        guard locale.regionCode?.uppercased() == normalizedCountryCode else {
+            continue
+        }
+        if #available(iOS 16.0, *) {
+            if let languageCode = locale.language.languageCode?.identifier,
+               !languageCode.isEmpty {
+                return languageCode
+            }
+        }
+        if let languageCode = locale.languageCode, !languageCode.isEmpty {
+            return languageCode
+        }
+    }
+    return nil
+}
+
+func parseImageURLs(from value: JSONValue?) -> [URL] {
+    guard let value else {
+        return []
+    }
+    if case .array(let imageValues) = value {
+        return imageValues.compactMap { imageValue in
+            guard let imageString = imageValue.stringValue else {
+                return nil
+            }
+            return URL(string: imageString)
+        }
+    }
+    if let imageString = value.stringValue,
+       let imageURL = URL(string: imageString) {
+        return [imageURL]
+    }
+    return []
+}
+
+func resolvedPlaceName(from properties: [String: JSONValue]) -> String? {
+    let names = properties["names"]?.dictionaryValue
+    let deviceLanguageCode = currentDeviceLanguageCode().lowercased()
+    let baseDeviceLanguageCode = deviceLanguageCode.split(separator: "-").first.map(String.init) ?? deviceLanguageCode
+    if let names {
+        if let matchedDeviceName = names["lang:\(deviceLanguageCode)"]?.stringValue,
+           !matchedDeviceName.isEmpty {
+            return matchedDeviceName
+        }
+        if let matchedBaseDeviceName = names["lang:\(baseDeviceLanguageCode)"]?.stringValue,
+           !matchedBaseDeviceName.isEmpty {
+            return matchedBaseDeviceName
+        }
+        if let englishName = names["lang:en"]?.stringValue,
+           !englishName.isEmpty {
+            return englishName
+        }
+        for (nameKey, nameValue) in names where nameKey.hasPrefix("lang:") {
+            if let fallbackName = nameValue.stringValue, !fallbackName.isEmpty {
+                return fallbackName
+            }
+        }
+    }
+    return properties["place_name"]?.stringValue
+}
+
+func resolvedLocalName(from properties: [String: JSONValue], placeName: String?) -> String? {
+    guard let names = properties["names"]?.dictionaryValue else {
+        return properties["local_name"]?.stringValue
+    }
+
+    // Fast path: backend pre-resolved lang:local
+    if let localName = names["lang:local"]?.stringValue, !localName.isEmpty {
+        if let placeName, placeName == localName {
+            return nil
+        }
+        return localName
+    }
+
+    // Fallback: resolve from country_code when lang:local is absent
+    let countryCode = properties["country_code"]?.stringValue
+    guard let localLanguageCode = countryLanguageCode(countryCode: countryCode)?.lowercased() else {
+        return properties["local_name"]?.stringValue
+    }
+    let localName = names["lang:\(localLanguageCode)"]?.stringValue
+    guard let localName, !localName.isEmpty else {
+        return properties["local_name"]?.stringValue
+    }
+    if let placeName, placeName == localName {
+        return nil
+    }
+    return localName
+}
+
 /// A journey card item representing a guided tour or route
 struct Journey: Identifiable {
     let kicker: String
@@ -17,8 +121,9 @@ struct Journey: Identifiable {
     let intro: String
     let duration: Int
     let distance: Int
-    let stops: [JSONValue]
-    let featureImageURL: URL?
+    let places: [JSONValue]
+    let imageURLs: [URL]
+    var featureImageURL: URL? { imageURLs.first }
 
     var id: String { "\(title)|\(kicker)" }
 
@@ -41,9 +146,9 @@ struct Journey: Identifiable {
         return "\(distance) m"
     }
 
-    /// Coordinate of the first stop, extracted from GeoJSON Feature Point geometry.
-    var firstStopCoordinate: CLLocationCoordinate2D? {
-        guard let firstStop = stops.first,
+    /// Coordinate of the first place, extracted from GeoJSON Feature Point geometry.
+    var firstPlaceCoordinate: CLLocationCoordinate2D? {
+        guard let firstStop = places.first,
               case .dictionary(let feature) = firstStop,
               case .dictionary(let geometry) = feature["geometry"],
               case .array(let coords) = geometry["coordinates"],
@@ -56,14 +161,14 @@ struct Journey: Identifiable {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
-    /// Name of the first stop for map label.
-    var firstStopName: String? {
-        guard let firstStop = stops.first,
+    /// Name of the first place for map label.
+    var firstPlaceName: String? {
+        guard let firstStop = places.first,
               case .dictionary(let feature) = firstStop,
               case .dictionary(let props) = feature["properties"] else {
             return nil
         }
-        return props["place_name"]?.stringValue
+        return resolvedPlaceName(from: props)
     }
 }
 
@@ -111,13 +216,35 @@ struct JourneyCardContent: View {
         }
         let duration = dict["duration"]?.doubleValue.map { Int($0) } ?? 0
         let distance = dict["distance"]?.doubleValue.map { Int($0) } ?? 0
-        let stops: [JSONValue] = {
-            if let stopsValue = dict["stops"], case .array(let stopsArray) = stopsValue {
-                return stopsArray
+        let places: [JSONValue] = {
+            if let placesValue = dict["places"], case .array(let placesArray) = placesValue {
+                return placesArray
             }
             return []
         }()
-        let featureImageURL = dict["feature_img"]?.stringValue.flatMap { URL(string: $0) }
+        var imageURLs = parseImageURLs(from: dict["img_urls"])
+        if imageURLs.isEmpty {
+            imageURLs = parseImageURLs(from: dict["feature_img"])
+        }
+        // Fallback: use the first image URL found from any place's properties
+        if imageURLs.isEmpty {
+            for place in places {
+                guard case .dictionary(let feature) = place,
+                      case .dictionary(let props) = feature["properties"] else {
+                    continue
+                }
+                let placeImageURLs = parseImageURLs(from: props["img_urls"])
+                if let firstURL = placeImageURLs.first {
+                    imageURLs = [firstURL]
+                    break
+                }
+                let legacyPlaceImageURLs = parseImageURLs(from: props["feature_img"])
+                if let firstURL = legacyPlaceImageURLs.first {
+                    imageURLs = [firstURL]
+                    break
+                }
+            }
+        }
         return Journey(
             kicker: kicker,
             title: title,
@@ -125,8 +252,8 @@ struct JourneyCardContent: View {
             intro: intro,
             duration: duration,
             distance: distance,
-            stops: stops,
-            featureImageURL: featureImageURL
+            places: places,
+            imageURLs: imageURLs
         )
     }
 }
@@ -200,8 +327,8 @@ struct JourneyCard: View {
                         if journey.distance > 0 {
                             Label(journey.formattedDistance, systemImage: "point.topleft.down.to.point.bottomright.curvepath")
                         }
-                        if !journey.stops.isEmpty {
-                            Label("\(journey.stops.count) stops", systemImage: "mappin.and.ellipse")
+                        if !journey.places.isEmpty {
+                            Label("\(journey.places.count) places", systemImage: "mappin.and.ellipse")
                         }
                     }
                     .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
@@ -291,7 +418,7 @@ private let sampleJourneyCards: [JSONValue] = [
         "duration": .int(90),
         "distance": .int(4500),
         "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg"),
-        "stops": .array([
+        "places": .array([
             sampleStop(placeName: "Hagia Sophia", localName: "Ayasofya", description: "A former Greek Orthodox patriarchal basilica, later an imperial mosque, and now a museum.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg", isMosque: true, longitude: 28.9801, latitude: 41.0086),
             sampleStop(placeName: "Blue Mosque", localName: "Sultanahmet Camii", description: "An Ottoman-era historical imperial mosque known for its blue İznik tiles.", isMosque: true, longitude: 28.9768, latitude: 41.0054),
             sampleStop(placeName: "Grand Bazaar", localName: "Kapalıçarşı", description: "One of the largest and oldest covered markets in the world with over 4,000 shops.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Istanbul_Grand_Bazaar.jpg", longitude: 28.9680, latitude: 41.0107),
@@ -306,7 +433,7 @@ private let sampleJourneyCards: [JSONValue] = [
         "intro": .string("Explore the vibrant street art scene and contemporary cultural spaces that define Istanbul's modern identity. From hidden galleries to open-air murals, this journey showcases the city's thriving creative community."),
         "duration": .int(60),
         "distance": .int(2800),
-        "stops": .array([
+        "places": .array([
             sampleStop(placeName: "Karaköy Street Art District", description: "A neighbourhood alive with murals and independent galleries."),
             sampleStop(placeName: "Istanbul Modern", description: "Turkey's first museum of modern and contemporary art."),
             sampleStop(placeName: "Galata Tower", localName: "Galata Kulesi", description: "A medieval stone tower offering panoramic views of the historic peninsula.")
@@ -320,7 +447,7 @@ private let sampleJourneyCards: [JSONValue] = [
         "duration": .int(120),
         "distance": .int(6200),
         "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/5/5e/Istanbul_Grand_Bazaar.jpg"),
-        "stops": .array([
+        "places": .array([
             sampleStop(placeName: "Eminönü Fish Market", description: "Famous for its floating fish-bread boats along the Bosphorus."),
             sampleStop(placeName: "Spice Bazaar", localName: "Mısır Çarşısı", description: "A centuries-old market bursting with spices, dried fruits, and Turkish delight."),
             sampleStop(placeName: "Karaköy Güllüoğlu", description: "Legendary baklava shop serving Istanbul since 1949."),
@@ -337,7 +464,7 @@ private let sampleJourneyCards: [JSONValue] = [
         "duration": .int(75),
         "distance": .int(3100),
         "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/b/b0/Sultan_Ahmed_Mosque_Istanbul_Turkey_retouched.jpg"),
-        "stops": .array([
+        "places": .array([
             sampleStop(placeName: "Chora Church", localName: "Kariye Camii", description: "Home to some of the finest Byzantine mosaics and frescoes in the world.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/f/f3/Topkap%C4%B1_-_01.jpg"),
             sampleStop(placeName: "Süleymaniye Mosque", localName: "Süleymaniye Camii", description: "Sinan's masterpiece crowning the Third Hill — a triumph of Ottoman architecture.", isMosque: true),
             sampleStop(placeName: "Rüstem Pasha Mosque", localName: "Rüstem Paşa Camii", description: "A small gem near the Spice Bazaar adorned with exquisite İznik tiles.", isMosque: true)
@@ -350,7 +477,7 @@ private let sampleJourneyCards: [JSONValue] = [
         "intro": .string("As the sun dips behind the minarets, a different Istanbul awakens. This evening route winds through lantern-lit alleys to rooftop terraces with panoramic views, ending at a meyhane where locals gather for raki, meze, and conversation."),
         "duration": .int(105),
         "distance": .int(3800),
-        "stops": .array([
+        "places": .array([
             sampleStop(placeName: "Galata Bridge at Sunset", localName: "Galata Köprüsü", description: "Watch the sun set over the Golden Horn from the iconic double-deck bridge."),
             sampleStop(placeName: "Büyük Valide Han Rooftop", description: "A hidden rooftop atop a 17th-century caravanserai with sweeping city views."),
             sampleStop(placeName: "Nevizade Street", description: "A lively alley of meyhanes where locals gather for meze and raki."),
@@ -368,12 +495,12 @@ private let sampleJourneyCards: [JSONValue] = [
             intro: "Walk the ancient streets where empires rose and fell.",
             duration: 90,
             distance: 4500,
-            stops: [
+            places: [
                 sampleStop(placeName: "Hagia Sophia", localName: "Ayasofya", isMosque: true),
                 sampleStop(placeName: "Blue Mosque", isMosque: true),
                 sampleStop(placeName: "Grand Bazaar")
             ],
-            featureImageURL: URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")
+            imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")!]
         ),
         config: nil
     ) {
@@ -393,11 +520,11 @@ private let sampleJourneyCards: [JSONValue] = [
             intro: "Explore the vibrant street art scene.",
             duration: 60,
             distance: 2800,
-            stops: [
+            places: [
                 sampleStop(placeName: "Karaköy Street Art District"),
                 sampleStop(placeName: "Istanbul Modern")
             ],
-            featureImageURL: nil
+            imageURLs: []
         ),
         config: nil
     ) {

@@ -40,10 +40,10 @@ struct JourneyActionButtons: View {
                 }
             }
 
-            // Secondary action — open device map to navigate to first stop
-            if journey.firstStopCoordinate != nil {
+            // Secondary action — open device map to navigate to first place
+            if journey.firstPlaceCoordinate != nil {
                 Button {
-                    openDirectionsToFirstStop()
+                    openDirectionsToFirstPlace()
                 } label: {
                     Text("Get to Start")
                         .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
@@ -54,11 +54,11 @@ struct JourneyActionButtons: View {
         }
     }
 
-    /// Opens the device's default map app with walking directions to the first stop.
-    private func openDirectionsToFirstStop() {
-        guard let coordinate = journey.firstStopCoordinate else { return }
+    /// Opens the device's default map app with walking directions to the first place.
+    private func openDirectionsToFirstPlace() {
+        guard let coordinate = journey.firstPlaceCoordinate else { return }
         let destination = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
-        destination.name = journey.firstStopName ?? "Start"
+        destination.name = journey.firstPlaceName ?? "Start"
         destination.openInMaps(launchOptions: [
             MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
         ])

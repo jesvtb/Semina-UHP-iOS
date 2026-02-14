@@ -12,20 +12,24 @@ struct JourneyCoverView: View {
     let onDismiss: () -> Void
     @State private var isBookmarked = false
 
-    /// All available feature image URLs from the journey and its stops.
+    /// All available feature image URLs from the journey and its places.
     private var allImageURLs: [URL] {
         var urls: [URL] = []
-        if let journeyURL = journey.featureImageURL {
-            urls.append(journeyURL)
-        }
-        for stop in journey.stops {
+        urls.append(contentsOf: journey.imageURLs)
+        for stop in journey.places {
             guard case .dictionary(let feature) = stop,
-                  case .dictionary(let props) = feature["properties"],
-                  let imgString = props["feature_img"]?.stringValue,
-                  let url = URL(string: imgString) else { continue }
-            urls.append(url)
+                  case .dictionary(let props) = feature["properties"] else {
+                continue
+            }
+            let stopImageURLs = parseImageURLs(from: props["img_urls"])
+            if !stopImageURLs.isEmpty {
+                urls.append(contentsOf: stopImageURLs)
+                continue
+            }
+            let legacyStopImageURLs = parseImageURLs(from: props["feature_img"])
+            urls.append(contentsOf: legacyStopImageURLs)
         }
-        return urls
+        return Array(NSOrderedSet(array: urls).compactMap { $0 as? URL })
     }
 
     var body: some View {
@@ -48,9 +52,9 @@ struct JourneyCoverView: View {
 
                         JourneyActionButtons(journey: journey)
 
-                        JourneyStopsSection(stops: journey.stops)
+                        JourneyPlaces(places: journey.places)
 
-                        JourneyRouteSection(stops: journey.stops)
+                        JourneyRouteSection(stops: journey.places)
                     }
                     .padding(.horizontal, Spacing.current.spaceS)
                 }
@@ -282,10 +286,10 @@ private struct JourneyMetadataRow: View {
                     Text(journey.formattedDistance)
                 }
             }
-            if !journey.stops.isEmpty {
+            if !journey.places.isEmpty {
                 HStack(spacing: Spacing.current.space2xs) {
                     Image(systemName: "mappin.and.ellipse")
-                    Text("\(journey.stops.count) stops")
+                    Text("\(journey.places.count) places")
                 }
             }
         }
@@ -420,14 +424,14 @@ private struct RadialGradientDebugView: View {
             intro: "Walk the ancient streets where empires rose and fell. This journey takes you through Istanbul's most storied neighborhoods, revealing layers of history hidden beneath the modern city. From the monumental Hagia Sophia to the bustling Grand Bazaar, every step tells a story of conquest, culture, and resilience.",
             duration: 90,
             distance: 4500,
-            stops: [
+            places: [
                 sampleStop(placeName: "Hagia Sophia", localName: "Ayasofya", description: "A former Greek Orthodox patriarchal basilica, later an imperial mosque, and now a museum.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg", isMosque: true, longitude: 28.9801, latitude: 41.0086),
                 sampleStop(placeName: "Blue Mosque", localName: "Sultanahmet Camii", description: "An Ottoman-era historical imperial mosque known for its blue İznik tiles.", isMosque: true, longitude: 28.9768, latitude: 41.0054),
                 sampleStop(placeName: "Grand Bazaar", localName: "Kapalıçarşı", description: "One of the largest and oldest covered markets in the world with over 4,000 shops.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Istanbul_Grand_Bazaar.jpg", longitude: 28.9680, latitude: 41.0107),
                 sampleStop(placeName: "Topkapi Palace", localName: "Topkapı Sarayı", description: "The primary residence of the Ottoman sultans for nearly 400 years.", longitude: 28.9834, latitude: 41.0115),
                 sampleStop(placeName: "Basilica Cistern", localName: "Yerebatan Sarnıcı", description: "The largest of several hundred ancient cisterns beneath Istanbul.", longitude: 28.9783, latitude: 41.0084)
             ],
-            featureImageURL: URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")
+            imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")!]
         )
     ) {
         print("Dismissed")

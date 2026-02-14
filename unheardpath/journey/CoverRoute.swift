@@ -40,7 +40,7 @@ struct JourneyRouteSection: View {
             }
             let placeName: String? = {
                 guard case .dictionary(let props) = feature["properties"] else { return nil }
-                return props["place_name"]?.stringValue
+                return resolvedPlaceName(from: props)
             }()
             return JourneyMapStop(
                 index: index + 1,

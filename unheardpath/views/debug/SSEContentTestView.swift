@@ -135,14 +135,24 @@ Enjoy your exploration!
     }
     
     private func catalogueDescription(for section: CatalogueSection) -> String {
-        // Check for markdown content
-        if let markdownContent = section.content["markdown"]?.stringValue {
-            return "Markdown: \(markdownContent.prefix(50))..."
+        // Content is topic-keyed: { "topic_key": { "markdown": ..., "cards": [...], "_metadata": ... } }
+        // Iterate through topics to find markdown or cards content
+        guard case .dictionary(let topLevelDict) = section.content else {
+            return "Section Type: \(section.sectionType)"
         }
         
-        // Check for cards content
-        if let cardsValue = section.content["cards"], case .array(let cards) = cardsValue {
-            return "Card Section: \(cards.count) cards"
+        for (_, topicValue) in topLevelDict {
+            guard case .dictionary(let topicDict) = topicValue else { continue }
+            
+            // Check for markdown content within topic
+            if let markdownContent = topicDict["markdown"]?.stringValue {
+                return "Markdown: \(markdownContent.prefix(50))..."
+            }
+            
+            // Check for cards content within topic
+            if let cardsValue = topicDict["cards"], case .array(let cards) = cardsValue {
+                return "Card Section: \(cards.count) cards"
+            }
         }
         
         // Generic content description
@@ -282,7 +292,7 @@ private let sampleTourJourneyCards: [JSONValue] = [
         "duration": .int(90),
         "distance": .int(4500),
         "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg"),
-        "stops": .array([
+        "places": .array([
             tourTestStop(placeName: "Hagia Sophia", localName: "Ayasofya", description: "A former Greek Orthodox patriarchal basilica, later an imperial mosque, and now a museum.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg", isMosque: true, longitude: 28.9801, latitude: 41.0086),
             tourTestStop(placeName: "Blue Mosque", localName: "Sultanahmet Camii", description: "An Ottoman-era historical imperial mosque known for its blue İznik tiles.", isMosque: true, longitude: 28.9768, latitude: 41.0054),
             tourTestStop(placeName: "Grand Bazaar", localName: "Kapalıçarşı", description: "One of the largest and oldest covered markets in the world with over 4,000 shops.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Istanbul_Grand_Bazaar.jpg", longitude: 28.9680, latitude: 41.0107),
@@ -297,7 +307,7 @@ private let sampleTourJourneyCards: [JSONValue] = [
         "intro": .string("Explore the vibrant street art scene and contemporary cultural spaces that define Istanbul's modern identity. From hidden galleries to open-air murals, this journey showcases the city's thriving creative community."),
         "duration": .int(60),
         "distance": .int(2800),
-        "stops": .array([
+        "places": .array([
             tourTestStop(placeName: "Karaköy Street Art District", description: "A neighbourhood alive with murals and independent galleries."),
             tourTestStop(placeName: "Istanbul Modern", description: "Turkey's first museum of modern and contemporary art."),
             tourTestStop(placeName: "Galata Tower", localName: "Galata Kulesi", description: "A medieval stone tower offering panoramic views of the historic peninsula.")
@@ -311,7 +321,7 @@ private let sampleTourJourneyCards: [JSONValue] = [
         "duration": .int(120),
         "distance": .int(6200),
         "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/5/5e/Istanbul_Grand_Bazaar.jpg"),
-        "stops": .array([
+        "places": .array([
             tourTestStop(placeName: "Eminönü Fish Market", description: "Famous for its floating fish-bread boats along the Bosphorus."),
             tourTestStop(placeName: "Spice Bazaar", localName: "Mısır Çarşısı", description: "A centuries-old market bursting with spices, dried fruits, and Turkish delight."),
             tourTestStop(placeName: "Karaköy Güllüoğlu", description: "Legendary baklava shop serving Istanbul since 1949."),
@@ -328,7 +338,7 @@ private let sampleTourJourneyCards: [JSONValue] = [
         "duration": .int(75),
         "distance": .int(3100),
         "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/b/b0/Sultan_Ahmed_Mosque_Istanbul_Turkey_retouched.jpg"),
-        "stops": .array([
+        "places": .array([
             tourTestStop(placeName: "Chora Church", localName: "Kariye Camii", description: "Home to some of the finest Byzantine mosaics and frescoes in the world.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/f/f3/Topkap%C4%B1_-_01.jpg"),
             tourTestStop(placeName: "Süleymaniye Mosque", localName: "Süleymaniye Camii", description: "Sinan's masterpiece crowning the Third Hill — a triumph of Ottoman architecture.", isMosque: true),
             tourTestStop(placeName: "Rüstem Pasha Mosque", localName: "Rüstem Paşa Camii", description: "A small gem near the Spice Bazaar adorned with exquisite İznik tiles.", isMosque: true)
@@ -341,7 +351,7 @@ private let sampleTourJourneyCards: [JSONValue] = [
         "intro": .string("As the sun dips behind the minarets, a different Istanbul awakens. This evening route winds through lantern-lit alleys to rooftop terraces with panoramic views, ending at a meyhane where locals gather for raki, meze, and conversation."),
         "duration": .int(105),
         "distance": .int(3800),
-        "stops": .array([
+        "places": .array([
             tourTestStop(placeName: "Galata Bridge at Sunset", localName: "Galata Köprüsü", description: "Watch the sun set over the Golden Horn from the iconic double-deck bridge."),
             tourTestStop(placeName: "Büyük Valide Han Rooftop", description: "A hidden rooftop atop a 17th-century caravanserai with sweeping city views."),
             tourTestStop(placeName: "Nevizade Street", description: "A lively alley of meyhanes where locals gather for meze and raki."),
