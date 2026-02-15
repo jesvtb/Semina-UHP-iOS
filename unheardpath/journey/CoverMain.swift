@@ -11,6 +11,7 @@ struct JourneyCoverView: View {
     let journey: Journey
     let onDismiss: () -> Void
     @State private var isBookmarked = false
+    @Environment(\.colorScheme) private var colorScheme
 
     /// All available feature image URLs from the journey and its places.
     private var allImageURLs: [URL] {
@@ -33,7 +34,7 @@ struct JourneyCoverView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.current.spaceM) {
                     // Hero header with background image slideshow
@@ -61,19 +62,16 @@ struct JourneyCoverView: View {
                 .padding(.bottom, Spacing.current.spaceS)
             }
             .background(Color("AppBkgColor"))
-            .navigationTitle(journey.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        onDismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(Color("onBkgTextColor30"))
-                    }
+            .overlay(alignment: .topLeading) {
+                BackButton(lightStyle: !allImageURLs.isEmpty) {
+                    onDismiss()
                 }
+                .padding(.leading, Spacing.current.spaceS)
+                .padding(.top, geometry.safeAreaInsets.top)
             }
+            .ignoresSafeArea(.container, edges: .top)
         }
+        .background(Color("AppBkgColor"))
     }
 
     // MARK: - Header Section
@@ -86,56 +84,12 @@ struct JourneyCoverView: View {
                 // Background slideshow
                 JourneyImageSlideshow(imageURLs: allImageURLs)
 
-                // Radial blur fade: sharp at upper-right, blurred toward lower-left
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
-                    .mask(
-                        RadialGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.0),
-                                .init(color: .clear, location: 0.2),
-                                .init(color: .black.opacity(0.5), location: 0.45),
-                                .init(color: .black, location: 0.65)
-                            ],
-                            center: UnitPoint(x: 0.7, y: 0.05),
-                            startRadius: 0,
-                            endRadius: 600
-                        )
-                    )
-
-                // Radial dark tint: clear at top-center, darkens toward bottom
-                // Subtle right bias but reads mostly as a vertical gradient
-                RadialGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: .black.opacity(0.15), location: 0.3),
-                        .init(color: .black.opacity(0.4), location: 0.55),
-                        .init(color: .black.opacity(0.6), location: 0.75)
-                    ],
-                    center: UnitPoint(x: 0.7, y: 0.05),
-                    startRadius: 0,
-                    endRadius: 600
-                )
-
-                // Background color radial fade: bottom becomes fully opaque
-                // to transition seamlessly into the metadata row below
-                Rectangle()
-                    .fill(Color("AppBkgColor"))
-                    .mask(
-                        RadialGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.0),
-                                .init(color: .clear, location: 0.25),
-                                .init(color: .black.opacity(0.4), location: 0.5),
-                                .init(color: .black.opacity(0.85), location: 0.7),
-                                .init(color: .black, location: 0.85)
-                            ],
-                            center: UnitPoint(x: 0.7, y: 0.05),
-                            startRadius: 0,
-                            endRadius: 600
-                        )
-                    )
+                // Gradient overlays — separate treatments for dark vs light appearance
+                if colorScheme == .dark {
+                    gradientsOnImageOnDark
+                } else {
+                    gradientsOnImageOnLight
+                }
 
                 // Header text + bookmark button
                 ZStack(alignment: .bottomTrailing) {
@@ -155,14 +109,14 @@ struct JourneyCoverView: View {
                             journey.title,
                             scale: .article4,
                             color: .white,
-                            lineHeightMultiple: 1.3
+                            lineHeightMultiple: 1.0
                         )
 
                         DisplayText(
                             journey.subhead,
                             scale: .article1,
-                            color: .white.opacity(0.9),
-                            lineHeightMultiple: 1.0,
+                            color: .white.opacity(0.6),
+                            lineHeightMultiple: 1.3,
                             fontFamily: FontFamily.serifRegular
                         )
                     }
@@ -172,7 +126,7 @@ struct JourneyCoverView: View {
                 }
                 .padding(Spacing.current.spaceS)
             }
-            .frame(height: 350)
+            .frame(height: 400)
             .clipped()
         } else {
             // Plain text header without slideshow
@@ -211,6 +165,94 @@ struct JourneyCoverView: View {
         }
     }
 
+    // MARK: - Gradient Overlays on Image (Dark)
+    /// Radial blur + dark tint + background blend — works well when AppBkgColor is dark.
+    @ViewBuilder
+    private var gradientsOnImageOnDark: some View {
+        // Radial blur fade: sharp at upper-right, blurred toward lower-left
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .environment(\.colorScheme, .dark)
+            .mask(
+                RadialGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .clear, location: 0.2),
+                        .init(color: .black.opacity(0.5), location: 0.45),
+                        .init(color: .black, location: 0.65)
+                    ],
+                    center: UnitPoint(x: 0.7, y: 0.05),
+                    startRadius: 0,
+                    endRadius: 600
+                )
+            )
+
+        // Radial dark tint: clear at top-center, darkens toward bottom
+        RadialGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: .black.opacity(0.15), location: 0.3),
+                .init(color: .black.opacity(0.4), location: 0.55),
+                .init(color: .black.opacity(0.6), location: 0.75)
+            ],
+            center: UnitPoint(x: 0.7, y: 0.05),
+            startRadius: 0,
+            endRadius: 600
+        )
+
+        // Background color radial fade: bottom becomes fully opaque
+        Rectangle()
+            .fill(Color("AppBkgColor"))
+            .mask(
+                RadialGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .clear, location: 0.25),
+                        .init(color: .black.opacity(0.4), location: 0.5),
+                        .init(color: .black.opacity(0.85), location: 0.7),
+                        .init(color: .black, location: 0.85)
+                    ],
+                    center: UnitPoint(x: 0.7, y: 0.05),
+                    startRadius: 0,
+                    endRadius: 600
+                )
+            )
+    }
+
+    // MARK: - Gradient Overlays on Image (Light)
+    /// Linear dark scrim + narrow bottom blend — avoids the white-wash that occurs
+    /// when radial dark tint and light AppBkgColor overlap in light appearance.
+    @ViewBuilder
+    private var gradientsOnImageOnLight: some View {
+        // Bottom-weighted dark scrim for white-text legibility
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: .black.opacity(0.03), location: 0.25),
+                .init(color: .black.opacity(0.25), location: 0.55),
+                .init(color: .black.opacity(0.5), location: 0.75),
+                .init(color: .black.opacity(0.65), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+
+        // Narrow bottom band blending into the light page background
+        VStack(spacing: 0) {
+            Spacer()
+            LinearGradient(
+                stops: [
+                    .init(color: Color("AppBkgColor").opacity(0), location: 0.0),
+                    .init(color: Color("AppBkgColor").opacity(0.5), location: 0.35),
+                    .init(color: Color("AppBkgColor"), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 70)
+        }
+    }
+
     // MARK: - Bookmark Button
     @ViewBuilder
     private func bookmarkButton(lightStyle: Bool) -> some View {
@@ -220,7 +262,7 @@ struct JourneyCoverView: View {
             }
         } label: {
             Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                .font(.system(size: 20))
+                .font(.system(size: TypographyScale.article2.baseSize))
                 .foregroundColor(
                     isBookmarked
                         ? Color("AccentColor")
@@ -256,7 +298,7 @@ private struct JourneyImageSlideshow: View {
                         }
                     }
                     .opacity(index == currentIndex ? 1 : 0)
-                    .animation(.easeInOut(duration: 1.5), value: currentIndex)
+                    .animation(.easeInOut(duration: 0.5), value: currentIndex)
                 }
             }
         }

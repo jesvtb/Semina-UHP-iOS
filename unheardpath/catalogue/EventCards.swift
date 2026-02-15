@@ -11,7 +11,6 @@ private typealias JSONValue = core.JSONValue
 /// Event-specific layout defaults, used when server config doesn't specify values.
 private enum EventCardDefaults {
     static let aspectRatio: CGFloat = 0.85
-    static let cornerRadius: CGFloat = 12
 }
 
 /// A cultural event card item
@@ -142,7 +141,7 @@ struct EventCard: View {
 
     /// Corner radius from config, falling back to event-specific default
     private var cornerRadius: CGFloat {
-        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? EventCardDefaults.cornerRadius
+        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? CardConstants.cornerRadius
     }
 
     var body: some View {
@@ -224,29 +223,35 @@ struct EventCard: View {
         let horizontalPadding = Spacing.current.spaceXs * 2
         let maxTextWidth = max(0, cardWidth - horizontalPadding)
         return VStack(alignment: .leading, spacing: 2) {
-            Text(event.eventName)
-                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article0.baseSize))
-                .foregroundColor(.white)
-                .lineLimit(2)
-                .lineSpacing(-(TypographyScale.article0.baseSize * 0.15))
-                .truncationMode(.tail)
-            Text(event.eventVenue)
-                .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                .foregroundColor(.white.opacity(0.9))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .minimumScaleFactor(0.5)
-            Text(event.eventLocality)
-                .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                .foregroundColor(.white.opacity(0.9))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .minimumScaleFactor(0.5)
+            DisplayText(
+                event.eventName,
+                scale: .article0,
+                color: .white,
+                lineHeightMultiple: 1.0,
+                fontFamily: FontFamily.sansSemibold
+            )
+            DisplayText(
+                event.eventVenue,
+                scale: .articleMinus1,
+                color: .white.opacity(0.9),
+                lineHeightMultiple: 1.0,
+                fontFamily: FontFamily.sansRegular
+            )
+            DisplayText(
+                event.eventLocality,
+                scale: .articleMinus1,
+                color: .white.opacity(0.9),
+                lineHeightMultiple: 1.0,
+                fontFamily: FontFamily.sansRegular
+            )
             if let dateRange = event.formattedDateRange {
-                Text(dateRange)
-                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
-                    .foregroundColor(.white.opacity(0.7))
-                    .lineLimit(1)
+                DisplayText(
+                    dateRange,
+                    scale: .articleMinus2,
+                    color: .white.opacity(0.7),
+                    lineHeightMultiple: 1.0,
+                    fontFamily: FontFamily.sansRegular
+                )
             }
         }
         .frame(width: maxTextWidth, alignment: .leading)

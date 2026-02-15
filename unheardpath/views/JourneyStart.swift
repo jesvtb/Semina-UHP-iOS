@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct JourneyStart: View {
+    @Environment(\.dismiss) private var dismiss
+    
     // Istanbul map image URL
     let backgroundImageURL = "https://lp-cms-production.imgix.net/2025-02/shutterstock2500020869.jpg?auto=format,compress&q=72&w=1440&h=810&fit=crop"
     
@@ -47,7 +49,9 @@ struct JourneyStart: View {
                 }
             }
             .overlay(alignment: .topLeading) {
-                BackButton(showBackground: false)
+                BackButton(lightStyle: true) {
+                    dismiss()
+                }
             }
         }
         .ignoresSafeArea(.all)

@@ -12,7 +12,7 @@ struct JourneyPlaces: View {
     var body: some View {
         if !places.isEmpty {
             VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
-                Text("Places")
+                Label("Places", systemImage: "eye")
                     .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article1.baseSize))
                     .foregroundColor(Color("onBkgTextColor20"))
 
@@ -76,9 +76,9 @@ struct JourneyPlaceRow: View {
             VStack(spacing: Spacing.current.space2xs) {
                 Text("\(index)")
                     .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color("onBkgTextColor10"))
                     .frame(width: 28, height: 28)
-                    .background(Circle().fill(Color("AccentColor")))
+                    .background(Circle().fill(Color("onBkgTextColor50").opacity(0.8)))
                 
                 if isMosque {
                     IconFontImage(.mosque, size: TypographyScale.article1.baseSize, color: Color("onBkgTextColor30"))
@@ -92,21 +92,27 @@ struct JourneyPlaceRow: View {
                     // Place name + local name grouped tightly
                     VStack(alignment: .leading, spacing: 2) {
                         if let placeName {
-                            Text(placeName)
-                                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article1.baseSize))
-                                .foregroundColor(Color("onBkgTextColor20"))
+                            DisplayText(
+                                placeName,
+                                scale: .article1,
+                                color: Color("onBkgTextColor10"),
+                                fontFamily: FontFamily.serifRegular
+                            )
                         }
                         if let localName, localName != placeName {
-                            Text(localName)
-                                .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                                .foregroundColor(Color("onBkgTextColor30"))
+                            DisplayText(
+                                localName,
+                                scale: .articleMinus1,
+                                color: Color("onBkgTextColor50"),
+                                fontFamily: FontFamily.sansRegular
+                            )
                         }
                     }
                     
                     if let placeDescription {
                         Text(placeDescription)
                             .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                            .foregroundColor(Color("onBkgTextColor30").opacity(0.8))
+                            .foregroundColor(Color("onBkgTextColor20").opacity(0.8))
                     }
                 }
 
@@ -122,7 +128,7 @@ struct JourneyPlaceRow: View {
                                 .clipped()
                                 .clipShape(RoundedRectangle(cornerRadius: Spacing.current.space3xs))
                         default:
-                            EmptyView()
+                            Color.clear.frame(height: 0)
                         }
                     }
                 }

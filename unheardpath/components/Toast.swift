@@ -65,13 +65,13 @@ struct ToastView: View {
                 // Spinner for in-progress toasts
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .primary))
-                    .frame(width: 24, height: 24)
+                    .frame(width: Spacing.current.spaceXs, height: Spacing.current.spaceXs)
             } else {
                 // Static icon for terminal-state toasts
                 Image(systemName: iconName)
                     .font(.title3)
                     .foregroundColor(.primary)
-                    .frame(width: 24, height: 24)
+                    .frame(width: Spacing.current.spaceXs, height: Spacing.current.spaceXs)
             }
             
             // Activity update message
@@ -220,7 +220,7 @@ private struct ToastSSEPreviewWrapper: View {
         toastManager.dismiss()
 
         Task {
-            for (index, step) in sseScript.enumerated() {
+            for (_, step) in sseScript.enumerated() {
                 try? await Task.sleep(nanoseconds: UInt64(step.delay * 1_000_000_000))
 
                 await MainActor.run {

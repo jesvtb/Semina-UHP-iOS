@@ -5,7 +5,6 @@ import core
 /// Dish-specific layout defaults, used when server config doesn't specify values.
 private enum DishCardDefaults {
     static let aspectRatio: CGFloat = 1.4
-    static let cornerRadius: CGFloat = 1
 }
 
 /// A dish card item
@@ -31,7 +30,7 @@ struct DishCardContent: View {
     private var effectiveConfig: JSONValue {
         var dict: [String: JSONValue] = [
             "aspectRatio": .double(DishCardDefaults.aspectRatio),
-            "cornerRadius": .double(DishCardDefaults.cornerRadius)
+            "cornerRadius": .double(CardConstants.cornerRadius)
         ]
         // Server config overrides dish defaults
         if case .dictionary(let serverDict) = config {
@@ -83,7 +82,7 @@ struct DishCard: View {
     
     /// Corner radius from config, falling back to dish-specific default
     private var cornerRadius: CGFloat {
-        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? DishCardDefaults.cornerRadius
+        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? CardConstants.cornerRadius
     }
 
     var body: some View {
@@ -165,20 +164,21 @@ struct DishCard: View {
         let horizontalPadding = Spacing.current.spaceXs * 2
         let maxTextWidth = max(0, cardWidth - horizontalPadding)
         return VStack(alignment: .leading, spacing: 2) {
-            Text(dish.globalName)
-                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article1.baseSize))
-                .foregroundColor(.white)
-                .lineLimit(2)
-                .lineSpacing(-(TypographyScale.article1.baseSize * 0.15))
-                .truncationMode(.tail)
-                // .minimumScaleFactor(0.5)
+            DisplayText(
+                dish.globalName,
+                scale: .article1,
+                color: .white,
+                lineHeightMultiple: 1.0,
+                fontFamily: FontFamily.sansSemibold
+            )
             if dish.localName != dish.globalName {
-                Text(dish.localName)
-                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                    .foregroundColor(.white.opacity(0.9))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .minimumScaleFactor(0.5)
+                DisplayText(
+                    dish.localName,
+                    scale: .articleMinus1,
+                    color: .white.opacity(0.9),
+                    lineHeightMultiple: 1.0,
+                    fontFamily: FontFamily.sansRegular
+                )
             }
         }
         .frame(width: maxTextWidth, alignment: .leading)

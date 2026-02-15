@@ -518,28 +518,35 @@ private struct DisplayTextLabel: UIViewRepresentable {
     
     private func updateLabel(_ label: InsetLabel) {
         let fontSize = scale.scaledSize(from: baseSize)
+        let effectiveLineHeight = fontSize * lineHeightMultiple
         
         // Create font
         let font = UIFont(name: fontFamily, size: fontSize) ?? 
                    UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         label.font = font
         
-        // Compute a top inset for italic fonts whose ascenders extend
-        // beyond the typographic bounding box.  We check the font
-        // descriptor for the italic trait and add a small fraction of
-        // the font size so the first-line ascenders have room.
-        if font.fontDescriptor.symbolicTraits.contains(.traitItalic) {
-            label.topInset = ceil(fontSize * 0.1)
+        // Compute a top inset so the first line's ascenders aren't
+        // clipped by the label's bounds.
+        //
+        // Two sources of overflow:
+        // 1. Italic fonts whose ascenders extend beyond the em-square.
+        // 2. Tight lineHeightMultiple (≤ ~1.0) that constrains the line
+        //    box to less than the font's natural line height, cutting off
+        //    the top of the first line.
+        let isItalic = font.fontDescriptor.symbolicTraits.contains(.traitItalic)
+        let italicExtra: CGFloat = isItalic ? ceil(fontSize * 0.1) : 0
+        
+        let naturalLineHeight = font.lineHeight // ascent + descent + leading
+        if effectiveLineHeight < naturalLineHeight {
+            // The constrained line box is smaller than the font needs;
+            // roughly half the overflow lands above the first baseline.
+            let overflow = ceil((naturalLineHeight - effectiveLineHeight) * 0.5)
+            label.topInset = overflow + italicExtra
         } else {
-            label.topInset = 0
+            label.topInset = italicExtra
         }
         
         // Create paragraph style with controlled line height.
-        // Apply lineHeightMultiple to max/min so the line box can
-        // accommodate fonts whose ascenders exceed the em-square
-        // (e.g. italic serifs). When lineHeightMultiple == 1.0
-        // this collapses back to the previous tight behaviour.
-        let effectiveLineHeight = fontSize * lineHeightMultiple
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineHeightMultiple = lineHeightMultiple
         paragraphStyle.maximumLineHeight = effectiveLineHeight

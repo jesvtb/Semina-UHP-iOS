@@ -15,7 +15,7 @@ struct JourneyRouteSection: View {
         let parsedStops = parseStopCoordinates(from: stops)
         if !parsedStops.isEmpty {
             VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
-                Text("Route")
+                Label("Route", systemImage: "point.bottomleft.filled.forward.to.point.topright.scurvepath")
                     .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article1.baseSize))
                     .foregroundColor(Color("onBkgTextColor20"))
 

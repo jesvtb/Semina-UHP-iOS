@@ -1,6 +1,14 @@
 import SwiftUI
 import core
 
+// MARK: - Card Constants
+/// Shared layout constants for all card types (journey, event, dish, generic/place).
+@MainActor
+enum CardConstants {
+    /// Standard corner radius for cards, tied to the spacing scale.
+    static var cornerRadius: CGFloat { Spacing.current.space3xs }
+}
+
 // MARK: - Dynamic Card Grid
 /// A reusable grid layout for any card type. Renders cards in a configurable grid,
 /// delegating the internal card view to a `@ViewBuilder` closure.
@@ -38,7 +46,7 @@ struct DynamicCardGrid<CardContent: View>: View {
     }
     
     var cornerRadius: CGFloat {
-        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? 12
+        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? CardConstants.cornerRadius
     }
     
     var body: some View {
@@ -82,7 +90,7 @@ struct DynamicCardGrid<CardContent: View>: View {
 extension DynamicCardGrid where CardContent == GenericCard {
     /// Convenience initializer that defaults to `GenericCard` for the card content.
     init(cards: [JSONValue], config: JSONValue?) {
-        let radius = config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? 12
+        let radius = config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? CardConstants.cornerRadius
         self.init(cards: cards, config: config) { data in
             GenericCard(data: data, cornerRadius: radius)
         }
@@ -96,7 +104,7 @@ struct GenericCard: View {
     let data: JSONValue
     let cornerRadius: CGFloat
     
-    init(data: JSONValue, cornerRadius: CGFloat = 12) {
+    init(data: JSONValue, cornerRadius: CGFloat = CardConstants.cornerRadius) {
         self.data = data
         self.cornerRadius = cornerRadius
     }
@@ -193,25 +201,28 @@ struct GenericCard: View {
     private var textOverlay: some View {
         VStack(alignment: .leading, spacing: 2) {
             if let primary = primaryText {
-                Text(primary)
-                    .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article1.baseSize))
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
-                    .minimumScaleFactor(0.5)
+                DisplayText(
+                    primary,
+                    scale: .article1,
+                    color: .white,
+                    lineHeightMultiple: 1.0,
+                    fontFamily: FontFamily.sansSemibold
+                )
             }
             if let secondary = secondaryText {
-                Text(secondary)
-                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                    .foregroundColor(.white.opacity(0.9))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .minimumScaleFactor(0.5)
+                DisplayText(
+                    secondary,
+                    scale: .articleMinus1,
+                    color: .white.opacity(0.9),
+                    lineHeightMultiple: 1.0,
+                    fontFamily: FontFamily.sansRegular
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Spacing.current.spaceXs)
         .padding(.vertical, Spacing.current.space2xs)
+        .clipped()
     }
 }
 

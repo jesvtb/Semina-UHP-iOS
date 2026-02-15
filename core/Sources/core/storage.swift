@@ -237,6 +237,7 @@ public enum Storage {
 
     // MARK: - File (Caches)
 
+    @discardableResult
     public static func saveToCaches(data: Data, filename: String, subdirectory: String? = nil) throws -> URL {
         var base = cachesURL
         if let sub = subdirectory {

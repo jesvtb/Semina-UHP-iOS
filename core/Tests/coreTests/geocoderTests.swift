@@ -97,7 +97,8 @@ struct GeocoderTests {
         "geocodeReverse",
         arguments: [
             // CLLocation(latitude: 35.01161, longitude: 135.76811), // Kyoto, Japan
-            CLLocation(latitude: 22.258333, longitude: 114.197216), // Hong Kong, China
+            // CLLocation(latitude: 22.258333, longitude: 114.197216), // Hong Kong, China
+            CLLocation(latitude: 41.23668845, longitude: -8.302018317104206), // Porto, Portugal
             // CLLocation(latitude: 22.559623109782347, longitude: 114.11698910372738), // Shenzhen, China
             // CLLocation(latitude: 41.008918, longitude: 28.979900), 
             // CLLocation(latitude: 1.283333, longitude: 103.833333), // Singapore, Singapore

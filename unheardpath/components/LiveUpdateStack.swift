@@ -25,6 +25,9 @@ struct LiveUpdateStack: View {
     /// Callback fired when the user taps the switch-to-journey button.
     let onSwitchToJourney: () -> Void
 
+    /// Horizontal drag offset for swipe-to-dismiss on the message bubble.
+    @State private var messageDragOffset: CGFloat = 0
+
     /// Whether the autocomplete location list should be visible
     private var showAutocompleteList: Bool {
         stretchableInputVM.inputMode == .autocomplete
@@ -120,6 +123,9 @@ struct LiveUpdateStack: View {
 
     // MARK: - Message Bubble
 
+    /// Threshold (in points) beyond which the swipe commits to dismiss.
+    private let swipeDismissThreshold: CGFloat = 80
+
     @ViewBuilder
     private func messageBubble(message: ChatMessage) -> some View {
         let estimatedLineCount = Typography.estimateLineCount(for: message.text, font: UIFont.systemFont(ofSize: 15), maxWidth: UIScreen.main.bounds.width - 80)
@@ -167,25 +173,54 @@ struct LiveUpdateStack: View {
                 .background(bkgColor)
                 .cornerRadius(Spacing.current.spaceXs)
 
-                // Dismiss button positioned at upper right corner, overlapping the border
+                // Dismiss button – contrasting dark circle for clear visibility
                 Button(action: {
                     withAnimation(.easeOut(duration: 0.2)) {
                         onDismiss()
                     }
                 }) {
                     Image(systemName: "xmark")
-                        .bodyText(size: .articleMinus1)
-                        .foregroundColor(Color("AppBkgColor"))
-                        .padding(Spacing.current.space2xs)
-                        .background(bkgColor)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 22, height: 22)
+                        .background(Color.black.opacity(0.55))
                         .clipShape(Circle())
                 }
-                .padding(.top, -6)
-                .padding(.trailing, -6)
+                .padding(.top, -8)
+                .padding(.trailing, -8)
             }
             .padding(.horizontal, Spacing.current.spaceXs)
             Spacer()
         }
         .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 5)
+        // Swipe-to-dismiss: drag left to dismiss
+        .offset(x: messageDragOffset)
+        .opacity(1 - min(abs(messageDragOffset) / (swipeDismissThreshold * 2), 0.6))
+        .gesture(
+            DragGesture(minimumDistance: 12)
+                .onChanged { value in
+                    // Only allow leftward drag
+                    if value.translation.width < 0 {
+                        messageDragOffset = value.translation.width
+                    }
+                }
+                .onEnded { value in
+                    if value.translation.width < -swipeDismissThreshold {
+                        // Commit dismiss: slide fully off-screen then call onDismiss
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            messageDragOffset = -UIScreen.main.bounds.width
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            onDismiss()
+                            messageDragOffset = 0
+                        }
+                    } else {
+                        // Snap back
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            messageDragOffset = 0
+                        }
+                    }
+                }
+        )
     }
 }

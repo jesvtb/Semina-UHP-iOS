@@ -187,8 +187,7 @@ struct MainView: View {
                 //     TabsBarView(selectedTab: $selectedTab, tabs: tabs)
                 // }
             }
-            .background(.ultraThinMaterial)
-            // .background(Color.red)
+            .padding(.top, Spacing.current.spaceS)
             // .overlay(
             //     Divider()
             //         .background(Color("onBkgTextColor30")),

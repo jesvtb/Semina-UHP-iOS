@@ -2,18 +2,8 @@ import SwiftUI
 import CoreLocation
 import core
 
-// MARK: - Journey Card Defaults
-/// Journey-specific layout defaults, used when server config doesn't specify values.
-private enum JourneyCardDefaults {
-    /// Matches Spacing space3xs (~4pt)
-    static let cornerRadius: CGFloat = 4
-}
-
 func currentDeviceLanguageCode() -> String {
-    if #available(iOS 16.0, *) {
-        return Locale.current.language.languageCode?.identifier ?? "en"
-    }
-    return Locale.current.languageCode ?? "en"
+    return Locale.current.language.languageCode?.identifier ?? "en"
 }
 
 func countryLanguageCode(countryCode: String?) -> String? {
@@ -24,16 +14,11 @@ func countryLanguageCode(countryCode: String?) -> String? {
     let normalizedCountryCode = countryCode.uppercased()
     for localeIdentifier in Locale.availableIdentifiers {
         let locale = Locale(identifier: localeIdentifier)
-        guard locale.regionCode?.uppercased() == normalizedCountryCode else {
+        guard locale.region?.identifier.uppercased() == normalizedCountryCode else {
             continue
         }
-        if #available(iOS 16.0, *) {
-            if let languageCode = locale.language.languageCode?.identifier,
-               !languageCode.isEmpty {
-                return languageCode
-            }
-        }
-        if let languageCode = locale.languageCode, !languageCode.isEmpty {
+        if let languageCode = locale.language.languageCode?.identifier,
+           !languageCode.isEmpty {
             return languageCode
         }
     }
@@ -266,12 +251,12 @@ struct JourneyCard: View {
 
     /// Corner radius from config, falling back to journey-specific default
     private var cornerRadius: CGFloat {
-        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? JourneyCardDefaults.cornerRadius
+        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? CardConstants.cornerRadius
     }
 
     var body: some View {
         Button(action: onTap) {
-            ZStack(alignment: .bottomLeading) {
+            ZStack(alignment: .bottom) {
                 // Background: feature image or filled color
                 cardBackground
 
@@ -288,10 +273,8 @@ struct JourneyCard: View {
                     )
                 }
 
-                // Text content
-                VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
-                    Spacer()
-
+                // Text content - aligned to bottom
+                VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
                     // Kicker — same styling as TopicHeaderView overline
                     DisplayText(
                         journey.kicker.uppercased(),
@@ -307,7 +290,7 @@ struct JourneyCard: View {
                         journey.title,
                         scale: .article2,
                         color: hasImage ? .white : Color.textPrimary,
-                        lineHeightMultiple: 1.3
+                        lineHeightMultiple: 1.1
                     )
 
                     // Subhead — SerifRegular (matches TopicHeaderView subhead)
@@ -316,7 +299,7 @@ struct JourneyCard: View {
                         scale: .articleMinus1,
                         color: hasImage ? .white.opacity(0.9) : Color.textSecondary,
                         lineHeightMultiple: 1.0,
-                        fontFamily: FontFamily.serifRegular
+                        fontFamily: FontFamily.sansRegular
                     )
 
                     // Metadata row
@@ -333,10 +316,12 @@ struct JourneyCard: View {
                     }
                     .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
                     .foregroundColor(hasImage ? .white.opacity(0.7) : Color("onBkgTextColor30").opacity(0.8))
+                    .padding(.top, Spacing.current.space3xs)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(Spacing.current.spaceS)
             }
+            .frame(height: 320)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
@@ -506,7 +491,6 @@ private let sampleJourneyCards: [JSONValue] = [
     ) {
         print("Tapped")
     }
-    .frame(height: 260)
     .padding()
     .background(Color("AppBkgColor"))
 }

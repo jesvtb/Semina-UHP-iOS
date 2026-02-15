@@ -50,7 +50,7 @@ struct TopicHeaderView: View {
                     scale: .article3,
                     color: Color.textPrimary,
                     // color: Color("AccentColor"),
-                    lineHeightMultiple: 1.2,
+                    lineHeightMultiple: 1.1,
                     fontFamily: FontFamily.serifItalic
                 )
                 .padding(.leading, Spacing.current.textSideMargin)
@@ -65,7 +65,7 @@ struct TopicHeaderView: View {
                     subhead,
                     scale: .article1,
                     color: Color.textSecondary.opacity(0.8),
-                    lineHeightMultiple: 1.1,
+                    lineHeightMultiple: 1.25,
                     fontFamily: FontFamily.sansRegular,
                     tracking: 0.005
                 )
@@ -99,7 +99,6 @@ struct TopicHeaderView: View {
             "subhead": .string("From Byzantine splendor to Ottoman grandeur"),
             "feature_img": .string("https://www.esplanade.com/-/media/Esplanade/Images/Whats-On/all-events/2024/T/the-performing-art-of-the-samurai-japans-traditional-noh-drama-01.ashx?rev=c03c943571d04b05b7e5f6bc9ca3c4ac&hash=2D1A2C28F99A90CEDA9E77D1B5C3DC88")
         ]))
-        .padding()
     }
     .background(Color("AppBkgColor"))
 }
@@ -110,7 +109,6 @@ struct TopicHeaderView: View {
             "headline": .string("The Roman Forum"),
             "subhead": .string("Center of ancient Roman public life")
         ]))
-        .padding()
     }
     .background(Color("AppBkgColor"))
 }

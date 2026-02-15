@@ -86,143 +86,16 @@ class StretchableInputViewModel: ObservableObject {
     var onSendMessage: (() -> Void)?
 }
 
-// MARK: - LocationListMenu
-
-struct LocationListMenu: View {
-    let cachedLocations: [LocationDetailData]
-    let autocompleteResults: [MapSearchResult]
-    let onSelectCached: (LocationDetailData) -> Void
-    let onSelectAutocomplete: (MapSearchResult) -> Void
-
-    private var totalItemCount: Int {
-        cachedLocations.count + autocompleteResults.count
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if !cachedLocations.isEmpty {
-                Text("Recent Locations")
-                    .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
-                    .foregroundColor(Color("onBkgTextColor30"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Spacing.current.spaceS)
-                    .padding(.top, Spacing.current.spaceS)
-                    .padding(.bottom, Spacing.current.spaceXs)
-
-                Divider()
-                    .padding(.leading, Spacing.current.spaceS)
-            }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Cached location rows
-                    ForEach(
-                        Array(cachedLocations.enumerated()),
-                        id: \.offset
-                    ) { index, location in
-                        Button {
-                            onSelectCached(location)
-                        } label: {
-                            HStack(spacing: Spacing.current.spaceXs) {
-                                Image(systemName: "mappin.circle.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(Color("AccentColor"))
-
-                                VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
-                                    Text(location.placeName ?? "Unknown place")
-                                        .font(.custom(FontFamily.sansRegular, size: TypographyScale.article0.baseSize))
-                                        .foregroundColor(Color("onBkgTextColor10"))
-
-                                    if let locality = location.locality {
-                                        let detail = [locality, location.adminArea]
-                                            .compactMap { $0 }
-                                            .filter { !$0.isEmpty && $0 != locality }
-                                        let displayText = ([locality] + detail).joined(separator: ", ")
-                                        Text(displayText)
-                                            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                                            .foregroundColor(Color("onBkgTextColor30"))
-                                    } else if let adminArea = location.adminArea {
-                                        Text(adminArea)
-                                            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                                            .foregroundColor(Color("onBkgTextColor30"))
-                                    }
-                                }
-
-                                Spacer()
-
-                                if let countryCode = location.countryCode,
-                                   let flagImage = CountryFlag.image(for: countryCode) {
-                                    flagImage
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(height: Spacing.current.spaceS)
-                                }
-                            }
-                            .padding(.horizontal, Spacing.current.spaceS)
-                            .padding(.vertical, Spacing.current.spaceXs)
-                        }
-
-                        if index < cachedLocations.count - 1 || !autocompleteResults.isEmpty {
-                            Divider()
-                                .padding(.leading, Spacing.current.spaceS)
-                        }
-                    }
-
-                    // Autocomplete result rows
-                    ForEach(
-                        Array(autocompleteResults.enumerated()),
-                        id: \.offset
-                    ) { index, result in
-                        Button {
-                            onSelectAutocomplete(result)
-                        } label: {
-                            HStack(spacing: Spacing.current.spaceXs) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(Color("AccentColor"))
-
-                                VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
-                                    Text(result.name)
-                                        .font(.custom(FontFamily.sansRegular, size: TypographyScale.article0.baseSize))
-                                        .foregroundColor(Color("onBkgTextColor10"))
-
-                                    if !result.address.isEmpty {
-                                        Text(result.address)
-                                            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                                            .foregroundColor(Color("onBkgTextColor30"))
-                                    }
-                                }
-
-                                Spacer()
-                            }
-                            .padding(.horizontal, Spacing.current.spaceS)
-                            .padding(.vertical, Spacing.current.spaceXs)
-                        }
-
-                        if index < autocompleteResults.count - 1 {
-                            Divider()
-                                .padding(.leading, Spacing.current.spaceS)
-                        }
-                    }
-                }
-            }
-            .frame(maxHeight: 250)
-        }
-        .background(Color("AppBkgColor"))
-        .cornerRadius(Spacing.current.spaceS)
-        .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: -4)
-    }
-}
-
 // MARK: - StretchableInput
 
 struct StretchableInput: View {
     @ObservedObject var viewModel: StretchableInputViewModel
     @Binding var draftMessage: String
     @FocusState private var isTextFieldFocused: Bool
+    @State private var containerWidth: CGFloat = 0
 
     /// Stretched TextField width as a fraction of the parent
-    private let stretchedTextFieldWidthFraction: CGFloat = 0.80
+    private let stretchedTextFieldWidthFraction: CGFloat = 0.95
     /// Default (collapsed) TextField width as a fraction of the parent
     private let defaultTextFieldWidthFraction: CGFloat = 0.45
 
@@ -236,94 +109,124 @@ struct StretchableInput: View {
             ? $viewModel.inputLocation
             : $draftMessage
     }
-
-    var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: Spacing.current.spaceXs) {
-                // Map / Autocomplete toggle button
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        if viewModel.inputMode == .autocomplete {
-                            // Switching from autocomplete to freestyle
-                            draftMessage = viewModel.inputLocation
-                            viewModel.inputMode = .freestyle
-                        } else {
-                            // Switching from freestyle to autocomplete
-                            viewModel.inputLocation = draftMessage
-                            viewModel.inputMode = .autocomplete
-                        }
-                    }
-                } label: {
-                    Image(systemName: viewModel.inputMode == .autocomplete ? "map.fill" : "map")
-                        .bodyText(size: .article0)
-                        .foregroundColor(
-                            viewModel.inputMode == .autocomplete
-                                ? Color("onBkgTextColor10")
-                                : Color("onBkgTextColor30")
-                        )
-                }
-
-                // Text field — stretches/collapses based on focus
-                TextField(
-                    viewModel.inputMode == .autocomplete
-                        ? "Locate..."
-                        : "Ask...",
-                    text: activeText
-                )
-                .bodyText()
-                .focused($isTextFieldFocused)
-                .submitLabel(viewModel.inputMode == .autocomplete ? .search : .send)
-                .onSubmit {
-                    if viewModel.inputMode == .freestyle && !draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        isTextFieldFocused = false
-                        viewModel.onSendMessage?()
-                    }
-                }
-                .padding(.trailing, viewModel.inputMode == .freestyle && !draftMessage.isEmpty
-                    ? Spacing.current.spaceL : 0)
-                .overlay(alignment: .trailing) {
-                    // Send button — inside the text field, trailing edge
-                    if viewModel.inputMode == .freestyle && !draftMessage.isEmpty {
-                        Button {
-                            isTextFieldFocused = false
-                            viewModel.onSendMessage?()
-                        } label: {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .bodyText(size: .article2)
-                                .foregroundColor(Color("onBkgTextColor10"))
-                        }
-                        .transition(.scale.combined(with: .opacity))
-                    }
-                }
-                .animation(.easeInOut(duration: 0.2), value: draftMessage.isEmpty)
-
-                // Invisible spacer to balance the map button on the left
-                if !isEffectivelyStretched {
-                    Image(systemName: "map")
-                        .bodyText(size: .article0)
-                        .hidden()
+    
+    private var mapToggleButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if viewModel.inputMode == .autocomplete {
+                    // Switching from autocomplete to freestyle
+                    draftMessage = viewModel.inputLocation
+                    viewModel.inputMode = .freestyle
+                } else {
+                    // Switching from freestyle to autocomplete
+                    viewModel.inputLocation = draftMessage
+                    viewModel.inputMode = .autocomplete
                 }
             }
-            .padding(.horizontal, Spacing.current.spaceXs)
-            .padding(.vertical, Spacing.current.spaceXs)
-            .frame(
-                width: isEffectivelyStretched
-                    ? geo.size.width * stretchedTextFieldWidthFraction
-                    : geo.size.width * defaultTextFieldWidthFraction
-            )
-            .background(
-                RoundedRectangle(cornerRadius: Spacing.current.spaceM)
-                    .fill(Color("AppBkgColor"))
-                    .shadow(
-                        color: Color.black.opacity(isTextFieldFocused ? 0.15 : 0.08),
-                        radius: isTextFieldFocused ? 16 : 10,
-                        x: 0,
-                        y: isTextFieldFocused ? -6 : -3
-                    )
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        } label: {
+            Image(systemName: viewModel.inputMode == .autocomplete ? "map.fill" : "map")
+                .bodyText(size: .article0)
+                .foregroundColor(
+                    viewModel.inputMode == .autocomplete
+                        ? Color("onReverseBkgColor10")
+                        : Color("onReverseBkgColor50")
+                )
         }
-        .frame(height: Spacing.current.spaceXl)
+        .frame(maxHeight: .infinity, alignment: isEffectivelyStretched ? .bottom : .center)
+        .padding(.bottom, isEffectivelyStretched ? Spacing.current.space3xs : 0)
+        .animation(.easeInOut(duration: 0.25), value: isEffectivelyStretched)
+    }
+    
+    private var textField: some View {
+        TextField(
+            viewModel.inputMode == .autocomplete
+                ? "Locate..."
+                : "Ask...",
+            text: activeText,
+            prompt: Text(viewModel.inputMode == .autocomplete ? "Locate..." : "Ask...")
+                .foregroundColor(Color("onReverseBkgColor50")),
+            axis: .vertical
+        )
+        .lineLimit(isEffectivelyStretched ? 1...6 : 1...1)
+        .bodyText()
+        .foregroundColor(Color("onReverseBkgColor10"))
+        .tint(Color("AccentColor"))
+        .focused($isTextFieldFocused)
+        .submitLabel(viewModel.inputMode == .autocomplete ? .search : .send)
+        .onSubmit {
+            if viewModel.inputMode == .freestyle && !draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                isTextFieldFocused = false
+                viewModel.onSendMessage?()
+            }
+        }
+        .padding(.trailing, viewModel.inputMode == .freestyle && !draftMessage.isEmpty && isEffectivelyStretched
+            ? Spacing.current.spaceL : 0)
+        .overlay(alignment: .trailing) {
+            // Send button — inside the text field, aligned to trailing edge
+            if viewModel.inputMode == .freestyle && !draftMessage.isEmpty && isEffectivelyStretched {
+                Button {
+                    isTextFieldFocused = false
+                    viewModel.onSendMessage?()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .bodyText(size: .article2)
+                        .foregroundColor(Color("onReverseBkgColor10"))
+                }
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, Spacing.current.space3xs)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: draftMessage.isEmpty)
+        .animation(.easeInOut(duration: 0.25), value: isEffectivelyStretched)
+    }
+    
+    private var inputContent: some View {
+        HStack(spacing: Spacing.current.spaceXs) {
+            mapToggleButton
+            textField
+            
+            // Invisible spacer to balance the map button on the left
+            if !isEffectivelyStretched {
+                Image(systemName: "map")
+                    .bodyText(size: .article0)
+                    .hidden()
+            }
+        }
+        .padding(.horizontal, Spacing.current.spaceXs)
+        .padding(.vertical, Spacing.current.spaceXs)
+    }
+
+    var body: some View {
+        inputContent
+        .frame(
+            width: containerWidth > 0
+                ? containerWidth * (isEffectivelyStretched
+                    ? stretchedTextFieldWidthFraction
+                    : defaultTextFieldWidthFraction)
+                : nil
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            RoundedRectangle(cornerRadius: Spacing.current.spaceM)
+                .fill(Color("ReverseBkgColor"))
+                .shadow(
+                    color: Color.black.opacity(isTextFieldFocused ? 0.35 : 0.20),
+                    radius: isTextFieldFocused ? 12 : 8,
+                    x: 0,
+                    y: isTextFieldFocused ? 4 : 2
+                )
+        )
+        .frame(maxWidth: .infinity, minHeight: Spacing.current.spaceXl, alignment: .bottom)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { containerWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { newWidth in
+                        containerWidth = newWidth
+                    }
+            }
+        )
         .animation(.easeInOut(duration: 0.25), value: isEffectivelyStretched)
         .animation(.easeInOut(duration: 0.25), value: isTextFieldFocused)
         .onChange(of: isTextFieldFocused) { isFocused in
