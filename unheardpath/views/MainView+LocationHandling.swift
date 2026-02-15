@@ -99,11 +99,6 @@ extension MainView {
         ]
         let decision = eventManager.locationSendDecision(locationDictForCheck, type: .lookup)
 
-        if case .skip = decision {
-            logger.debug("Skipping location_searched send (within distance threshold)")
-            return
-        }
-
         do {
             // Use pre-built data for autocomplete; reverse geocode for long-press (minimal data)
             var finalDetail: LocationDetailData
@@ -125,7 +120,17 @@ extension MainView {
             // Immediately restore cached sections so the user sees content while
             // the backend processes the request. handleCatalogue's key-level upsert
             // ensures cached keys fill pruned gaps without overwriting surviving content.
-            await catalogueManager.restoreFromCache(for: finalDetail)
+            let restoredFromCache = await catalogueManager.restoreFromCache(for: finalDetail)
+
+            // Deduped lookup selections should still sync local view state (prune + restore).
+            // Skip backend send only when we actually have cached content for the selected location.
+            if case .skip = decision {
+                if restoredFromCache {
+                    logger.debug("Skipping location_searched send (within distance threshold, cache restored)")
+                    return
+                }
+                logger.debug("Skip decision hit but cache is empty; sending location_searched to refresh content")
+            }
 
             let event = UserEventBuilder.build(
                 evtType: "location_searched",

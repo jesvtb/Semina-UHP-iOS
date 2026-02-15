@@ -316,8 +316,12 @@ class CatalogueManager: ObservableObject {
     /// Called on app launch and after pruning when switching locations.
     /// Uses key-level upsert via `handleCatalogue` so cached keys fill gaps
     /// without overwriting fresher in-memory content.
-    func restoreFromCache(for location: LocationDetailData) async {
-        guard let persistence = persistence else { return }
+    ///
+    /// - Returns: `true` when one or more cached sections were restored, `false` when cache is empty
+    ///   or restoration fails.
+    @discardableResult
+    func restoreFromCache(for location: LocationDetailData) async -> Bool {
+        guard let persistence = persistence else { return false }
         
         // Suppress persistence during restoration to avoid re-persisting loaded data.
         isPersistenceSuppressed = true
@@ -325,6 +329,7 @@ class CatalogueManager: ObservableObject {
         
         do {
             let cached = try await persistence.restore(for: location)
+            guard !cached.isEmpty else { return false }
             for section in cached {
                 handleCatalogue(
                     sectionType: section.sectionType,
@@ -336,10 +341,12 @@ class CatalogueManager: ObservableObject {
             if locationDetailData == nil {
                 setLocationData(location)
             }
+            return true
         } catch {
             #if DEBUG
             print("⚠️ CatalogueManager: Failed to restore catalogue for location: \(error)")
             #endif
+            return false
         }
     }
     
