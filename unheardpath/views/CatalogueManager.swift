@@ -316,14 +316,15 @@ class CatalogueManager: ObservableObject {
     /// Called on app launch and after pruning when switching locations.
     /// Uses key-level upsert via `handleCatalogue` so cached keys fill gaps
     /// without overwriting fresher in-memory content.
+    /// Persists after restore so the last context snapshot reflects the restored location.
     func restoreFromCache(for location: LocationDetailData) async {
         guard let persistence = persistence else { return }
         
-        // Suppress persistence during restoration to avoid re-persisting loaded data.
-        isPersistenceSuppressed = true
-        defer { isPersistenceSuppressed = false }
-        
         do {
+            // Suppress persistence during load to avoid re-persisting the same data.
+            isPersistenceSuppressed = true
+            defer { isPersistenceSuppressed = false }
+            
             let cached = try await persistence.restore(for: location)
             for section in cached {
                 handleCatalogue(
@@ -341,6 +342,9 @@ class CatalogueManager: ObservableObject {
             print("⚠️ CatalogueManager: Failed to restore catalogue for location: \(error)")
             #endif
         }
+        
+        // Persist so last_context snapshot is updated for the restored location.
+        persistCurrentState(for: location)
     }
     
     /// Restore the last active catalogue context (no location needed).

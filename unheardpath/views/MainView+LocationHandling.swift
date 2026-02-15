@@ -127,11 +127,6 @@ extension MainView {
             // ensures cached keys fill pruned gaps without overwriting surviving content.
             await catalogueManager.restoreFromCache(for: finalDetail)
 
-            // Persist the new location context so last_context snapshot is updated.
-            // restoreFromCache suppresses persistence during load; we must persist explicitly
-            // to ensure the swap is reflected in the last context snapshot.
-            catalogueManager.persistCurrentState(for: finalDetail)
-
             let event = UserEventBuilder.build(
                 evtType: "location_searched",
                 evtData: locationDict,
