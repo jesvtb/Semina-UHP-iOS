@@ -8,11 +8,11 @@ This document outlines the step-by-step implementation of the Catalogue Persiste
 
 ## Backend Contract: `_storage` Metadata
 
-The backend guarantees that all persistable catalogue entities include `_storage` metadata. For nested content (like cuisines), the `_storage` is at the **subsection/entity level**, not per-item.
+The backend guarantees that all persistable catalogue entities include `_storage` metadata. For nested content (like cuisines), the `_storage` is at the **topic/entity level**, not per-item.
 
 ### Entity-Level `_storage` Schema (Nested Format)
 
-For nested content like cuisines, each subsection is an entity with `_storage` at that level:
+For nested content like cuisines, each topic is an entity with `_storage` at that level:
 
 ```json
 {
@@ -76,7 +76,7 @@ For flat content with individual items, each item can have its own `_storage`:
 
 The iOS persistence layer handles both formats:
 
-1. **Nested format** (cuisines): `_storage` at subsection level, each cuisine is one entity
+1. **Nested format** (cuisines): `_storage` at topic level, each cuisine is one entity
 2. **Flat format** (items): `_storage` on each item in the array
 
 ---

@@ -470,10 +470,10 @@ struct CataloguePersistenceDebugView: View {
             if case .array(let cards) = dict["cards"] {
                 return "\(cards.count) cards"
             }
-            // Nested subsections
-            let subsections = dict.values.filter { if case .dictionary = $0 { return true }; return false }
-            if !subsections.isEmpty {
-                return "\(subsections.count) subsections"
+            // Nested topics
+            let topics = dict.values.filter { if case .dictionary = $0 { return true }; return false }
+            if !topics.isEmpty {
+                return "\(topics.count) topics"
             }
         }
         return "content"

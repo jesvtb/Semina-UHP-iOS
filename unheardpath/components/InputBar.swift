@@ -58,9 +58,13 @@ struct InputBar: View {
         }
         .padding(.horizontal, Spacing.current.spaceXs)
         .padding(.vertical, Spacing.current.space2xs)
+        .padding(.horizontal, Spacing.current.spaceS)
+        .padding(.vertical, Spacing.current.spaceXs)
         .background(
-            Color("AppBkgColor")
-                .ignoresSafeArea(edges: .bottom)
+            RoundedRectangle(cornerRadius: Spacing.current.spaceM)
+                .fill(Color("AppBkgColor"))
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: -2)
+                .shadow(color: Color.black.opacity(0.05), radius: 16, x: 0, y: -4)
         )
     }
 }
@@ -220,7 +224,7 @@ struct StretchableInput: View {
     /// Stretched TextField width as a fraction of the parent
     private let stretchedTextFieldWidthFraction: CGFloat = 0.80
     /// Default (collapsed) TextField width as a fraction of the parent
-    private let defaultTextFieldWidthFraction: CGFloat = 0.30
+    private let defaultTextFieldWidthFraction: CGFloat = 0.45
 
     private var isEffectivelyStretched: Bool {
         viewModel.isStretched || isTextFieldFocused
@@ -239,9 +243,15 @@ struct StretchableInput: View {
                 // Map / Autocomplete toggle button
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        viewModel.inputMode = viewModel.inputMode == .autocomplete
-                            ? .freestyle
-                            : .autocomplete
+                        if viewModel.inputMode == .autocomplete {
+                            // Switching from autocomplete to freestyle
+                            draftMessage = viewModel.inputLocation
+                            viewModel.inputMode = .freestyle
+                        } else {
+                            // Switching from freestyle to autocomplete
+                            viewModel.inputLocation = draftMessage
+                            viewModel.inputMode = .autocomplete
+                        }
                     }
                 } label: {
                     Image(systemName: viewModel.inputMode == .autocomplete ? "map.fill" : "map")
@@ -269,18 +279,8 @@ struct StretchableInput: View {
                         viewModel.onSendMessage?()
                     }
                 }
-                .padding(.horizontal, Spacing.current.spaceXs)
                 .padding(.trailing, viewModel.inputMode == .freestyle && !draftMessage.isEmpty
-                    ? Spacing.current.spaceL : Spacing.current.spaceXs)
-                .padding(.vertical, Spacing.current.spaceXs)
-                .background(Color("AppBkgColor"))
-                // .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: -4)
-                .cornerRadius(Spacing.current.spaceM)
-                .frame(
-                    width: isEffectivelyStretched
-                        ? geo.size.width * stretchedTextFieldWidthFraction
-                        : geo.size.width * defaultTextFieldWidthFraction
-                )
+                    ? Spacing.current.spaceL : 0)
                 .overlay(alignment: .trailing) {
                     // Send button — inside the text field, trailing edge
                     if viewModel.inputMode == .freestyle && !draftMessage.isEmpty {
@@ -292,7 +292,6 @@ struct StretchableInput: View {
                                 .bodyText(size: .article2)
                                 .foregroundColor(Color("onBkgTextColor10"))
                         }
-                        .padding(.trailing, Spacing.current.spaceXs)
                         .transition(.scale.combined(with: .opacity))
                     }
                 }
@@ -305,17 +304,28 @@ struct StretchableInput: View {
                         .hidden()
                 }
             }
-            // .padding(.horizontal, Spacing.current.space3xs)
-            // .padding(.vertical, isTextFieldFocused ? Spacing.current.spaceS : 0)
+            .padding(.horizontal, Spacing.current.spaceXs)
+            .padding(.vertical, Spacing.current.spaceXs)
+            .frame(
+                width: isEffectivelyStretched
+                    ? geo.size.width * stretchedTextFieldWidthFraction
+                    : geo.size.width * defaultTextFieldWidthFraction
+            )
+            .background(
+                RoundedRectangle(cornerRadius: Spacing.current.spaceM)
+                    .fill(Color("AppBkgColor"))
+                    .shadow(
+                        color: Color.black.opacity(isTextFieldFocused ? 0.15 : 0.08),
+                        radius: isTextFieldFocused ? 16 : 10,
+                        x: 0,
+                        y: isTextFieldFocused ? -6 : -3
+                    )
+            )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-        // .frame(height: 40)
-        .frame(height: isTextFieldFocused ? Spacing.current.space2xl : Spacing.current.space2xl)
-        // .background(Color.red) 
-        // .padding(.horizontal, Spacing.current.space3xs)
-        .padding(.top, isTextFieldFocused ? Spacing.current.space3xs : 0)
-        .padding(.bottom, isTextFieldFocused ? Spacing.current.space3xs : 0)
+        .frame(height: Spacing.current.spaceXl)
         .animation(.easeInOut(duration: 0.25), value: isEffectivelyStretched)
+        .animation(.easeInOut(duration: 0.25), value: isTextFieldFocused)
         .onChange(of: isTextFieldFocused) { isFocused in
             withAnimation(.easeInOut(duration: 0.25)) {
                 viewModel.isStretched = isFocused

@@ -460,8 +460,8 @@ struct SectionPagedScrollView: View {
                                 
                                 CatalogueViewRegistry.view(for: section)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, Spacing.current.spaceS)
                                     .padding(.bottom, 200)
+                                    .padding(.top, Spacing.current.spaceS)
                             }
                         }
                         .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
@@ -828,12 +828,10 @@ struct InfoSheet: View {
                                             let currentSection = catalogueManager.orderedSections[selectedSectionIndex]
                                             CatalogueViewRegistry.view(for: currentSection)
                                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                                .padding(.horizontal, Spacing.current.spaceS)
                                                 .padding(.bottom, 100)
                                         } else if let fallbackSection = catalogueManager.orderedSections.first {
                                             CatalogueViewRegistry.view(for: fallbackSection)
                                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                                .padding(.horizontal, Spacing.current.spaceS)
                                                 .padding(.bottom, 100)
                                         }
                                     }

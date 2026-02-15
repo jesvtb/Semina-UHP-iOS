@@ -41,7 +41,7 @@ struct DynamicSectionRenderer: View {
     /// Extract content blocks from content, reading `_metadata` per item for interface config and geoscope ordering.
     ///
     /// - Flat content (direct markdown/cards at root level): single block with no interface.
-    /// - Nested content (keyed items): one block per subsection, sorted by geoscope specificity (most specific first).
+    /// - Nested content (keyed items): one block per topic, sorted by geoscope specificity (most specific first).
     ///
     /// Keys starting with `_` (e.g. `_metadata`) are stripped before rendering.
     private func extractContentBlocks(from content: JSONValue) -> [ContentBlock] {
@@ -71,25 +71,25 @@ struct DynamicSectionRenderer: View {
             return [ContentBlock(id: "root", header: header, markdown: markdown, cards: cards, interface: nil)]
         }
         
-        // Nested content - extract each subsection as a block with interface and geoscope
+        // Nested content - extract each topic as a block with interface and geoscope
         var blocks: [(block: ContentBlock, geoLevel: GeoLevel?)] = []
         for (key, value) in rawDict {
             // Skip metadata keys at root level
             if key.hasPrefix("_") { continue }
             // Skip non-dictionary values
-            guard case .dictionary(let subsectionDict) = value else { continue }
+            guard case .dictionary(let topicDict) = value else { continue }
             
             // Extract _metadata before stripping
-            let metadata = subsectionDict["_metadata"]
+            let metadata = topicDict["_metadata"]
             let itemInterface = metadata?["interface"]
             let geoScopeStr = metadata?["location"]?["geoscope"]?.stringValue
             let geoLevel = geoScopeStr.flatMap { GeoLevel(identifier: $0) }
             
-            // Strip metadata from the subsection for rendering
+            // Strip metadata from the topic for rendering
             let cleaned = value.strippingMetadataKeys
             guard case .dictionary(let cleanedDict) = cleaned else { continue }
             
-            let header = subsectionDict["header"]
+            let header = topicDict["header"]
             let markdown = cleanedDict["markdown"]?.stringValue
             let cards: [JSONValue]? = {
                 if let cardsValue = cleanedDict["cards"], case .array(let cards) = cardsValue {
@@ -98,7 +98,7 @@ struct DynamicSectionRenderer: View {
                 return nil
             }()
             
-            // Only include if subsection has header, markdown, or cards
+            // Only include if topic has header, markdown, or cards
             if header != nil || markdown != nil || cards != nil {
                 let block = ContentBlock(id: key, header: header, markdown: markdown, cards: cards, interface: itemInterface)
                 blocks.append((block, geoLevel))
@@ -132,7 +132,7 @@ struct ContentBlockView: View {
         VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
             // Render header if present
             if let header = block.header {
-                SectionHeaderView(header: header)
+                TopicHeaderView(header: header)
             }
             
             // Render markdown if present
@@ -143,8 +143,10 @@ struct ContentBlockView: View {
             // Render cards if present
             if let cards = block.cards, !cards.isEmpty {
                 cardRenderer(cards: cards)
+                    .padding(.horizontal, Spacing.current.textSideMargin)
             }
         }
+        .padding(.bottom, Spacing.current.spaceXl)
     }
     
     @ViewBuilder
@@ -170,10 +172,34 @@ struct ContentBlockView: View {
     }
 }
 
+// MARK: - Semantic Link Category
+/// Categories for inline semantic annotation links in catalogue markdown.
+/// URL format: `scheme://encoded_term` e.g. `landscape://the%20Alps`
+enum SemanticLinkCategory: String, CaseIterable {
+    case landscape
+    case cuisine
+    case dish
+    case place
+    
+    /// Parse a URL into a semantic link category and decoded term.
+    /// Returns nil for non-semantic URLs (e.g. regular http links).
+    static func parse(_ url: URL) -> (category: SemanticLinkCategory, term: String)? {
+        guard let scheme = url.scheme,
+              let category = SemanticLinkCategory(rawValue: scheme) else {
+            return nil
+        }
+        // Term is encoded as the host portion: scheme://encoded_term
+        let term = url.host(percentEncoded: false) ?? ""
+        return (category, term)
+    }
+}
+
 // MARK: - Markdown Renderer
 struct MarkdownRenderer: View {
     let markdown: String
     let config: JSONValue?
+    
+    @State private var tappedLink: (category: SemanticLinkCategory, term: String)?
     
     var body: some View {
         Markdown(markdown)
@@ -186,16 +212,24 @@ struct MarkdownRenderer: View {
                 MarkdownUI.FontWeight(.semibold)
                 MarkdownUI.ForegroundColor(Color.textPrimary)
             }
+            .markdownTextStyle(\.link) {
+                MarkdownUI.ForegroundColor(Color("AccentColor"))
+                MarkdownUI.FontWeight(.medium)
+                MarkdownUI.UnderlineStyle(.init(pattern: .dot, color: Color("AccentColor").opacity(0.5)))
+            }
+            .markdownBlockStyle(\.paragraph) { configuration in
+                configuration.label
+                    .padding(.horizontal, Spacing.current.textSideMargin)
+            }
             .markdownBlockStyle(\.heading2) { configuration in
                 configuration.label
                     .markdownTextStyle {
-                        MarkdownUI.FontWeight(.regular)
                         MarkdownUI.FontFamily(.custom(FontFamily.sansExtraLight))
                         MarkdownUI.FontSize(TypographyScale.article3.baseSize)
-                        MarkdownUI.ForegroundColor(Color("AccentColor"))
+                        MarkdownUI.ForegroundColor(Color.textPrimary)
                     }
-                    .relativeLineSpacing(.em(0.25))
-                    .markdownMargin(top: 30, bottom: 16)
+                    .padding(.top, Spacing.current.spaceXs)
+                    .padding(.horizontal, Spacing.current.textSideMargin)
             }
             .markdownBlockStyle(\.heading3) { configuration in
                 configuration.label
@@ -204,8 +238,7 @@ struct MarkdownRenderer: View {
                         MarkdownUI.FontSize(TypographyScale.article1.baseSize)
                         MarkdownUI.ForegroundColor(Color.textPrimary)
                     }
-                    .relativeLineSpacing(.em(0.25))
-                    .markdownMargin(top: 0, bottom: 16)
+                    .padding(.horizontal, Spacing.current.textSideMargin)
             }
             .markdownBlockStyle(\.blockquote) { configuration in
                 configuration.label
@@ -214,18 +247,27 @@ struct MarkdownRenderer: View {
                         MarkdownUI.FontSize(TypographyScale.article0.baseSize)
                         MarkdownUI.ForegroundColor(Color.textPrimary)
                     }
-                    .padding(.horizontal, Spacing.current.spaceM)
                     .overlay(alignment: .leading) {
                         Rectangle()
                             .fill(Color("AccentColor"))
                             .frame(width: 4)
                     }
+                    .padding(.horizontal, Spacing.current.spaceM)
+                    .padding(.bottom, Spacing.current.spaceS)
+
             }
             .markdownBlockStyle(\.table) { configuration in
                 configuration.label
                     .markdownTableBorderStyle(.init(color: .clear))
                     .markdownMargin(top: 16, bottom: 16)
             }
+            .environment(\.openURL, OpenURLAction { url in
+                if let parsed = SemanticLinkCategory.parse(url) {
+                    tappedLink = parsed
+                    return .handled
+                }
+                return .systemAction
+            })
     }
 }
 
@@ -244,7 +286,10 @@ struct MarkdownRenderer: View {
                 "feature_img": .string("https://www.esplanade.com/-/media/Esplanade/Images/Whats-On/all-events/2024/T/the-performing-art-of-the-samurai-japans-traditional-noh-drama-01.ashx?rev=c03c943571d04b05b7e5f6bc9ca3c4ac&hash=2D1A2C28F99A90CEDA9E77D1B5C3DC88")
             ]),
             markdown: """
-            The ancient streets of Rome hold stories waiting to be discovered beneath centuries of history. Walk through the **Colosseum**, where gladiators once fought, and imagine the roar of *fifty thousand spectators*.
+            The ancient streets of [Rome](place://Rome) hold stories waiting to be discovered beneath centuries of history. Walk through the **Colosseum**, where gladiators once fought, and imagine the roar of *fifty thousand spectators*. Sample the legendary [cacio e pepe](dish://cacio%20e%20pepe) and explore the stunning [Apennine Mountains](landscape://Apennine%20Mountains) nearby.
+
+            As you wander through the city, you'll encounter a variety of landmarks and attractions. [The Colosseum](place://Colosseum) is the largest ancient amphitheatre ever built, and [the Roman Forum](place://Roman%20Forum) is the center of day-to-day life in Rome for centuries.
+
 
             ## Key Landmarks
 
@@ -267,7 +312,37 @@ struct MarkdownRenderer: View {
             cards: nil,
             interface: nil
         ))
-        .padding()
+        ContentBlockView(block: ContentBlock(
+            id: "preview2",
+            header: .dictionary([
+                "overline": .string("FOOD & TRADITION"),
+                "headline": .string("The Flavors of Istanbul"),
+                "subhead": .string("A Culinary Journey Along the Bosphorus"),
+                "feature_img": .string("https://www.istanbul.com/uploads/d/9/0/d909bb89a54038e57e601eacfad19740.jpg")
+            ]),
+            markdown: """
+            Istanbul's cuisine is a living testament to its crossroads location, blending influences from Anatolia, the Mediterranean, and beyond. On bustling streets, you might try flaky [börek](dish://borek) or spicy [menemen](dish://menemen) for breakfast.
+
+            ## Culinary Highlights
+
+            - **Street Food:** Sample crispy simit from a morning vendor on the Galata Bridge.
+            - **Seafood:** Dine on grilled fish at a restaurant with views of the Bosphorus.
+            - **Markets:** Wander through the Spice Bazaar and breathe in aromas of sumac, saffron, and turmeric.
+
+            ### Experience It Yourself
+
+            > "If one had but a single glance to give the world, one should gaze on Istanbul."  
+            > — *Alphonse de Lamartine*
+
+            | Specialty | Where to Find |
+            |-----------|---------------|
+            | Baklava   | Karaköy Güllüoğlu |
+            | Turkish Coffee | Mandabatmaz   |
+            """,
+            cards: nil,
+            interface: nil
+        ))
+        // .padding()
     }
     .background(Color("AppBkgColor"))
 }
@@ -292,7 +367,6 @@ struct MarkdownRenderer: View {
             cards: nil,
             interface: nil
         ))
-        .padding()
     }
     .background(Color("AppBkgColor"))
 }

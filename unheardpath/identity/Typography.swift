@@ -21,7 +21,9 @@ enum FontFamily {
     // Source Serif 4
     static let serifDisplay = "SourceSerif4Display-Semibold"
     static let serifRegular = "SourceSerif4-Regular"
-    static let serifItalic = "SourceSerif4Subhead-It"
+    // static let serifItalic = "SourceSerif4Subhead-It"
+    static let serifItalic = "SourceSerif4Display-BoldIt"
+    // static let serifItalic = "SourceSerif4Display-SemiboldIt"
     
     // Source Sans 3
     static let sansRegular = "SourceSans3-Regular"
@@ -425,6 +427,35 @@ struct DisplayText: View {
     }
 }
 
+// MARK: - InsetLabel
+/// UILabel subclass that adds a top inset so italic-font ascenders
+/// aren't clipped by the label's bounds.  The extra height is reported
+/// through `intrinsicContentSize` so Auto Layout / SwiftUI size the
+/// hosting view correctly.
+private class InsetLabel: UILabel {
+    var topInset: CGFloat = 0 {
+        didSet { invalidateIntrinsicContentSize() }
+    }
+    
+    override var intrinsicContentSize: CGSize {
+        var size = super.intrinsicContentSize
+        size.height += topInset
+        return size
+    }
+    
+    override func drawText(in rect: CGRect) {
+        // Shift the drawing rect down by topInset so the
+        // original text position is preserved but extra
+        // blank space exists above the first line.
+        super.drawText(in: CGRect(
+            x: rect.origin.x,
+            y: rect.origin.y + topInset,
+            width: rect.width,
+            height: rect.height - topInset
+        ))
+    }
+}
+
 // MARK: - DisplayTextLabel (Internal UIViewRepresentable)
 /// Internal UIViewRepresentable implementation for DisplayText
 private struct DisplayTextLabel: UIViewRepresentable {
@@ -439,9 +470,10 @@ private struct DisplayTextLabel: UIViewRepresentable {
     let tracking: CGFloat
     let preferredWidth: CGFloat?
     
-    func makeUIView(context: Context) -> UILabel {
-        let label = UILabel()
+    func makeUIView(context: Context) -> InsetLabel {
+        let label = InsetLabel()
         label.numberOfLines = 0
+        label.clipsToBounds = false
         label.textAlignment = nsTextAlignment
         label.lineBreakMode = .byWordWrapping // Ensure words don't break
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -457,9 +489,12 @@ private struct DisplayTextLabel: UIViewRepresentable {
         return label
     }
     
-    func updateUIView(_ uiView: UILabel, context: Context) {
+    func updateUIView(_ uiView: InsetLabel, context: Context) {
         updateLabel(uiView)
         uiView.lineBreakMode = .byWordWrapping // Ensure words don't break
+        
+        // Prevent the SwiftUI hosting view from clipping italic overshoot
+        uiView.superview?.clipsToBounds = false
         
         // Update preferredMaxLayoutWidth when layout changes
         // Use superview bounds if preferredWidth not provided
@@ -481,7 +516,7 @@ private struct DisplayTextLabel: UIViewRepresentable {
         }
     }
     
-    private func updateLabel(_ label: UILabel) {
+    private func updateLabel(_ label: InsetLabel) {
         let fontSize = scale.scaledSize(from: baseSize)
         
         // Create font
@@ -489,11 +524,26 @@ private struct DisplayTextLabel: UIViewRepresentable {
                    UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         label.font = font
         
-        // Create paragraph style with tight line height (matching Headline1Label exactly)
+        // Compute a top inset for italic fonts whose ascenders extend
+        // beyond the typographic bounding box.  We check the font
+        // descriptor for the italic trait and add a small fraction of
+        // the font size so the first-line ascenders have room.
+        if font.fontDescriptor.symbolicTraits.contains(.traitItalic) {
+            label.topInset = ceil(fontSize * 0.1)
+        } else {
+            label.topInset = 0
+        }
+        
+        // Create paragraph style with controlled line height.
+        // Apply lineHeightMultiple to max/min so the line box can
+        // accommodate fonts whose ascenders exceed the em-square
+        // (e.g. italic serifs). When lineHeightMultiple == 1.0
+        // this collapses back to the previous tight behaviour.
+        let effectiveLineHeight = fontSize * lineHeightMultiple
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineHeightMultiple = lineHeightMultiple
-        paragraphStyle.maximumLineHeight = fontSize
-        paragraphStyle.minimumLineHeight = fontSize
+        paragraphStyle.maximumLineHeight = effectiveLineHeight
+        paragraphStyle.minimumLineHeight = effectiveLineHeight
         paragraphStyle.alignment = nsTextAlignment
         paragraphStyle.lineBreakMode = .byWordWrapping // Ensure proper word wrapping
         
@@ -729,6 +779,40 @@ private struct MultilingualFontSample: View {
     
     ScrollView {
         VStack(alignment: .leading, spacing: 32) {
+
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("SerifDisplay · article3 · tight lineHeight (DisplayText)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                DisplayText(
+                    sampleText, 
+                    scale: .article3, 
+                    lineHeightMultiple: 1.2, 
+                    fontFamily: FontFamily.serifItalic,
+                )
+                    .background(Color.green.opacity(0.15))
+                
+                Text("fontSize: \(TypographyScale.article3.baseSize, specifier: "%.1f")pt · lineHeightMultiple: 1.0")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            // SerifDisplay at article3 with tight line height (DisplayText)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("SerifDisplay · article3 · tight lineHeight (DisplayText)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                DisplayText(sampleText, scale: .article3, lineHeightMultiple: 1.2)
+                    .background(Color.green.opacity(0.15))
+                
+                Text("fontSize: \(TypographyScale.article3.baseSize, specifier: "%.1f")pt · lineHeightMultiple: 1.0")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
             // SansSemiBold at article0
             VStack(alignment: .leading, spacing: 8) {
                 Text("SansSemiBold · article0")
@@ -763,19 +847,8 @@ private struct MultilingualFontSample: View {
             
             Divider()
             
-            // SerifDisplay at article3 with tight line height (DisplayText)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("SerifDisplay · article3 · tight lineHeight (DisplayText)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                DisplayText(sampleText, scale: .article3, lineHeightMultiple: 1.1)
-                    .background(Color.green.opacity(0.15))
-                
-                Text("fontSize: \(TypographyScale.article3.baseSize, specifier: "%.1f")pt · lineHeightMultiple: 1.0")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+         
+
             
         }
         .padding()

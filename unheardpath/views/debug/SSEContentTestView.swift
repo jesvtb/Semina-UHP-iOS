@@ -14,30 +14,6 @@ struct SSEContentTestView: View {
     @State private var selectedSectionType: String = "overview"
     @State private var customSectionType: String = ""
     @State private var displayTitle: String = "Overview"
-    @State private var overviewMarkdown: String = """
-# Welcome to Ancient Rome
-        \
-This journey takes you through the **heart of the Roman Empire**, exploring iconic landmarks and hidden gems. Consequat penatibus at ridiculus inceptos auctor sit vehicula rhoncus vestibulum, enim quam quis ornare ullamcorper molestie fames. Netus augue purus aenean mus rhoncus ornare montes sapien urna mattis primis odio nullam convallis varius dictum dignissim, etiam inceptos neque aliquet pharetra mauris felis sed magnis congue lorem libero erat condimentum ante nec
-
-![Rome Colosseum](https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/1280px-Colosseo_2020.jpg)
-
-## What You'll Discover
-
-- The Colosseum: An architectural marvel
-- The Forum: The center of Roman public life
-- [The Pantheon](https://en.wikipedia.org/wiki/Pantheon,_Rome): A temple to all gods
-
-## Getting Started
-
-Begin your journey at the Colosseum and follow the path through history.
-
-```swift
-let journey = Journey(name: "Ancient Rome")
-journey.start()
-```
-
-Enjoy your exploration!
-"""
     
     @State private var showTestSheet: Bool = false
     
@@ -63,9 +39,13 @@ Enjoy your exploration!
                 
                 Section(header: Text("Catalogue Data")) {
                     if selectedSectionType == "overview" {
-                        TextEditor(text: $overviewMarkdown)
-                            .frame(height: 200)
-                            .font(.system(.body, design: .monospaced))
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Overview section — Multi-topic")
+                                .font(.subheadline.weight(.medium))
+                            Text("\(sampleOverviewTopics.count) topics (Istanbul): country, admin area, locality. Each with header, markdown with semantic links, and geoscope metadata.")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                        }
                     } else if selectedSectionType == "tour" {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Tour section — Journey cards")
@@ -163,20 +143,7 @@ Enjoy your exploration!
         let sectionType = selectedSectionType == "custom" ? customSectionType : selectedSectionType
         
         if sectionType == "overview" {
-            // Build keyed content with _metadata per item
-            let content: JSONValue = .dictionary([
-                "test_overview": .dictionary([
-                    "markdown": .string(overviewMarkdown),
-                    "_metadata": .dictionary([
-                        "location": .dictionary([
-                            "geoscope": .string("country"),
-                            "context": .dictionary([:])
-                        ]),
-                        "interface": .dictionary(["markdown": .dictionary([:])])
-                    ])
-                ])
-            ])
-            
+            let content = buildOverviewCatalogueContent()
             catalogueManager.handleCatalogue(
                 sectionType: sectionType,
                 displayTitle: displayTitle,
@@ -207,20 +174,8 @@ Enjoy your exploration!
 /// Quick test functions for common scenarios
 @MainActor
 struct SSECatalogueTestHelpers {
-    static func testOverview(manager: CatalogueManager, markdown: String = "# Test Overview\n\nThis is a test.") {
-        let content: JSONValue = .dictionary([
-            "country_overview": .dictionary([
-                "markdown": .string(markdown),
-                "_metadata": .dictionary([
-                    "location": .dictionary([
-                        "geoscope": .string("country"),
-                        "context": .dictionary([:])
-                    ]),
-                    "interface": .dictionary(["markdown": .dictionary([:])])
-                ])
-            ])
-        ])
-        
+    static func testOverview(manager: CatalogueManager) {
+        let content = buildOverviewCatalogueContent()
         manager.handleCatalogue(
             sectionType: "overview",
             displayTitle: "Overview",
@@ -238,19 +193,98 @@ struct SSECatalogueTestHelpers {
     }
     
     static func testAllCatalogueTypes(manager: CatalogueManager) async {
-        // Test overview
-        testOverview(manager: manager, markdown: """
-        # Complete Test
-
-        This tests **all** catalogue section types in sequence.
-
-        ## Overview Section
-        This is the overview catalogue.
-        """)
+        // Test overview (multi-topic Istanbul)
+        testOverview(manager: manager)
         
         // Test tour (journey cards)
         testTour(manager: manager)
     }
+}
+
+// MARK: - Overview Test Data
+
+/// Sample overview topics for Istanbul, matching the multi-topic structure
+/// produced by `GeoCataloguer.build_overviews` → `CatalogueTopic._sse_dict()`.
+/// Each topic has: header (overline/headline/subhead), markdown with semantic links,
+/// and _metadata (geoscope + location context + interface).
+private let sampleOverviewTopics: [(
+    topicId: String,
+    geoscope: String,
+    overline: String,
+    headline: String,
+    subhead: String,
+    markdown: String,
+    context: [String: JSONValue]
+)] = [
+    (
+        topicId: "overview_country",
+        geoscope: "country",
+        overline: "COUNTRY",
+        headline: "Turkey",
+        subhead: "Where continents collide and civilizations layer",
+        markdown: """
+        **[Türkiye](place://T%C3%BCrkiye)** straddles two continents, its western edge touching [Europe](landscape://Europe) and its vast [Anatolian plateau](landscape://Anatolian%20Plateau) stretching deep into Asia. This geographic duality has made it a crossroads of empires — Hittite, Greek, Roman, Byzantine, and Ottoman — each leaving indelible marks on the land.
+
+        The country's modern identity was forged in 1923 when Mustafa Kemal Atatürk declared the Republic, pivoting a crumbling empire toward secularism and Western institutions. Yet beneath the surface, older rhythms persist: the call to prayer echoing across [Cappadocia](landscape://Cappadocia)'s fairy chimneys, the clatter of backgammon in a Southeastern [çay bahçesi](cuisine://çay%20bahçesi), the slow pour of [Turkish coffee](dish://Turkish%20coffee) — a UNESCO-listed ritual that doubles as fortune-telling session.
+
+        Turkey's culinary geography is staggering. The [Black Sea coast](landscape://Black%20Sea%20coast) contributes anchovies and hazelnuts, the Southeast brings fiery [kebab](dish://kebab) traditions influenced by [Mesopotamian cuisine](cuisine://Mesopotamian%20cuisine), and the Aegean delivers olive oil–drenched mezes that blur the line with Greek cooking. The result is not one cuisine but many, united by an obsession with fresh bread, strong tea, and generous hospitality.
+        """,
+        context: ["country_code": .string("TR")]
+    ),
+    (
+        topicId: "overview_admin_area",
+        geoscope: "admin_area",
+        overline: "REGION",
+        headline: "Marmara Region",
+        subhead: "The gateway between two worlds",
+        markdown: """
+        The [Marmara Region](landscape://Marmara%20Region) takes its name from the small, enclosed [Sea of Marmara](landscape://Sea%20of%20Marmara) that sits between the [Bosphorus](landscape://Bosphorus) and the [Dardanelles](landscape://Dardanelles) — two narrow straits that have shaped trade and warfare for millennia. This is Turkey's most densely populated and industrialized region, yet it holds pockets of surprising quiet: the forested hillsides of [Uludağ](landscape://Uluda%C4%9F), the thermal baths of Bursa, and the vineyards along the Thracian wine route.
+
+        Historically, the region was the heartland of the Ottoman state. [Bursa](place://Bursa) served as the first capital before [Edirne](place://Edirne) and then Constantinople. The culinary legacy runs deep — [İskender kebab](dish://%C4%B0skender%20kebab) was born in Bursa, and the region's dairy traditions produce some of Turkey's finest [kaymak](dish://kaymak), a clotted cream served with honey at breakfast.
+        """,
+        context: ["country_code": .string("TR"), "admin_area": .string("Marmara")]
+    ),
+    (
+        topicId: "overview_locality",
+        geoscope: "locality",
+        overline: "TOWN & CITY",
+        headline: "Istanbul",
+        subhead: "Fifteen million stories on two continents",
+        markdown: """
+        [Istanbul](place://Istanbul) is the only major city in the world that sits on two continents, and that split — European and Asian sides divided by the [Bosphorus](landscape://Bosphorus) — defines daily life more than any guidebook admits. Commuters ferry across the strait each morning, fishermen cast lines from [Galata Bridge](place://Galata%20Bridge) at dawn, and the call to prayer from [Sultanahmet](place://Sultanahmet)'s minarets mingles with the hum of tram wires.
+
+        The food scene is a story of layers. Street vendors sell [simit](dish://simit) — sesame-crusted bread rings — alongside [balık ekmek](dish://bal%C4%B1k%20ekmek), the iconic fish sandwich served dockside at [Eminönü](place://Emin%C3%B6n%C3%BC). In the backstreets of [Karaköy](place://Karak%C3%B6y), a new wave of [meyhane](cuisine://meyhane) culture pairs traditional [meze](cuisine://meze) with natural wines. And no visit is complete without the syrupy crunch of [baklava](dish://baklava) at one of the city's century-old pastry shops.
+
+        Yet Istanbul resists being pinned down. The [Grand Bazaar](place://Grand%20Bazaar) thrums with 4,000 shops selling everything from hand-knotted carpets to counterfeit watches, while across the water, [Kadıköy](place://Kad%C4%B1k%C3%B6y)'s market stalls overflow with Anatolian cheeses, spices, and pickles. It is a city that rewards wandering without a map.
+        """,
+        context: ["country_code": .string("TR"), "admin_area": .string("Marmara"), "locality": .string("Istanbul")]
+    ),
+]
+
+/// Builds complete catalogue content for an "overview" section with multiple geoscope topics.
+/// Mirrors the SSE dict shape produced by `CatalogueTopic._sse_dict()` / `Catalogue.to_sse_dict()`.
+private func buildOverviewCatalogueContent() -> JSONValue {
+    var topics: [String: JSONValue] = [:]
+    for topic in sampleOverviewTopics {
+        topics[topic.topicId] = .dictionary([
+            "header": .dictionary([
+                "overline": .string(topic.overline),
+                "headline": .string(topic.headline),
+                "subhead": .string(topic.subhead),
+            ]),
+            "markdown": .string(topic.markdown),
+            "_metadata": .dictionary([
+                "location": .dictionary([
+                    "geoscope": .string(topic.geoscope),
+                    "context": .dictionary(topic.context),
+                ]),
+                "interface": .dictionary([
+                    "markdown": .dictionary([:]),
+                ]),
+            ]),
+        ])
+    }
+    return .dictionary(topics)
 }
 
 // MARK: - Tour Test Data

@@ -28,7 +28,6 @@
 		C174AEDC2F3B6EF7008C2B97 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = C1037AC22E7185550014D793 /* Supabase */; };
 		C174AEDD2F3B6EF7008C2B97 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = C1084CF12EE8106D00E6EC2C /* MarkdownUI */; };
 		C174AEDE2F3B6EF7008C2B97 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = C1C87F612ED18B2C00A46F12 /* PostHog */; };
-		C174AFD52F3B7399008C2B97 /* Textual in Frameworks */ = {isa = PBXBuildFile; productRef = C174AFD42F3B7399008C2B97 /* Textual */; };
 		C1C87F622ED18B2C00A46F12 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = C1C87F612ED18B2C00A46F12 /* PostHog */; };
 /* End PBXBuildFile section */
 
@@ -170,7 +169,6 @@
 				C10129702F2BBAC400995A1F /* core in Frameworks */,
 				C1037AC12E7185550014D793 /* Storage in Frameworks */,
 				C1C87F622ED18B2C00A46F12 /* PostHog in Frameworks */,
-				C174AFD52F3B7399008C2B97 /* Textual in Frameworks */,
 				C1084CF22EE8106D00E6EC2C /* MarkdownUI in Frameworks */,
 				C1037ABB2E7185550014D793 /* Functions in Frameworks */,
 				C1037ABF2E7185550014D793 /* Realtime in Frameworks */,
@@ -274,7 +272,6 @@
 			name = unheardpath;
 			packageProductDependencies = (
 				C101296F2F2BBAC400995A1F /* core */,
-				C174AFD42F3B7399008C2B97 /* Textual */,
 			);
 			productName = unheardpath;
 			productReference = C1037A842E7126030014D793 /* unheardpath.app */;
@@ -362,7 +359,6 @@
 				C1037AB72E7185550014D793 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				C1DF00482EC88B15009C463E /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				C1084CF02EE8106D00E6EC2C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				C174AFD32F3B7399008C2B97 /* XCRemoteSwiftPackageReference "textual" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = C1CD228B2E6FE5D50057E60C;
@@ -917,14 +913,6 @@
 				minimumVersion = 2.4.1;
 			};
 		};
-		C174AFD32F3B7399008C2B97 /* XCRemoteSwiftPackageReference "textual" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/gonzalezreal/textual";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.3.1;
-			};
-		};
 		C1DF00482EC88B15009C463E /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
@@ -978,11 +966,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C1084CF02EE8106D00E6EC2C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
-		};
-		C174AFD42F3B7399008C2B97 /* Textual */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C174AFD32F3B7399008C2B97 /* XCRemoteSwiftPackageReference "textual" */;
-			productName = Textual;
 		};
 		C1C87F612ED18B2C00A46F12 /* PostHog */ = {
 			isa = XCSwiftPackageProductDependency;

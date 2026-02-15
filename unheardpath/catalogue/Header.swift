@@ -1,10 +1,10 @@
 import SwiftUI
 import core
 
-// MARK: - Section Header View
+// MARK: - Topic Header View
 /// Renders an optional header with overline, headline, subhead, and feature image.
 /// All fields are optional — only non-empty values are rendered.
-struct SectionHeaderView: View {
+struct TopicHeaderView: View {
     let header: JSONValue
     
     private var overline: String {
@@ -21,17 +21,26 @@ struct SectionHeaderView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: TypographyScale.articleMinus1.baseSize) {
-            // Overline — DisplayText · SansRegular · wide tracking
+        VStack(alignment: .leading) {
+            // Accent square + Overline
             if !overline.isEmpty {
-                DisplayText(
-                    overline,
-                    scale: .articleMinus1,
-                    color: Color.textSecondary,
-                    lineHeightMultiple: 1.0,
-                    fontFamily: FontFamily.sansRegular,
-                    tracking: 0.2
-                )
+                HStack(spacing: Spacing.current.spaceXs) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.accentColor)
+                        .frame(width: 12, height: 12)
+                        .offset(y: -2)
+                    
+                    DisplayText(
+                        overline,
+                        scale: .articleMinus1,
+                        color: Color.textSecondary,
+                        // color: Color("AccentColor"),
+                        lineHeightMultiple: 1.0,
+                        fontFamily: FontFamily.sansRegular,
+                        tracking: 0.2
+                    )
+                }
+                .padding(.horizontal, Spacing.current.textSideMargin)
             }
             
             // Headline — DisplayText · SerifItalic · tight line height
@@ -40,17 +49,27 @@ struct SectionHeaderView: View {
                     headline,
                     scale: .article3,
                     color: Color.textPrimary,
-                    lineHeightMultiple: 1.3,
+                    // color: Color("AccentColor"),
+                    lineHeightMultiple: 1.2,
                     fontFamily: FontFamily.serifItalic
                 )
+                .padding(.leading, Spacing.current.textSideMargin)
+                .padding(.trailing, Spacing.current.spaceXl)
+                
+                // .padding(.top, Spacing.current.spaceXs)
             }
             
-            // Subhead
+            // Subhead — DisplayText · SansRegular · subtle tracking
             if !subhead.isEmpty {
-                Text(subhead)
-                    .font(Font.custom(FontFamily.serifRegular, size: TypographyScale.article1.baseSize))
-                    .foregroundColor(Color.textSecondary)
-                    .padding(.bottom, 12)
+                DisplayText(
+                    subhead,
+                    scale: .article1,
+                    color: Color.textSecondary.opacity(0.8),
+                    lineHeightMultiple: 1.1,
+                    fontFamily: FontFamily.sansRegular,
+                    tracking: 0.005
+                )
+                .padding(.horizontal, Spacing.current.textSideMargin)
             }
             
             // Feature image
@@ -58,8 +77,9 @@ struct SectionHeaderView: View {
                 AsyncImage(url: URL(string: featureImg)) { phase in
                     if let image = phase.image {
                         image.resizable().scaledToFit()
+                            .padding(.vertical, Spacing.current.spaceXs)
                     } else if phase.error != nil {
-                        Text("Failed to load image")
+                        EmptyView()
                     } else {
                         ProgressView()
                     }
@@ -71,9 +91,9 @@ struct SectionHeaderView: View {
 
 // MARK: - Previews
 #if DEBUG
-#Preview("Section Header") {
+#Preview("Topic Header") {
     ScrollView {
-        SectionHeaderView(header: .dictionary([
+        TopicHeaderView(header: .dictionary([
             "overline": .string("HISTORY & CULTURE"),
             "headline": .string("An Unorthodox History of Istanbul"),
             "subhead": .string("From Byzantine splendor to Ottoman grandeur"),
@@ -84,9 +104,9 @@ struct SectionHeaderView: View {
     .background(Color("AppBkgColor"))
 }
 
-#Preview("Section Header - Partial") {
+#Preview("Topic Header - Partial") {
     ScrollView {
-        SectionHeaderView(header: .dictionary([
+        TopicHeaderView(header: .dictionary([
             "headline": .string("The Roman Forum"),
             "subhead": .string("Center of ancient Roman public life")
         ]))

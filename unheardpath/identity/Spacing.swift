@@ -124,6 +124,12 @@ struct SpacingValues {
         )
     }
     
+    // MARK: Semantic Aliases
+    
+    /// Horizontal margin for text blocks (paragraphs, headings, DisplayText) in catalogue content.
+    /// Keeps images and other full-bleed elements unaffected.
+    var textSideMargin: CGFloat { spaceS }
+    
     /// Cached spacing values (iPhone has limited screen sizes, so simple cache is sufficient)
     nonisolated(unsafe) private static var _cachedValues: SpacingValues?
     nonisolated(unsafe) private static var _cachedScreenWidth: CGFloat?

@@ -292,7 +292,7 @@ struct JourneyCard: View {
                 VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
                     Spacer()
 
-                    // Kicker — same styling as SectionHeaderView overline
+                    // Kicker — same styling as TopicHeaderView overline
                     DisplayText(
                         journey.kicker.uppercased(),
                         scale: .articleMinus2,
@@ -310,7 +310,7 @@ struct JourneyCard: View {
                         lineHeightMultiple: 1.3
                     )
 
-                    // Subhead — SerifRegular (matches SectionHeaderView subhead)
+                    // Subhead — SerifRegular (matches TopicHeaderView subhead)
                     DisplayText(
                         journey.subhead,
                         scale: .articleMinus1,
