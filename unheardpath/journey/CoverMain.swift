@@ -275,30 +275,57 @@ struct JourneyCoverView: View {
 
 // MARK: - Journey Image Slideshow
 /// Cycles through an array of image URLs with a graceful cross-fade transition.
+/// Only loads the current and next image to avoid saturating the network.
 private struct JourneyImageSlideshow: View {
     let imageURLs: [URL]
     @State private var currentIndex: Int = 0
+    @State private var loadedIndices: Set<Int> = []
 
     private let timer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+
+    /// Indices to load: current image and the next one (for seamless cross-fade).
+    private var activeIndices: Set<Int> {
+        guard !imageURLs.isEmpty else { return [] }
+        let next = (currentIndex + 1) % imageURLs.count
+        return [currentIndex, next]
+    }
+
+    /// Prefer the current image when loaded; otherwise show a loaded active image immediately.
+    private var displayIndex: Int {
+        guard !imageURLs.isEmpty else { return 0 }
+        let next = (currentIndex + 1) % imageURLs.count
+        if loadedIndices.contains(currentIndex) {
+            return currentIndex
+        }
+        if loadedIndices.contains(next) {
+            return next
+        }
+        return currentIndex
+    }
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
                 ForEach(imageURLs.indices, id: \.self) { index in
-                    AsyncImage(url: imageURLs[index]) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: geo.size.width, height: geo.size.height)
-                                .clipped()
-                        default:
-                            Color.clear
+                    if activeIndices.contains(index) {
+                        AsyncImage(url: imageURLs[index]) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .clipped()
+                                    .onAppear {
+                                        loadedIndices.insert(index)
+                                    }
+                            default:
+                                Color.clear
+                            }
                         }
+                        .opacity(index == displayIndex ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.5), value: displayIndex)
                     }
-                    .opacity(index == currentIndex ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.5), value: currentIndex)
                 }
             }
         }

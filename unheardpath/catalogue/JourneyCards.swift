@@ -168,7 +168,7 @@ struct JourneyCardContent: View {
     @Environment(\.isPopupEnabled) private var isPopupEnabled
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+        LazyVStack(alignment: .leading, spacing: Spacing.current.spaceS) {
             ForEach(cards.indices, id: \.self) { index in
                 journeyCardView(from: cards[index])
             }
@@ -207,29 +207,18 @@ struct JourneyCardContent: View {
             }
             return []
         }()
-        var imageURLs = parseImageURLs(from: dict["img_urls"])
-        if imageURLs.isEmpty {
-            imageURLs = parseImageURLs(from: dict["feature_img"])
-        }
-        // Fallback: use the first image URL found from any place's properties
-        if imageURLs.isEmpty {
-            for place in places {
-                guard case .dictionary(let feature) = place,
-                      case .dictionary(let props) = feature["properties"] else {
-                    continue
-                }
-                let placeImageURLs = parseImageURLs(from: props["img_urls"])
-                if let firstURL = placeImageURLs.first {
-                    imageURLs = [firstURL]
-                    break
-                }
-                let legacyPlaceImageURLs = parseImageURLs(from: props["feature_img"])
-                if let firstURL = legacyPlaceImageURLs.first {
-                    imageURLs = [firstURL]
-                    break
-                }
+        var imageURLs: [URL] = []
+        imageURLs.append(contentsOf: parseImageURLs(from: dict["feature_img"]))
+        imageURLs.append(contentsOf: parseImageURLs(from: dict["img_urls"]))
+        for place in places {
+            guard case .dictionary(let feature) = place,
+                  case .dictionary(let props) = feature["properties"] else {
+                continue
             }
+            imageURLs.append(contentsOf: parseImageURLs(from: props["img_urls"]))
+            imageURLs.append(contentsOf: parseImageURLs(from: props["feature_img"]))
         }
+        imageURLs = Array(NSOrderedSet(array: imageURLs).compactMap { $0 as? URL })
         return Journey(
             kicker: kicker,
             title: title,
@@ -248,6 +237,7 @@ struct JourneyCard: View {
     let journey: Journey
     let config: JSONValue?
     let onTap: () -> Void
+    @State private var hasLoadedBackgroundImage = false
 
     /// Corner radius from config, falling back to journey-specific default
     private var cornerRadius: CGFloat {
@@ -261,7 +251,7 @@ struct JourneyCard: View {
                 cardBackground
 
                 // Gradient overlay for text legibility when image is present
-                if journey.featureImageURL != nil {
+                if hasLoadedBackgroundImage {
                     LinearGradient(
                         colors: [
                             Color.clear,
@@ -332,17 +322,64 @@ struct JourneyCard: View {
     }
 
     /// Whether the card has a feature image (affects text colors)
-    private var hasImage: Bool { journey.featureImageURL != nil }
+    private var hasImage: Bool { hasLoadedBackgroundImage }
 
     @ViewBuilder
     private var cardBackground: some View {
-        if let imageURL = journey.featureImageURL {
-            AsyncImage(url: imageURL) { phase in
+        if !journey.imageURLs.isEmpty {
+            FallbackAsyncImage(urls: journey.imageURLs) { loadState in
+                switch loadState {
+                case .loaded:
+                    hasLoadedBackgroundImage = true
+                case .loading, .failedAll:
+                    break
+                }
+            }
+        } else {
+            Rectangle()
+                .fill(Color("onBkgTextColor30").opacity(0.06))
+        }
+    }
+}
+
+// MARK: - Fallback Async Image
+/// Tries image URLs in order; advances to the next URL on load failure.
+private enum FallbackAsyncImageLoadState {
+    case loading
+    case loaded
+    case failedAll
+}
+
+private struct FallbackAsyncImage: View {
+    let urls: [URL]
+    let onLoadStateChange: (FallbackAsyncImageLoadState) -> Void
+    @State private var urlIndex: Int = 0
+    @State private var hasLoadedCurrentURL = false
+    @State private var hasFailedCurrentURL = false
+
+    private let loadTimeoutNanos: UInt64 = 2_000_000_000
+
+    private func moveToNextURLOrFailAll() {
+        if urlIndex + 1 < urls.count {
+            urlIndex += 1
+            hasLoadedCurrentURL = false
+            hasFailedCurrentURL = false
+        } else {
+            onLoadStateChange(.failedAll)
+        }
+    }
+
+    var body: some View {
+        if urlIndex < urls.count {
+            AsyncImage(url: urls[urlIndex]) { phase in
                 switch phase {
                 case .empty:
                     Rectangle()
                         .fill(Color("onBkgTextColor30").opacity(0.06))
                         .overlay(ProgressView().tint(Color("onBkgTextColor30")))
+                        .onAppear {
+                            onLoadStateChange(.loading)
+                        }
                 case .success(let image):
                     GeometryReader { geo in
                         image
@@ -351,12 +388,30 @@ struct JourneyCard: View {
                             .frame(width: geo.size.width, height: geo.size.height)
                             .clipped()
                     }
+                    .onAppear {
+                        hasLoadedCurrentURL = true
+                        onLoadStateChange(.loaded)
+                    }
                 case .failure:
                     Rectangle()
                         .fill(Color("onBkgTextColor30").opacity(0.06))
+                        .onAppear {
+                            hasFailedCurrentURL = true
+                            moveToNextURLOrFailAll()
+                        }
                 @unknown default:
                     Rectangle()
                         .fill(Color("onBkgTextColor30").opacity(0.06))
+                }
+            }
+            .task(id: urlIndex) {
+                guard urlIndex < urls.count else { return }
+                hasLoadedCurrentURL = false
+                hasFailedCurrentURL = false
+                try? await Task.sleep(nanoseconds: loadTimeoutNanos)
+                guard !Task.isCancelled else { return }
+                if !hasLoadedCurrentURL && !hasFailedCurrentURL {
+                    moveToNextURLOrFailAll()
                 }
             }
         } else {
