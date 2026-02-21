@@ -71,6 +71,24 @@ class SSEEventRouter: ObservableObject {
                 displayTitle: displayTitle,
                 content: content
             )
+
+            if typeString == "sights", let contentDict = content.dictionaryValue {
+                var sightFeatures: [[String: JSONValue]] = []
+                for (key, topicValue) in contentDict where !key.hasPrefix("_") {
+                    if let cards = topicValue["cards"]?.arrayValue {
+                        for card in cards {
+                            if let featureDict = card.dictionaryValue {
+                                sightFeatures.append(featureDict)
+                            }
+                        }
+                    }
+                }
+                if !sightFeatures.isEmpty {
+                    mapFeaturesManager?.apply(features: sightFeatures)
+                    logger.debug("Forwarded \(sightFeatures.count) sight features to map")
+                }
+            }
+
             logger.debug("Routed catalogue: \(typeString)")
         }
     }

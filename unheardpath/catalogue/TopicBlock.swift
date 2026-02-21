@@ -60,6 +60,8 @@ struct TopicBlockView: View {
                 JourneyCardContent(cards: cards, config: cardConfig)
             case "feature":
                 FeatureCardList(cards: cards, config: cardConfig)
+            case "sight":
+                SightCardContent(cards: cards, config: cardConfig)
             default:
                 DynamicCardGrid(cards: cards, config: cardConfig)
             }

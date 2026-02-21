@@ -209,6 +209,14 @@ public extension JSONValue {
         return nil
     }
 
+    /// Extract array value if this is an array case
+    var arrayValue: [JSONValue]? {
+        if case .array(let value) = self {
+            return value
+        }
+        return nil
+    }
+
     /// Extract bool value if this is a bool case
     var boolValue: Bool? {
         if case .bool(let value) = self {
