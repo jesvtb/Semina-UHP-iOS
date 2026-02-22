@@ -276,30 +276,61 @@ public struct PointFeature: Sendable, Identifiable {
         return propertiesDict
     }
 
-    /// Image URL from properties (img_url)
+    /// Image URL from properties. Checks `img_urls` (array) first, then `img_url` (string).
     public var imageURL: URL? {
-        guard let properties = properties,
-              let imgURLValue = properties["img_url"],
-              let imgURL = imgURLValue.stringValue else {
-            return nil
+        guard let properties = properties else { return nil }
+        if let arrayValue = properties["img_urls"], case .array(let urls) = arrayValue {
+            for item in urls {
+                if let urlString = item.stringValue, let url = Self.validHTTPURL(urlString) {
+                    return url
+                }
+            }
         }
-        let trimmedURL = imgURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: trimmedURL) else { return nil }
-        guard let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" else {
-            return nil
+        if let singleValue = properties["img_url"], let urlString = singleValue.stringValue {
+            return Self.validHTTPURL(urlString)
         }
-        return url
+        return nil
     }
 
-    /// Wikipedia URL from properties (wikipedia.url)
+    /// Wikipedia URL derived from `refs.wiki_{lang}`.
+    /// Prefers the device language page, falls back to English.
     public var wikipediaURL: URL? {
         guard let properties = properties,
-              let wikipediaValue = properties["wikipedia"],
-              let wikipedia = wikipediaValue.dictionaryValue,
-              let urlValue = wikipedia["url"],
-              let urlString = urlValue.stringValue,
-              let url = URL(string: urlString) else {
+              let refsValue = properties["refs"],
+              case .dictionary(let refs) = refsValue else {
+            return nil
+        }
+        let deviceLang: String
+        if #available(iOS 16.0, *) {
+            deviceLang = Locale.current.language.languageCode?.identifier ?? "en"
+        } else {
+            deviceLang = Locale.current.languageCode ?? "en"
+        }
+        let baseLang = deviceLang.split(separator: "-").first.map(String.init) ?? deviceLang
+
+        // Device language first, then English fallback
+        let keysToTry = baseLang == "en"
+            ? ["wiki_\(baseLang)"]
+            : ["wiki_\(baseLang)", "wiki_en"]
+
+        for key in keysToTry {
+            guard let titleValue = refs[key], let title = titleValue.stringValue, !title.isEmpty else {
+                continue
+            }
+            let lang = String(key.dropFirst(5)) // strip "wiki_"
+            let encoded = title.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? title
+            if let url = URL(string: "https://\(lang).wikipedia.org/wiki/\(encoded)") {
+                return url
+            }
+        }
+        return nil
+    }
+
+    private static func validHTTPURL(_ string: String) -> URL? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
             return nil
         }
         return url

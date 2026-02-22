@@ -340,8 +340,14 @@ private struct AppContentView: View {
                               let locationDetail = LocationDetailData(eventDict: deviceLocation) {
                         await catalogueManager.restoreFromCache(for: locationDetail)
                     } else {
-                        // No location available -- restore last active context
                         await catalogueManager.restoreFromCache()
+                    }
+
+                    // Forward cached sight features to the map so POI markers
+                    // appear immediately on launch instead of waiting for the backend.
+                    let sightFeatures = catalogueManager.extractSightFeatures()
+                    if !sightFeatures.isEmpty {
+                        mapFeaturesManager.apply(features: sightFeatures)
                     }
                 }
             }

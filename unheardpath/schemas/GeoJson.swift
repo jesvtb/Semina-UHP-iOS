@@ -36,35 +36,21 @@ extension PointFeature {
         return CLLocationCoordinate2D(latitude: coord.latitude, longitude: coord.longitude)
     }
 
-    /// Title with priority: names.device_lang > names.local_lang > names.global_lang > title > name
+    /// Title resolved from `names` using `lang:*` keys.
+    /// Priority: device language → base device language → English → `title` → `name`.
     var title: String? {
         guard let properties = properties else { return nil }
         if let namesValue = properties["names"],
            let names = namesValue.dictionaryValue {
-            if let deviceLangValue = names["device_lang"],
-               let deviceLang = deviceLangValue.stringValue,
-               !deviceLang.isEmpty {
-                return deviceLang
-            }
-            if let localLangValue = names["local_lang"],
-               let localLang = localLangValue.stringValue,
-               !localLang.isEmpty {
-                return localLang
-            }
-            if let globalLangValue = names["global_lang"],
-               let globalLang = globalLangValue.stringValue,
-               !globalLang.isEmpty {
-                return globalLang
-            }
+            let fullLang = currentDeviceLanguageCode().lowercased()
+            let baseLang = fullLang.split(separator: "-").first.map(String.init) ?? fullLang
+            if let name = names["lang:\(fullLang)"]?.stringValue, !name.isEmpty { return name }
+            if baseLang != fullLang,
+               let name = names["lang:\(baseLang)"]?.stringValue, !name.isEmpty { return name }
+            if let name = names["lang:en"]?.stringValue, !name.isEmpty { return name }
         }
-        if let titleValue = properties["title"],
-           let title = titleValue.stringValue {
-            return title
-        }
-        if let nameValue = properties["name"],
-           let name = nameValue.stringValue {
-            return name
-        }
+        if let title = properties["title"]?.stringValue { return title }
+        if let name = properties["name"]?.stringValue { return name }
         return nil
     }
 

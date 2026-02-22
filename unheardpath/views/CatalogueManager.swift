@@ -199,6 +199,26 @@ class CatalogueManager: ObservableObject {
         sectionOrder.removeAll()
     }
 
+    /// Extract GeoJSON feature dicts from the "sights" section's cards.
+    /// Used to forward cached sight features to `MapFeaturesManager` after cache restore.
+    func extractSightFeatures() -> [[String: JSONValue]] {
+        guard let sightsSection = sections["sights"],
+              case .dictionary(let contentDict) = sightsSection.content else {
+            return []
+        }
+        var features: [[String: JSONValue]] = []
+        for (key, topicValue) in contentDict where !key.hasPrefix("_") {
+            if let cards = topicValue["cards"]?.arrayValue {
+                for card in cards {
+                    if let featureDict = card.dictionaryValue {
+                        features.append(featureDict)
+                    }
+                }
+            }
+        }
+        return features
+    }
+
     // MARK: - Location Context Matching
 
     /// Check if an item has `_metadata.location.context`.
@@ -589,7 +609,7 @@ private func createMockPointFeature(name: String = "The Colosseum", description:
         ]),
         "properties": .dictionary([
             "names": .dictionary([
-                "device_lang": .string(name)
+                "lang:en": .string(name)
             ]),
             "short_description": .string(description)
         ])

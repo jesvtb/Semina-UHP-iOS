@@ -127,6 +127,12 @@ extension MainView {
             // ensures cached keys fill pruned gaps without overwriting surviving content.
             await catalogueManager.restoreFromCache(for: finalDetail)
 
+            // Forward cached sight features to the map so POI markers appear immediately.
+            let cachedSightFeatures = catalogueManager.extractSightFeatures()
+            if !cachedSightFeatures.isEmpty {
+                mapFeaturesManager.apply(features: cachedSightFeatures)
+            }
+
             let event = UserEventBuilder.build(
                 evtType: "location_searched",
                 evtData: locationDict,
