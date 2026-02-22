@@ -1,16 +1,70 @@
 import SwiftUI
-import SafariServices
 import CoreLocation
 import MapboxMaps
 import core
 
 private typealias JSONValue = core.JSONValue
 
-// MARK: - Sight Card Defaults
+// MARK: - Flow Layout
 
-private enum SightCardDefaults {
-    static let aspectRatio: CGFloat = 0.85
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        guard !rows.isEmpty else { return .zero }
+        let height = rows.reduce(CGFloat.zero) { total, row in
+            total + row.height
+        } + CGFloat(rows.count - 1) * spacing
+        return CGSize(width: proposal.width ?? .infinity, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var y = bounds.minY
+        for row in rows {
+            var x = bounds.minX
+            for item in row.items {
+                let size = item.sizeThatFits(.unspecified)
+                item.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var items: [LayoutSubview] = []
+        var height: CGFloat = 0
+    }
+
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [Row] = [Row()]
+        var currentWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if !rows[rows.count - 1].items.isEmpty && currentWidth + spacing + size.width > maxWidth {
+                rows.append(Row())
+                currentWidth = 0
+            }
+            if !rows[rows.count - 1].items.isEmpty {
+                currentWidth += spacing
+            }
+            rows[rows.count - 1].items.append(subview)
+            rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
+            currentWidth += size.width
+        }
+        return rows.filter { !$0.items.isEmpty }
+    }
 }
+
+// MARK: - Sight Constants
+
+private let hiddenCategories: Set<String> = [
+    "tourist attraction"
+]
 
 // MARK: - Sight Model
 
@@ -40,26 +94,22 @@ struct SightCardContent: View {
     @State private var selectedSight: Sight?
     @Environment(\.isPopupEnabled) private var isPopupEnabled
 
-    private var effectiveConfig: JSONValue {
-        var dict: [String: JSONValue] = [
-            "aspectRatio": .double(SightCardDefaults.aspectRatio),
-            "cornerRadius": .double(CardConstants.cornerRadius)
-        ]
-        if case .dictionary(let serverDict) = config {
-            for (key, value) in serverDict {
-                dict[key] = value
-            }
-        }
-        return .dictionary(dict)
-    }
-
     var body: some View {
-        DynamicCardGrid(cards: cards, config: effectiveConfig) { cardData in
-            sightCardView(from: cardData)
-        }
-        .sheet(item: $selectedSight) { sight in
-            SightPopupView(sight: sight) {
-                selectedSight = nil
+        if !cards.isEmpty {
+            VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+                ForEach(cards.indices, id: \.self) { index in
+                    sightCardView(from: cards[index])
+
+                    if index < cards.count - 1 {
+                        Divider()
+                            .background(Color("onBkgTextColor30").opacity(0.3))
+                    }
+                }
+            }
+            .sheet(item: $selectedSight) { sight in
+                SightPopupView(sight: sight) {
+                    selectedSight = nil
+                }
             }
         }
     }
@@ -67,7 +117,7 @@ struct SightCardContent: View {
     @ViewBuilder
     private func sightCardView(from data: JSONValue) -> some View {
         if let sight = parseSight(from: data) {
-            SightCard(sight: sight, config: config) {
+            SightCard(sight: sight) {
                 if isPopupEnabled {
                     selectedSight = sight
                 }
@@ -78,13 +128,15 @@ struct SightCardContent: View {
     private func parseSight(from data: JSONValue) -> Sight? {
         guard case .dictionary(let dict) = data,
               case .dictionary(let props) = dict["properties"] else { return nil }
-        guard let name = resolvedPlaceName(from: props) else { return nil }
-        let localName = resolvedLocalName(from: props, placeName: name)
-        let description = props["description"]?.stringValue
-        let imageURLs = parseImageURLs(from: props["img_urls"])
+        guard let names = props["names"]?.dictionaryValue,
+              let name = sightMainName(from: names) else { return nil }
+        let localName = sightLocalName(from: names, mainName: name)
+        let description = resolvedLocalizedString(from: props["description"])
+        let imageURLs = parseImageURLs(from: props["img_urls"] ?? props["img_url"])
         let categories: [String] = {
             if case .array(let arr) = props["wikidata_instance_of"] {
                 return arr.compactMap { $0.stringValue }
+                    .filter { !hiddenCategories.contains($0.lowercased()) }
             }
             return []
         }()
@@ -104,102 +156,126 @@ struct SightCardContent: View {
     }
 }
 
+// MARK: - Sight Name Resolution
+
+private func deviceLangKeys() -> (full: String, base: String) {
+    let full = currentDeviceLanguageCode().lowercased()
+    let base = full.split(separator: "-").first.map(String.init) ?? full
+    return (full, base)
+}
+
+/// Primary display name: device language → English.
+private func sightMainName(from names: [String: JSONValue]) -> String? {
+    let lang = deviceLangKeys()
+    if let name = names["lang:\(lang.full)"]?.stringValue, !name.isEmpty { return name }
+    if lang.base != lang.full,
+       let name = names["lang:\(lang.base)"]?.stringValue, !name.isEmpty { return name }
+    if let name = names["lang:en"]?.stringValue, !name.isEmpty { return name }
+    return nil
+}
+
+/// Secondary name: prefers a language that is neither device_lang nor English;
+/// falls back to any non-device_lang, then English if it differs from the main name.
+private func sightLocalName(from names: [String: JSONValue], mainName: String?) -> String? {
+    let lang = deviceLangKeys()
+    let deviceKeys: Set<String> = ["lang:\(lang.full)", "lang:\(lang.base)"]
+
+    for (key, value) in names where key.hasPrefix("lang:") {
+        if deviceKeys.contains(key) || key == "lang:en" { continue }
+        if let name = value.stringValue, !name.isEmpty, name != mainName { return name }
+    }
+    for (key, value) in names where key.hasPrefix("lang:") {
+        if deviceKeys.contains(key) { continue }
+        if let name = value.stringValue, !name.isEmpty, name != mainName { return name }
+    }
+    return nil
+}
+
+/// Resolves a value that may be a plain string or a `{"lang:en": "...", "lang:ms": "..."}` dict.
+private func resolvedLocalizedString(from value: JSONValue?) -> String? {
+    guard let value else { return nil }
+    if let plain = value.stringValue { return plain }
+    guard case .dictionary(let langDict) = value else { return nil }
+    let lang = deviceLangKeys()
+    if let matched = langDict["lang:\(lang.full)"]?.stringValue, !matched.isEmpty { return matched }
+    if lang.base != lang.full,
+       let matched = langDict["lang:\(lang.base)"]?.stringValue, !matched.isEmpty { return matched }
+    if let english = langDict["lang:en"]?.stringValue, !english.isEmpty { return english }
+    for (_, val) in langDict {
+        if let fallback = val.stringValue, !fallback.isEmpty { return fallback }
+    }
+    return nil
+}
+
 // MARK: - Sight Card
 
 struct SightCard: View {
     let sight: Sight
-    let config: core.JSONValue?
     let onTap: () -> Void
-
-    private var cornerRadius: CGFloat {
-        config?["cornerRadius"]?.doubleValue.map { CGFloat($0) } ?? CardConstants.cornerRadius
-    }
 
     var body: some View {
         Button(action: onTap) {
-            GeometryReader { geometry in
-                ZStack(alignment: .bottomLeading) {
-                    cardBackground
-                    gradientOverlay
-                    textOverlay(cardWidth: geometry.size.width)
+            VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
+                VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
+                    if !sight.categories.isEmpty {
+                        FlowLayout(spacing: Spacing.current.space2xs) {
+                            ForEach(sight.categories, id: \.self) { category in
+                                Text(category.capitalized)
+                                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
+                                    .foregroundColor(Color("onBkgTextColor30"))
+                                    .padding(.horizontal, Spacing.current.spaceXs)
+                                    .padding(.vertical, 4)
+                                    .background(Color("onBkgTextColor30").opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                        }
+                    }
+                    DisplayText(
+                        sight.name,
+                        scale: .article1,
+                        color: Color("onBkgTextColor10"),
+                        fontFamily: FontFamily.serifRegular
+                    )
+                    if let localName = sight.localName {
+                        DisplayText(
+                            localName,
+                            scale: .articleMinus1,
+                            color: Color("onBkgTextColor50"),
+                            fontFamily: FontFamily.sansRegular
+                        )
+                    }
+                }
+
+                if let description = sight.description {
+                    Text(description)
+                        .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
+                        .foregroundColor(Color("onBkgTextColor20").opacity(0.8))
+                }
+
+                if let featureImageURL = sight.featureImageURL {
+                    AsyncImage(url: featureImageURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            Color.clear
+                                .aspectRatio(16.0/9.0, contentMode: .fit)
+                                .overlay {
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                }
+                                .clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: Spacing.current.space3xs))
+                        default:
+                            Color.clear.frame(height: 0)
+                        }
+                    }
+                    // .padding(.leading, Spacing.current.spaceXl)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Color("onBkgTextColor30").opacity(0.15), lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
-        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-    }
-
-    @ViewBuilder
-    private var cardBackground: some View {
-        if !sight.imageURLs.isEmpty {
-            SightFallbackAsyncImage(urls: sight.imageURLs) { _ in }
-        } else {
-            placeholderBackground
-        }
-    }
-
-    private var placeholderBackground: some View {
-        Rectangle()
-            .fill(Color("onBkgTextColor30").opacity(0.15))
-            .overlay(
-                Image(systemName: "mappin.circle")
-                    .font(.system(size: 36))
-                    .foregroundColor(Color("onBkgTextColor30").opacity(0.4))
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var gradientOverlay: some View {
-        LinearGradient(
-            colors: [
-                Color.clear,
-                Color.black.opacity(0.1),
-                Color.black.opacity(0.7)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    private func textOverlay(cardWidth: CGFloat) -> some View {
-        let horizontalPadding = Spacing.current.spaceXs * 2
-        let maxTextWidth = max(0, cardWidth - horizontalPadding)
-        return VStack(alignment: .leading, spacing: 2) {
-            if let category = sight.categories.first {
-                DisplayText(
-                    category.capitalized,
-                    scale: .articleMinus2,
-                    color: .white.opacity(0.7),
-                    lineHeightMultiple: 1.0,
-                    fontFamily: FontFamily.sansRegular
-                )
-            }
-            DisplayText(
-                sight.name,
-                scale: .article1,
-                color: .white,
-                lineHeightMultiple: 1.0,
-                fontFamily: FontFamily.sansSemibold
-            )
-            if let localName = sight.localName {
-                DisplayText(
-                    localName,
-                    scale: .articleMinus1,
-                    color: .white.opacity(0.9),
-                    lineHeightMultiple: 1.0,
-                    fontFamily: FontFamily.sansRegular
-                )
-            }
-        }
-        .frame(width: maxTextWidth, alignment: .leading)
-        .padding(.horizontal, Spacing.current.spaceXs)
-        .padding(.vertical, Spacing.current.spaceXs)
-        .clipped()
+        .padding(.top, Spacing.current.space3xs)
+        .padding(.bottom, Spacing.current.space2xs)
     }
 }
 
@@ -213,10 +289,20 @@ struct SightPopupView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
-                    if !sight.imageURLs.isEmpty {
-                        SightFallbackAsyncImage(urls: sight.imageURLs) { _ in }
-                            .frame(height: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    if let featureImageURL = sight.featureImageURL {
+                        AsyncImage(url: featureImageURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(height: 220)
+                                    .clipped()
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            default:
+                                Color.clear.frame(height: 0)
+                            }
+                        }
                     }
 
                     Text(sight.name)
@@ -230,7 +316,7 @@ struct SightPopupView: View {
                     }
 
                     if !sight.categories.isEmpty {
-                        HStack(spacing: Spacing.current.space2xs) {
+                        FlowLayout(spacing: Spacing.current.space2xs) {
                             ForEach(sight.categories, id: \.self) { category in
                                 Text(category.capitalized)
                                     .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
@@ -304,102 +390,26 @@ private struct SightMapPreview: View {
     }
 }
 
-// MARK: - Fallback Async Image
-
-private enum SightFallbackAsyncImageLoadState {
-    case loading
-    case loaded
-    case failedAll
-}
-
-private struct SightFallbackAsyncImage: View {
-    let urls: [URL]
-    let onLoadStateChange: (SightFallbackAsyncImageLoadState) -> Void
-    @State private var urlIndex: Int = 0
-    @State private var hasLoadedCurrentURL = false
-    @State private var hasFailedCurrentURL = false
-
-    private let loadTimeoutNanos: UInt64 = 2_000_000_000
-
-    private func moveToNextURLOrFailAll() {
-        if urlIndex + 1 < urls.count {
-            urlIndex += 1
-            hasLoadedCurrentURL = false
-            hasFailedCurrentURL = false
-        } else {
-            onLoadStateChange(.failedAll)
-        }
-    }
-
-    var body: some View {
-        if urlIndex < urls.count {
-            AsyncImage(url: urls[urlIndex]) { phase in
-                switch phase {
-                case .empty:
-                    Rectangle()
-                        .fill(Color("onBkgTextColor30").opacity(0.06))
-                        .overlay(ProgressView().tint(Color("onBkgTextColor30")))
-                        .onAppear {
-                            onLoadStateChange(.loading)
-                        }
-                case .success(let image):
-                    GeometryReader { geo in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: geo.size.width, height: geo.size.height)
-                            .clipped()
-                    }
-                    .onAppear {
-                        hasLoadedCurrentURL = true
-                        onLoadStateChange(.loaded)
-                    }
-                case .failure:
-                    Rectangle()
-                        .fill(Color("onBkgTextColor30").opacity(0.06))
-                        .onAppear {
-                            hasFailedCurrentURL = true
-                            moveToNextURLOrFailAll()
-                        }
-                @unknown default:
-                    Rectangle()
-                        .fill(Color("onBkgTextColor30").opacity(0.06))
-                }
-            }
-            .task(id: urlIndex) {
-                guard urlIndex < urls.count else { return }
-                hasLoadedCurrentURL = false
-                hasFailedCurrentURL = false
-                try? await Task.sleep(nanoseconds: loadTimeoutNanos)
-                guard !Task.isCancelled else { return }
-                if !hasLoadedCurrentURL && !hasFailedCurrentURL {
-                    moveToNextURLOrFailAll()
-                }
-            }
-        } else {
-            Rectangle()
-                .fill(Color("onBkgTextColor30").opacity(0.06))
-        }
-    }
-}
-
 // MARK: - Previews
 #if DEBUG
 
 private func sampleSightFeature(
     name: String,
     localName: String? = nil,
+    localNameLanguage: String = "ms",
     description: String? = nil,
-    imageURL: String? = nil,
+    imageURLs: [String] = [],
     categories: [String] = [],
     longitude: Double = 0,
     latitude: Double = 0
 ) -> JSONValue {
     var names: [String: JSONValue] = ["lang:en": .string(name)]
-    if let localName { names["lang:es"] = .string(localName) }
+    if let localName { names["lang:\(localNameLanguage)"] = .string(localName) }
     var props: [String: JSONValue] = ["names": .dictionary(names)]
-    if let description { props["description"] = .string(description) }
-    if let imageURL { props["img_urls"] = .array([.string(imageURL)]) }
+    if let description { props["description"] = .dictionary(["lang:en": .string(description)]) }
+    if !imageURLs.isEmpty {
+        props["img_urls"] = .array(imageURLs.map { .string($0) })
+    }
     if !categories.isEmpty {
         props["wikidata_instance_of"] = .array(categories.map { .string($0) })
     }
@@ -415,50 +425,52 @@ private func sampleSightFeature(
 
 private let sampleSightCards: [JSONValue] = [
     sampleSightFeature(
-        name: "Mosque-Cathedral of Cordoba",
-        localName: "Mezquita-Catedral de Córdoba",
-        description: "Cathedral (former mosque) in Cordoba, Spain",
-        imageURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Mezquita_de_C%C3%B3rdoba_desde_el_aire_%28C%C3%B3rdoba%2C_Espa%C3%B1a%29.jpg/800px-Mezquita_de_C%C3%B3rdoba_desde_el_aire_%28C%C3%B3rdoba%2C_Espa%C3%B1a%29.jpg",
-        categories: ["cathedral", "congregational mosque"],
-        longitude: -4.7794, latitude: 37.8789
+        name: "Holy Spirit Cathedral, Penang",
+        localName: "Katedral Roh Kudus, Pulau Pinang",
+        description: "church in Penang, Malaysia",
+        imageURLs: ["https://commons.wikimedia.org/wiki/Special:FilePath/Cmglee%20Penang%20Cathedral%20of%20the%20Holy%20Spirit.jpg"],
+        categories: ["cathedral"],
+        longitude: 100.30206, latitude: 5.39394
     ),
     sampleSightFeature(
-        name: "Roman Bridge of Cordoba",
-        localName: "Puente Romano",
-        description: "Ancient Roman bridge spanning the Guadalquivir River",
-        imageURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Puente_romano2_Cordoba.jpg/800px-Puente_romano2_Cordoba.jpg",
-        categories: ["bridge"],
-        longitude: -4.7781, latitude: 37.8764
+        name: "Kek Lok Si",
+        localName: "Kuil Kek Lok Si",
+        description: "Buddhist temple situated in Air Itam in Penang",
+        imageURLs: ["https://commons.wikimedia.org/wiki/Special:FilePath/Kek%20Lok%20Si%201.jpg"],
+        categories: ["Buddhist temple", "tourist attraction"],
+        longitude: 100.27305556, latitude: 5.39833333
     ),
     sampleSightFeature(
-        name: "Alcazar of the Christian Monarchs",
-        localName: "Alcázar de los Reyes Cristianos",
-        description: "Medieval palace and fortress in Cordoba",
-        imageURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Alc%C3%A1zar_de_los_Reyes_Cristianos_-_Aerial_photograph.jpg/800px-Alc%C3%A1zar_de_los_Reyes_Cristianos_-_Aerial_photograph.jpg",
-        categories: ["castle", "palace"],
-        longitude: -4.7826, latitude: 37.8773
+        name: "Tropical Fruit Farm",
+        localName: "Taman Buah-Buahan Tropika",
+        description: "Tropical Fruit Farm",
+        longitude: 100.21939371763, latitude: 5.41583669947849
     ),
     sampleSightFeature(
-        name: "Calahorra Tower",
-        localName: "Torre de la Calahorra",
-        description: "Fortified gate in the form of a tower",
-        categories: ["tower"],
-        longitude: -4.7759, latitude: 37.8755
+        name: "Snake Temple",
+        localName: "Tokong Ular",
+        description: "Chinese temple in George Town, Penang, Malaysia",
+        imageURLs: ["https://commons.wikimedia.org/wiki/Special:FilePath/Snake%20Temple,%20Penang.jpg"],
+        categories: ["Taoist temple"],
+        longitude: 100.285194, latitude: 5.313944
     ),
     sampleSightFeature(
-        name: "Medina Azahara",
-        localName: "Medina Azahara",
-        description: "Ruins of a vast Moorish medieval palatial city",
-        imageURL: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Medina_Azahara_%28C%C3%B3rdoba%2C_Espa%C3%B1a%29_01.jpg/800px-Medina_Azahara_%28C%C3%B3rdoba%2C_Espa%C3%B1a%29_01.jpg",
-        categories: ["archaeological site", "palace"],
-        longitude: -4.8666, latitude: 37.8853
+        name: "Menara Pandang",
+        description: "Menara Pandang",
+        longitude: 100.2219669, latitude: 5.44989399947633
     ),
     sampleSightFeature(
-        name: "Synagogue of Cordoba",
-        localName: "Sinagoga de Córdoba",
-        description: "Medieval synagogue built in Mudéjar style",
-        categories: ["synagogue"],
-        longitude: -4.7839, latitude: 37.8793
+        name: "Church of the Assumption",
+        localName: "Gereja Assumption (Pulau Pinang)",
+        description: "church in Penang, Malaysia",
+        imageURLs: ["https://commons.wikimedia.org/wiki/Special:FilePath/Cathedral%20Of%20The%20Assumption.jpg"],
+        categories: ["church building"],
+        longitude: 100.337817, latitude: 5.42076183
+    ),
+    sampleSightFeature(
+        name: "Shan Cheng Durian Penang",
+        description: "Shan Cheng Durian Penang",
+        longitude: 100.2382522, latitude: 5.3475541994829
     )
 ]
 
@@ -470,40 +482,36 @@ private let sampleSightCards: [JSONValue] = [
     .background(Color("AppBkgColor"))
 }
 
-#Preview("Sight Card - With Image") {
+#Preview("Sight Card - With Image & Categories") {
     SightCard(
         sight: Sight(
-            name: "Mosque-Cathedral of Cordoba",
-            localName: "Mezquita-Catedral de Córdoba",
-            description: "Cathedral (former mosque) in Cordoba, Spain",
-            imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Mezquita_de_C%C3%B3rdoba_desde_el_aire_%28C%C3%B3rdoba%2C_Espa%C3%B1a%29.jpg/800px-Mezquita_de_C%C3%B3rdoba_desde_el_aire_%28C%C3%B3rdoba%2C_Espa%C3%B1a%29.jpg")!],
-            categories: ["cathedral", "congregational mosque"],
-            coordinate: CLLocationCoordinate2D(latitude: 37.8789, longitude: -4.7794)
-        ),
-        config: nil
+            name: "Kek Lok Si",
+            localName: "Kuil Kek Lok Si",
+            description: "Buddhist temple situated in Air Itam in Penang",
+            imageURLs: [URL(string: "https://commons.wikimedia.org/wiki/Special:FilePath/Kek%20Lok%20Si%201.jpg")!],
+            categories: ["Buddhist temple", "tourist attraction"],
+            coordinate: CLLocationCoordinate2D(latitude: 5.39833333, longitude: 100.27305556)
+        )
     ) {
         print("Tapped")
     }
-    .frame(width: 180, height: 220)
     .padding()
     .background(Color("AppBkgColor"))
 }
 
-#Preview("Sight Card - No Image") {
+#Preview("Sight Card - No Image, No Categories") {
     SightCard(
         sight: Sight(
-            name: "Calahorra Tower",
-            localName: "Torre de la Calahorra",
-            description: "Fortified gate in the form of a tower",
+            name: "Tropical Fruit Farm",
+            localName: "Taman Buah-Buahan Tropika",
+            description: "Tropical Fruit Farm",
             imageURLs: [],
-            categories: ["tower"],
-            coordinate: CLLocationCoordinate2D(latitude: 37.8755, longitude: -4.7759)
-        ),
-        config: nil
+            categories: [],
+            coordinate: CLLocationCoordinate2D(latitude: 5.41583669947849, longitude: 100.21939371763)
+        )
     ) {
         print("Tapped")
     }
-    .frame(width: 180, height: 220)
     .padding()
     .background(Color("AppBkgColor"))
 }

@@ -500,8 +500,6 @@ public final class Geocoder: Sendable {
             filesDict: [:]
         )
         let features = try data.extractFeatures()
-        // printItem(item: features[0])
-        print(features[0])
         return features.map { MapSearchResult($0) }
     }
 
