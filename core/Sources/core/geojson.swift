@@ -292,6 +292,25 @@ public struct PointFeature: Sendable, Identifiable {
         return nil
     }
 
+    /// Image URL downsized to 200 px for map annotation circles (retina-ready).
+    /// Rewrites Wikimedia `/thumb/…/{width}px-Name` URLs; passes non-wiki URLs through unchanged.
+    public var mapImageURL: URL? {
+        guard let url = imageURL else { return nil }
+        return Self.wikimediaThumbnail(url, width: 200)
+    }
+
+    private static func wikimediaThumbnail(_ url: URL, width: Int) -> URL {
+        let str = url.absoluteString
+        guard str.contains("upload.wikimedia.org"),
+              str.contains("/thumb/"),
+              let range = str.range(of: #"/\d+px-[^/]+$"#, options: .regularExpression) else {
+            return url
+        }
+        let filename = str[range].split(separator: "-", maxSplits: 1).dropFirst().joined(separator: "-")
+        let replacement = "/\(width)px-\(filename)"
+        return URL(string: str.replacingCharacters(in: range, with: replacement)) ?? url
+    }
+
     /// Wikipedia URL derived from `refs.wiki_{lang}`.
     /// Prefers the device language page, falls back to English.
     public var wikipediaURL: URL? {

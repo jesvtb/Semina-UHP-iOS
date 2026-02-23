@@ -118,7 +118,9 @@ struct EventCardContent: View {
         }
         let involvesLocalArtists = dict["involves_local_artists"]?.boolValue ?? false
         let showcaseLocalHeritage = dict["showcase_local_heritage"]?.boolValue ?? false
-        let imageURL = dict["img_url"]?.stringValue.flatMap { URL(string: $0) }
+        let imageURL = dict["img_url"]?.stringValue
+            .flatMap { URL(string: $0) }
+            .map { wikiThumbnail($0, width: 200) }
         return CulturalEvent(
             eventName: eventName,
             eventDescription: eventDescription,

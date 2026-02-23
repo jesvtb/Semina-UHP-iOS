@@ -70,7 +70,9 @@ struct DishCardContent: View {
               let description = dict["description"]?.stringValue else {
             return nil
         }
-        let imageURL = dict["img_url"]?.stringValue.flatMap { URL(string: $0) }
+        let imageURL = dict["img_url"]?.stringValue
+            .flatMap { URL(string: $0) }
+            .map { wikiThumbnail($0, width: 200) }
         return Dish(localName: localName, globalName: globalName, description: description, imageURL: imageURL)
     }
 }

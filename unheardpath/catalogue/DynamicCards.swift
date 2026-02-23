@@ -143,6 +143,7 @@ struct GenericCard: View {
         guard case .dictionary(let dict) = data else { return nil }
         let urlString = dict["img_url"]?.stringValue
         return urlString.flatMap { URL(string: $0) }
+            .map { wikiThumbnail($0, width: 200) }
     }
     
     @ViewBuilder

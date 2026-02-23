@@ -83,7 +83,10 @@ struct Sight: Identifiable {
         return "sight_\(name)"
     }
 
-    var featureImageURL: URL? { imageURLs.first }
+    var featureImageURL: URL? {
+        guard let url = imageURLs.first else { return nil }
+        return wikiThumbnail(url, width: 400)
+    }
 }
 
 // MARK: - Sight Card Content (render_type: "sight")
@@ -92,18 +95,30 @@ struct SightCardContent: View {
     let cards: [core.JSONValue]
     let config: core.JSONValue?
     @State private var selectedSight: Sight?
+    @State private var visibleCount: Int = 10
     @Environment(\.isPopupEnabled) private var isPopupEnabled
+
+    private let pageSize = 10
 
     var body: some View {
         if !cards.isEmpty {
-            VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
-                ForEach(cards.indices, id: \.self) { index in
+            LazyVStack(alignment: .leading, spacing: Spacing.current.spaceS) {
+                ForEach(cards.prefix(visibleCount).indices, id: \.self) { index in
                     sightCardView(from: cards[index])
 
-                    if index < cards.count - 1 {
+                    if index < min(visibleCount, cards.count) - 1 {
                         Divider()
                             .background(Color("onBkgTextColor30").opacity(0.3))
                     }
+                }
+
+                if visibleCount < cards.count {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Spacing.current.spaceS)
+                        .onAppear {
+                            visibleCount = min(visibleCount + pageSize, cards.count)
+                        }
                 }
             }
             .sheet(item: $selectedSight) { sight in
@@ -132,7 +147,13 @@ struct SightCardContent: View {
               let name = sightMainName(from: names) else { return nil }
         let localName = sightLocalName(from: names, mainName: name)
         let description = resolvedLocalizedString(from: props["description"])
-        let imageURLs = parseImageURLs(from: props["img_urls"] ?? props["img_url"])
+        let rawImgValue = props["img_urls"] ?? props["img_url"]
+        #if DEBUG
+        if let n = names["lang:en"]?.stringValue {
+            print("🔍 parseSight '\(n)' img_urls raw: \(String(describing: rawImgValue))")
+        }
+        #endif
+        let imageURLs = parseImageURLs(from: rawImgValue)
         let categories: [String] = {
             if case .array(let arr) = props["wikidata_instance_of"] {
                 return arr.compactMap { $0.stringValue }
@@ -255,21 +276,26 @@ struct SightCard: View {
                 if let featureImageURL = sight.featureImageURL {
                     AsyncImage(url: featureImageURL) { phase in
                         switch phase {
+                        case .empty:
+                            RoundedRectangle(cornerRadius: Spacing.current.space3xs)
+                                .fill(Color("onBkgTextColor30").opacity(0.08))
+                                .aspectRatio(4.0/3.0, contentMode: .fit)
                         case .success(let image):
-                            Color.clear
-                                .aspectRatio(16.0/9.0, contentMode: .fit)
-                                .overlay {
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                }
-                                .clipped()
+                            image
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxHeight: 300)
                                 .clipShape(RoundedRectangle(cornerRadius: Spacing.current.space3xs))
-                        default:
+                        case .failure:
+                            #if DEBUG
+                            let _ = print("⚠️ SightCard image failed: \(featureImageURL.absoluteString)")
+                            #endif
+                            Color.clear.frame(height: 0)
+                        @unknown default:
                             Color.clear.frame(height: 0)
                         }
                     }
-                    // .padding(.leading, Spacing.current.spaceXl)
+                    .frame(maxWidth: .infinity)
                 }
             }
         }

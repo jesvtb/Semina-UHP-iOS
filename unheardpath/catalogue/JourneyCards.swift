@@ -25,20 +25,47 @@ func countryLanguageCode(countryCode: String?) -> String? {
     return nil
 }
 
+private let nonLoadableImageHosts: Set<String> = [
+    "photos.app.goo.gl",
+    "photos.google.com",
+]
+
+private func isLoadableImageURL(_ url: URL) -> Bool {
+    guard let host = url.host?.lowercased() else { return false }
+    return !nonLoadableImageHosts.contains(host)
+}
+
+/// Rewrites Wikimedia `/thumb/…/{width}px-Name` URLs to the requested width;
+/// passes non-wiki URLs through unchanged.
+func wikiThumbnail(_ url: URL, width: Int) -> URL {
+    let str = url.absoluteString
+    guard str.contains("upload.wikimedia.org"),
+          str.contains("/thumb/"),
+          let range = str.range(of: #"/\d+px-[^/]+$"#, options: .regularExpression) else {
+        return url
+    }
+    let filename = str[range].split(separator: "-", maxSplits: 1).dropFirst().joined(separator: "-")
+    let replacement = "/\(width)px-\(filename)"
+    return URL(string: str.replacingCharacters(in: range, with: replacement)) ?? url
+}
+
 func parseImageURLs(from value: JSONValue?) -> [URL] {
     guard let value else {
         return []
     }
     if case .array(let imageValues) = value {
         return imageValues.compactMap { imageValue in
-            guard let imageString = imageValue.stringValue else {
+            guard let imageString = imageValue.stringValue,
+                  let url = URL(string: imageString),
+                  isLoadableImageURL(url) else {
                 return nil
             }
-            return URL(string: imageString)
+            return url
         }
     }
     if let imageString = value.stringValue,
-       let imageURL = URL(string: imageString) {
+       let imageURL = URL(string: imageString),
+       isLoadableImageURL(imageURL) {
         return [imageURL]
     }
     return []

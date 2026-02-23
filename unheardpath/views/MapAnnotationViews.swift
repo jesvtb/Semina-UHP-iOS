@@ -23,8 +23,8 @@ struct PlaceView: View {
     var body: some View {
         VStack(spacing: 4) {
             // Image in circular clip (only show if img_url exists)
-            if let imageURL = feature.imageURL {
-                AsyncImage(url: imageURL) { phase in
+            if let mapImageURL = feature.mapImageURL {
+                AsyncImage(url: mapImageURL) { phase in
                     switch phase {
                     case .empty:
                         ProgressView()
@@ -39,7 +39,7 @@ struct PlaceView: View {
                             .shadow(radius: Spacing.current.space3xs)
                     case .failure:
                         #if DEBUG
-                        let _ = print("⚠️ Failed to load image from URL: \(imageURL.absoluteString)")
+                        let _ = print("⚠️ Failed to load image from URL: \(mapImageURL.absoluteString)")
                         #endif
                         EmptyView()
                     @unknown default:

@@ -16,9 +16,9 @@ struct GeoJSONMapContent: MapboxMaps.MapContent {
         return geoJSON.toMapboxString()
     }
     
-    /// Convert features array to PointFeature objects
+    /// Top 10 PointFeature objects for map annotations
     private var pointFeatures: [PointFeature] {
-        return geoJSON.features.compactMap { PointFeature(from: $0) }
+        return Array(geoJSON.features.compactMap { PointFeature(from: $0) }.prefix(10))
     }
     
     /// The body is called only when component's properties are changed
