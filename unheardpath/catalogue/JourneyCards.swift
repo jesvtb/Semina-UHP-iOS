@@ -127,6 +127,7 @@ func resolvedLocalName(from properties: [String: JSONValue], placeName: String?)
 
 /// A journey card item representing a guided tour or route
 struct Journey: Identifiable {
+    let journeyId: String?
     let kicker: String
     let title: String
     let subhead: String
@@ -137,7 +138,18 @@ struct Journey: Identifiable {
     let imageURLs: [URL]
     var featureImageURL: URL? { imageURLs.first }
 
-    var id: String { "\(title)|\(kicker)" }
+    var id: String { journeyId ?? "\(title)|\(kicker)" }
+
+    var isDownloaded: Bool {
+        guard let journeyId else { return false }
+        let downloadedJourneyIds = Set(
+            Storage.loadFromUserDefaults(
+                forKey: "journey_manifest.downloaded_journeys",
+                as: [String].self
+            ) ?? []
+        )
+        return downloadedJourneyIds.contains(journeyId)
+    }
 
     /// Formatted duration for display (e.g., "1h 30m" or "45m")
     var formattedDuration: String {
@@ -220,6 +232,8 @@ struct JourneyCardContent: View {
 
     private func parseJourney(from data: JSONValue) -> Journey? {
         guard case .dictionary(let dict) = data else { return nil }
+        let journeyId = dict["journey_id"]?.stringValue
+            ?? dict["journeyId"]?.stringValue
         guard let kicker = dict["kicker"]?.stringValue,
               let title = dict["title"]?.stringValue,
               let subhead = dict["subhead"]?.stringValue,
@@ -247,6 +261,7 @@ struct JourneyCardContent: View {
         }
         imageURLs = Array(NSOrderedSet(array: imageURLs).compactMap { $0 as? URL })
         return Journey(
+            journeyId: journeyId,
             kicker: kicker,
             title: title,
             subhead: subhead,
@@ -292,6 +307,18 @@ struct JourneyCard: View {
 
                 // Text content - aligned to bottom
                 VStack(alignment: .leading, spacing: Spacing.current.space2xs) {
+                    if journey.isDownloaded {
+                        Text("Downloaded")
+                            .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus2.baseSize))
+                            .foregroundColor(hasImage ? .white : Color("AccentColor"))
+                            .padding(.horizontal, Spacing.current.space2xs)
+                            .padding(.vertical, Spacing.current.space3xs)
+                            .background(
+                                Capsule()
+                                    .fill(hasImage ? Color.black.opacity(0.2) : Color("AccentColor").opacity(0.1))
+                            )
+                    }
+
                     // Kicker — same styling as TopicHeaderView overline
                     DisplayText(
                         journey.kicker.uppercased(),
@@ -556,6 +583,7 @@ private let sampleJourneyCards: [JSONValue] = [
 #Preview("Journey Card - With Image") {
     JourneyCard(
         journey: Journey(
+            journeyId: "journey-preview-1",
             kicker: "Walking Tour",
             title: "An Unorthodox History of Istanbul",
             subhead: "From Byzantine splendor to Ottoman grandeur",
@@ -580,6 +608,7 @@ private let sampleJourneyCards: [JSONValue] = [
 #Preview("Journey Card - No Image") {
     JourneyCard(
         journey: Journey(
+            journeyId: "journey-preview-2",
             kicker: "Cultural Heritage",
             title: "Street Art & Modern Culture",
             subhead: "Discover the creative pulse of the city",

@@ -487,6 +487,7 @@ private struct RadialGradientDebugView: View {
 #Preview("Journey Cover View") {
     JourneyCoverView(
         journey: Journey(
+            journeyId: "journey-cover-preview-1",
             kicker: "Walking Tour",
             title: "An Unorthodox History of Istanbul",
             subhead: "From Byzantine splendor to Ottoman grandeur",

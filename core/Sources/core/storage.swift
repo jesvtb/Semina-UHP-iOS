@@ -270,6 +270,41 @@ public enum Storage {
         try FileManager.default.removeItem(at: fileURL)
     }
 
+    // MARK: - File (Application Support)
+
+    @discardableResult
+    public static func saveToApplicationSupport(data: Data, filename: String, subdirectory: String? = nil) throws -> URL {
+        var base = appSupportURL
+        if let sub = subdirectory {
+            base = base.appendingPathComponent(sub)
+            try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        }
+        let fileURL = base.appendingPathComponent(filename)
+        try data.write(to: fileURL)
+        return fileURL
+    }
+
+    public static func loadFromApplicationSupport(filename: String, subdirectory: String? = nil) throws -> Data {
+        var base = appSupportURL
+        if let sub = subdirectory { base = base.appendingPathComponent(sub) }
+        let fileURL = base.appendingPathComponent(filename)
+        return try Data(contentsOf: fileURL)
+    }
+
+    public static func existsInApplicationSupport(filename: String, subdirectory: String? = nil) -> Bool {
+        var base = appSupportURL
+        if let sub = subdirectory { base = base.appendingPathComponent(sub) }
+        let fileURL = base.appendingPathComponent(filename)
+        return FileManager.default.fileExists(atPath: fileURL.path)
+    }
+
+    public static func deleteFromApplicationSupport(filename: String, subdirectory: String? = nil) throws {
+        var base = appSupportURL
+        if let sub = subdirectory { base = base.appendingPathComponent(sub) }
+        let fileURL = base.appendingPathComponent(filename)
+        try FileManager.default.removeItem(at: fileURL)
+    }
+
     // MARK: - Cache (Data)
 
     private static func cacheFileURL(forKey key: String, subdirectory: String?) -> URL {
@@ -420,6 +455,13 @@ public enum Storage {
 
     public static func listFilesInCaches(subdirectory: String? = nil) throws -> [String] {
         var base = cachesURL
+        if let sub = subdirectory { base = base.appendingPathComponent(sub) }
+        let contents = try FileManager.default.contentsOfDirectory(at: base, includingPropertiesForKeys: nil)
+        return contents.map { $0.lastPathComponent }
+    }
+
+    public static func listFilesInApplicationSupport(subdirectory: String? = nil) throws -> [String] {
+        var base = appSupportURL
         if let sub = subdirectory { base = base.appendingPathComponent(sub) }
         let contents = try FileManager.default.contentsOfDirectory(at: base, includingPropertiesForKeys: nil)
         return contents.map { $0.lastPathComponent }

@@ -1,143 +1,126 @@
-//
-//  widgetLiveActivity.swift
-//  widget
-//
-//  Created by Jessica Luo on 2025-12-10.
-//
-
 import ActivityKit
 import WidgetKit
 import SwiftUI
 
-// ActivityKit and Live Activities are available from iOS 16.1+
 @available(iOSApplicationExtension 16.1, *)
 public struct widgetAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
-        // Dynamic stateful properties about your activity go here!
-        public var emoji: String
-        
-        public init(emoji: String) {
-            self.emoji = emoji
+        public var currentStopIndex: Int
+        public var totalStops: Int
+        public var currentStoryTitle: String
+        public var journeyStatus: String
+        public var progressPercent: Double
+
+        public init(
+            currentStopIndex: Int,
+            totalStops: Int,
+            currentStoryTitle: String,
+            journeyStatus: String,
+            progressPercent: Double
+        ) {
+            self.currentStopIndex = currentStopIndex
+            self.totalStops = totalStops
+            self.currentStoryTitle = currentStoryTitle
+            self.journeyStatus = journeyStatus
+            self.progressPercent = progressPercent
         }
     }
 
-    // Fixed non-changing properties about your activity go here!
-    public var name: String
-    
-    public init(name: String) {
-        self.name = name
+    public var journeyName: String
+    public var journeyId: String
+
+    public init(journeyName: String, journeyId: String) {
+        self.journeyName = journeyName
+        self.journeyId = journeyId
     }
 }
 
-// Live Activities widget requires iOS 16.1+
 @available(iOSApplicationExtension 16.1, *)
 struct widgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: widgetAttributes.self) { context in
-            // Lock screen/banner UI goes here
-            // Enhanced UI for better visibility based on 2024 guides
-            VStack(spacing: 8) {
-                Text("Hello \(context.state.emoji)")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                Text(context.attributes.name)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(context.attributes.journeyName)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(context.state.currentStoryTitle)
                     .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                ProgressView(value: clampedProgress(context.state.progressPercent))
+                    .tint(.cyan)
+                Text("Stop \(context.state.currentStopIndex + 1)/\(max(context.state.totalStops, 1)) • \(prettyStatus(context.state.journeyStatus))")
+                    .font(.caption2)
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity)
-            .activityBackgroundTint(Color.cyan)
-            .activitySystemActionForegroundColor(Color.black)
-
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .activityBackgroundTint(Color.cyan.opacity(0.15))
+            .activitySystemActionForegroundColor(Color.primary)
         } dynamicIsland: { context in
-            // Dynamic Island is available from iOS 16.1+ but only displays on iPhone 14 Pro and later
             DynamicIsland {
-                // Expanded UI goes here.  Compose the expanded UI through
-                // various regions, like leading/trailing/center/bottom
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(context.attributes.name)
+                        Text(context.attributes.journeyName)
                             .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Status")
+                            .lineLimit(1)
+                        Text("Stop \(context.state.currentStopIndex + 1)/\(max(context.state.totalStops, 1))")
                             .font(.headline)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(context.state.emoji)
-                            .font(.title)
-                    }
+                    Text("\(Int(clampedProgress(context.state.progressPercent) * 100))%")
+                        .font(.headline)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 8) {
-                        Text("Hello \(context.state.emoji)")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        Text("Live Activity Test")
+                    VStack(spacing: 6) {
+                        Text(context.state.currentStoryTitle)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                        Text(prettyStatus(context.state.journeyStatus))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.bottom, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
-                HStack(spacing: 4) {
-                    Text(context.state.emoji)
-                        .font(.title3)
-                    Text(context.attributes.name)
-                        .font(.caption)
-                        .lineLimit(1)
-                }
+                Image(systemName: "figure.walk")
             } compactTrailing: {
-                Text(context.state.emoji)
-                    .font(.title3)
+                Text("\(Int(clampedProgress(context.state.progressPercent) * 100))%")
+                    .font(.caption2)
             } minimal: {
-                Text(context.state.emoji)
-                    .font(.title2)
+                Image(systemName: "figure.walk")
             }
-            .widgetURL(URL(string: "http://www.apple.com"))
             .keylineTint(Color.cyan)
         }
+    }
+
+    private func clampedProgress(_ value: Double) -> Double {
+        min(max(value, 0), 1)
+    }
+
+    private func prettyStatus(_ status: String) -> String {
+        status.replacingOccurrences(of: "_", with: " ").capitalized
     }
 }
 
 @available(iOSApplicationExtension 16.1, *)
 extension widgetAttributes {
     fileprivate static var preview: widgetAttributes {
-        widgetAttributes(name: "World")
+        widgetAttributes(journeyName: "Istanbul Old Town", journeyId: "preview-journey")
     }
 }
 
 @available(iOSApplicationExtension 16.1, *)
 extension widgetAttributes.ContentState {
-    fileprivate static var smiley: widgetAttributes.ContentState {
-        widgetAttributes.ContentState(emoji: "😀")
-     }
-     
-     fileprivate static var starEyes: widgetAttributes.ContentState {
-         widgetAttributes.ContentState(emoji: "🤩")
-     }
+    fileprivate static var inProgress: widgetAttributes.ContentState {
+        widgetAttributes.ContentState(
+            currentStopIndex: 1,
+            totalStops: 5,
+            currentStoryTitle: "The Walls of Constantinople",
+            journeyStatus: "in_progress",
+            progressPercent: 0.4
+        )
+    }
 }
-
-// MARK: - Preview
-// Note: Preview may require main app to be built first
-// If preview fails, try: Product > Build (⌘B) for main app, then preview again
-// Preview requires iOS 16.1+ for Live Activities
-// 
-// IMPORTANT: The #Preview macro with contentStates parameter has a known issue in Swift 6
-// where the result builder 'PreviewActivityBuilder' doesn't have sufficient availability.
-// This is a Swift 6/Xcode limitation. The preview is commented out to avoid compilation errors.
-// You can test Live Activities by running the app on a device or simulator.
-//
-// Uncomment the following when the Swift 6 availability issue is resolved:
-/*
-@available(iOSApplicationExtension 16.1, *)
-#Preview("Lock Screen", as: .content, using: widgetAttributes.preview) {
-    widgetLiveActivity()
-} contentStates: {
-    widgetAttributes.ContentState.smiley
-    widgetAttributes.ContentState.starEyes
-}
-*/
