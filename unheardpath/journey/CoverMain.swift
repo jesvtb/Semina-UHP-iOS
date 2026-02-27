@@ -55,7 +55,10 @@ struct JourneyCoverView: View {
 
                         JourneyPlaces(places: journey.places)
 
-                        JourneyRouteSection(stops: journey.places)
+                        JourneyRouteSection(
+                            stops: journey.places,
+                            routeMetadata: journey.routeMetadata
+                        )
                     }
                     .padding(.horizontal, Spacing.current.spaceS)
                 }
@@ -343,16 +346,16 @@ private struct JourneyMetadataRow: View {
 
     var body: some View {
         HStack(spacing: Spacing.current.spaceM) {
-            if journey.duration > 0 {
+            if resolvedDurationMinutes > 0 {
                 HStack(spacing: Spacing.current.space2xs) {
                     Image(systemName: "clock")
-                    Text(journey.formattedDuration)
+                    Text(formattedDuration)
                 }
             }
-            if journey.distance > 0 {
+            if resolvedDistanceMeters > 0 {
                 HStack(spacing: Spacing.current.space2xs) {
                     Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
-                    Text(journey.formattedDistance)
+                    Text(formattedDistance)
                 }
             }
             if !journey.places.isEmpty {
@@ -364,6 +367,37 @@ private struct JourneyMetadataRow: View {
         }
         .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
         .foregroundColor(Color("onBkgTextColor30"))
+    }
+
+    private var resolvedDurationMinutes: Int {
+        if let totalDurationHr = journey.routeMetadata?.totalDurationHr {
+            return max(Int(round(totalDurationHr * 60.0)), 0)
+        }
+        return journey.duration
+    }
+
+    private var resolvedDistanceMeters: Int {
+        if let totalDistanceKm = journey.routeMetadata?.totalDistanceKm {
+            return max(Int(round(totalDistanceKm * 1000.0)), 0)
+        }
+        return journey.distance
+    }
+
+    private var formattedDuration: String {
+        if resolvedDurationMinutes >= 60 {
+            let hours = resolvedDurationMinutes / 60
+            let minutes = resolvedDurationMinutes % 60
+            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        }
+        return "\(resolvedDurationMinutes)m"
+    }
+
+    private var formattedDistance: String {
+        if resolvedDistanceMeters >= 1000 {
+            let km = Double(resolvedDistanceMeters) / 1000.0
+            return String(format: "%.1f km", km)
+        }
+        return "\(resolvedDistanceMeters) m"
     }
 }
 
@@ -394,6 +428,41 @@ private func sampleStop(
         ]),
         "properties": .dictionary(props)
     ])
+}
+
+/// Sample route metadata for preview/debug validation.
+private func sampleRouteMetadata() -> JourneyRouteMetadata {
+    let routeGeoJSON: JSONValue = .dictionary([
+        "type": .string("FeatureCollection"),
+        "features": .array([
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("LineString"),
+                    "coordinates": .array([
+                        .array([.double(28.9801), .double(41.0086)]),
+                        .array([.double(28.9768), .double(41.0054)]),
+                        .array([.double(28.9680), .double(41.0107)]),
+                        .array([.double(28.9834), .double(41.0115)]),
+                        .array([.double(28.9783), .double(41.0084)])
+                    ])
+                ]),
+                "properties": .dictionary([:])
+            ])
+        ])
+    ])
+
+    return JourneyRouteMetadata(
+        routeGeoJSON: routeGeoJSON,
+        legs: [
+            JourneyRouteLeg(waypointStart: 0, waypointEnd: 1, distanceKm: 0.7, durationHr: 0.2),
+            JourneyRouteLeg(waypointStart: 1, waypointEnd: 2, distanceKm: 1.3, durationHr: 0.28),
+            JourneyRouteLeg(waypointStart: 2, waypointEnd: 3, distanceKm: 1.9, durationHr: 0.4),
+            JourneyRouteLeg(waypointStart: 3, waypointEnd: 4, distanceKm: 0.8, durationHr: 0.18)
+        ],
+        totalDistanceKm: 4.7,
+        totalDurationHr: 1.06
+    )
 }
 
 /// Visualises the radial gradient center and stop rings for debugging.
@@ -484,7 +553,7 @@ private struct RadialGradientDebugView: View {
     RadialGradientDebugView()
 }
 
-#Preview("Journey Cover View") {
+#Preview("Journey Cover View (Route Metadata Debug)") {
     JourneyCoverView(
         journey: Journey(
             journeyId: "journey-cover-preview-1",
@@ -501,7 +570,8 @@ private struct RadialGradientDebugView: View {
                 sampleStop(placeName: "Topkapi Palace", localName: "Topkapı Sarayı", description: "The primary residence of the Ottoman sultans for nearly 400 years.", longitude: 28.9834, latitude: 41.0115),
                 sampleStop(placeName: "Basilica Cistern", localName: "Yerebatan Sarnıcı", description: "The largest of several hundred ancient cisterns beneath Istanbul.", longitude: 28.9783, latitude: 41.0084)
             ],
-            imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")!]
+            imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")!],
+            routeMetadata: sampleRouteMetadata()
         )
     ) {
         print("Dismissed")

@@ -10,6 +10,7 @@ private typealias JSONValue = core.JSONValue
 /// Parses GeoJSON stops and displays a Mapbox route map if valid coordinates exist.
 struct JourneyRouteSection: View {
     let stops: [core.JSONValue]
+    let routeMetadata: JourneyRouteMetadata?
 
     var body: some View {
         let parsedStops = parseStopCoordinates(from: stops)
@@ -19,9 +20,16 @@ struct JourneyRouteSection: View {
                     .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article1.baseSize))
                     .foregroundColor(Color("onBkgTextColor20"))
 
-                JourneyRouteMap(stops: parsedStops)
+                JourneyRouteMap(stops: parsedStops, routeMetadata: routeMetadata)
                     .frame(height: 300)
                     .clipShape(RoundedRectangle(cornerRadius: Spacing.current.space3xs))
+
+                if let routeMetadata, hasRouteSummary(routeMetadata: routeMetadata) {
+                    journeyRouteSummary(routeMetadata: routeMetadata)
+                }
+                if let routeMetadata, !routeMetadata.legs.isEmpty {
+                    journeyLegList(routeMetadata: routeMetadata, stops: parsedStops)
+                }
             }
         }
     }
@@ -49,6 +57,56 @@ struct JourneyRouteSection: View {
             )
         }
     }
+
+    private func hasRouteSummary(routeMetadata: JourneyRouteMetadata) -> Bool {
+        routeMetadata.totalDistanceKm != nil || routeMetadata.totalDurationHr != nil
+    }
+
+    @ViewBuilder
+    private func journeyRouteSummary(routeMetadata: JourneyRouteMetadata) -> some View {
+        HStack(spacing: Spacing.current.spaceM) {
+            if let distanceKm = routeMetadata.totalDistanceKm {
+                Label(String(format: "%.1f km", distanceKm), systemImage: "figure.walk")
+            }
+            if let durationHr = routeMetadata.totalDurationHr {
+                Label(formatDuration(durationHr: durationHr), systemImage: "clock")
+            }
+        }
+        .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
+        .foregroundColor(Color("onBkgTextColor30"))
+    }
+
+    @ViewBuilder
+    private func journeyLegList(
+        routeMetadata: JourneyRouteMetadata,
+        stops: [JourneyMapStop]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
+            ForEach(Array(routeMetadata.legs.enumerated()), id: \.offset) { index, leg in
+                let startName = stops[safe: leg.waypointStart]?.placeName ?? "Waypoint \(leg.waypointStart)"
+                let endName = stops[safe: leg.waypointEnd]?.placeName ?? "Waypoint \(leg.waypointEnd)"
+                let distanceText = leg.distanceKm.map { String(format: "%.1f km", $0) } ?? "—"
+                let durationText = leg.durationHr.map { formatDuration(durationHr: $0) } ?? "—"
+                Text("Leg \(index + 1): \(startName) -> \(endName) (\(distanceText), \(durationText))")
+                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
+                    .foregroundColor(Color("onBkgTextColor30"))
+            }
+        }
+    }
+
+    private func formatDuration(durationHr: Double) -> String {
+        if durationHr < 1 {
+            return "\(Int(round(durationHr * 60.0))) min"
+        }
+        return String(format: "%.1f hr", durationHr)
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard index >= 0, index < count else { return nil }
+        return self[index]
+    }
 }
 
 // MARK: - Journey Map Stop
@@ -66,6 +124,21 @@ struct JourneyMapStop: Identifiable {
 /// Camera fits all stops with padding.
 struct JourneyRouteMap: View {
     let stops: [JourneyMapStop]
+    let routeMetadata: JourneyRouteMetadata?
+
+    private var geoJSONRouteLineCoordinates: [CLLocationCoordinate2D] {
+        extractRouteLineCoordinates(from: routeMetadata?.routeGeoJSON).map { coordinate in
+            CLLocationCoordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        }
+    }
+
+    private var displayedRouteLineCoordinates: [CLLocationCoordinate2D] {
+        let geoJSONRoute = geoJSONRouteLineCoordinates
+        if geoJSONRoute.count >= 2 {
+            return geoJSONRoute
+        }
+        return []
+    }
 
     /// Compute a viewport that fits all stop coordinates.
     private var fittingViewport: Viewport {
@@ -99,6 +172,12 @@ struct JourneyRouteMap: View {
 
     var body: some View {
         MapboxMaps.Map(initialViewport: fittingViewport) {
+            if displayedRouteLineCoordinates.count >= 2 {
+                PolylineAnnotation(lineCoordinates: displayedRouteLineCoordinates)
+                    .lineWidth(4.0)
+                    .lineColor(StyleColor(.systemGreen))
+                    .lineOpacity(0.85)
+            }
             ForEvery(stops) { stop in
                 MapboxMaps.MapViewAnnotation(coordinate: stop.coordinate) {
                     JourneyStopAnnotation(index: stop.index, placeName: stop.placeName)

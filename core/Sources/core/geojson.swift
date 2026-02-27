@@ -40,6 +40,74 @@ fileprivate func parsePointCoordinate(from feature: [String: JSONValue]) -> Coor
     return Coordinate2D(latitude: latitude, longitude: longitude)
 }
 
+/// Parses route line coordinates from GeoJSON in any of these forms:
+/// - FeatureCollection with one or more LineString features
+/// - Single Feature with LineString geometry
+/// - Geometry object with type LineString
+/// Returns the longest valid LineString found (or empty if none).
+public func extractRouteLineCoordinates(from geojson: JSONValue?) -> [Coordinate2D] {
+    guard let geojson else { return [] }
+
+    func parseLineStringCoordinates(from coordinatesValue: JSONValue?) -> [Coordinate2D] {
+        guard let coordinatesValue,
+              case .array(let positions) = coordinatesValue else {
+            return []
+        }
+        return positions.compactMap { positionValue in
+            guard case .array(let position) = positionValue,
+                  position.count >= 2,
+                  let longitude = position[0].doubleValue,
+                  let latitude = position[1].doubleValue else {
+                return nil
+            }
+            return Coordinate2D(latitude: latitude, longitude: longitude)
+        }
+    }
+
+    func parseGeometry(_ geometryValue: JSONValue?) -> [Coordinate2D] {
+        guard let geometryValue,
+              case .dictionary(let geometryDict) = geometryValue,
+              let type = geometryDict["type"]?.stringValue else {
+            return []
+        }
+        guard type == "LineString" else {
+            return []
+        }
+        return parseLineStringCoordinates(from: geometryDict["coordinates"])
+    }
+
+    func parseFeature(_ featureValue: JSONValue?) -> [Coordinate2D] {
+        guard let featureValue,
+              case .dictionary(let featureDict) = featureValue else {
+            return []
+        }
+        return parseGeometry(featureDict["geometry"])
+    }
+
+    guard case .dictionary(let rootDict) = geojson else {
+        return []
+    }
+
+    let rootType = rootDict["type"]?.stringValue
+    if rootType == "FeatureCollection",
+       let features = rootDict["features"]?.arrayValue {
+        var bestLine: [Coordinate2D] = []
+        for featureValue in features {
+            let line = parseFeature(featureValue)
+            if line.count > bestLine.count {
+                bestLine = line
+            }
+        }
+        return bestLine
+    }
+
+    if rootType == "Feature" {
+        return parseFeature(geojson)
+    }
+
+    return parseGeometry(geojson)
+}
+
 // MARK: - GeoJSON
 
 /// A type-safe representation of a GeoJSON FeatureCollection.

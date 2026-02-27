@@ -46,3 +46,60 @@ extension Data {
         return geoJSONObjects.compactMap { $0 as? MKGeoJSONFeature }
     }
 }
+
+/// Builds a walkable route polyline across stop coordinates using MapKit directions.
+/// Falls back to direct segment endpoints if directions are unavailable.
+public func buildWalkingRouteCoordinatesWithMapKit(from stops: [Coordinate2D]) async -> [Coordinate2D] {
+    guard stops.count >= 2 else { return stops }
+
+    var fullRouteCoordinates: [Coordinate2D] = []
+    for segmentStartIndex in 0..<(stops.count - 1) {
+        let start = stops[segmentStartIndex]
+        let end = stops[segmentStartIndex + 1]
+        let segmentCoordinates = await fetchWalkingSegmentCoordinates(start: start, end: end)
+        let resolvedSegment = segmentCoordinates.isEmpty ? [start, end] : segmentCoordinates
+        if fullRouteCoordinates.isEmpty {
+            fullRouteCoordinates.append(contentsOf: resolvedSegment)
+        } else {
+            fullRouteCoordinates.append(contentsOf: resolvedSegment.dropFirst())
+        }
+    }
+    return fullRouteCoordinates
+}
+
+private func fetchWalkingSegmentCoordinates(start: Coordinate2D, end: Coordinate2D) async -> [Coordinate2D] {
+    let request = MKDirections.Request()
+    request.transportType = .walking
+    request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(
+        latitude: start.latitude,
+        longitude: start.longitude
+    )))
+    request.destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(
+        latitude: end.latitude,
+        longitude: end.longitude
+    )))
+
+    do {
+        let response = try await MKDirections(request: request).calculate()
+        guard let polyline = response.routes.first?.polyline else {
+            return []
+        }
+        return polyline.coordinates.map { coordinate in
+            Coordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        }
+    } catch {
+        return []
+    }
+}
+
+private extension MKPolyline {
+    var coordinates: [CLLocationCoordinate2D] {
+        guard pointCount > 0 else { return [] }
+        var buffer = Array(
+            repeating: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+            count: pointCount
+        )
+        getCoordinates(&buffer, range: NSRange(location: 0, length: pointCount))
+        return buffer
+    }
+}

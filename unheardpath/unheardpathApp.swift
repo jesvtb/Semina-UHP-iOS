@@ -8,6 +8,7 @@
 import SwiftUI
 import MapboxMaps
 import PostHog
+import AVFoundation
 import UIKit
 @preconcurrency import UserNotifications
 import ActivityKit
@@ -169,6 +170,7 @@ struct unheardpathApp: App {
         // CRITICAL: Set UserManager reference BEFORE AuthManager checks session
         authManager.setUserManager(userManager)
 
+        setupAudioSessionForBackgroundPlayback()
         setupMapboxToken()
         setupPostHog()
     }
@@ -211,6 +213,18 @@ struct unheardpathApp: App {
             logger.error("Mapbox token injection failed - using programmatic token", handlerType: "unheardpathApp", error: nil)
         } else {
             logger.debug("Mapbox token configured successfully")
+        }
+    }
+
+    /// Configures app-wide audio session so playback can continue when app goes to background/lock screen.
+    private func setupAudioSessionForBackgroundPlayback() {
+        do {
+            let audio_session = AVAudioSession.sharedInstance()
+            try audio_session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
+            try audio_session.setActive(true)
+            logger.debug("Audio session configured for background playback")
+        } catch {
+            logger.error("Failed to configure audio session", handlerType: "unheardpathApp", error: error)
         }
     }
     

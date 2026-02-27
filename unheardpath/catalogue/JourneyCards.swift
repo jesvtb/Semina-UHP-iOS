@@ -71,6 +71,20 @@ func parseImageURLs(from value: JSONValue?) -> [URL] {
     return []
 }
 
+struct JourneyRouteLeg {
+    let waypointStart: Int
+    let waypointEnd: Int
+    let distanceKm: Double?
+    let durationHr: Double?
+}
+
+struct JourneyRouteMetadata {
+    let routeGeoJSON: JSONValue?
+    let legs: [JourneyRouteLeg]
+    let totalDistanceKm: Double?
+    let totalDurationHr: Double?
+}
+
 func resolvedPlaceName(from properties: [String: JSONValue]) -> String? {
     let names = properties["names"]?.dictionaryValue
     let deviceLanguageCode = currentDeviceLanguageCode().lowercased()
@@ -136,6 +150,7 @@ struct Journey: Identifiable {
     let distance: Int
     let places: [JSONValue]
     let imageURLs: [URL]
+    let routeMetadata: JourneyRouteMetadata?
     var featureImageURL: URL? { imageURLs.first }
 
     var id: String { journeyId ?? "\(title)|\(kicker)" }
@@ -260,6 +275,36 @@ struct JourneyCardContent: View {
             imageURLs.append(contentsOf: parseImageURLs(from: props["feature_img"]))
         }
         imageURLs = Array(NSOrderedSet(array: imageURLs).compactMap { $0 as? URL })
+        let routeMetadata: JourneyRouteMetadata? = {
+            guard let metadata = dict["metadata"]?.dictionaryValue else {
+                return nil
+            }
+            let legs: [JourneyRouteLeg] = {
+                guard let legValues = metadata["legs"]?.arrayValue else {
+                    return []
+                }
+                return legValues.compactMap { legValue in
+                    guard let legDict = legValue.dictionaryValue else {
+                        return nil
+                    }
+                    let waypointStart = legDict["waypoint_start"]?.doubleValue.map { Int($0) } ?? 0
+                    let waypointEnd = legDict["waypoint_end"]?.doubleValue.map { Int($0) } ?? 0
+                    return JourneyRouteLeg(
+                        waypointStart: waypointStart,
+                        waypointEnd: waypointEnd,
+                        distanceKm: legDict["distance_km"]?.doubleValue,
+                        durationHr: legDict["duration_hr"]?.doubleValue
+                    )
+                }
+            }()
+            return JourneyRouteMetadata(
+                routeGeoJSON: metadata["route_geojson"],
+                legs: legs,
+                totalDistanceKm: metadata["total_distance_km"]?.doubleValue,
+                totalDurationHr: metadata["total_duration_hr"]?.doubleValue
+            )
+        }()
+
         return Journey(
             journeyId: journeyId,
             kicker: kicker,
@@ -269,7 +314,8 @@ struct JourneyCardContent: View {
             duration: duration,
             distance: distance,
             places: places,
-            imageURLs: imageURLs
+            imageURLs: imageURLs,
+            routeMetadata: routeMetadata
         )
     }
 }
@@ -595,7 +641,8 @@ private let sampleJourneyCards: [JSONValue] = [
                 sampleStop(placeName: "Blue Mosque", isMosque: true),
                 sampleStop(placeName: "Grand Bazaar")
             ],
-            imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")!]
+            imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")!],
+            routeMetadata: nil
         ),
         config: nil
     ) {
@@ -619,7 +666,8 @@ private let sampleJourneyCards: [JSONValue] = [
                 sampleStop(placeName: "Karaköy Street Art District"),
                 sampleStop(placeName: "Istanbul Modern")
             ],
-            imageURLs: []
+            imageURLs: [],
+            routeMetadata: nil
         ),
         config: nil
     ) {
