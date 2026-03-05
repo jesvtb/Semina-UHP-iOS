@@ -143,8 +143,10 @@ struct SightCardContent: View {
     private func parseSight(from data: JSONValue) -> Sight? {
         guard case .dictionary(let dict) = data,
               case .dictionary(let props) = dict["properties"] else { return nil }
-        guard let names = props["names"]?.dictionaryValue,
-              let name = sightMainName(from: names) else { return nil }
+        let names = props["names"]?.dictionaryValue ?? [:]
+        guard let name = sightMainName(from: names, properties: props) else {
+            return nil
+        }
         let localName = sightLocalName(from: names, mainName: name)
         let description = resolvedLocalizedString(from: props["description"])
         let rawImgValue = props["img_urls"] ?? props["img_url"]
@@ -186,12 +188,37 @@ private func deviceLangKeys() -> (full: String, base: String) {
 }
 
 /// Primary display name: device language → English.
-private func sightMainName(from names: [String: JSONValue]) -> String? {
+private func sightMainName(
+    from names: [String: JSONValue],
+    properties: [String: JSONValue]
+) -> String? {
     let lang = deviceLangKeys()
     if let name = names["lang:\(lang.full)"]?.stringValue, !name.isEmpty { return name }
     if lang.base != lang.full,
        let name = names["lang:\(lang.base)"]?.stringValue, !name.isEmpty { return name }
     if let name = names["lang:en"]?.stringValue, !name.isEmpty { return name }
+    for (nameKey, nameValue) in names where nameKey.hasPrefix("lang:") {
+        if let fallbackLocalizedName = nameValue.stringValue,
+           !fallbackLocalizedName.isEmpty {
+            return fallbackLocalizedName
+        }
+    }
+    if let fallbackName = properties["name"]?.stringValue, !fallbackName.isEmpty {
+        return fallbackName
+    }
+    if let fallbackPlaceName = properties["place_name"]?.stringValue, !fallbackPlaceName.isEmpty {
+        return fallbackPlaceName
+    }
+    if let refs = properties["refs"]?.dictionaryValue {
+        if let wikiEnglishName = refs["wiki_en"]?.stringValue, !wikiEnglishName.isEmpty {
+            return wikiEnglishName
+        }
+        for (refKey, refValue) in refs where refKey.hasPrefix("wiki_") {
+            if let wikiName = refValue.stringValue, !wikiName.isEmpty {
+                return wikiName
+            }
+        }
+    }
     return nil
 }
 

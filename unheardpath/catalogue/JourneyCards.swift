@@ -55,12 +55,17 @@ func parseImageURLs(from value: JSONValue?) -> [URL] {
     }
     if case .array(let imageValues) = value {
         return imageValues.compactMap { imageValue in
-            guard let imageString = imageValue.stringValue,
-                  let url = URL(string: imageString),
-                  isLoadableImageURL(url) else {
-                return nil
+            if let imageString = imageValue.stringValue,
+               let imageURL = URL(string: imageString),
+               isLoadableImageURL(imageURL) {
+                return imageURL
             }
-            return url
+            #if DEBUG
+            if imageValue.dictionaryValue != nil {
+                print("⚠️ parseImageURLs received non-canonical image reference object; backend should return URL strings")
+            }
+            #endif
+            return nil
         }
     }
     if let imageString = value.stringValue,
@@ -68,6 +73,11 @@ func parseImageURLs(from value: JSONValue?) -> [URL] {
        isLoadableImageURL(imageURL) {
         return [imageURL]
     }
+    #if DEBUG
+    if value.dictionaryValue != nil {
+        print("⚠️ parseImageURLs received non-canonical single image reference object; backend should return URL strings")
+    }
+    #endif
     return []
 }
 
@@ -256,7 +266,9 @@ struct JourneyCardContent: View {
             return nil
         }
         let duration = dict["duration"]?.doubleValue.map { Int($0) } ?? 0
-        let distance = dict["distance"]?.doubleValue.map { Int($0) } ?? 0
+        let primaryDistance = dict["distance"]?.doubleValue.map { Int($0) } ?? 0
+        let nearbyDistanceMeters = dict["distance_m"]?.doubleValue.map { Int($0) } ?? 0
+        let distance = primaryDistance > 0 ? primaryDistance : nearbyDistanceMeters
         let places: [JSONValue] = {
             if let placesValue = dict["places"], case .array(let placesArray) = placesValue {
                 return placesArray
@@ -524,49 +536,85 @@ private struct FallbackAsyncImage: View {
 // MARK: - Previews
 #if DEBUG
 
-/// Helper to build a GeoJSON Feature Point stop for previews.
-private func sampleStop(
-    placeName: String,
-    localName: String? = nil,
-    description: String? = nil,
-    featureImg: String? = nil,
-    isMosque: Bool = false,
-    longitude: Double = 0,
-    latitude: Double = 0
-) -> JSONValue {
-    var props: [String: JSONValue] = ["place_name": .string(placeName)]
-    if let localName { props["local_name"] = .string(localName) }
-    if let description { props["description"] = .string(description) }
-    if let featureImg { props["feature_img"] = .string(featureImg) }
-    if isMosque { props["is_mosque"] = .bool(true) }
-    return .dictionary([
-        "type": .string("Feature"),
-        "geometry": .dictionary([
-            "type": .string("Point"),
-            "coordinates": .array([.double(longitude), .double(latitude)])
-        ]),
-        "properties": .dictionary(props)
-    ])
-}
-
 private let sampleJourneyCards: [JSONValue] = [
     .dictionary([
+        "journey_id": .string("journey-preview-1"),
+        "version_number": .int(4),
+        "distance_m": .double(113.57),
         "kicker": .string("Walking Tour"),
         "title": .string("An Unorthodox History of Istanbul"),
         "subhead": .string("From Byzantine splendor to Ottoman grandeur"),
         "intro": .string("Walk the ancient streets where empires rose and fell. This journey takes you through Istanbul's most storied neighborhoods, revealing layers of history hidden beneath the modern city. From the monumental Hagia Sophia to the bustling Grand Bazaar, every step tells a story of conquest, culture, and resilience."),
         "duration": .int(90),
         "distance": .int(4500),
-        "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg"),
+        "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Hagia_Sophia_Mars_2013.jpg/960px-Hagia_Sophia_Mars_2013.jpg"),
+        "img_urls": .array([
+            .string("https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Hagia_Sophia_Mars_2013.jpg/960px-Hagia_Sophia_Mars_2013.jpg"),
+            .string("https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Exterior_of_Sultan_Ahmed_I_Mosque_in_Istanbul%2C_Turkey_002.jpg/960px-Exterior_of_Sultan_Ahmed_I_Mosque_in_Istanbul%2C_Turkey_002.jpg"),
+            .string("https://photos.app.goo.gl/wmTQWVkAqZ71cbu67")
+        ]),
         "places": .array([
-            sampleStop(placeName: "Hagia Sophia", localName: "Ayasofya", description: "A former Greek Orthodox patriarchal basilica, later an imperial mosque, and now a museum.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg", isMosque: true, longitude: 28.9801, latitude: 41.0086),
-            sampleStop(placeName: "Blue Mosque", localName: "Sultanahmet Camii", description: "An Ottoman-era historical imperial mosque known for its blue İznik tiles.", isMosque: true, longitude: 28.9768, latitude: 41.0054),
-            sampleStop(placeName: "Grand Bazaar", localName: "Kapalıçarşı", description: "One of the largest and oldest covered markets in the world with over 4,000 shops.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Istanbul_Grand_Bazaar.jpg", longitude: 28.9680, latitude: 41.0107),
-            sampleStop(placeName: "Topkapi Palace", localName: "Topkapı Sarayı", description: "The primary residence of the Ottoman sultans for nearly 400 years.", featureImg: "https://www.egypttoursplus.com/wp-content/uploads/2025/07/topkapi-palace.jpg", longitude: 28.9834, latitude: 41.0115),
-            sampleStop(placeName: "Basilica Cistern", localName: "Yerebatan Sarnıcı", description: "The largest of several hundred ancient cisterns beneath Istanbul.", featureImg: "https://yerebatan.com/wp-content/uploads/2022/12/yerebatan-sergi-ogu5749-min-FX7w-scaled-1.jpg", longitude: 28.9784, latitude: 41.0084)
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array([.double(28.9801), .double(41.0086)])
+                ]),
+                "properties": .dictionary([
+                    "names": .dictionary([
+                        "lang:en": .string("Hagia Sophia"),
+                        "lang:local": .string("Ayasofya")
+                    ]),
+                    "description": .dictionary([
+                        "lang:en": .string("A former Greek Orthodox patriarchal basilica, later an imperial mosque, and now a museum.")
+                    ]),
+                    "img_urls": .array([
+                        .string("https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Hagia_Sophia_Mars_2013.jpg/960px-Hagia_Sophia_Mars_2013.jpg")
+                    ])
+                ])
+            ]),
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array([.double(28.9768), .double(41.0054)])
+                ]),
+                "properties": .dictionary([
+                    "names": .dictionary([
+                        "lang:en": .string("Blue Mosque"),
+                        "lang:local": .string("Sultanahmet Camii")
+                    ]),
+                    "description": .dictionary([
+                        "lang:en": .string("An Ottoman-era historical imperial mosque known for its blue Iznik tiles.")
+                    ]),
+                    "img_urls": .array([])
+                ])
+            ]),
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array([.double(28.9680), .double(41.0107)])
+                ]),
+                "properties": .dictionary([
+                    "names": .dictionary([
+                        "lang:en": .string("Grand Bazaar"),
+                        "lang:local": .string("Kapalicarsi")
+                    ]),
+                    "description": .dictionary([
+                        "lang:en": .string("One of the largest and oldest covered markets in the world with over 4,000 shops.")
+                    ]),
+                    "img_urls": .array([
+                        .string("https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Exterior_of_Sultan_Ahmed_I_Mosque_in_Istanbul%2C_Turkey_002.jpg/960px-Exterior_of_Sultan_Ahmed_I_Mosque_in_Istanbul%2C_Turkey_002.jpg")
+                    ])
+                ])
+            ])
         ])
     ]),
     .dictionary([
+        "journey_id": .string("journey-preview-2"),
+        "version_number": .int(2),
+        "distance_m": .double(850.0),
         "kicker": .string("Cultural Heritage"),
         "title": .string("Street Art & Modern Culture"),
         "subhead": .string("Discover the creative pulse of the city"),
@@ -574,12 +622,36 @@ private let sampleJourneyCards: [JSONValue] = [
         "duration": .int(60),
         "distance": .int(2800),
         "places": .array([
-            sampleStop(placeName: "Karaköy Street Art District", description: "A neighbourhood alive with murals and independent galleries."),
-            sampleStop(placeName: "Istanbul Modern", description: "Turkey's first museum of modern and contemporary art."),
-            sampleStop(placeName: "Galata Tower", localName: "Galata Kulesi", description: "A medieval stone tower offering panoramic views of the historic peninsula.")
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array([.double(28.9920), .double(41.0255)])
+                ]),
+                "properties": .dictionary([
+                    "names": .dictionary(["lang:en": .string("Karakoy Street Art District")]),
+                    "description": .dictionary(["lang:en": .string("A neighbourhood alive with murals and independent galleries.")]),
+                    "img_urls": .array([])
+                ])
+            ]),
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array([.double(28.9777), .double(41.0262)])
+                ]),
+                "properties": .dictionary([
+                    "names": .dictionary(["lang:en": .string("Istanbul Modern")]),
+                    "description": .dictionary(["lang:en": .string("Turkey's first museum of modern and contemporary art.")]),
+                    "img_urls": .array([])
+                ])
+            ])
         ])
     ]),
     .dictionary([
+        "journey_id": .string("journey-preview-3"),
+        "version_number": .int(1),
+        "distance_m": .double(1320.0),
         "kicker": .string("Culinary Trail"),
         "title": .string("Flavours of the Bosphorus"),
         "subhead": .string("A tasting journey through waterfront kitchens"),
@@ -588,15 +660,24 @@ private let sampleJourneyCards: [JSONValue] = [
         "distance": .int(6200),
         "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/5/5e/Istanbul_Grand_Bazaar.jpg"),
         "places": .array([
-            sampleStop(placeName: "Eminönü Fish Market", description: "Famous for its floating fish-bread boats along the Bosphorus."),
-            sampleStop(placeName: "Spice Bazaar", localName: "Mısır Çarşısı", description: "A centuries-old market bursting with spices, dried fruits, and Turkish delight."),
-            sampleStop(placeName: "Karaköy Güllüoğlu", description: "Legendary baklava shop serving Istanbul since 1949."),
-            sampleStop(placeName: "Çiya Sofrası", description: "A beloved Kadıköy restaurant celebrating Anatolian regional cuisine."),
-            sampleStop(placeName: "Ortaköy Kumpir Stalls", description: "Bosphorus-side stalls serving oversized baked potatoes with lavish toppings."),
-            sampleStop(placeName: "Mangerie Bebek", description: "A modern café with Bosphorus views and creative brunch plates.")
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array([.double(28.9671), .double(41.0162)])
+                ]),
+                "properties": .dictionary([
+                    "names": .dictionary(["lang:en": .string("Eminonu Fish Market")]),
+                    "description": .dictionary(["lang:en": .string("Famous for its floating fish-bread boats along the Bosphorus.")]),
+                    "img_urls": .array([])
+                ])
+            ])
         ])
     ]),
     .dictionary([
+        "journey_id": .string("journey-preview-4"),
+        "version_number": .int(1),
+        "distance_m": .double(1640.0),
         "kicker": .string("Architecture"),
         "title": .string("Domes, Minarets & Hidden Courtyards"),
         "subhead": .string("A skyline story told in stone and light"),
@@ -605,12 +686,29 @@ private let sampleJourneyCards: [JSONValue] = [
         "distance": .int(3100),
         "feature_img": .string("https://upload.wikimedia.org/wikipedia/commons/b/b0/Sultan_Ahmed_Mosque_Istanbul_Turkey_retouched.jpg"),
         "places": .array([
-            sampleStop(placeName: "Chora Church", localName: "Kariye Camii", description: "Home to some of the finest Byzantine mosaics and frescoes in the world.", featureImg: "https://upload.wikimedia.org/wikipedia/commons/f/f3/Topkap%C4%B1_-_01.jpg"),
-            sampleStop(placeName: "Süleymaniye Mosque", localName: "Süleymaniye Camii", description: "Sinan's masterpiece crowning the Third Hill — a triumph of Ottoman architecture.", isMosque: true),
-            sampleStop(placeName: "Rüstem Pasha Mosque", localName: "Rüstem Paşa Camii", description: "A small gem near the Spice Bazaar adorned with exquisite İznik tiles.", isMosque: true)
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array([.double(28.9425), .double(41.0312)])
+                ]),
+                "properties": .dictionary([
+                    "names": .dictionary([
+                        "lang:en": .string("Chora Church"),
+                        "lang:local": .string("Kariye Camii")
+                    ]),
+                    "description": .dictionary(["lang:en": .string("Home to some of the finest Byzantine mosaics and frescoes in the world.")]),
+                    "img_urls": .array([
+                        .string("https://upload.wikimedia.org/wikipedia/commons/f/f3/Topkap%C4%B1_-_01.jpg")
+                    ])
+                ])
+            ])
         ])
     ]),
     .dictionary([
+        "journey_id": .string("journey-preview-5"),
+        "version_number": .int(1),
+        "distance_m": .double(2100.0),
         "kicker": .string("Night Walk"),
         "title": .string("After Dark: Rooftops & Raki"),
         "subhead": .string("Experience the city when the lights come on"),
@@ -618,63 +716,35 @@ private let sampleJourneyCards: [JSONValue] = [
         "duration": .int(105),
         "distance": .int(3800),
         "places": .array([
-            sampleStop(placeName: "Galata Bridge at Sunset", localName: "Galata Köprüsü", description: "Watch the sun set over the Golden Horn from the iconic double-deck bridge."),
-            sampleStop(placeName: "Büyük Valide Han Rooftop", description: "A hidden rooftop atop a 17th-century caravanserai with sweeping city views."),
-            sampleStop(placeName: "Nevizade Street", description: "A lively alley of meyhanes where locals gather for meze and raki."),
-            sampleStop(placeName: "Mikla Restaurant Terrace", description: "A rooftop fine-dining terrace overlooking the Bosphorus and old city skyline.")
+            .dictionary([
+                "type": .string("Feature"),
+                "geometry": .dictionary([
+                    "type": .string("Point"),
+                    "coordinates": .array([.double(28.9722), .double(41.0256)])
+                ]),
+                "properties": .dictionary([
+                    "names": .dictionary([
+                        "lang:en": .string("Galata Bridge at Sunset"),
+                        "lang:local": .string("Galata Koprusu")
+                    ]),
+                    "description": .dictionary(["lang:en": .string("Watch the sun set over the Golden Horn from the iconic double-deck bridge.")]),
+                    "img_urls": .array([])
+                ])
+            ])
         ])
     ])
 ]
 
 #Preview("Journey Card - With Image") {
-    JourneyCard(
-        journey: Journey(
-            journeyId: "journey-preview-1",
-            kicker: "Walking Tour",
-            title: "An Unorthodox History of Istanbul",
-            subhead: "From Byzantine splendor to Ottoman grandeur",
-            intro: "Walk the ancient streets where empires rose and fell.",
-            duration: 90,
-            distance: 4500,
-            places: [
-                sampleStop(placeName: "Hagia Sophia", localName: "Ayasofya", isMosque: true),
-                sampleStop(placeName: "Blue Mosque", isMosque: true),
-                sampleStop(placeName: "Grand Bazaar")
-            ],
-            imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")!],
-            routeMetadata: nil
-        ),
-        config: nil
-    ) {
-        print("Tapped")
-    }
-    .padding()
-    .background(Color("AppBkgColor"))
+    JourneyCardContent(cards: [sampleJourneyCards[0]], config: nil)
+        .padding()
+        .background(Color("AppBkgColor"))
 }
 
 #Preview("Journey Card - No Image") {
-    JourneyCard(
-        journey: Journey(
-            journeyId: "journey-preview-2",
-            kicker: "Cultural Heritage",
-            title: "Street Art & Modern Culture",
-            subhead: "Discover the creative pulse of the city",
-            intro: "Explore the vibrant street art scene.",
-            duration: 60,
-            distance: 2800,
-            places: [
-                sampleStop(placeName: "Karaköy Street Art District"),
-                sampleStop(placeName: "Istanbul Modern")
-            ],
-            imageURLs: [],
-            routeMetadata: nil
-        ),
-        config: nil
-    ) {
-        print("Tapped")
-    }
-    .padding()
-    .background(Color("AppBkgColor"))
+    JourneyCardContent(cards: [sampleJourneyCards[1]], config: nil)
+        .padding()
+        .background(Color("AppBkgColor"))
 }
 
 #Preview("Journey Cards - Multiple") {
