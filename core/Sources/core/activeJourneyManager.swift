@@ -46,9 +46,9 @@ public final class ActiveJourneyManager: ObservableObject {
         let newStories = manifest.stories.enumerated().map { index, story in
             ActiveStory(
                 id: story.storyId,
-                placeIndex: index,
-                title: story.title,
-                audioUrl: story.audioUrl,
+                placeIndex: story.chapterIdx ?? index,
+                title: story.displayTitle,
+                audioUrl: story.audioUrl ?? "",
                 localAudioPath: nil,
                 duration: nil,
                 status: .notDownloaded,

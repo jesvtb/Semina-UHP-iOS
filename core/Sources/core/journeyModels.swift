@@ -16,24 +16,44 @@ public struct DownloadManifest: Codable, Sendable {
 
 public struct DownloadManifestStory: Codable, Identifiable, Sendable {
     public let storyId: String
-    public let title: String
-    public let audioUrl: String
-    public let placeId: String
+    public let chapterIdx: Int?
+    public let title: String?
+    public let placeName: String?
+    public let script: String?
+    public let audioUrl: String?
+    public let placeId: String?
     public let sizeBytes: Int?
     public let materials: [StoryMaterial]
 
     public var id: String { storyId }
+    public var displayTitle: String {
+        let normalizedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !normalizedTitle.isEmpty {
+            return normalizedTitle
+        }
+        let normalizedPlaceName = placeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !normalizedPlaceName.isEmpty {
+            return normalizedPlaceName
+        }
+        return "Story"
+    }
 
     public init(
         storyId: String,
-        title: String,
-        audioUrl: String,
-        placeId: String,
+        chapterIdx: Int? = nil,
+        title: String? = nil,
+        placeName: String? = nil,
+        script: String? = nil,
+        audioUrl: String? = nil,
+        placeId: String? = nil,
         sizeBytes: Int? = nil,
         materials: [StoryMaterial] = []
     ) {
         self.storyId = storyId
+        self.chapterIdx = chapterIdx
         self.title = title
+        self.placeName = placeName
+        self.script = script
         self.audioUrl = audioUrl
         self.placeId = placeId
         self.sizeBytes = sizeBytes

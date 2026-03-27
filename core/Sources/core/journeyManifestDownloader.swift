@@ -261,8 +261,12 @@ public final class JourneyManifestDownloader: ObservableObject {
 
     private func buildDownloadAssets(from manifest: DownloadManifest) throws -> [DownloadAsset] {
         var assets: [DownloadAsset] = []
-        for story in manifest.stories {
-            guard let audioURL = URL(string: story.audioUrl) else {
+        let orderedStories = manifest.stories.sorted { lhs, rhs in
+            (lhs.chapterIdx ?? Int.max) < (rhs.chapterIdx ?? Int.max)
+        }
+        for story in orderedStories {
+            guard let audioURLString = resolveAudioURLString(story),
+                  let audioURL = URL(string: audioURLString) else {
                 throw JourneyManifestDownloaderError.missingDownloadURL
             }
             let audioExtension = audioURL.pathExtension.isEmpty ? "m4a" : audioURL.pathExtension
@@ -297,6 +301,18 @@ public final class JourneyManifestDownloader: ObservableObject {
             }
         }
         return assets
+    }
+
+    private func resolveAudioURLString(
+        _ story: DownloadManifestStory
+    ) -> String? {
+        let directAudioURL = story.audioUrl?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        if let directAudioURL, !directAudioURL.isEmpty {
+            return directAudioURL
+        }
+        return nil
     }
 
     private func saveManifestToDisk(manifest: DownloadManifest) throws {
