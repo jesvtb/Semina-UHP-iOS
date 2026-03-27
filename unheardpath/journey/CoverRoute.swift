@@ -59,7 +59,7 @@ struct JourneyRouteSection: View {
     }
 
     private func hasRouteSummary(routeMetadata: JourneyRouteMetadata) -> Bool {
-        routeMetadata.totalDistanceKm != nil || routeMetadata.totalDurationHr != nil
+        routeMetadata.totalDistanceKm != nil || routeMetadata.totalDurationMins != nil
     }
 
     @ViewBuilder
@@ -68,8 +68,8 @@ struct JourneyRouteSection: View {
             if let distanceKm = routeMetadata.totalDistanceKm {
                 Label(String(format: "%.1f km", distanceKm), systemImage: "figure.walk")
             }
-            if let durationHr = routeMetadata.totalDurationHr {
-                Label(formatDuration(durationHr: durationHr), systemImage: "clock")
+            if let durationMins = routeMetadata.totalDurationMins {
+                Label(formatDuration(durationMins: durationMins), systemImage: "clock")
             }
         }
         .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
@@ -86,7 +86,7 @@ struct JourneyRouteSection: View {
                 let startName = stops[safe: leg.waypointStart]?.placeName ?? "Waypoint \(leg.waypointStart)"
                 let endName = stops[safe: leg.waypointEnd]?.placeName ?? "Waypoint \(leg.waypointEnd)"
                 let distanceText = leg.distanceKm.map { String(format: "%.1f km", $0) } ?? "—"
-                let durationText = leg.durationHr.map { formatDuration(durationHr: $0) } ?? "—"
+                let durationText = leg.durationMins.map { formatDuration(durationMins: $0) } ?? "—"
                 Text("Leg \(index + 1): \(startName) -> \(endName) (\(distanceText), \(durationText))")
                     .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
                     .foregroundColor(Color("onBkgTextColor30"))
@@ -94,11 +94,17 @@ struct JourneyRouteSection: View {
         }
     }
 
-    private func formatDuration(durationHr: Double) -> String {
-        if durationHr < 1 {
-            return "\(Int(round(durationHr * 60.0))) min"
+    private func formatDuration(durationMins: Double) -> String {
+        let roundedMinutes = Int(round(durationMins))
+        if roundedMinutes < 60 {
+            return "\(roundedMinutes) min"
         }
-        return String(format: "%.1f hr", durationHr)
+        let hours = roundedMinutes / 60
+        let minutes = roundedMinutes % 60
+        if minutes == 0 {
+            return "\(hours) hr"
+        }
+        return "\(hours)h \(minutes)m"
     }
 }
 
@@ -125,19 +131,11 @@ struct JourneyMapStop: Identifiable {
 struct JourneyRouteMap: View {
     let stops: [JourneyMapStop]
     let routeMetadata: JourneyRouteMetadata?
+    private let routeSourceId = "journey-route-source"
+    private let routeLayerId = "journey-route-line-layer"
 
-    private var geoJSONRouteLineCoordinates: [CLLocationCoordinate2D] {
-        extractRouteLineCoordinates(from: routeMetadata?.routeGeoJSON).map { coordinate in
-            CLLocationCoordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        }
-    }
-
-    private var displayedRouteLineCoordinates: [CLLocationCoordinate2D] {
-        let geoJSONRoute = geoJSONRouteLineCoordinates
-        if geoJSONRoute.count >= 2 {
-            return geoJSONRoute
-        }
-        return []
+    private var routeGeoJSONString: String? {
+        routeMetadata?.routeGeoJSON?.mapboxJSONString
     }
 
     /// Compute a viewport that fits all stop coordinates.
@@ -172,10 +170,13 @@ struct JourneyRouteMap: View {
 
     var body: some View {
         MapboxMaps.Map(initialViewport: fittingViewport) {
-            if displayedRouteLineCoordinates.count >= 2 {
-                PolylineAnnotation(lineCoordinates: displayedRouteLineCoordinates)
-                    .lineWidth(4.0)
+            if let routeGeoJSONString {
+                // Render canonical backend GeoJSON route directly.
+                MapboxMaps.GeoJSONSource(id: routeSourceId)
+                    .data(.string(routeGeoJSONString))
+                LineLayer(id: routeLayerId, source: routeSourceId)
                     .lineColor(StyleColor(.systemGreen))
+                    .lineWidth(4.0)
                     .lineOpacity(0.85)
             }
             ForEvery(stops) { stop in

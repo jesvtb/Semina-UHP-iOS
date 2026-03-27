@@ -370,8 +370,8 @@ private struct JourneyMetadataRow: View {
     }
 
     private var resolvedDurationMinutes: Int {
-        if let totalDurationHr = journey.routeMetadata?.totalDurationHr {
-            return max(Int(round(totalDurationHr * 60.0)), 0)
+        if let totalDurationMins = journey.routeMetadata?.totalDurationMins {
+            return max(Int(round(totalDurationMins)), 0)
         }
         return journey.duration
     }
@@ -433,35 +433,30 @@ private func sampleStop(
 /// Sample route metadata for preview/debug validation.
 private func sampleRouteMetadata() -> JourneyRouteMetadata {
     let routeGeoJSON: JSONValue = .dictionary([
-        "type": .string("FeatureCollection"),
-        "features": .array([
-            .dictionary([
-                "type": .string("Feature"),
-                "geometry": .dictionary([
-                    "type": .string("LineString"),
-                    "coordinates": .array([
-                        .array([.double(28.9801), .double(41.0086)]),
-                        .array([.double(28.9768), .double(41.0054)]),
-                        .array([.double(28.9680), .double(41.0107)]),
-                        .array([.double(28.9834), .double(41.0115)]),
-                        .array([.double(28.9783), .double(41.0084)])
-                    ])
-                ]),
-                "properties": .dictionary([:])
+        "type": .string("Feature"),
+        "geometry": .dictionary([
+            "type": .string("LineString"),
+            "coordinates": .array([
+                .array([.double(28.9801), .double(41.0086)]),
+                .array([.double(28.9768), .double(41.0054)]),
+                .array([.double(28.9680), .double(41.0107)]),
+                .array([.double(28.9834), .double(41.0115)]),
+                .array([.double(28.9783), .double(41.0084)])
             ])
-        ])
+        ]),
+        "properties": .dictionary([:])
     ])
 
     return JourneyRouteMetadata(
-        routeGeoJSON: routeGeoJSON,
+        routeGeoJSON: RouteFeature(from: routeGeoJSON),
         legs: [
-            JourneyRouteLeg(waypointStart: 0, waypointEnd: 1, distanceKm: 0.7, durationHr: 0.2),
-            JourneyRouteLeg(waypointStart: 1, waypointEnd: 2, distanceKm: 1.3, durationHr: 0.28),
-            JourneyRouteLeg(waypointStart: 2, waypointEnd: 3, distanceKm: 1.9, durationHr: 0.4),
-            JourneyRouteLeg(waypointStart: 3, waypointEnd: 4, distanceKm: 0.8, durationHr: 0.18)
+            JourneyRouteLeg(waypointStart: 0, waypointEnd: 1, distanceKm: 0.7, durationMins: 12),
+            JourneyRouteLeg(waypointStart: 1, waypointEnd: 2, distanceKm: 1.3, durationMins: 17),
+            JourneyRouteLeg(waypointStart: 2, waypointEnd: 3, distanceKm: 1.9, durationMins: 24),
+            JourneyRouteLeg(waypointStart: 3, waypointEnd: 4, distanceKm: 0.8, durationMins: 11)
         ],
         totalDistanceKm: 4.7,
-        totalDurationHr: 1.06
+        totalDurationMins: 64
     )
 }
 

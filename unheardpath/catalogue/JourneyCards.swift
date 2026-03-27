@@ -85,14 +85,14 @@ struct JourneyRouteLeg {
     let waypointStart: Int
     let waypointEnd: Int
     let distanceKm: Double?
-    let durationHr: Double?
+    let durationMins: Double?
 }
 
 struct JourneyRouteMetadata {
-    let routeGeoJSON: JSONValue?
+    let routeGeoJSON: RouteFeature?
     let legs: [JourneyRouteLeg]
     let totalDistanceKm: Double?
-    let totalDurationHr: Double?
+    let totalDurationMins: Double?
 }
 
 func resolvedPlaceName(from properties: [String: JSONValue]) -> String? {
@@ -265,10 +265,7 @@ struct JourneyCardContent: View {
               let intro = dict["intro"]?.stringValue else {
             return nil
         }
-        let duration = dict["duration"]?.doubleValue.map { Int($0) } ?? 0
-        let primaryDistance = dict["distance"]?.doubleValue.map { Int($0) } ?? 0
-        let nearbyDistanceMeters = dict["distance_m"]?.doubleValue.map { Int($0) } ?? 0
-        let distance = primaryDistance > 0 ? primaryDistance : nearbyDistanceMeters
+        let metadataDict = dict["metadata"]?.dictionaryValue
         let places: [JSONValue] = {
             if let placesValue = dict["places"], case .array(let placesArray) = placesValue {
                 return placesArray
@@ -288,7 +285,7 @@ struct JourneyCardContent: View {
         }
         imageURLs = Array(NSOrderedSet(array: imageURLs).compactMap { $0 as? URL })
         let routeMetadata: JourneyRouteMetadata? = {
-            guard let metadata = dict["metadata"]?.dictionaryValue else {
+            guard let metadata = metadataDict else {
                 return nil
             }
             let legs: [JourneyRouteLeg] = {
@@ -301,21 +298,26 @@ struct JourneyCardContent: View {
                     }
                     let waypointStart = legDict["waypoint_start"]?.doubleValue.map { Int($0) } ?? 0
                     let waypointEnd = legDict["waypoint_end"]?.doubleValue.map { Int($0) } ?? 0
+                    let durationMins = legDict["duration_min"]?.doubleValue
                     return JourneyRouteLeg(
                         waypointStart: waypointStart,
                         waypointEnd: waypointEnd,
                         distanceKm: legDict["distance_km"]?.doubleValue,
-                        durationHr: legDict["duration_hr"]?.doubleValue
+                        durationMins: durationMins
                     )
                 }
             }()
+            let routeGeoJSON = RouteFeature(from: metadata["route"])
+            let totalDurationMins = metadata["total_duration_min"]?.doubleValue
             return JourneyRouteMetadata(
-                routeGeoJSON: metadata["route_geojson"],
+                routeGeoJSON: routeGeoJSON,
                 legs: legs,
                 totalDistanceKm: metadata["total_distance_km"]?.doubleValue,
-                totalDurationHr: metadata["total_duration_hr"]?.doubleValue
+                totalDurationMins: totalDurationMins
             )
         }()
+        let duration = metadataDict?["total_duration_min"]?.doubleValue.map { Int($0) } ?? 0
+        let distance = metadataDict?["total_distance_km"]?.doubleValue.map { Int($0 * 1000.0) } ?? 0
 
         return Journey(
             journeyId: journeyId,

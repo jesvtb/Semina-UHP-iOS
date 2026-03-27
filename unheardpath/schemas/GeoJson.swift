@@ -27,6 +27,47 @@ extension GeoJSON {
     }
 }
 
+// MARK: - Route Feature (journey-specific)
+
+/// Journey route wrapper for map rendering.
+///
+/// Accepts only a GeoJSON Feature with LineString geometry.
+/// Upstream route payload must follow this canonical shape.
+struct RouteFeature: Sendable {
+    let feature: JSONValue
+
+    init?(from routeGeoJSON: JSONValue?) {
+        guard let routeGeoJSON else { return nil }
+        guard Self.isCanonicalRouteFeature(routeGeoJSON) else {
+            return nil
+        }
+        guard extractRouteLineCoordinates(from: routeGeoJSON).count >= 2
+        else {
+            return nil
+        }
+        self.feature = routeGeoJSON
+    }
+
+    var mapboxJSONString: String? {
+        feature.encodeToString()
+    }
+
+    private static func isCanonicalRouteFeature(
+        _ routeGeoJSON: JSONValue
+    ) -> Bool {
+        guard case .dictionary(let routeDict) = routeGeoJSON,
+              let routeType = routeDict["type"]?.stringValue else {
+            return false
+        }
+        guard routeType == "Feature",
+              let geometry = routeDict["geometry"]?.dictionaryValue,
+              geometry["type"]?.stringValue == "LineString" else {
+            return false
+        }
+        return true
+    }
+}
+
 // MARK: - PointFeature Extensions (app-specific)
 
 extension PointFeature {
