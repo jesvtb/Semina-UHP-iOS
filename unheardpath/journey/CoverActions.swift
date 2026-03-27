@@ -95,6 +95,7 @@ struct JourneyActionButtons: View {
         ])
     }
 
+    /// Label for the download button based on the journey download state.
     private var downloadButtonLabel: String {
         guard let journeyId = journey.journeyId else { return "Download" }
 
