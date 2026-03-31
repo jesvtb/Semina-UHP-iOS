@@ -150,11 +150,6 @@ struct SightCardContent: View {
         let localName = sightLocalName(from: names, mainName: name)
         let description = resolvedLocalizedString(from: props["description"])
         let rawImgValue = props["img_urls"] ?? props["img_url"]
-        #if DEBUG
-        if let n = names["lang:en"]?.stringValue {
-            print("🔍 parseSight '\(n)' img_urls raw: \(String(describing: rawImgValue))")
-        }
-        #endif
         let imageURLs = parseImageURLs(from: rawImgValue)
         let categories: [String] = {
             if case .array(let arr) = props["wikidata_instance_of"] {

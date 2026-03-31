@@ -1,5 +1,6 @@
 import SwiftUI
 @preconcurrency import MapKit
+import CoreLocation
 import core
 
 // MARK: - Location Management
@@ -13,7 +14,11 @@ extension MainView {
     func updateLocationToUHP(location: CLLocation, router: SSEEventRouter) async {
         let lat = location.coordinate.latitude
         let lon = location.coordinate.longitude
-        logger.debug("updateLocationToUHP called for location: \(lat), \(lon)")
+        let hacc = location.horizontalAccuracy
+        let ageSeconds = -location.timestamp.timeIntervalSinceNow
+        logger.debug(
+            "uhp_pipeline stage=start evt=location_detected lat=\(lat) lon=\(lon) hacc_m=\(Int(hacc)) age_s=\(Int(ageSeconds))"
+        )
 
         let locationDictForCheck: [String: JSONValue] = [
             "coordinate": .dictionary(["lat": .double(lat), "lng": .double(lon)])
@@ -22,7 +27,7 @@ extension MainView {
 
         switch decision {
         case .skip:
-            logger.debug("Skipping device location update (within distance and time threshold)")
+            logger.debug("uhp_pipeline stage=skip evt=location_detected reason=event_manager_gate")
             return
         case .sendSameLocationNewTime:
             guard let lastLocationDict = eventManager.latestDeviceLocation else { return }
@@ -41,12 +46,13 @@ extension MainView {
                 }
                 let processor = SSEEventProcessor(router: router)
                 try await processor.processStream(stream)
-                logger.debug("Added location_detected (same location, new time) to EventManager")
+                logger.debug("uhp_pipeline stage=sent evt=location_detected variant=same_location_new_time")
             } catch {
                 logger.error("Failed to add location_detected (same location, new time)", handlerType: "updateLocationToUHP", error: error)
             }
             return
         case .sendNewLocation:
+            logger.debug("uhp_pipeline stage=geocode evt=location_detected reason=new_location")
             break
         }
 
@@ -77,7 +83,7 @@ extension MainView {
             let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
 
-            logger.debug("Successfully added location_detected event to EventManager")
+            logger.debug("uhp_pipeline stage=sent evt=location_detected variant=new_location_geocoded")
         } catch {
             logger.error("Failed to update location to UHP", handlerType: "updateLocationToUHP", error: error)
         }
@@ -92,7 +98,7 @@ extension MainView {
         let locationDetail = flyTo.locationDetail
         let lat = locationDetail.location.coordinate.latitude
         let lon = locationDetail.location.coordinate.longitude
-        logger.debug("updateLookupLocationToUHP called for location: \(lat), \(lon)")
+        logger.debug("uhp_pipeline stage=start evt=location_searched lat=\(lat) lon=\(lon)")
 
         let locationDictForCheck: [String: JSONValue] = [
             "coordinate": .dictionary(["lat": .double(lat), "lng": .double(lon)])
@@ -100,7 +106,7 @@ extension MainView {
         let decision = eventManager.locationSendDecision(locationDictForCheck, type: .lookup)
 
         if case .skip = decision {
-            logger.debug("Skipping location_searched send (within distance threshold)")
+            logger.debug("uhp_pipeline stage=skip evt=location_searched reason=event_manager_gate")
             return
         }
 
@@ -149,7 +155,7 @@ extension MainView {
             let processor = SSEEventProcessor(router: router)
             try await processor.processStream(stream)
 
-            logger.debug("Successfully added location_searched event to EventManager")
+            logger.debug("uhp_pipeline stage=sent evt=location_searched")
         } catch {
             logger.error("Failed to update lookup location to UHP", handlerType: "updateLookupLocationToUHP", error: error)
         }

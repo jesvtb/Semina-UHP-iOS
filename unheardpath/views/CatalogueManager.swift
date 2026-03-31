@@ -84,14 +84,36 @@ class CatalogueManager: ObservableObject {
         // Filter out items whose location context doesn't match the current location.
         // Items without location metadata are accepted (backward compatible / permissive).
         if let currentLocation = locationDetailData {
+            let originalTopicCount = contentDict.keys.filter { !$0.hasPrefix("_") }.count
             contentDict = contentDict.filter { (key, value) in
                 guard !key.hasPrefix("_") else { return true }  // Keep metadata keys
                 guard Self.itemHasLocationContext(value) else { return true }  // No location → accept
                 return Self.itemLocationMatchesCurrent(value, location: currentLocation)
             }
+            #if DEBUG
+            let filteredTopicCount = originalTopicCount - contentDict.keys.filter { !$0.hasPrefix("_") }.count
+            if filteredTopicCount > 0 {
+                print("DBUG 🧪  catalogue filtered topics section=\(sectionType) count=\(filteredTopicCount)")
+            }
+            #endif
             // If all real content was filtered out, skip the upsert entirely.
-            guard contentDict.contains(where: { !$0.key.hasPrefix("_") }) else { return }
+            guard contentDict.contains(where: { !$0.key.hasPrefix("_") }) else {
+                #if DEBUG
+                if sectionType == "sights" {
+                    print("DBUG 🧪  sights filtered_out_all_topics original_topics=\(originalTopicCount)")
+                }
+                #endif
+                return
+            }
         }
+
+        #if DEBUG
+        if sectionType == "sights" {
+            let topicCount = contentDict.keys.filter { !$0.hasPrefix("_") }.count
+            let cardCount = Self.totalCardCount(in: contentDict)
+            print("DBUG 🧪  sights payload accepted: topics=\(topicCount), cards=\(cardCount)")
+        }
+        #endif
 
         let filteredContent = JSONValue.dictionary(contentDict)
 
@@ -250,32 +272,58 @@ class CatalogueManager: ObservableObject {
             return false  // No location context → cannot verify
         }
 
-        if let countryCode = context["country_code"]?.stringValue {
+        let countryCode = normalizedContextField(context["country_code"]?.stringValue)
+        let adminArea = normalizedContextField(context["admin_area"]?.stringValue)
+        let locality = normalizedContextField(context["locality"]?.stringValue)
+        let subLocality = normalizedContextField(context["sub_locality"]?.stringValue)
+
+        if let countryCode {
             guard let locCountry = location.countryCode else { return false }
             if StorageKey.normalize(countryCode) != StorageKey.normalize(locCountry) {
                 return false
             }
         }
-        if let adminArea = context["admin_area"]?.stringValue {
-            guard let locAdmin = location.adminArea else { return false }
-            if StorageKey.normalize(adminArea) != StorageKey.normalize(locAdmin) {
-                return false
-            }
-        }
-        if let locality = context["locality"]?.stringValue {
+        if let locality {
             guard let locLocality = location.locality else { return false }
             if StorageKey.normalize(locality) != StorageKey.normalize(locLocality) {
                 return false
             }
         }
-        if let subLocality = context["sub_locality"]?.stringValue {
+        if let subLocality {
             guard let locSubLocality = location.subLocality else { return false }
             if StorageKey.normalize(subLocality) != StorageKey.normalize(locSubLocality) {
                 return false
             }
         }
+        // Admin area names are often unstable across providers. If locality matched,
+        // treat admin area as advisory to avoid dropping valid locality-level content.
+        if let adminArea, locality == nil {
+            guard let locAdmin = location.adminArea else { return false }
+            if StorageKey.normalize(adminArea) != StorageKey.normalize(locAdmin) {
+                return false
+            }
+        }
 
         return true
+    }
+
+    /// Treat empty location context fields as unspecified (non-constraining).
+    private static func normalizedContextField(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func totalCardCount(in contentDict: [String: JSONValue]) -> Int {
+        var total = 0
+        for (key, value) in contentDict where !key.hasPrefix("_") {
+            if let cards = value["cards"]?.arrayValue {
+                total += cards.count
+            }
+        }
+        return total
     }
 
     // MARK: - Persistence

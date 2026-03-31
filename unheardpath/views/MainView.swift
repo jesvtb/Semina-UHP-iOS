@@ -1,5 +1,6 @@
 import SwiftUI
 @preconcurrency import MapKit
+import CoreLocation
 import core
 
 // MARK: - Input Tab Selection
@@ -32,6 +33,8 @@ struct MainView: View {
     // Location-related state
     @State private var isLoadingLocation = false
     @State private var lastSentLocation: (latitude: Double, longitude: Double)?
+    /// Last coordinate for which `updateLocationToUHP` ran; avoids redundant pipeline work when stabilized GPS barely moves.
+    @State private var lastUHPProcessedCoordinate: CLLocationCoordinate2D?
     
     // Map features are now managed by MapFeaturesManager (passed as @EnvironmentObject)
     @EnvironmentObject var mapFeaturesManager: MapFeaturesManager
@@ -217,9 +220,16 @@ struct MainView: View {
             guard let location = newLocation else {
                 return
             }
+            guard isMaterialChangeForUHPDeviceLocation(location) else {
+                AppLifecycleManager.sharedLogger.debug(
+                    "uhp_precheck_skipped reason=under_coordinate_threshold lat=\(location.coordinate.latitude) lon=\(location.coordinate.longitude)"
+                )
+                return
+            }
             
-            Task {
+            Task { @MainActor in
                 await updateLocationToUHP(location: location, router: sseEventRouter)
+                lastUHPProcessedCoordinate = location.coordinate
             }
         }
         .onChange(of: mapFeaturesManager.flyToLocation) { newFlyTo in
@@ -327,8 +337,13 @@ struct MainView: View {
             
             // When permission is granted, update location to UHP if already available
             // Location tracking will start automatically via TrackingManager's startLocationUpdates()
+            if let dict = eventManager.latestDeviceLocation,
+               let detail = LocationDetailData(eventDict: dict) {
+                lastUHPProcessedCoordinate = detail.location.coordinate
+            }
             if trackingManager.isLocationPermissionGranted, let existingLocation = trackingManager.deviceLocation {
                 await updateLocationToUHP(location: existingLocation, router: sseEventRouter)
+                lastUHPProcessedCoordinate = existingLocation.coordinate
             }
         }
     }
@@ -336,6 +351,17 @@ struct MainView: View {
 
 // MARK: - MainView: Computed Properties
 extension MainView {
+    /// Cheap pre-check before calling `updateLocationToUHP` (second line of defense after `TrackingManager` stabilization).
+    private func isMaterialChangeForUHPDeviceLocation(_ location: CLLocation) -> Bool {
+        guard let previous = lastUHPProcessedCoordinate else {
+            return true
+        }
+        let previousLocation = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+        let distanceMeters = previousLocation.distance(from: location)
+        let thresholdMeters: CLLocationDistance = 52
+        return distanceMeters >= thresholdMeters
+    }
+    
     private var sheetFullHeight: CGFloat {
         UIScreen.main.bounds.height + 1
     }

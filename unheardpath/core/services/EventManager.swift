@@ -282,11 +282,13 @@ class EventManager: ObservableObject {
         }
 
         guard let comparison = comparisonLocation else {
+            logger.debug("location_send_gate type=\(String(describing: type)) decision=send_new_location reason=no_comparison_location")
             return .sendNewLocation
         }
 
         guard let newCoord = extractCoordinate(from: location),
               let oldCoord = extractCoordinate(from: comparison) else {
+            logger.debug("location_send_gate type=\(String(describing: type)) decision=send_new_location reason=bad_coordinates")
             return .sendNewLocation
         }
 
@@ -296,20 +298,34 @@ class EventManager: ObservableObject {
         case .device:
             let now = Date()
             guard let lastSentAt = lastDeviceLocationSentAt() else {
+                logger.debug(
+                    "location_send_gate type=device decision=send_new_location reason=no_prior_location_detected d_m=\(Int(distance))"
+                )
                 return .sendNewLocation
             }
             let timeSince = now.timeIntervalSince(lastSentAt)
+            logger.debug(
+                "location_send_gate type=device d_m=\(Int(distance)) threshold_m=\(Int(locationDistanceThresholdMeters)) time_since_s=\(Int(timeSince)) time_threshold_s=\(Int(locationTimeThresholdSeconds))"
+            )
             if distance <= locationDistanceThresholdMeters && timeSince < locationTimeThresholdSeconds {
+                logger.debug("location_send_gate type=device decision=skip")
                 return .skip
             }
             if distance <= locationDistanceThresholdMeters && timeSince >= locationTimeThresholdSeconds {
+                logger.debug("location_send_gate type=device decision=send_same_location_new_time")
                 return .sendSameLocationNewTime
             }
+            logger.debug("location_send_gate type=device decision=send_new_location reason=distance_or_time")
             return .sendNewLocation
         case .lookup:
+            logger.debug(
+                "location_send_gate type=lookup d_m=\(Int(distance)) threshold_m=\(Int(locationDistanceThresholdMeters)) same_coord=\(newCoord.latitude == oldCoord.latitude && newCoord.longitude == oldCoord.longitude)"
+            )
             if distance <= locationDistanceThresholdMeters && newCoord.latitude == oldCoord.latitude && newCoord.longitude == oldCoord.longitude {
+                logger.debug("location_send_gate type=lookup decision=skip")
                 return .skip
             }
+            logger.debug("location_send_gate type=lookup decision=send_new_location")
             return .sendNewLocation
         }
     }
