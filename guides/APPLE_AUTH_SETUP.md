@@ -67,7 +67,7 @@ Both are required.
 Use the provided shell script:
 
 ```bash
-cd /Users/jessicaluo/FileServer/2_BUSINESS/21_JessPro/04_Project/Semina/03_apps/iosapp
+cd /Users/jessicaluo/FileVault/2_Business/21_JessPro/Projects/Semina/03_apps/iosapp
 ./generate_apple_secret.sh
 ```
 
