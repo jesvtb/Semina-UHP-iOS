@@ -7,29 +7,38 @@ import localKokoro
 /// Download, Start, and Get-to-Start buttons for a journey.
 struct JourneyActionButtons: View {
     let journey: Journey
-    @StateObject private var journeyManifestDownloader: JourneyManifestDownloader
-    @StateObject private var activeJourneyManager = ActiveJourneyManager()
-    @StateObject private var localSynthesisCoordinator: LocalJourneySynthesisCoordinator
+    @ObservedObject private var journeyManifestDownloader: JourneyManifestDownloader
+    @ObservedObject private var activeJourneyManager: ActiveJourneyManager
+    @ObservedObject private var localSynthesisCoordinator: LocalJourneySynthesisCoordinator
 
     @State private var isShowingActiveJourney = false
     @State private var isPreparingAudio = false
     @State private var preparationLabel = ""
     @State private var errorMessage: String?
 
+    private static let sharedJourneyManifestDownloader = JourneyManifestDownloader(
+        baseURL: resolveGatewayBaseURL(),
+        accessTokenProvider: {
+            try await supabase.auth.session.accessToken
+        }
+    )
+
+    private static let sharedActiveJourneyManager = ActiveJourneyManager()
+
+    private static let sharedLocalSynthesisCoordinator = LocalJourneySynthesisCoordinator(
+        analyticsHandler: LocalKokoroAnalytics.makeAnalyticsHandler()
+    )
+
     init(journey: Journey) {
         self.journey = journey
-        _journeyManifestDownloader = StateObject(
-            wrappedValue: JourneyManifestDownloader(
-                baseURL: Self.resolveGatewayBaseURL(),
-                accessTokenProvider: {
-                    try await supabase.auth.session.accessToken
-                }
-            )
+        _journeyManifestDownloader = ObservedObject(
+            wrappedValue: Self.sharedJourneyManifestDownloader
         )
-        _localSynthesisCoordinator = StateObject(
-            wrappedValue: LocalJourneySynthesisCoordinator(
-                analyticsHandler: LocalKokoroAnalytics.makeAnalyticsHandler()
-            )
+        _activeJourneyManager = ObservedObject(
+            wrappedValue: Self.sharedActiveJourneyManager
+        )
+        _localSynthesisCoordinator = ObservedObject(
+            wrappedValue: Self.sharedLocalSynthesisCoordinator
         )
     }
 
@@ -93,7 +102,10 @@ struct JourneyActionButtons: View {
             }
         }
         .fullScreenCover(isPresented: $isShowingActiveJourney) {
-            ActiveJourneyView(activeJourneyManager: activeJourneyManager) {
+            ActiveJourneyView(
+                activeJourneyManager: activeJourneyManager,
+                localSynthesisCoordinator: localSynthesisCoordinator
+            ) {
                 isShowingActiveJourney = false
             }
         }

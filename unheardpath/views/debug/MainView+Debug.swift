@@ -74,6 +74,12 @@ extension MainView {
             showPersistenceDebugSheet = true
         }
     }
+
+    var debugJourneyStorageButton: some View {
+        debugOverlayButton(systemName: "externaldrive.fill.badge.person.crop", yOffset: 168) {
+            showJourneyStorageDebugSheet = true
+        }
+    }
     
     var cacheDebugSheet: some View {
         NavigationView {

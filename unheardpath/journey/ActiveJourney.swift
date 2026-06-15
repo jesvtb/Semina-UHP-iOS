@@ -1,8 +1,10 @@
 import SwiftUI
 import core
+import localKokoro
 
 struct ActiveJourneyView: View {
     @ObservedObject var activeJourneyManager: ActiveJourneyManager
+    @ObservedObject var localSynthesisCoordinator: LocalJourneySynthesisCoordinator
     @StateObject private var audioPlayerManager = AudioPlayerManager()
     let onDismiss: () -> Void
 
@@ -45,6 +47,7 @@ struct ActiveJourneyView: View {
     private var topBar: some View {
         HStack {
             Button("Close") {
+                activeJourneyManager.pauseJourney()
                 onDismiss()
             }
             .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
@@ -59,12 +62,37 @@ struct ActiveJourneyView: View {
         let totalStops = max(journey.stories.count, 1)
         let completedStops = journey.completedStopIndices.count
         let progress = Double(completedStops) / Double(totalStops)
+        let synthesisProgress = localSynthesisCoordinator.synthesisProgressByJourneyId[journey.journeyId]
+        let synthesisError = localSynthesisCoordinator.synthesisErrorByJourneyId[journey.journeyId]
 
         return VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
             Text("Stop \(min(journey.currentStopIndex + 1, totalStops)) of \(totalStops)")
                 .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article0.baseSize))
             ProgressView(value: progress)
                 .tint(Color("AccentColor"))
+
+            if let synthesisProgress {
+                VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
+                    HStack {
+                        Text("Audio prep")
+                        Spacer()
+                        Text("\(synthesisProgress.completedCount)/\(synthesisProgress.totalCount)")
+                    }
+                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
+                    .foregroundColor(Color.textSecondary)
+                    ProgressView(value: synthesisProgress.progress)
+                        .tint(.orange)
+                    Text(synthesisProgress.progressLabel)
+                        .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
+                        .foregroundColor(Color.textSecondary)
+                }
+            }
+
+            if let synthesisError {
+                Text("Audio prep error: \(synthesisError)")
+                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
+                    .foregroundColor(Color.red.opacity(0.85))
+            }
         }
     }
 

@@ -54,6 +54,7 @@ struct MainView: View {
     @State var showCacheDebugSheet: Bool = false
     @State var showSSEContentTestSheet: Bool = false
     @State var showPersistenceDebugSheet: Bool = false
+    @State var showJourneyStorageDebugSheet: Bool = false
     
     // Sheet snap point control - universal binding for bidirectional control
     @State var sheetSnapPoint: SnapPoint = .partial
@@ -167,6 +168,7 @@ struct MainView: View {
                 debugCacheButton
                 debugSSEContentTestButton
                 debugPersistenceButton
+                debugJourneyStorageButton
             }
         }
         .contentShape(Rectangle())
@@ -210,6 +212,9 @@ struct MainView: View {
             CataloguePersistenceDebugView()
                 .environmentObject(catalogueManager)
                 .environmentObject(eventManager)
+        }
+        .sheet(isPresented: $showJourneyStorageDebugSheet) {
+            JourneyStorageDebugView()
         }
         .onChange(of: shouldDismissKeyboard) { shouldDismiss in
             if shouldDismiss {

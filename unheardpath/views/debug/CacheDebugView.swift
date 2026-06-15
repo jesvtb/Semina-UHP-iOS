@@ -315,3 +315,240 @@ struct CacheDebugContentView: View {
         }
     }
 }
+
+// MARK: - Journey Storage Debug View
+
+struct JourneyStorageDebugView: View {
+    private struct StoredFileInfo: Identifiable {
+        let id = UUID()
+        let relativePath: String
+        let formattedSize: String
+        let modifiedAt: String
+    }
+
+    @State private var downloadedJourneyIds: [String] = []
+    @State private var audioPathMap: [String: String] = [:]
+    @State private var materialPathMap: [String: String] = [:]
+    @State private var activeJourneySummary: String = "No active session found."
+    @State private var journeyFiles: [StoredFileInfo] = []
+    @State private var audioFiles: [StoredFileInfo] = []
+    @State private var materialFiles: [StoredFileInfo] = []
+    @State private var statusMessage: String?
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section("UserDefaults Keys") {
+                    labeledValueRow(
+                        label: "downloaded_journeys",
+                        value: downloadedJourneyIds.isEmpty ? "[]" : downloadedJourneyIds.joined(separator: ", ")
+                    )
+                    labeledValueRow(
+                        label: "audio_path_map entries",
+                        value: "\(audioPathMap.count)"
+                    )
+                    labeledValueRow(
+                        label: "material_path_map entries",
+                        value: "\(materialPathMap.count)"
+                    )
+                }
+
+                Section("Active Journey Session") {
+                    Text(activeJourneySummary)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(Color("onBkgTextColor30"))
+                        .textSelection(.enabled)
+                }
+
+                storageFilesSection(
+                    title: "journeys/",
+                    files: journeyFiles,
+                    emptyMessage: "No journey manifests/files found in Application Support."
+                )
+
+                storageFilesSection(
+                    title: "audio/",
+                    files: audioFiles,
+                    emptyMessage: "No audio files found in Application Support."
+                )
+
+                storageFilesSection(
+                    title: "materials/",
+                    files: materialFiles,
+                    emptyMessage: "No material files found in Application Support."
+                )
+
+                Section("Actions") {
+                    Button("Refresh") {
+                        refreshJourneyStorage()
+                    }
+                }
+
+                if let statusMessage {
+                    Section("Status") {
+                        Text(statusMessage)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Journey Storage")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                refreshJourneyStorage()
+            }
+        }
+    }
+
+    private func storageFilesSection(
+        title: String,
+        files: [StoredFileInfo],
+        emptyMessage: String
+    ) -> some View {
+        Section("\(title) (\(files.count))") {
+            if files.isEmpty {
+                Text(emptyMessage)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(files) { fileInfo in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(fileInfo.relativePath)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                        HStack(spacing: 8) {
+                            Text(fileInfo.formattedSize)
+                            Text("•")
+                            Text(fileInfo.modifiedAt)
+                        }
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func labeledValueRow(label: String, value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+        }
+    }
+
+    private func refreshJourneyStorage() {
+        downloadedJourneyIds = (
+            Storage.loadFromUserDefaults(
+                forKey: "journey_manifest.downloaded_journeys",
+                as: [String].self
+            ) ?? []
+        ).sorted()
+
+        audioPathMap = Storage.loadFromUserDefaults(
+            forKey: "journey_manifest.audio_path_map",
+            as: [String: String].self
+        ) ?? [:]
+
+        materialPathMap = Storage.loadFromUserDefaults(
+            forKey: "journey_manifest.material_path_map",
+            as: [String: String].self
+        ) ?? [:]
+
+        activeJourneySummary = buildActiveJourneySummary()
+
+        let appSupportURL = Storage.appSupportURL
+        journeyFiles = listFiles(
+            under: appSupportURL.appendingPathComponent("journeys"),
+            baseURL: appSupportURL
+        )
+        audioFiles = listFiles(
+            under: appSupportURL.appendingPathComponent("audio"),
+            baseURL: appSupportURL
+        )
+        materialFiles = listFiles(
+            under: appSupportURL.appendingPathComponent("materials"),
+            baseURL: appSupportURL
+        )
+
+        statusMessage = "Refreshed at \(Date().formatted(date: .abbreviated, time: .standard))"
+    }
+
+    private func buildActiveJourneySummary() -> String {
+        guard let activeJourneyData = Storage.loadFromUserDefaults(
+            forKey: "active_journey.session",
+            as: Data.self
+        ) else {
+            return "No active session found."
+        }
+
+        let decoder = JSONDecoder()
+        if let decodedJourney = try? decoder.decode(ActiveJourney.self, from: activeJourneyData) {
+            let completedCount = decodedJourney.completedStopIndices.count
+            let totalCount = decodedJourney.stories.count
+            return """
+            journey_id: \(decodedJourney.journeyId)
+            version: \(decodedJourney.journeyVersion)
+            status: \(decodedJourney.status.rawValue)
+            current_stop_index: \(decodedJourney.currentStopIndex)
+            completed_stops: \(completedCount)/\(totalCount)
+            sources: \(decodedJourney.sourceJourneyIds.joined(separator: ", "))
+            """
+        }
+
+        return "active_journey.session exists but could not be decoded (bytes: \(activeJourneyData.count))."
+    }
+
+    private func listFiles(under directoryURL: URL, baseURL: URL) -> [StoredFileInfo] {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: directoryURL.path) else {
+            return []
+        }
+
+        let resourceKeys: Set<URLResourceKey> = [
+            .isDirectoryKey,
+            .fileSizeKey,
+            .contentModificationDateKey,
+        ]
+        guard let enumerator = fileManager.enumerator(
+            at: directoryURL,
+            includingPropertiesForKeys: Array(resourceKeys),
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .short
+        dateFormatter.timeStyle = .short
+
+        var files: [StoredFileInfo] = []
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: resourceKeys),
+                  values.isDirectory != true else {
+                continue
+            }
+            let fileSizeBytes = values.fileSize ?? 0
+            let modifiedDate = values.contentModificationDate
+            files.append(
+                StoredFileInfo(
+                    relativePath: fileURL.path.replacingOccurrences(
+                        of: baseURL.path + "/",
+                        with: ""
+                    ),
+                    formattedSize: ByteCountFormatter.string(
+                        fromByteCount: Int64(fileSizeBytes),
+                        countStyle: .file
+                    ),
+                    modifiedAt: modifiedDate.map { dateFormatter.string(from: $0) } ?? "unknown"
+                )
+            )
+        }
+        return files.sorted { $0.relativePath < $1.relativePath }
+    }
+}

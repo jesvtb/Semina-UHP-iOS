@@ -87,6 +87,34 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
             return manifest
         }
 
+        try LocalKokoroCacheKey.invalidateStaleArtifacts(
+            journeyId: manifest.journeyId,
+            manifestVersion: manifest.version
+        )
+
+        let orderedStories = manifest.stories.sorted {
+            ($0.chapterIdx ?? Int.max) < ($1.chapterIdx ?? Int.max)
+        }
+        guard let firstStory = orderedStories.first else {
+            throw LocalKokoroError.scriptEmpty
+        }
+
+        if hasPlayableLocalAudio(storyId: firstStory.storyId) {
+            updateProgress(
+                journeyId: manifest.journeyId,
+                completedCount: 1,
+                totalCount: orderedStories.count,
+                currentStoryId: firstStory.storyId,
+                progressLabel: "First stop ready"
+            )
+            startBackgroundSynthesisIfNeeded(
+                manifest: manifest,
+                orderedStories: orderedStories,
+                startingIndex: 1
+            )
+            return manifest
+        }
+
         let gateResult = LocalKokoroDeviceGate.evaluate()
         guard gateResult.isSupported else {
             emitAnalytics(
@@ -100,18 +128,6 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
             throw LocalKokoroError.deviceNotSupported(
                 gateResult.failureReason?.rawValue ?? "unsupported"
             )
-        }
-
-        try LocalKokoroCacheKey.invalidateStaleArtifacts(
-            journeyId: manifest.journeyId,
-            manifestVersion: manifest.version
-        )
-
-        let orderedStories = manifest.stories.sorted {
-            ($0.chapterIdx ?? Int.max) < ($1.chapterIdx ?? Int.max)
-        }
-        guard let firstStory = orderedStories.first else {
-            throw LocalKokoroError.scriptEmpty
         }
 
         updateProgress(
@@ -363,6 +379,13 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
 
     private func saveAudioPathMap(_ map: [String: String]) {
         Storage.saveToUserDefaults(map, forKey: audioPathMapStorageKey)
+    }
+
+    private func hasPlayableLocalAudio(storyId: String) -> Bool {
+        guard let localAudioPath = localAudioPath(forStoryId: storyId) else {
+            return false
+        }
+        return FileManager.default.fileExists(atPath: localAudioPath)
     }
 
     private func emitAnalytics(eventName: String, properties: [String: AnySendableValue]) {
