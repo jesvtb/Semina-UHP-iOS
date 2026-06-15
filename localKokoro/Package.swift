@@ -15,9 +15,9 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../core"),
-        .package(url: "https://github.com/mlalma/kokoro-ios", exact: "1.0.10"),
+        .package(url: "https://github.com/mlalma/kokoro-ios", exact: "1.0.11"),
         .package(url: "https://github.com/mlalma/MLXUtilsLibrary.git", exact: "0.0.6"),
-        .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.29.1"),
+        .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.30.2"),
     ],
     targets: [
         .target(
@@ -25,6 +25,7 @@ let package = Package(
             dependencies: [
                 .product(name: "core", package: "core"),
                 .product(name: "KokoroSwift", package: "kokoro-ios"),
+                .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXUtilsLibrary", package: "MLXUtilsLibrary"),
             ]
         ),

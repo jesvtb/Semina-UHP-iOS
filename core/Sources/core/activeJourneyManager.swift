@@ -44,8 +44,11 @@ public final class ActiveJourneyManager: ObservableObject {
 
     public func startJourney(
         from manifest: DownloadManifest,
+        journeyTitle: String? = nil,
         localAudioPathProvider: ((String) -> String?)? = nil
     ) throws {
+        let normalizedJourneyTitle = journeyTitle?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let newStories = manifest.stories.enumerated().map { index, story in
             let localPath = localAudioPathProvider?(story.storyId)
                 ?? JourneyManifestDownloader.resolveStoredLocalAudioPath(storyId: story.storyId)
@@ -55,6 +58,7 @@ public final class ActiveJourneyManager: ObservableObject {
                 placeIndex: story.chapterIdx ?? index,
                 title: story.displayTitle,
                 audioUrl: story.audioUrl ?? "",
+                description: story.description,
                 script: story.script,
                 localAudioPath: localPath,
                 duration: nil,
@@ -80,6 +84,7 @@ public final class ActiveJourneyManager: ObservableObject {
                     mergedJourney = ActiveJourney(
                         id: mergedJourney.id,
                         journeyId: mergedJourney.journeyId,
+                        journeyTitle: mergedJourney.journeyTitle,
                         journeyVersion: mergedJourney.journeyVersion,
                         sourceJourneyIds: mergedJourney.sourceJourneyIds + [manifest.journeyId],
                         startedAt: mergedJourney.startedAt,
@@ -98,6 +103,7 @@ public final class ActiveJourneyManager: ObservableObject {
 
         activeJourney = ActiveJourney(
             journeyId: manifest.journeyId,
+            journeyTitle: (normalizedJourneyTitle?.isEmpty == false) ? normalizedJourneyTitle : nil,
             journeyVersion: manifest.version,
             sourceJourneyIds: [manifest.journeyId],
             startedAt: Date(),

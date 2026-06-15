@@ -15,3 +15,8 @@ IS_POSTHOG_TRACKING_ENABLED = NO
 
 // Use local dev gateway (not production)
 USE_PROD_URL = NO
+
+// SwiftUI preview workaround:
+// avoid signing simulator-only package resource bundles that currently fail
+// with "bundle format unrecognized" in KokoroSwift/MisakiSwift.
+CODE_SIGNING_ALLOWED[sdk=iphonesimulator*] = NO

@@ -65,6 +65,7 @@ public struct DownloadManifestStory: Codable, Identifiable, Sendable {
     public let chapterIdx: Int?
     public let title: String?
     public let placeName: String?
+    public let description: String?
     public let script: String?
     public let audioUrl: String?
     public let placeId: String?
@@ -89,6 +90,7 @@ public struct DownloadManifestStory: Codable, Identifiable, Sendable {
         chapterIdx: Int? = nil,
         title: String? = nil,
         placeName: String? = nil,
+        description: String? = nil,
         script: String? = nil,
         audioUrl: String? = nil,
         placeId: String? = nil,
@@ -99,6 +101,7 @@ public struct DownloadManifestStory: Codable, Identifiable, Sendable {
         self.chapterIdx = chapterIdx
         self.title = title
         self.placeName = placeName
+        self.description = description
         self.script = script
         self.audioUrl = audioUrl
         self.placeId = placeId
@@ -112,6 +115,7 @@ public struct DownloadManifestStory: Codable, Identifiable, Sendable {
 public struct ActiveJourney: Codable, Identifiable, Sendable {
     public let id: UUID
     public let journeyId: String
+    public let journeyTitle: String?
     public let journeyVersion: Int
     public let sourceJourneyIds: [String]
     public let startedAt: Date
@@ -124,6 +128,7 @@ public struct ActiveJourney: Codable, Identifiable, Sendable {
     public init(
         id: UUID = UUID(),
         journeyId: String,
+        journeyTitle: String? = nil,
         journeyVersion: Int,
         sourceJourneyIds: [String],
         startedAt: Date,
@@ -135,6 +140,7 @@ public struct ActiveJourney: Codable, Identifiable, Sendable {
     ) {
         self.id = id
         self.journeyId = journeyId
+        self.journeyTitle = journeyTitle
         self.journeyVersion = journeyVersion
         self.sourceJourneyIds = sourceJourneyIds
         self.startedAt = startedAt
@@ -158,6 +164,7 @@ public struct ActiveStory: Codable, Identifiable, Sendable {
     public let placeIndex: Int
     public let title: String
     public let audioUrl: String
+    public let description: String?
     public let script: String?
     public var localAudioPath: String?
     public var duration: TimeInterval?
@@ -169,6 +176,7 @@ public struct ActiveStory: Codable, Identifiable, Sendable {
         placeIndex: Int,
         title: String,
         audioUrl: String,
+        description: String? = nil,
         script: String? = nil,
         localAudioPath: String? = nil,
         duration: TimeInterval? = nil,
@@ -179,6 +187,7 @@ public struct ActiveStory: Codable, Identifiable, Sendable {
         self.placeIndex = placeIndex
         self.title = title
         self.audioUrl = audioUrl
+        self.description = description
         self.script = script
         self.localAudioPath = localAudioPath
         self.duration = duration

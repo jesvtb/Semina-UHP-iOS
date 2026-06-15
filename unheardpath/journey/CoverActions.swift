@@ -103,8 +103,7 @@ struct JourneyActionButtons: View {
         }
         .fullScreenCover(isPresented: $isShowingActiveJourney) {
             ActiveJourneyView(
-                activeJourneyManager: activeJourneyManager,
-                localSynthesisCoordinator: localSynthesisCoordinator
+                activeJourneyManager: activeJourneyManager
             ) {
                 isShowingActiveJourney = false
             }
@@ -208,6 +207,7 @@ struct JourneyActionButtons: View {
                 }
                 try activeJourneyManager.startJourney(
                     from: manifest,
+                    journeyTitle: journey.title,
                     localAudioPathProvider: { storyId in
                         localSynthesisCoordinator.localAudioPath(forStoryId: storyId)
                             ?? JourneyManifestDownloader.resolveStoredLocalAudioPath(storyId: storyId)

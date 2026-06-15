@@ -1,124 +1,34 @@
 import SwiftUI
 import core
-import localKokoro
 
 struct ActiveJourneyView: View {
     @ObservedObject var activeJourneyManager: ActiveJourneyManager
-    @ObservedObject var localSynthesisCoordinator: LocalJourneySynthesisCoordinator
     @StateObject private var audioPlayerManager = AudioPlayerManager()
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.current.spaceS) {
-            topBar
-
+        Group {
             if let journey = activeJourneyManager.getCurrentActiveJourney() {
-                progressSection(journey: journey)
-
-                Rectangle()
-                    .fill(Color("onBkgTextColor30").opacity(0.08))
-                    .frame(height: 180)
-                    .overlay(
-                        Text("Map preview for active route")
-                            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-                            .foregroundColor(Color.textSecondary)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: Spacing.current.spaceXs))
-
                 if let currentStory = currentStory(from: journey) {
                     ActiveStoryView(
                         story: currentStory,
                         audioPlayerManager: audioPlayerManager,
-                        distanceLabel: "Next stop"
+                        journeyTitle: displayJourneyTitle(from: journey),
+                        currentStopIndex: journey.currentStopIndex,
+                        totalStops: max(journey.stories.count, 1),
+                        completedStopIndices: journey.completedStopIndices,
+                        onClose: handleClose
                     )
+                } else {
+                    emptyState
                 }
-
-                controlBar(journey: journey)
             } else {
                 emptyState
             }
-
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(Spacing.current.spaceS)
         .background(Color("AppBkgColor").ignoresSafeArea())
-    }
-
-    private var topBar: some View {
-        HStack {
-            Button("Close") {
-                activeJourneyManager.pauseJourney()
-                onDismiss()
-            }
-            .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
-
-            Spacer()
-            Text("Journey Active")
-                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article0.baseSize))
-        }
-    }
-
-    private func progressSection(journey: core.ActiveJourney) -> some View {
-        let totalStops = max(journey.stories.count, 1)
-        let completedStops = journey.completedStopIndices.count
-        let progress = Double(completedStops) / Double(totalStops)
-        let synthesisProgress = localSynthesisCoordinator.synthesisProgressByJourneyId[journey.journeyId]
-        let synthesisError = localSynthesisCoordinator.synthesisErrorByJourneyId[journey.journeyId]
-
-        return VStack(alignment: .leading, spacing: Spacing.current.spaceXs) {
-            Text("Stop \(min(journey.currentStopIndex + 1, totalStops)) of \(totalStops)")
-                .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article0.baseSize))
-            ProgressView(value: progress)
-                .tint(Color("AccentColor"))
-
-            if let synthesisProgress {
-                VStack(alignment: .leading, spacing: Spacing.current.space3xs) {
-                    HStack {
-                        Text("Audio prep")
-                        Spacer()
-                        Text("\(synthesisProgress.completedCount)/\(synthesisProgress.totalCount)")
-                    }
-                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
-                    .foregroundColor(Color.textSecondary)
-                    ProgressView(value: synthesisProgress.progress)
-                        .tint(.orange)
-                    Text(synthesisProgress.progressLabel)
-                        .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
-                        .foregroundColor(Color.textSecondary)
-                }
-            }
-
-            if let synthesisError {
-                Text("Audio prep error: \(synthesisError)")
-                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
-                    .foregroundColor(Color.red.opacity(0.85))
-            }
-        }
-    }
-
-    private func controlBar(journey: core.ActiveJourney) -> some View {
-        HStack(spacing: Spacing.current.spaceS) {
-            if journey.status == .paused {
-                Button("Resume") {
-                    activeJourneyManager.resumeJourney()
-                }
-            } else {
-                Button("Pause") {
-                    activeJourneyManager.pauseJourney()
-                }
-            }
-
-            Button("Play Next") {
-                activeJourneyManager.advanceToNextStop()
-            }
-
-            Button("Stop") {
-                activeJourneyManager.completeJourney()
-                onDismiss()
-            }
-        }
-        .font(.custom(FontFamily.sansSemibold, size: TypographyScale.articleMinus1.baseSize))
-        .foregroundColor(Color("AccentColor"))
     }
 
     private var emptyState: some View {
@@ -136,4 +46,96 @@ struct ActiveJourneyView: View {
         guard journey.currentStopIndex < journey.stories.count else { return nil }
         return journey.stories[journey.currentStopIndex]
     }
+
+    private func displayJourneyTitle(from journey: core.ActiveJourney) -> String {
+        let normalizedJourneyTitle = journey.journeyTitle?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !normalizedJourneyTitle.isEmpty {
+            return normalizedJourneyTitle
+        }
+        return "Active Journey"
+    }
+
+    private func handleClose() {
+        activeJourneyManager.pauseJourney()
+        onDismiss()
+    }
 }
+
+#if DEBUG
+@MainActor
+private struct ActiveJourneyPreviewContainer: View {
+    @StateObject private var activeJourneyManager = ActiveJourneyManager()
+    @State private var hasSeededPreviewJourney = false
+
+    private var previewManifest: DownloadManifest {
+        DownloadManifest(
+        journeyId: "journey-cover-preview-1",
+        version: 1,
+        audioDeliveryMode: .cloudPrerendered,
+        stories: [
+            DownloadManifestStory(
+                storyId: "story-1",
+                chapterIdx: 0,
+                title: "The Two-Year Slope",
+                placeName: "Ninen-zaka Slope",
+                description: "Stone steps worn smooth by twelve centuries of pilgrims — they say a stumble here costs you two years of life.",
+                script: nil,
+                audioUrl: "https://example.com/story-1.m4a",
+                placeId: "place-1",
+                sizeBytes: 1200,
+                materials: []
+            ),
+            DownloadManifestStory(
+                storyId: "story-2",
+                chapterIdx: 1,
+                title: "Temple Bells at Dusk",
+                placeName: "Yasaka Shrine",
+                description: "At sunset, bronze bells carry across old wooden streets as lanterns begin to glow.",
+                script: nil,
+                audioUrl: "https://example.com/story-2.m4a",
+                placeId: "place-2",
+                sizeBytes: 900,
+                materials: []
+            ),
+            DownloadManifestStory(
+                storyId: "story-3",
+                chapterIdx: 2,
+                title: "Lantern Alley",
+                placeName: "Gion",
+                description: "A narrow lane of tea houses where paper lantern light softens every footstep.",
+                script: nil,
+                audioUrl: "https://example.com/story-3.m4a",
+                placeId: "place-3",
+                sizeBytes: 1000,
+                materials: []
+            )
+        ]
+    )
+    }
+
+    var body: some View {
+        ActiveJourneyView(activeJourneyManager: activeJourneyManager) {
+            // Preview-only dismiss callback.
+        }
+        .task {
+            if hasSeededPreviewJourney {
+                return
+            }
+            hasSeededPreviewJourney = true
+            do {
+                try activeJourneyManager.startJourney(
+                    from: previewManifest,
+                    journeyTitle: "An Unhurried History of Higashiyama"
+                )
+            } catch {
+                // Keep preview resilient if seeded session setup fails.
+            }
+        }
+    }
+}
+
+#Preview("Active Journey Full Screen") {
+    ActiveJourneyPreviewContainer()
+}
+#endif

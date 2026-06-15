@@ -6,7 +6,7 @@ public enum LocalAudioFileWriter {
         samples: [Float],
         outputURL: URL,
         sampleRate: Double = Double(KokoroSynthesisConfig.sampleRate)
-    ) throws {
+    ) async throws {
         let parentDirectory = outputURL.deletingLastPathComponent()
         if !FileManager.default.fileExists(atPath: parentDirectory.path) {
             try FileManager.default.createDirectory(
@@ -40,7 +40,6 @@ public enum LocalAudioFileWriter {
         let destination = buffer.floatChannelData![0]
         samples.withUnsafeBufferPointer { sourceBuffer in
             guard let sourceAddress = sourceBuffer.baseAddress else { return }
-            let byteCount = sourceBuffer.count * MemoryLayout<Float>.stride
             destination.update(
                 from: sourceAddress,
                 count: sourceBuffer.count
@@ -55,22 +54,11 @@ public enum LocalAudioFileWriter {
         ) else {
             throw LocalKokoroError.cacheWriteFailed
         }
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .m4a
 
-        let semaphore = DispatchSemaphore(value: 0)
-        var exportError: Error?
-        exportSession.exportAsynchronously {
-            if exportSession.status != .completed {
-                exportError = exportSession.error ?? LocalKokoroError.cacheWriteFailed
-            }
-            semaphore.signal()
+        defer {
+            try? FileManager.default.removeItem(at: tempPCMURL)
         }
-        semaphore.wait()
-        try? FileManager.default.removeItem(at: tempPCMURL)
-        if let exportError {
-            throw exportError
-        }
+        try await exportSession.export(to: outputURL, as: .m4a)
     }
 
     public static func silenceSamples(seconds: Double) -> [Float] {

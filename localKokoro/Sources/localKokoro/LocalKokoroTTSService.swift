@@ -95,7 +95,7 @@ public actor LocalKokoroTTSService {
             GPU.clearCache()
         }
 
-        try LocalAudioFileWriter.writePCMToM4A(samples: mergedAudio, outputURL: outputURL)
+        try await LocalAudioFileWriter.writePCMToM4A(samples: mergedAudio, outputURL: outputURL)
 
         let mlxMemoryAfter = GPU.snapshot()
         stats.wallSeconds = CFAbsoluteTimeGetCurrent() - startedAt

@@ -694,6 +694,8 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				"CODE_SIGNING_ALLOWED[sdk=iphoneos*]" = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = ZMR9YNSJN2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -958,7 +960,7 @@
 			repositoryURL = "https://github.com/mlalma/kokoro-ios";
 			requirement = {
 				kind = exactVersion;
-				version = 1.0.10;
+				version = 1.0.11;
 			};
 		};
 		C1MLXUT02F2FD60000435877 /* XCRemoteSwiftPackageReference "MLXUtilsLibrary" */ = {
