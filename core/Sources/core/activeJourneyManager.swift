@@ -42,46 +42,58 @@ public final class ActiveJourneyManager: ObservableObject {
         self.activeJourney = restoreActiveJourneyFromStorage()
     }
 
-    public func startJourney(from manifest: DownloadManifest) throws {
+    public func startJourney(
+        from manifest: DownloadManifest,
+        localAudioPathProvider: ((String) -> String?)? = nil
+    ) throws {
         let newStories = manifest.stories.enumerated().map { index, story in
-            ActiveStory(
+            let localPath = localAudioPathProvider?(story.storyId)
+                ?? JourneyManifestDownloader.resolveStoredLocalAudioPath(storyId: story.storyId)
+            let hasLocalAudio = localPath != nil
+            return ActiveStory(
                 id: story.storyId,
                 placeIndex: story.chapterIdx ?? index,
                 title: story.displayTitle,
                 audioUrl: story.audioUrl ?? "",
-                localAudioPath: nil,
+                script: story.script,
+                localAudioPath: localPath,
                 duration: nil,
-                status: .notDownloaded,
+                status: hasLocalAudio ? .downloaded : .notDownloaded,
                 materials: story.materials
             )
         }
 
         if let currentJourney = activeJourney,
            currentJourney.status == .inProgress || currentJourney.status == .paused {
-            var mergedJourney = currentJourney
-            mergedJourney.stories.append(contentsOf: newStories)
-            mergedJourney.status = .inProgress
-            mergedJourney.currentStopIndex = min(
-                mergedJourney.currentStopIndex,
-                max(mergedJourney.stories.count - 1, 0)
-            )
-            if !mergedJourney.sourceJourneyIds.contains(manifest.journeyId) {
-                mergedJourney = ActiveJourney(
-                    id: mergedJourney.id,
-                    journeyId: mergedJourney.journeyId,
-                    journeyVersion: mergedJourney.journeyVersion,
-                    sourceJourneyIds: mergedJourney.sourceJourneyIds + [manifest.journeyId],
-                    startedAt: mergedJourney.startedAt,
-                    status: mergedJourney.status,
-                    currentStopIndex: mergedJourney.currentStopIndex,
-                    completedStopIndices: mergedJourney.completedStopIndices,
-                    stories: mergedJourney.stories,
-                    liveActivityId: mergedJourney.liveActivityId
+            let isSameJourneySession =
+                currentJourney.journeyId == manifest.journeyId
+                || currentJourney.sourceJourneyIds.contains(manifest.journeyId)
+            if !isSameJourneySession {
+                var mergedJourney = currentJourney
+                mergedJourney.stories.append(contentsOf: newStories)
+                mergedJourney.status = .inProgress
+                mergedJourney.currentStopIndex = min(
+                    mergedJourney.currentStopIndex,
+                    max(mergedJourney.stories.count - 1, 0)
                 )
+                if !mergedJourney.sourceJourneyIds.contains(manifest.journeyId) {
+                    mergedJourney = ActiveJourney(
+                        id: mergedJourney.id,
+                        journeyId: mergedJourney.journeyId,
+                        journeyVersion: mergedJourney.journeyVersion,
+                        sourceJourneyIds: mergedJourney.sourceJourneyIds + [manifest.journeyId],
+                        startedAt: mergedJourney.startedAt,
+                        status: mergedJourney.status,
+                        currentStopIndex: mergedJourney.currentStopIndex,
+                        completedStopIndices: mergedJourney.completedStopIndices,
+                        stories: mergedJourney.stories,
+                        liveActivityId: mergedJourney.liveActivityId
+                    )
+                }
+                activeJourney = mergedJourney
+                persistActiveJourneyToStorage()
+                return
             }
-            activeJourney = mergedJourney
-            persistActiveJourneyToStorage()
-            return
         }
 
         activeJourney = ActiveJourney(

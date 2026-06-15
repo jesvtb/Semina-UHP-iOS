@@ -13,6 +13,7 @@ import UIKit
 @preconcurrency import UserNotifications
 import ActivityKit
 import core
+import localKokoro
 
 /// Environment key for injecting Geocoder so views can use reverse geocoding (location → LocationDict).
 private struct GeocoderEnvironmentKey: EnvironmentKey {
@@ -156,6 +157,7 @@ struct unheardpathApp: App {
             cachesURL: nil,
             appSupportURL: nil
         )
+        MLXRuntimeBootstrap.configureIfNeeded()
         // Log app startup configuration
         logger.debug("🚀 Starting App")
         #if DEBUG

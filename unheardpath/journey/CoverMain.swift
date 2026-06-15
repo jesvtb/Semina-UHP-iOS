@@ -364,6 +364,12 @@ private struct JourneyMetadataRow: View {
                     Text("\(journey.places.count) places")
                 }
             }
+            if journey.isLocalKokoroDelivery {
+                HStack(spacing: Spacing.current.space2xs) {
+                    Image(systemName: "iphone")
+                    Text("On-device audio")
+                }
+            }
         }
         .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus1.baseSize))
         .foregroundColor(Color("onBkgTextColor30"))
@@ -566,7 +572,8 @@ private struct RadialGradientDebugView: View {
                 sampleStop(placeName: "Basilica Cistern", localName: "Yerebatan Sarnıcı", description: "The largest of several hundred ancient cisterns beneath Istanbul.", longitude: 28.9783, latitude: 41.0084)
             ],
             imageURLs: [URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/22/Hagia_Sophia_Mars_2013.jpg")!],
-            routeMetadata: sampleRouteMetadata()
+            routeMetadata: sampleRouteMetadata(),
+            audioDeliveryMode: .cloudPrerendered
         )
     ) {
         print("Dismissed")

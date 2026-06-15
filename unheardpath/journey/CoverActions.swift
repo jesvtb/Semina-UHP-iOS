@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import core
+import localKokoro
 
 // MARK: - Journey Action Buttons
 /// Download, Start, and Get-to-Start buttons for a journey.
@@ -8,8 +9,11 @@ struct JourneyActionButtons: View {
     let journey: Journey
     @StateObject private var journeyManifestDownloader: JourneyManifestDownloader
     @StateObject private var activeJourneyManager = ActiveJourneyManager()
+    @StateObject private var localSynthesisCoordinator: LocalJourneySynthesisCoordinator
 
     @State private var isShowingActiveJourney = false
+    @State private var isPreparingAudio = false
+    @State private var preparationLabel = ""
     @State private var errorMessage: String?
 
     init(journey: Journey) {
@@ -22,11 +26,15 @@ struct JourneyActionButtons: View {
                 }
             )
         )
+        _localSynthesisCoordinator = StateObject(
+            wrappedValue: LocalJourneySynthesisCoordinator(
+                analyticsHandler: LocalKokoroAnalytics.makeAnalyticsHandler()
+            )
+        )
     }
 
     var body: some View {
         VStack(spacing: Spacing.current.spaceXs) {
-            // Primary actions
             HStack(spacing: Spacing.current.spaceS) {
                 Button {
                     handleDownloadTap()
@@ -41,12 +49,12 @@ struct JourneyActionButtons: View {
                                 .stroke(Color("AccentColor"), lineWidth: 1)
                         )
                 }
-                .disabled(journey.journeyId == nil || journeyManifestDownloader.journeyDownloadStateById[journey.journeyId ?? ""] == .downloading)
+                .disabled(isDownloadDisabled)
 
                 Button {
                     handleStartTap()
                 } label: {
-                    Text("Start")
+                    Text(startButtonLabel)
                         .font(.custom(FontFamily.sansSemibold, size: TypographyScale.article0.baseSize))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -56,10 +64,9 @@ struct JourneyActionButtons: View {
                                 .fill(Color("AccentColor"))
                         )
                 }
-                .disabled(journey.journeyId == nil)
+                .disabled(isStartDisabled)
             }
 
-            // Secondary action — open device map to navigate to first place
             if journey.firstPlaceCoordinate != nil {
                 Button {
                     openDirectionsToFirstPlace()
@@ -69,6 +76,13 @@ struct JourneyActionButtons: View {
                         .foregroundColor(Color("AccentColor"))
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
+            }
+
+            if isPreparingAudio, !preparationLabel.isEmpty {
+                Text(preparationLabel)
+                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
+                    .foregroundColor(Color("onBkgTextColor30"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let errorMessage {
@@ -85,7 +99,20 @@ struct JourneyActionButtons: View {
         }
     }
 
-    /// Opens the device's default map app with walking directions to the first place.
+    private var isDownloadDisabled: Bool {
+        journey.journeyId == nil
+            || journeyManifestDownloader.journeyDownloadStateById[journey.journeyId ?? ""] == .downloading
+            || isPreparingAudio
+    }
+
+    private var isStartDisabled: Bool {
+        journey.journeyId == nil || isPreparingAudio
+    }
+
+    private var startButtonLabel: String {
+        isPreparingAudio ? "Preparing..." : "Start"
+    }
+
     private func openDirectionsToFirstPlace() {
         guard let coordinate = journey.firstPlaceCoordinate else { return }
         let destination = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
@@ -95,9 +122,18 @@ struct JourneyActionButtons: View {
         ])
     }
 
-    /// Label for the download button based on the journey download state.
     private var downloadButtonLabel: String {
-        guard let journeyId = journey.journeyId else { return "Download" }
+        guard let journeyId = journey.journeyId else {
+            return journey.isLocalKokoroDelivery ? "Prepare Tour" : "Download"
+        }
+
+        if journey.isLocalKokoroDelivery {
+            if let progress = localSynthesisCoordinator.synthesisProgressByJourneyId[journeyId],
+               progress.completedCount < progress.totalCount,
+               progress.totalCount > 0 {
+                return "Preparing \(Int(progress.progress * 100))%"
+            }
+        }
 
         let state = journeyManifestDownloader.journeyDownloadStateById[journeyId] ?? .idle
         switch state {
@@ -105,11 +141,14 @@ struct JourneyActionButtons: View {
             let progress = journeyManifestDownloader.journeyProgressById[journeyId] ?? 0
             return "Downloading \(Int(progress * 100))%"
         case .downloaded:
-            return "Downloaded"
+            return journey.isLocalKokoroDelivery ? "Prepared" : "Downloaded"
         case .failed:
-            return "Retry Download"
+            return journey.isLocalKokoroDelivery ? "Retry Prepare" : "Retry Download"
         case .idle:
-            return journeyManifestDownloader.isJourneyDownloaded(journeyId: journeyId) ? "Downloaded" : "Download"
+            if journeyManifestDownloader.isJourneyDownloaded(journeyId: journeyId) {
+                return journey.isLocalKokoroDelivery ? "Prepared" : "Downloaded"
+            }
+            return journey.isLocalKokoroDelivery ? "Prepare Tour" : "Download"
         }
     }
 
@@ -119,6 +158,14 @@ struct JourneyActionButtons: View {
             return
         }
         errorMessage = nil
+
+        if journey.isLocalKokoroDelivery {
+            Task {
+                await handleLocalPrepareTap(journeyId: journeyId, prepareAllStories: true)
+            }
+            return
+        }
+
         Task {
             do {
                 try await journeyManifestDownloader.downloadJourney(journeyId)
@@ -136,17 +183,71 @@ struct JourneyActionButtons: View {
         errorMessage = nil
         Task {
             do {
-                let manifest: DownloadManifest
-                if let localManifest = try journeyManifestDownloader.loadManifestFromDisk(journeyId: journeyId) {
-                    manifest = localManifest
-                } else {
-                    manifest = try await journeyManifestDownloader.fetchDownloadManifest(journeyId)
+                var manifest = try await loadManifest(journeyId: journeyId)
+                if manifest.audioDeliveryMode == .localKokoro {
+                    isPreparingAudio = true
+                    preparationLabel = "Preparing Audio..."
+                    manifest = try await localSynthesisCoordinator.prepareJourneyForStart(
+                        manifest: manifest,
+                        blockUntilFirstStoryReady: true
+                    )
+                    isPreparingAudio = false
+                    preparationLabel = ""
                 }
-                try activeJourneyManager.startJourney(from: manifest)
+                try activeJourneyManager.startJourney(
+                    from: manifest,
+                    localAudioPathProvider: { storyId in
+                        localSynthesisCoordinator.localAudioPath(forStoryId: storyId)
+                            ?? JourneyManifestDownloader.resolveStoredLocalAudioPath(storyId: storyId)
+                    }
+                )
                 isShowingActiveJourney = true
             } catch {
+                isPreparingAudio = false
+                preparationLabel = ""
                 errorMessage = "Start failed: \(error.localizedDescription)"
             }
+        }
+    }
+
+    private func handleLocalPrepareTap(journeyId: String, prepareAllStories: Bool) async {
+        do {
+            isPreparingAudio = true
+            preparationLabel = "Preparing tour audio..."
+            let manifest = try await loadManifest(journeyId: journeyId)
+            try saveManifestIfNeeded(manifest: manifest)
+            if prepareAllStories {
+                try await localSynthesisCoordinator.prepareAllStories(manifest: manifest)
+            } else {
+                _ = try await localSynthesisCoordinator.prepareJourneyForStart(manifest: manifest)
+            }
+            journeyManifestDownloader.markJourneyAsDownloaded(journeyId)
+            isPreparingAudio = false
+            preparationLabel = ""
+        } catch {
+            isPreparingAudio = false
+            preparationLabel = ""
+            errorMessage = "Prepare failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func loadManifest(journeyId: String) async throws -> DownloadManifest {
+        if let localManifest = try journeyManifestDownloader.loadManifestFromDisk(journeyId: journeyId) {
+            return localManifest
+        }
+        return try await journeyManifestDownloader.fetchDownloadManifest(journeyId)
+    }
+
+    private func saveManifestIfNeeded(manifest: DownloadManifest) throws {
+        if try journeyManifestDownloader.loadManifestFromDisk(journeyId: manifest.journeyId) == nil {
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            let manifestData = try encoder.encode(manifest)
+            _ = try Storage.saveToApplicationSupport(
+                data: manifestData,
+                filename: "manifest.json",
+                subdirectory: "journeys/\(manifest.journeyId)"
+            )
         }
     }
 

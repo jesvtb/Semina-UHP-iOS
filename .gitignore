@@ -115,3 +115,6 @@ Config.xcconfig
 secrets/
 unheardpathTests/TestResults/**/*
 unheardpathTests/TestResults.xcresult/**/*
+unheardpath/Resources/kokoro/kokoro-v1_0.safetensors
+unheardpath/Resources/kokoro/README.md
+unheardpath/Resources/kokoro/voices.npz

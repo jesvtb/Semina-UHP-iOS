@@ -153,6 +153,18 @@ public final class JourneyManifestDownloader: ObservableObject {
             let manifest = try await fetchDownloadManifest(normalizedJourneyId)
             try saveManifestToDisk(manifest: manifest)
 
+            if manifest.audioDeliveryMode == .localKokoro {
+                markJourneyDownloaded(normalizedJourneyId)
+                journeyDownloadStateById[normalizedJourneyId] = .downloaded
+                journeyProgressById[normalizedJourneyId] = 1
+                publishProgress(
+                    journeyId: normalizedJourneyId,
+                    completedCount: 1,
+                    totalCount: 1
+                )
+                return
+            }
+
             var audioPathMap = loadPathMap(forKey: audioPathMapStorageKey)
             var materialPathMap = loadPathMap(forKey: materialPathMapStorageKey)
 
@@ -234,10 +246,25 @@ public final class JourneyManifestDownloader: ObservableObject {
         return try jsonDecoder.decode(DownloadManifest.self, from: manifestData)
     }
 
+    public func markJourneyAsDownloaded(_ journeyId: String) {
+        markJourneyDownloaded(journeyId)
+        journeyDownloadStateById[journeyId] = .downloaded
+        journeyProgressById[journeyId] = 1
+    }
+
     public func getLocalAudioURL(storyId: String) -> URL? {
-        let audioPathMap = loadPathMap(forKey: audioPathMapStorageKey)
-        guard let localPath = audioPathMap[storyId] else { return nil }
+        guard let localPath = Self.resolveStoredLocalAudioPath(storyId: storyId) else {
+            return nil
+        }
         return URL(fileURLWithPath: localPath)
+    }
+
+    public static func resolveStoredLocalAudioPath(storyId: String) -> String? {
+        let audioPathMap = Storage.loadFromUserDefaults(
+            forKey: "journey_manifest.audio_path_map",
+            as: [String: String].self
+        ) ?? [:]
+        return audioPathMap[storyId]
     }
 
     public func getLocalMaterialURL(materialId: String) -> URL? {
@@ -260,6 +287,10 @@ public final class JourneyManifestDownloader: ObservableObject {
     }
 
     private func buildDownloadAssets(from manifest: DownloadManifest) throws -> [DownloadAsset] {
+        if manifest.audioDeliveryMode == .localKokoro {
+            return []
+        }
+
         var assets: [DownloadAsset] = []
         let orderedStories = manifest.stories.sorted { lhs, rhs in
             (lhs.chapterIdx ?? Int.max) < (rhs.chapterIdx ?? Int.max)

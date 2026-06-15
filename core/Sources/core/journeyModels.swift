@@ -1,16 +1,62 @@
 import Foundation
 
+// MARK: - Audio Delivery Mode
+
+public enum AudioDeliveryMode: String, Codable, Sendable {
+    case cloudPrerendered = "cloud_prerendered"
+    case localKokoro = "local_kokoro"
+
+    public init(rawManifestValue: String?) {
+        if rawManifestValue == AudioDeliveryMode.localKokoro.rawValue {
+            self = .localKokoro
+        } else {
+            self = .cloudPrerendered
+        }
+    }
+}
+
 // MARK: - Download Manifest Models
 
 public struct DownloadManifest: Codable, Sendable {
     public let journeyId: String
     public let version: Int
+    public let audioDeliveryMode: AudioDeliveryMode
     public let stories: [DownloadManifestStory]
 
-    public init(journeyId: String, version: Int, stories: [DownloadManifestStory]) {
+    public init(
+        journeyId: String,
+        version: Int,
+        audioDeliveryMode: AudioDeliveryMode = .cloudPrerendered,
+        stories: [DownloadManifestStory]
+    ) {
         self.journeyId = journeyId
         self.version = version
+        self.audioDeliveryMode = audioDeliveryMode
         self.stories = stories
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        journeyId = try container.decode(String.self, forKey: .journeyId)
+        version = try container.decode(Int.self, forKey: .version)
+        let rawMode = try container.decodeIfPresent(String.self, forKey: .audioDeliveryMode)
+        audioDeliveryMode = AudioDeliveryMode(rawManifestValue: rawMode)
+        stories = try container.decode([DownloadManifestStory].self, forKey: .stories)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(journeyId, forKey: .journeyId)
+        try container.encode(version, forKey: .version)
+        try container.encode(audioDeliveryMode.rawValue, forKey: .audioDeliveryMode)
+        try container.encode(stories, forKey: .stories)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case journeyId
+        case version
+        case audioDeliveryMode
+        case stories
     }
 }
 
@@ -112,6 +158,7 @@ public struct ActiveStory: Codable, Identifiable, Sendable {
     public let placeIndex: Int
     public let title: String
     public let audioUrl: String
+    public let script: String?
     public var localAudioPath: String?
     public var duration: TimeInterval?
     public var status: StoryStatus
@@ -122,6 +169,7 @@ public struct ActiveStory: Codable, Identifiable, Sendable {
         placeIndex: Int,
         title: String,
         audioUrl: String,
+        script: String? = nil,
         localAudioPath: String? = nil,
         duration: TimeInterval? = nil,
         status: StoryStatus,
@@ -131,6 +179,7 @@ public struct ActiveStory: Codable, Identifiable, Sendable {
         self.placeIndex = placeIndex
         self.title = title
         self.audioUrl = audioUrl
+        self.script = script
         self.localAudioPath = localAudioPath
         self.duration = duration
         self.status = status

@@ -8,6 +8,7 @@ struct ActivePlayerView: View {
     @State private var currentTime: TimeInterval = 0
     @State private var duration: TimeInterval = 0
     @State private var progress: Double = 0
+    @State private var playbackErrorMessage: String?
 
     var body: some View {
         VStack(spacing: Spacing.current.spaceXs) {
@@ -46,7 +47,12 @@ struct ActivePlayerView: View {
                     } else if audioPlayerManager.currentStoryId == story.id {
                         audioPlayerManager.resume()
                     } else {
-                        try? audioPlayerManager.playStory(story)
+                        do {
+                            try audioPlayerManager.playStory(story)
+                            playbackErrorMessage = nil
+                        } catch {
+                            playbackErrorMessage = error.localizedDescription
+                        }
                     }
                 } label: {
                     Image(systemName: audioPlayerManager.currentStoryId == story.id && audioPlayerManager.isPlaying ? "pause.fill" : "play.fill")
@@ -61,6 +67,13 @@ struct ActivePlayerView: View {
             }
             .font(.system(size: TypographyScale.article1.baseSize))
             .foregroundColor(Color("AccentColor"))
+
+            if let playbackErrorMessage {
+                Text(playbackErrorMessage)
+                    .font(.custom(FontFamily.sansRegular, size: TypographyScale.articleMinus2.baseSize))
+                    .foregroundColor(Color.red.opacity(0.85))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .task {
             for await playbackProgress in audioPlayerManager.currentPlaybackProgress {

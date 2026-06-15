@@ -161,9 +161,14 @@ struct Journey: Identifiable {
     let places: [JSONValue]
     let imageURLs: [URL]
     let routeMetadata: JourneyRouteMetadata?
+    let audioDeliveryMode: AudioDeliveryMode
     var featureImageURL: URL? { imageURLs.first }
 
     var id: String { journeyId ?? "\(title)|\(kicker)" }
+
+    var isLocalKokoroDelivery: Bool {
+        audioDeliveryMode == .localKokoro
+    }
 
     var isDownloaded: Bool {
         guard let journeyId else { return false }
@@ -318,6 +323,9 @@ struct JourneyCardContent: View {
         }()
         let duration = metadataDict?["total_duration_min"]?.doubleValue.map { Int($0) } ?? 0
         let distance = metadataDict?["total_distance_km"]?.doubleValue.map { Int($0 * 1000.0) } ?? 0
+        let audioDeliveryMode = AudioDeliveryMode(
+            rawManifestValue: dict["audio_delivery_mode"]?.stringValue
+        )
 
         return Journey(
             journeyId: journeyId,
@@ -329,7 +337,8 @@ struct JourneyCardContent: View {
             distance: distance,
             places: places,
             imageURLs: imageURLs,
-            routeMetadata: routeMetadata
+            routeMetadata: routeMetadata,
+            audioDeliveryMode: audioDeliveryMode
         )
     }
 }
