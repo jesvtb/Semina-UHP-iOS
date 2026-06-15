@@ -1,9 +1,12 @@
 import SwiftUI
 import core
+import localKokoro
 
 struct ActiveJourneyView: View {
     @ObservedObject var activeJourneyManager: ActiveJourneyManager
+    @ObservedObject var localSynthesisCoordinator: LocalJourneySynthesisCoordinator
     @StateObject private var audioPlayerManager = AudioPlayerManager()
+    @State private var lastAutoStartedStoryId: String?
     let onDismiss: () -> Void
 
     var body: some View {
@@ -17,6 +20,7 @@ struct ActiveJourneyView: View {
                         currentStopIndex: journey.currentStopIndex,
                         totalStops: max(journey.stories.count, 1),
                         completedStopIndices: journey.completedStopIndices,
+                        synthesisProgress: localSynthesisCoordinator.synthesisProgressByJourneyId[journey.journeyId],
                         onClose: handleClose
                     )
                 } else {
@@ -29,6 +33,9 @@ struct ActiveJourneyView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(Spacing.current.spaceS)
         .background(Color("AppBkgColor").ignoresSafeArea())
+        .task(id: activeJourneyManager.getCurrentActiveJourney()?.id) {
+            autoPlayCurrentStoryIfNeeded()
+        }
     }
 
     private var emptyState: some View {
@@ -60,12 +67,35 @@ struct ActiveJourneyView: View {
         activeJourneyManager.pauseJourney()
         onDismiss()
     }
+
+    private func autoPlayCurrentStoryIfNeeded() {
+        guard let journey = activeJourneyManager.getCurrentActiveJourney(),
+              let currentStory = currentStory(from: journey) else {
+            return
+        }
+
+        if lastAutoStartedStoryId == currentStory.id {
+            return
+        }
+        if audioPlayerManager.currentStoryId == currentStory.id {
+            return
+        }
+
+        do {
+            try audioPlayerManager.playStory(currentStory)
+            lastAutoStartedStoryId = currentStory.id
+        } catch {
+            // Keep the view usable even if auto-play fails; manual play remains available.
+            return
+        }
+    }
 }
 
 #if DEBUG
 @MainActor
 private struct ActiveJourneyPreviewContainer: View {
     @StateObject private var activeJourneyManager = ActiveJourneyManager()
+    @StateObject private var localSynthesisCoordinator = LocalJourneySynthesisCoordinator()
     @State private var hasSeededPreviewJourney = false
 
     private var previewManifest: DownloadManifest {
@@ -115,7 +145,10 @@ private struct ActiveJourneyPreviewContainer: View {
     }
 
     var body: some View {
-        ActiveJourneyView(activeJourneyManager: activeJourneyManager) {
+        ActiveJourneyView(
+            activeJourneyManager: activeJourneyManager,
+            localSynthesisCoordinator: localSynthesisCoordinator
+        ) {
             // Preview-only dismiss callback.
         }
         .task {

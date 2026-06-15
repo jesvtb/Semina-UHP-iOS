@@ -15,6 +15,7 @@ struct JourneyActionButtons: View {
     @State private var isPreparingAudio = false
     @State private var preparationLabel = ""
     @State private var errorMessage: String?
+    @State private var hasStartedCoverPrefetch = false
 
     private static let sharedJourneyManifestDownloader = JourneyManifestDownloader(
         baseURL: resolveGatewayBaseURL(),
@@ -28,6 +29,7 @@ struct JourneyActionButtons: View {
     private static let sharedLocalSynthesisCoordinator = LocalJourneySynthesisCoordinator(
         analyticsHandler: LocalKokoroAnalytics.makeAnalyticsHandler()
     )
+    private static var prefetchedManifestByJourneyId: [String: DownloadManifest] = [:]
 
     init(journey: Journey) {
         self.journey = journey
@@ -103,10 +105,14 @@ struct JourneyActionButtons: View {
         }
         .fullScreenCover(isPresented: $isShowingActiveJourney) {
             ActiveJourneyView(
-                activeJourneyManager: activeJourneyManager
+                activeJourneyManager: activeJourneyManager,
+                localSynthesisCoordinator: localSynthesisCoordinator
             ) {
                 isShowingActiveJourney = false
             }
+        }
+        .task(id: journey.journeyId ?? "") {
+            await prefetchManifestOnCoverAppearIfNeeded()
         }
     }
 
@@ -197,11 +203,42 @@ struct JourneyActionButtons: View {
                 var manifest = try await loadManifest(journeyId: journeyId)
                 if manifest.audioDeliveryMode == .localKokoro {
                     isPreparingAudio = true
-                    preparationLabel = "Preparing Audio..."
-                    manifest = try await localSynthesisCoordinator.prepareJourneyForStart(
+                    preparationLabel = "Preparing first stop..."
+                    _ = try await localSynthesisCoordinator.prepareJourneyForStart(
                         manifest: manifest,
-                        blockUntilFirstStoryReady: true
+                        blockUntilFirstStoryReady: false
                     )
+                    let nearRealtimeReadyStories = await waitForNearRealtimeReadyStories(
+                        manifest: manifest
+                    )
+                    if nearRealtimeReadyStories == 0 {
+                        if let synthesisErrorMessage = localSynthesisCoordinator
+                            .synthesisErrorByJourneyId[manifest.journeyId],
+                           !isCancellationOnlySynthesisError(synthesisErrorMessage) {
+                            throw LocalKokoroError.synthesisFailed(synthesisErrorMessage)
+                        }
+
+                        preparationLabel = "Finalizing first stop..."
+                        _ = try await localSynthesisCoordinator.prepareJourneyForStart(
+                            manifest: manifest,
+                            blockUntilFirstStoryReady: true
+                        )
+
+                        let fallbackReadyStories = await waitForNearRealtimeReadyStories(
+                            manifest: manifest,
+                            timeoutSeconds: 10
+                        )
+                        if fallbackReadyStories == 0 {
+                            if let synthesisErrorMessage = localSynthesisCoordinator
+                                .synthesisErrorByJourneyId[manifest.journeyId],
+                               !isCancellationOnlySynthesisError(synthesisErrorMessage) {
+                                throw LocalKokoroError.synthesisFailed(synthesisErrorMessage)
+                            }
+                            throw LocalKokoroError.synthesisFailed(
+                                "First stop audio is not ready yet."
+                            )
+                        }
+                    }
                     isPreparingAudio = false
                     preparationLabel = ""
                 }
@@ -244,10 +281,16 @@ struct JourneyActionButtons: View {
     }
 
     private func loadManifest(journeyId: String) async throws -> DownloadManifest {
+        if let prefetchedManifest = Self.prefetchedManifestByJourneyId[journeyId] {
+            return prefetchedManifest
+        }
         if let localManifest = try journeyManifestDownloader.loadManifestFromDisk(journeyId: journeyId) {
+            Self.prefetchedManifestByJourneyId[journeyId] = localManifest
             return localManifest
         }
-        return try await journeyManifestDownloader.fetchDownloadManifest(journeyId)
+        let remoteManifest = try await journeyManifestDownloader.fetchDownloadManifest(journeyId)
+        Self.prefetchedManifestByJourneyId[journeyId] = remoteManifest
+        return remoteManifest
     }
 
     private func saveManifestIfNeeded(manifest: DownloadManifest) throws {
@@ -275,5 +318,64 @@ struct JourneyActionButtons: View {
         #else
         return "https://\(releaseHost)"
         #endif
+    }
+
+    private func prefetchManifestOnCoverAppearIfNeeded() async {
+        guard !hasStartedCoverPrefetch else { return }
+        guard let journeyId = journey.journeyId else { return }
+        hasStartedCoverPrefetch = true
+
+        do {
+            let manifest = try await loadManifest(journeyId: journeyId)
+            if manifest.audioDeliveryMode == .localKokoro {
+                _ = try? await localSynthesisCoordinator.prepareJourneyForStart(
+                    manifest: manifest,
+                    blockUntilFirstStoryReady: false
+                )
+            }
+        } catch {
+            // Cover prefetch remains best-effort; Start path handles user-facing errors.
+        }
+    }
+
+    private func waitForNearRealtimeReadyStories(
+        manifest: DownloadManifest,
+        timeoutSeconds: TimeInterval = 20
+    ) async -> Int {
+        let orderedStories = manifest.stories.sorted {
+            ($0.chapterIdx ?? Int.max) < ($1.chapterIdx ?? Int.max)
+        }
+        guard let firstStory = orderedStories.first else { return 0 }
+
+        _ = await localSynthesisCoordinator.awaitStoryAudioPath(
+            journeyId: manifest.journeyId,
+            storyId: firstStory.storyId,
+            timeoutSeconds: timeoutSeconds
+        )
+
+        let targetReadyStoryCount = min(2, orderedStories.count)
+        let waitDeadline = Date().addingTimeInterval(8)
+        var readyStoryCount = preparedStoryCount(for: orderedStories)
+        while Date() < waitDeadline && readyStoryCount < targetReadyStoryCount {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            readyStoryCount = preparedStoryCount(for: orderedStories)
+        }
+        return readyStoryCount
+    }
+
+    private func preparedStoryCount(for stories: [DownloadManifestStory]) -> Int {
+        stories.reduce(into: 0) { preparedCount, story in
+            let localAudioPath = localSynthesisCoordinator.localAudioPath(forStoryId: story.storyId)
+                ?? JourneyManifestDownloader.resolveStoredLocalAudioPath(storyId: story.storyId)
+            guard let localAudioPath else { return }
+            if FileManager.default.fileExists(atPath: localAudioPath) {
+                preparedCount += 1
+            }
+        }
+    }
+
+    private func isCancellationOnlySynthesisError(_ message: String) -> Bool {
+        message.localizedCaseInsensitiveContains("cancellationerror")
+            || message.localizedCaseInsensitiveContains("cancelled")
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import core
+import localKokoro
 
 struct ActivePlayerView: View {
     let story: core.ActiveStory
@@ -10,6 +11,7 @@ struct ActivePlayerView: View {
     let currentStopIndex: Int
     let totalStops: Int
     let completedStopIndices: Set<Int>
+    let synthesisProgress: LocalSynthesisProgress?
     let onClose: () -> Void
 
     @State private var currentTime: TimeInterval = 0
@@ -140,8 +142,11 @@ struct ActivePlayerView: View {
     @ViewBuilder
     private func stopSegment(stopIndex: Int) -> some View {
         let segmentState = segmentState(for: stopIndex)
-        let activePlaybackWidth = min(max(progress, 0), 1)
-        let activeSynthesisWidth = min(max(progress + 0.35, 0), 1)
+        let normalizedPlaybackProgress = min(max(progress, 0), 1)
+        let activePlaybackWidth = segmentState == .active
+            ? max(normalizedPlaybackProgress, 0.04)
+            : normalizedPlaybackProgress
+        let activeSynthesisWidth = synthesisSegmentWidth(for: stopIndex)
 
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
@@ -150,10 +155,10 @@ struct ActivePlayerView: View {
 
                 if segmentState == .completed {
                     Capsule()
-                        .fill(Color("AccentColor").opacity(0.75))
+                        .fill(Color("AccentColor").opacity(0.85))
                 } else if segmentState == .active {
                     Capsule()
-                        .fill(Color("onBkgTextColor30").opacity(0.45))
+                        .fill(Color.orange.opacity(0.4))
                         .frame(width: geometry.size.width * activeSynthesisWidth)
 
                     Capsule()
@@ -161,8 +166,11 @@ struct ActivePlayerView: View {
                         .frame(width: geometry.size.width * activePlaybackWidth)
                 } else if segmentState == .synthesizing {
                     Capsule()
-                        .fill(Color("onBkgTextColor30").opacity(0.45))
-                        .frame(width: geometry.size.width * 0.38)
+                        .fill(Color.orange.opacity(0.75))
+                        .frame(width: geometry.size.width * activeSynthesisWidth)
+                } else if segmentState == .synthesized {
+                    Capsule()
+                        .fill(Color("AccentColor").opacity(0.45))
                 }
             }
         }
@@ -229,16 +237,36 @@ struct ActivePlayerView: View {
         if stopIndex == currentStopIndex {
             return .active
         }
-        if stopIndex == currentStopIndex + 1 {
+        guard let synthesisProgress else {
+            if stopIndex == currentStopIndex + 1 {
+                return .synthesizing
+            }
+            return .queued
+        }
+        if stopIndex < synthesisProgress.completedCount {
+            return .synthesized
+        }
+        if stopIndex == synthesisProgress.completedCount, synthesisProgress.completedCount < synthesisProgress.totalCount {
             return .synthesizing
         }
         return .queued
+    }
+
+    private func synthesisSegmentWidth(for stopIndex: Int) -> CGFloat {
+        guard let synthesisProgress, synthesisProgress.totalCount > 0 else {
+            return 0.38
+        }
+        let normalizedProgress = min(max(synthesisProgress.progress, 0), 1)
+        let equivalentStops = normalizedProgress * Double(max(totalStops, 1))
+        let segmentProgress = equivalentStops - Double(stopIndex)
+        return CGFloat(min(max(segmentProgress, 0), 1))
     }
 }
 
 private enum StopSegmentState: Equatable {
     case completed
     case active
+    case synthesized
     case synthesizing
     case queued
 }

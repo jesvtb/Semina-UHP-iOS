@@ -86,6 +86,7 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
         guard manifest.audioDeliveryMode == .localKokoro else {
             return manifest
         }
+        synthesisErrorByJourneyId[manifest.journeyId] = nil
 
         try LocalKokoroCacheKey.invalidateStaleArtifacts(
             journeyId: manifest.journeyId,
@@ -116,18 +117,29 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
         }
 
         let gateResult = LocalKokoroDeviceGate.evaluate()
-        guard gateResult.isSupported else {
-            emitAnalytics(
-                eventName: "journey:local_device_gate_failed",
-                properties: [
-                    "journey_id": .string(manifest.journeyId),
-                    "reason": .string(gateResult.failureReason?.rawValue ?? "unknown"),
-                    "event_version": .string("1.0"),
-                ]
-            )
-            throw LocalKokoroError.deviceNotSupported(
-                gateResult.failureReason?.rawValue ?? "unsupported"
-            )
+        if !gateResult.isSupported {
+            if shouldBypassDeviceGateFailure(gateResult.failureReason) {
+                emitAnalytics(
+                    eventName: "journey:local_device_gate_bypassed",
+                    properties: [
+                        "journey_id": .string(manifest.journeyId),
+                        "reason": .string(gateResult.failureReason?.rawValue ?? "unknown"),
+                        "event_version": .string("1.0"),
+                    ]
+                )
+            } else {
+                emitAnalytics(
+                    eventName: "journey:local_device_gate_failed",
+                    properties: [
+                        "journey_id": .string(manifest.journeyId),
+                        "reason": .string(gateResult.failureReason?.rawValue ?? "unknown"),
+                        "event_version": .string("1.0"),
+                    ]
+                )
+                throw LocalKokoroError.deviceNotSupported(
+                    gateResult.failureReason?.rawValue ?? "unsupported"
+                )
+            }
         }
 
         updateProgress(
@@ -164,6 +176,7 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
 
     public func prepareAllStories(manifest: DownloadManifest) async throws {
         guard manifest.audioDeliveryMode == .localKokoro else { return }
+        synthesisErrorByJourneyId[manifest.journeyId] = nil
 
         let orderedStories = manifest.stories.sorted {
             ($0.chapterIdx ?? Int.max) < ($1.chapterIdx ?? Int.max)
@@ -219,6 +232,12 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
         backgroundTasks[journeyId] = nil
     }
 
+    private func shouldBypassDeviceGateFailure(
+        _ failureReason: LocalKokoroDeviceGateFailureReason?
+    ) -> Bool {
+        failureReason == .lowMemory
+    }
+
     private func startBackgroundSynthesisIfNeeded(
         manifest: DownloadManifest,
         orderedStories: [DownloadManifestStory],
@@ -252,6 +271,9 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
                     )
                     completedCount += 1
                 } catch {
+                    if error is CancellationError || Task.isCancelled {
+                        return
+                    }
                     await MainActor.run {
                         synthesisErrorByJourneyId[manifest.journeyId] = error.localizedDescription
                     }
@@ -301,6 +323,9 @@ public final class LocalJourneySynthesisCoordinator: ObservableObject {
                 storyId: story.storyId
             )
         } catch {
+            if error is CancellationError {
+                throw error
+            }
             emitAnalytics(
                 eventName: "journey:local_synthesis_failed",
                 properties: [

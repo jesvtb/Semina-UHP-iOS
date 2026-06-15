@@ -3,6 +3,9 @@ import Foundation
 import KokoroSwift
 import MLX
 import MLXUtilsLibrary
+#if canImport(UIKit)
+import UIKit
+#endif
 
 public actor LocalKokoroTTSService {
     public static let shared = LocalKokoroTTSService()
@@ -33,6 +36,9 @@ public actor LocalKokoroTTSService {
         let normalizedScript = script.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalizedScript.isEmpty {
             throw LocalKokoroError.scriptEmpty
+        }
+        guard await isGPUWorkAllowedForSynthesis() else {
+            throw CancellationError()
         }
 
         MLXRuntimeBootstrap.configureIfNeeded()
@@ -75,6 +81,9 @@ public actor LocalKokoroTTSService {
         var mergedAudio: [Float] = []
         for chunk in chunks {
             try Task.checkCancellation()
+            guard await isGPUWorkAllowedForSynthesis() else {
+                throw CancellationError()
+            }
             let chunkAudio = try autoreleasepool(invoking: {
                 try KokoroOverflowFallback.synthesizeTextSegment(
                     text: chunk.text,
@@ -145,5 +154,15 @@ public actor LocalKokoroTTSService {
         let duration = try await asset.load(.duration)
         let seconds = CMTimeGetSeconds(duration)
         return seconds.isFinite ? seconds : 0
+    }
+
+    private func isGPUWorkAllowedForSynthesis() async -> Bool {
+        #if canImport(UIKit)
+        return await MainActor.run {
+            UIApplication.shared.applicationState == .active
+        }
+        #else
+        return true
+        #endif
     }
 }

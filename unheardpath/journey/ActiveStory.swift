@@ -1,5 +1,6 @@
 import SwiftUI
 import core
+import localKokoro
 
 struct ActiveStoryView: View {
     let story: core.ActiveStory
@@ -8,6 +9,7 @@ struct ActiveStoryView: View {
     let currentStopIndex: Int
     let totalStops: Int
     let completedStopIndices: Set<Int>
+    let synthesisProgress: LocalSynthesisProgress?
     let onClose: () -> Void
 
     var body: some View {
@@ -20,6 +22,7 @@ struct ActiveStoryView: View {
             currentStopIndex: currentStopIndex,
             totalStops: totalStops,
             completedStopIndices: completedStopIndices,
+            synthesisProgress: synthesisProgress,
             onClose: onClose
         )
     }
