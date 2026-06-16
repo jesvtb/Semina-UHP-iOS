@@ -90,5 +90,3 @@ struct ActiveJourneyView: View {
         }
     }
 }
-
-

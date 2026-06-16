@@ -16,3 +16,6 @@ IS_POSTHOG_TRACKING_ENABLED = YES
 // Use production gateway
 USE_PROD_URL = YES
 
+// Push notifications production for App Store / TestFlight builds
+APS_ENVIRONMENT = production
+

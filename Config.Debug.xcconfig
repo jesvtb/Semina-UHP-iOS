@@ -16,6 +16,9 @@ IS_POSTHOG_TRACKING_ENABLED = NO
 // Use local dev gateway (not production)
 USE_PROD_URL = NO
 
+// Push notifications sandbox for debug builds
+APS_ENVIRONMENT = development
+
 // SwiftUI preview workaround:
 // avoid signing simulator-only package resource bundles that currently fail
 // with "bundle format unrecognized" in KokoroSwift/MisakiSwift.
